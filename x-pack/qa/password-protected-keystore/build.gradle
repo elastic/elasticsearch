@@ -6,5 +6,5 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

@@ -1,27 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.PatternBank;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -42,11 +42,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction {
 
-    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
+    static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
     private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;
@@ -59,9 +59,7 @@ public class GrokProcessorGetAction {
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? in.readString()
-                : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
+            this.ecsCompatibility = in.readString();
         }
 
         @Override
@@ -73,9 +71,7 @@ public class GrokProcessorGetAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeString(ecsCompatibility);
-            }
+            out.writeString(ecsCompatibility);
         }
 
         public boolean sorted() {
@@ -95,7 +91,6 @@ public class GrokProcessorGetAction {
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             grokPatterns = in.readMap(StreamInput::readString);
         }
 

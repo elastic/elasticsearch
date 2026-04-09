@@ -1,6 +1,0 @@
-pr: 108122
-summary: Correct query profiling for conjunctions
-area: Search
-type: bug
-issues:
- - 108116

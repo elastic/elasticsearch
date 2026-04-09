@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -104,7 +104,7 @@ public class SamplerIT extends ESIntegTestCase {
                 assertThat(genreBuckets.size(), greaterThan(1));
                 double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
                 for (Terms.Bucket genreBucket : genres.getBuckets()) {
-                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    SingleBucketAggregation sample = genreBucket.getAggregations().get("sample");
                     Max maxPriceInGenre = sample.getAggregations().get("max_price");
                     double price = maxPriceInGenre.value();
                     if (asc) {
@@ -128,7 +128,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 Terms authors = sample.getAggregations().get("authors");
                 List<? extends Bucket> testBuckets = authors.getBuckets();
 
@@ -151,7 +151,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), equalTo(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertThat(authors.getBuckets().size(), equalTo(0));
@@ -170,7 +170,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setExplain(true)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), greaterThan(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertThat(authors.getBuckets().size(), greaterThan(0));

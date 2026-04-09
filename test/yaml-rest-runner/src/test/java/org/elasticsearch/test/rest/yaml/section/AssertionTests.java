@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -167,7 +168,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testInvalidCloseTo() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ field: 42 }");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
+        Throwable exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
 
         parser = createParser(YamlXContent.yamlXContent, "{ field: {  } }");
@@ -180,7 +181,12 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
-        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+        assertThat(exception.getMessage(), equalTo("value is missing"));
+
+        parser = createParser(YamlXContent.yamlXContent, "{ field: { value: \"foo\", error: 0.001 } }");
+        CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
+        exception = expectThrows(AssertionError.class, () -> closeToAssertion.doAssert(42, closeToAssertion.getExpectedValue()));
+        assertThat(exception.getMessage(), equalTo("Expected value should be a number, but was [foo], which is not a number"));
     }
 
     public void testExists() throws IOException {

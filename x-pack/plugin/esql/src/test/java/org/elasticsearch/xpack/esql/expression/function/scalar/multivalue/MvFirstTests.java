@@ -37,25 +37,19 @@ public class MvFirstTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_first", "MvFirst", DataType.LONG, (size, values) -> equalTo(values.findFirst().getAsLong()));
         unsignedLongs(cases, "mv_first", "MvFirst", DataType.UNSIGNED_LONG, (size, values) -> equalTo(values.findFirst().get()));
         dateTimes(cases, "mv_first", "MvFirst", DataType.DATETIME, (size, values) -> equalTo(values.findFirst().getAsLong()));
+        dateNanos(cases, "mv_first", "MvFirst", DataType.DATE_NANOS, (size, values) -> equalTo(values.findFirst().getAsLong()));
         geoPoints(cases, "mv_first", "MvFirst", DataType.GEO_POINT, (size, values) -> equalTo(values.findFirst().get()));
         cartesianPoints(cases, "mv_first", "MvFirst", DataType.CARTESIAN_POINT, (size, values) -> equalTo(values.findFirst().get()));
         geoShape(cases, "mv_first", "MvFirst", DataType.GEO_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
         cartesianShape(cases, "mv_first", "MvFirst", DataType.CARTESIAN_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
+        geohashGrid(cases, "mv_first", "MvFirst", DataType.GEOHASH, (size, values) -> equalTo(values.findFirst().get()));
+        geotileGrid(cases, "mv_first", "MvFirst", DataType.GEOTILE, (size, values) -> equalTo(values.findFirst().get()));
+        geohexGrid(cases, "mv_first", "MvFirst", DataType.GEOHEX, (size, values) -> equalTo(values.findFirst().get()));
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvFirst(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
     }
 }

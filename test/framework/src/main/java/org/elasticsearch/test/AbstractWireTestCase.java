@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -46,6 +47,16 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     /**
      * Returns an instance which is mutated slightly so it should not be equal
      * to the given instance.
+     * <p>
+     * More specifically, this method should change individual fields within the
+     * object to verify that its {@code equals()} implementation actually checks
+     * every field for equality. Using default code such as
+     * {@code randomValueOtherThan(instance, this::createTestInstance);} does <i>not</i>
+     * achieve this goal, since {@code randomValueOtherThan} only ever returns values
+     * which aren't {@code equals()} to the original anyway.
+     * <p>
+     * Additionally, since Java automatically implements {@code equals()} for records,
+     * for these classes, {@link #mutateInstance} can return null
      */
     protected abstract T mutateInstance(T instance) throws IOException;
 
@@ -199,8 +210,8 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
                     for (int r = 0; r < rounds; r++) {
                         assertSerialization(testInstance);
                     }
-                } catch (IOException e) {
-                    throw new AssertionError("error serializing", e);
+                } catch (IOException | AssertionError e) {
+                    throw new AssertionError("error serializing [" + testInstance + "]", e);
                 }
             });
         } finally {

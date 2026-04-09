@@ -6,28 +6,35 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToInteger}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link ToInteger}.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIntegerFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToIntegerFromBooleanEvaluator.class);
+
+  private final ExpressionEvaluator bool;
+
+  public ToIntegerFromBooleanEvaluator(Source source, ExpressionEvaluator bool,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.bool = bool;
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromBoolean";
+  public ExpressionEvaluator next() {
+    return bool;
   }
 
   @Override
@@ -45,7 +52,7 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static int evalValue(BooleanVector container, int index) {
+  private int evalValue(BooleanVector container, int index) {
     boolean value = container.getBoolean(index);
     return ToInteger.fromBoolean(value);
   }
@@ -80,29 +87,46 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static int evalValue(BooleanBlock container, int index) {
+  private int evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToInteger.fromBoolean(value);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToIntegerFromBooleanEvaluator[" + "bool=" + bool + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(bool);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += bool.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory bool;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, ExpressionEvaluator.Factory bool) {
       this.source = source;
+      this.bool = bool;
     }
 
     @Override
     public ToIntegerFromBooleanEvaluator get(DriverContext context) {
-      return new ToIntegerFromBooleanEvaluator(field.get(context), source, context);
+      return new ToIntegerFromBooleanEvaluator(source, bool.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIntegerFromBooleanEvaluator[field=" + field + "]";
+      return "ToIntegerFromBooleanEvaluator[" + "bool=" + bool + "]";
     }
   }
 }

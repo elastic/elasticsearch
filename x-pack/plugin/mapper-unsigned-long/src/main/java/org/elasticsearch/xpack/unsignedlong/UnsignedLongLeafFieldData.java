@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -26,24 +26,24 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.sorta
 
 public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     private final LeafNumericFieldData signedLongFD;
-    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
-    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
         this.signedLongFD = signedLongFD;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
-    public SortedNumericDocValues getLongValues() {
+    public SortedNumericLongValues getLongValues() {
         return signedLongFD.getLongValues();
     }
 
     @Override
     public SortedNumericDoubleValues getDoubleValues() {
-        final SortedNumericDocValues values = signedLongFD.getLongValues();
-        final NumericDocValues singleValues = DocValues.unwrapSingleton(values);
+        final SortedNumericLongValues values = signedLongFD.getLongValues();
+        final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
         if (singleValues != null) {
-            return FieldData.singleton(new NumericDoubleValues() {
+            return FieldData.singleton(new DoubleValues() {
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
                     return singleValues.advanceExact(doc);
@@ -91,29 +91,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public void close() {
-        signedLongFD.close();
-    }
-
-    @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-        SortedNumericDocValues values = getLongValues();
-        return new FormattedDocValues() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return values.advanceExact(docId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return values.docValueCount();
-            }
-
-            @Override
-            public Object nextValue() throws IOException {
-                return format.format(values.nextValue());
-            }
-        };
+        return new FormattedSortedNumericDocValues(getLongValues(), format);
     }
 
     static double convertUnsignedLongToDouble(long value) {

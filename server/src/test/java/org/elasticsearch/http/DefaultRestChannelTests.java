@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +107,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testResponse() {
         final TestHttpResponse response = executeRequest(Settings.EMPTY, "request-host");
-        assertThat(response.content(), equalTo(testRestResponse().content()));
+        assertThat(response.content(), equalBytes(testRestResponse().content()));
     }
 
     public void testCorsEnabledWithoutAllowOrigins() {
@@ -706,7 +707,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 if (content.isLastPart()) {
                     return;
                 }
-                writeContent(bso, PlainActionFuture.get(content::getNextPart));
+                writeContent(bso, safeAwait(content::getNextPart));
             }
         };
 
@@ -724,15 +725,15 @@ public class DefaultRestChannelTests extends ESTestCase {
         );
 
         var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, responseBody))
-            )
+            ),
+            equalBytes(responseBody)
         );
 
         final var parts = new ArrayList<ChunkedRestResponseBodyPart>();
@@ -787,8 +788,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final var isClosed = new AtomicBoolean();
         final var firstPart = new TestBodyPart(responseBody, between(0, 3));
         parts.add(firstPart);
-        assertEquals(
-            responseBody,
+        assertThat(
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
@@ -801,7 +801,8 @@ public class DefaultRestChannelTests extends ESTestCase {
                         assertEquals("isLastPart " + i, i == parts.size() - 1, parts.get(i).isLastPart());
                     }
                 }))
-            )
+            ),
+            equalBytes(responseBody)
         );
 
         assertTrue(isClosed.get());

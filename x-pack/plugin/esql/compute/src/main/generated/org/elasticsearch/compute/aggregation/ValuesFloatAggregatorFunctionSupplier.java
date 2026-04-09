@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link ValuesFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public ValuesFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return ValuesFloatAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesFloatAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public ValuesFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return ValuesFloatGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public ValuesFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesFloatAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public ValuesFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

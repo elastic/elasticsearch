@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
@@ -20,8 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
@@ -49,6 +51,8 @@ import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
  */
 public class MockTransport extends StubbableTransport {
 
+    private static final Logger logger = LogManager.getLogger(MockTransport.class);
+
     private TransportMessageListener listener;
     private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
@@ -73,8 +77,7 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             connectionManager,
-            new TaskManager(settings, threadPool, taskHeaders),
-            Tracer.NOOP
+            new TaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -92,7 +95,9 @@ public class MockTransport extends StubbableTransport {
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
         final TransportResponseHandler<Response> transportResponseHandler = getTransportResponseHandler(requestId);
-        if (transportResponseHandler != null) {
+        if (transportResponseHandler == null) {
+            logger.trace("response handler for request [{}] not found", requestId);
+        } else {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);

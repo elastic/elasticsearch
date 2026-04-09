@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -32,15 +33,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * In case different pass-through objects contain subfields with the same name (excluding the pass-through prefix), their aliases conflict.
  * To resolve this, the pass-through spec specifies which object takes precedence through required parameter "priority"; non-negative
  * integer values are accepted, with the highest priority value winning in case of conflicting aliases.
- *
- * Note that this is an experimental, undocumented mapper type, currently intended for prototyping purposes only.
- * It has not been vetted for use in production systems.
  */
-public class PassThroughObjectMapper extends ObjectMapper {
+public final class PassThroughObjectMapper extends ObjectMapper implements PassThroughFieldSource {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
-
-    static final NodeFeature PASS_THROUGH_PRIORITY = new NodeFeature("mapper.pass_through_priority");
 
     public static class Builder extends ObjectMapper.Builder {
 
@@ -52,7 +48,19 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public Builder(String name) {
             // Subobjects are not currently supported.
-            super(name, Explicit.IMPLICIT_FALSE);
+            super(name, Explicit.implicit(Subobjects.DISABLED));
+        }
+
+        /**
+         * Creates a PassThroughObjectMapper.Builder by converting an existing ObjectMapper.Builder,
+         * preserving its settings and children.
+         */
+        Builder(ObjectMapper.Builder objectBuilder) {
+            this(objectBuilder.leafName());
+            this.enabled = objectBuilder.enabled;
+            this.dynamic = objectBuilder.dynamic;
+            this.sourceKeepMode = objectBuilder.sourceKeepMode;
+            this.mappersBuilders.addAll(objectBuilder.mappersBuilders);
         }
 
         @Override
@@ -75,11 +83,34 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
 
         @Override
+        void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (mergeWith instanceof PassThroughObjectMapper.Builder ptMergeWith) {
+                if (ptMergeWith.timeSeriesDimensionSubFields.explicit()) {
+                    this.timeSeriesDimensionSubFields = ptMergeWith.timeSeriesDimensionSubFields;
+                }
+                this.priority = Math.max(this.priority, ptMergeWith.priority);
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            } else if (mergeWith instanceof NestedObjectMapper.Builder) {
+                MapperErrors.throwNestedMappingConflictError(fullPath);
+            } else {
+                // Plain ObjectMapper merging into PassThrough - check eligibility
+                if (mergeWith instanceof RootObjectMapper.Builder
+                    || (mergeWith.subobjects != null
+                        && mergeWith.subobjects.explicit()
+                        && mergeWith.subobjects.value() != Subobjects.DISABLED)) {
+                    MapperErrors.throwPassThroughMappingConflictError(fullPath);
+                }
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            }
+        }
+
+        @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
                 leafName(),
                 context.buildFullName(leafName()),
                 enabled,
+                sourceKeepMode,
                 dynamic,
                 buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields,
@@ -97,13 +128,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Explicit<Boolean> timeSeriesDimensionSubFields,
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Explicit.implicit(Subobjects.DISABLED), sourceKeepMode, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {
@@ -113,7 +145,16 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     PassThroughObjectMapper withoutMappers() {
-        return new PassThroughObjectMapper(leafName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields, priority);
+        return new PassThroughObjectMapper(
+            leafName(),
+            fullPath(),
+            enabled,
+            sourceKeepMode,
+            dynamic,
+            Map.of(),
+            timeSeriesDimensionSubFields,
+            priority
+        );
     }
 
     @Override
@@ -125,8 +166,18 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return timeSeriesDimensionSubFields.value();
     }
 
+    @Override
     public int priority() {
         return priority;
+    }
+
+    @Override
+    public Collection<FieldMapper> passThroughSubFields() {
+        return mappers.values().stream().filter(m -> m instanceof FieldMapper).map(m -> (FieldMapper) m).toList();
+    }
+
+    public Explicit<Boolean> timeSeriesDimensionSubFields() {
+        return timeSeriesDimensionSubFields;
     }
 
     @Override
@@ -134,33 +185,22 @@ public class PassThroughObjectMapper extends ObjectMapper {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         builder.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         builder.priority = priority;
         return builder;
     }
 
-    @Override
-    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
-        if (mergeWith instanceof PassThroughObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
-        }
-
-        PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
-        final var mergeResult = MergeResult.build(this, mergeWithObject, parentBuilderContext);
-
-        final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())
-            ? mergeWithObject.timeSeriesDimensionSubFields
-            : this.timeSeriesDimensionSubFields;
-
-        return new PassThroughObjectMapper(
-            leafName(),
-            fullPath(),
-            mergeResult.enabled(),
-            mergeResult.dynamic(),
-            mergeResult.mappers(),
-            containsDimensions,
-            Math.max(priority, mergeWithObject.priority)
-        );
+    /**
+     * An object mapper is compatible to be merged with a passthrough mapper if
+     * - It is not a root mapper
+     * - If it does not have subobjects true
+     */
+    static boolean isEligibleForMerge(ObjectMapper objectMapper) {
+        return objectMapper.isRoot() == false
+            && (objectMapper.subobjects == null
+                || objectMapper.subobjects.explicit() == false
+                || objectMapper.subobjects.value().equals(Subobjects.DISABLED));
     }
 
     @Override
@@ -210,20 +250,20 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     /**
-     * Checks the passed objects for duplicate or negative priorities.
-     * @param passThroughMappers objects to check
+     * Checks the passed sources for duplicate priorities.
+     * @param passThroughSources sources to check
      */
-    public static void checkForDuplicatePriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
+    public static void checkForDuplicatePriorities(Collection<? extends PassThroughFieldSource> passThroughSources) {
         Map<Integer, String> seen = new HashMap<>();
-        for (PassThroughObjectMapper mapper : passThroughMappers) {
-            String conflict = seen.put(mapper.priority, mapper.fullPath());
+        for (PassThroughFieldSource source : passThroughSources) {
+            String conflict = seen.put(source.priority(), source.fullPath());
             if (conflict != null) {
                 throw new MapperException(
-                    "Pass-through object ["
-                        + mapper.fullPath()
+                    "Pass-through source ["
+                        + source.fullPath()
                         + "] has a conflicting param [priority="
-                        + mapper.priority
-                        + "] with object ["
+                        + source.priority()
+                        + "] with source ["
                         + conflict
                         + "]"
                 );

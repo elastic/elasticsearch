@@ -7,34 +7,39 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link Cast}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CastIntToUnsignedLongEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class CastIntToUnsignedLongEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CastIntToUnsignedLongEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator v;
+  private final Source source;
+
+  private final ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
-  public CastIntToUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+  private Warnings warnings;
+
+  public CastIntToUnsignedLongEvaluator(Source source, ExpressionEvaluator v,
       DriverContext driverContext) {
+    this.source = source;
     this.v = v;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -48,21 +53,29 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, IntBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(Cast.castIntToUnsignedLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendLong(Cast.castIntToUnsignedLong(v));
       }
       return result.build();
     }
@@ -71,7 +84,8 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   public LongVector eval(int positionCount, IntVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Cast.castIntToUnsignedLong(vVector.getInt(p)));
+        int v = vVector.getInt(p);
+        result.appendLong(p, Cast.castIntToUnsignedLong(v));
       }
       return result.build();
     }
@@ -87,12 +101,19 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
     Releasables.closeExpectNoException(v);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory v;
+    private final ExpressionEvaluator.Factory v;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+    public Factory(Source source, ExpressionEvaluator.Factory v) {
       this.source = source;
       this.v = v;
     }

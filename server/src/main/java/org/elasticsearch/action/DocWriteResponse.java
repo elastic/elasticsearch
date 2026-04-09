@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -114,10 +114,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
         this.shardId = shardId;
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -133,10 +129,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -198,6 +190,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
+     * Returns an equivalent response with the sequence number and primary term set to
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} and {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}.
+     * Used to strip internal sequence numbers from user-facing responses when
+     * {@code index.disable_sequence_numbers} is enabled.
+     */
+    public abstract DocWriteResponse withoutSequenceNumber();
+
+    protected void copyMutableFieldsTo(DocWriteResponse target) {
+        target.setShardInfo(getShardInfo());
+        target.setForcedRefresh(forcedRefresh());
+    }
+
+    /**
      * Did this request force a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
      * {@link RefreshPolicy#IMMEDIATE} will always return true for this. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will
      * only return true here if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
@@ -248,6 +253,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        return IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+    }
+
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeWithoutShardId(out);
@@ -261,9 +270,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     private void writeWithoutShardId(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
@@ -288,13 +294,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field(FORCED_REFRESH, true);
         }
         builder.field(_SHARDS, shardInfo);
-        if (getSeqNo() >= 0) {
-            builder.field(_SEQ_NO, getSeqNo());
-            builder.field(_PRIMARY_TERM, getPrimaryTerm());
-        }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
+        builder.field(_SEQ_NO, getSeqNo());
+        builder.field(_PRIMARY_TERM, getPrimaryTerm());
         return builder;
     }
 

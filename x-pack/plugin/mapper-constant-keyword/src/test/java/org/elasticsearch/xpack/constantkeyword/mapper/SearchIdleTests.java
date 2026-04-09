@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SearchIdleTests extends ESSingleNodeTestCase {
@@ -97,7 +96,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -110,7 +108,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
@@ -133,8 +130,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // WHEN
         assertResponse(search("test*", "constant_keyword", randomAlphaOfLength(5), 5), searchResponse -> {
             assertEquals(RestStatus.OK, searchResponse.status());
-            // NOTE: we need an empty result from at least one shard
-            assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
+            assertEquals(idleIndexShardsCount + activeIndexShardsCount, searchResponse.getSkippedShards());
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(0, searchResponse.getHits().getHits().length);
         });
@@ -144,12 +140,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
 
-        // If no shards match the can match phase then at least one shard gets queries for an empty response.
-        // However, this affects the search idle stats.
         List<ShardStats> active = Arrays.stream(afterStatsResponse.getShards()).filter(s -> s.isSearchIdle() == false).toList();
-        assertThat(active, hasSize(1));
-        assertThat(active.get(0).getShardRouting().getIndexName(), equalTo("test1"));
-        assertThat(active.get(0).getShardRouting().id(), equalTo(0));
+        assertThat(active, hasSize(0));
     }
 
     public void testSearchIdleConstantKeywordMatchOneIndex() throws InterruptedException {
@@ -167,7 +159,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -180,7 +171,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
@@ -234,7 +224,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
@@ -247,7 +236,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
@@ -298,7 +286,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test1_value"
         );
@@ -309,7 +296,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test2_value"
         );

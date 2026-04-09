@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -28,8 +27,8 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,7 +36,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -81,22 +82,8 @@ import static org.mockito.Mockito.mock;
 
 public class TransformIndexerTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-        // Simulate completely null aggs
-        null,
-        new Suggest(Collections.emptyList()),
-        false,
-        false,
-        new SearchProfileResults(Collections.emptyMap()),
-        1,
-        "",
-        1,
-        1,
-        0,
-        0,
-        ShardSearchFailure.EMPTY_ARRAY,
-        SearchResponse.Clusters.EMPTY
+    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
+        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
     );
 
     private Client client;
@@ -119,6 +106,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         private BlockingDeque<Exception> searchExceptions = new LinkedBlockingDeque<>();
         private BlockingDeque<Runnable> runBeforeOnFinish = new LinkedBlockingDeque<>();
+        private final AtomicReference<SearchRequest> capturedInitialProgressRequest = new AtomicReference<>();
 
         // how many loops to execute until reporting done
         private int numberOfLoops;
@@ -169,7 +157,12 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            capturedInitialProgressRequest.set(request);
             responseListener.onResponse(ONE_HIT_SEARCH_RESPONSE);
+        }
+
+        public SearchRequest getCapturedInitialProgressRequest() {
+            return capturedInitialProgressRequest.get();
         }
 
         @Override
@@ -417,6 +410,63 @@ public class TransformIndexerTests extends ESTestCase {
             assertEquals(0L, indexer.getStats().getNumDeletedDocuments());
             assertEquals(0L, indexer.getStats().getDeleteTime());
         }
+    }
+
+    public void testInitialProgressSearchIncludesRuntimeMappings() throws Exception {
+        // Arrange: create a config with runtime_mappings
+        Map<String, Object> runtimeMappings = Map.of(
+            "total_price_with_tax",
+            Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
+        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            runtimeMappings,
+            null
+        );
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            sourceWithRuntimeMappings,
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        final MockedTransformIndexer indexer = createMockIndexer(
+            1,
+            config,
+            state,
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // Act: start the indexer, which triggers initial progress search
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.SECONDS);
+
+        // Assert: the initial progress search request should include runtime_mappings
+        SearchRequest capturedRequest = indexer.getCapturedInitialProgressRequest();
+        assertNotNull("Expected an initial progress search request to have been captured", capturedRequest);
+        assertEquals(
+            "Initial progress search should include runtime_mappings from the source config",
+            runtimeMappings,
+            capturedRequest.source().runtimeMappings()
+        );
     }
 
     /**
@@ -687,7 +737,9 @@ public class TransformIndexerTests extends ESTestCase {
             mock(TransformCheckpointService.class),
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

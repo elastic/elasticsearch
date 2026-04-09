@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -53,7 +56,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
-                Thread t = new Thread(() -> listener.onResponse(TransportResponse.Empty.INSTANCE)); // response is unused
+                Thread t = new Thread(() -> listener.onResponse(ActionResponse.Empty.INSTANCE)); // response is unused
                 t.start();
             }
 
@@ -96,7 +99,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         AtomicInteger numFreed = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array);
+        String scrollId = buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
@@ -120,7 +123,7 @@ public class ClearScrollControllerTests extends ESTestCase {
                 if (freed) {
                     numFreed.incrementAndGet();
                 }
-                Thread t = new Thread(() -> listener.onResponse(new SearchFreeContextResponse(freed)));
+                Thread t = new Thread(() -> listener.onResponse(SearchFreeContextResponse.of(freed)));
                 t.start();
             }
 
@@ -165,7 +168,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         AtomicInteger numFreed = new AtomicInteger(0);
         AtomicInteger numFailures = new AtomicInteger(0);
         AtomicInteger numConnectionFailures = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array);
+        String scrollId = buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -200,7 +203,7 @@ public class ClearScrollControllerTests extends ESTestCase {
                         if (freed) {
                             numFreed.incrementAndGet();
                         }
-                        listener.onResponse(new SearchFreeContextResponse(freed));
+                        listener.onResponse(SearchFreeContextResponse.of(freed));
                     }
                 });
                 t.start();
@@ -222,5 +225,11 @@ public class ClearScrollControllerTests extends ESTestCase {
         controller.run();
         latch.await();
         assertEquals(3 - numConnectionFailures.get(), nodesInvoked.size());
+    }
+
+    private static String buildScrollId(AtomicArray<SearchPhaseResult> array) {
+        try (var recycler = new MockBytesRefRecycler()) {
+            return TransportSearchHelper.buildScrollId(array, recycler, true);
+        }
     }
 }

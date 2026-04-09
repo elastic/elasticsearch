@@ -21,8 +21,8 @@
 package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
+import org.apache.lucene.codecs.Impact;
 import org.apache.lucene.codecs.MultiLevelSkipListWriter;
-import org.apache.lucene.index.Impact;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -51,8 +51,8 @@ import java.util.Collection;
  * uptos(position, payload). 4. start offset.
  */
 final class ES812SkipWriter extends MultiLevelSkipListWriter {
-    private int[] lastSkipDoc;
-    private long[] lastSkipDocPointer;
+    private final int[] lastSkipDoc;
+    private final long[] lastSkipDocPointer;
     private long[] lastSkipPosPointer;
     private long[] lastSkipPayPointer;
 
@@ -66,7 +66,7 @@ final class ES812SkipWriter extends MultiLevelSkipListWriter {
     private long curPayPointer;
     private int curPosBufferUpto;
     private int curPayloadByteUpto;
-    private CompetitiveImpactAccumulator[] curCompetitiveFreqNorms;
+    private final CompetitiveImpactAccumulator[] curCompetitiveFreqNorms;
     private boolean fieldHasPositions;
     private boolean fieldHasOffsets;
     private boolean fieldHasPayloads;
@@ -197,7 +197,7 @@ final class ES812SkipWriter extends MultiLevelSkipListWriter {
         }
 
         CompetitiveImpactAccumulator competitiveFreqNorms = curCompetitiveFreqNorms[level];
-        assert competitiveFreqNorms.getCompetitiveFreqNormPairs().size() > 0;
+        assert competitiveFreqNorms.getCompetitiveFreqNormPairs().isEmpty() == false;
         if (level + 1 < numberOfSkipLevels) {
             curCompetitiveFreqNorms[level + 1].addAll(competitiveFreqNorms);
         }

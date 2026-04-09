@@ -15,9 +15,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -69,7 +71,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         IndexNameExpressionResolver expressionResolver,
         Client client,
         XPackLicenseState licenseState,
-        boolean includeNodeInfo
+        AnomalyDetectionAuditor auditor
     ) {
         super(
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -80,7 +82,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             expressionResolver
         );
         this.autodetectProcessManager = autodetectProcessManager;
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
+        this.auditor = auditor;
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
         this.licenseState = licenseState;
@@ -88,10 +90,11 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SnapshotUpgradeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(

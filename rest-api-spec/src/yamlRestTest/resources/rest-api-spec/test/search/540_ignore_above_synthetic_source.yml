@@ -1,0 +1,167 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
+ignore_above mapping level setting:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                ignore_above: 10
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        refresh: true
+        id: "1"
+        body:   { "keyword": "foo bar", "flattened": { "value": "the quick brown fox" } }
+
+  - do:
+      search:
+        body:
+          fields:
+            - keyword
+            - flattened
+          query:
+            match_all: {}
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: "foo bar" }
+  - match: { hits.hits.0._source.flattened.value: "the quick brown fox" }
+  - match: { hits.hits.0.fields.keyword.0: "foo bar" }
+
+---
+ignore_above mapping level setting on arrays:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                ignore_above: 10
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        refresh: true
+        id: "1"
+        body:   { "keyword": ["foo bar", "the quick brown fox"], "flattened": { "value": ["the quick brown fox", "jumps over"] } }
+
+  - do:
+      search:
+        body:
+          fields:
+            - keyword
+            - flattened
+          query:
+            match_all: {}
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["foo bar", "the quick brown fox"] }
+  - match: { hits.hits.0._source.flattened.value: [ "jumps over", "the quick brown fox" ] }
+  - match: { hits.hits.0.fields.keyword.0: "foo bar" }
+  - match: { hits.hits.0.fields.flattened.0.value: "jumps over" }
+
+---
+ignore_above mapping overrides setting:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                ignore_above: 10
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                ignore_above: 100
+              flattened:
+                type: flattened
+                ignore_above: 100
+
+  - do:
+      index:
+        index:  test
+        refresh: true
+        id: "1"
+        body:   { "keyword": "foo bar baz foo bar baz", "flattened": { "value": "the quick brown fox" } }
+
+  - do:
+      search:
+        body:
+          fields:
+            - keyword
+            - flattened
+          query:
+            match_all: { }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: "foo bar baz foo bar baz" }
+  - match: { hits.hits.0._source.flattened.value: "the quick brown fox" }
+  - match: { hits.hits.0.fields.keyword.0: "foo bar baz foo bar baz" }
+  - match: { hits.hits.0.fields.flattened.0.value: "the quick brown fox" }
+
+---
+ignore_above mapping overrides setting on arrays:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                ignore_above: 10
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                ignore_above: 100
+              flattened:
+                type: flattened
+                ignore_above: 100
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        id: "1"
+        body: { "keyword": ["foo bar baz foo bar baz", "the quick brown fox jumps over"], "flattened": { "value": ["the quick brown fox", "jumps over the lazy dog"] } }
+
+  - do:
+      search:
+        body:
+          fields:
+            - keyword
+            - flattened
+          query:
+            match_all: { }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["foo bar baz foo bar baz", "the quick brown fox jumps over"] }
+  - match: { hits.hits.0._source.flattened.value: ["jumps over the lazy dog", "the quick brown fox"] }
+  - match: { hits.hits.0.fields.keyword: ["foo bar baz foo bar baz", "the quick brown fox jumps over"] }
+  - match: { hits.hits.0.fields.flattened.0.value: ["jumps over the lazy dog", "the quick brown fox"] }

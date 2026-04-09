@@ -6,19 +6,21 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedian}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link MvMedian}.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMedianDoubleEvaluator(EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvMedianDoubleEvaluator.class);
+
+  public MvMedianDoubleEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -32,6 +34,9 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
    */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNullable(fieldVal);
+    }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
@@ -60,6 +65,9 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
    */
   @Override
   public Block evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
@@ -79,10 +87,55 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     }
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        double result = MvMedian.ascending(v, first, valueCount);
+        builder.appendDouble(result);
+      }
+      return builder.build();
+    }
+  }
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNotNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        double result = MvMedian.ascending(v, first, valueCount);
+        builder.appendDouble(result);
+      }
+      return builder.build().asBlock();
+    }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
+
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

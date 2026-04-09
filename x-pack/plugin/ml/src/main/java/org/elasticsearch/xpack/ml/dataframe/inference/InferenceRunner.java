@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
@@ -169,7 +170,7 @@ public class InferenceRunner {
         );
         try {
             Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
-            long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+            long processedTestDocCount = searchResponse.getHits().getTotalHits().value();
             Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
             if (lastIncrementalId != null) {
                 LOGGER.debug(
@@ -210,8 +211,11 @@ public class InferenceRunner {
 
                 for (SearchHit doc : batch) {
                     dataCountsTracker.incrementTestDocsCount();
-                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
-                    bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
+                    SourceSupplier sourceSupplier = new SourceSupplier(doc);
+                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
+                    bulkIndexer.addAndExecuteIfNeeded(
+                        createIndexRequest(doc, sourceSupplier, inferenceResults, config.getDest().getResultsField())
+                    );
 
                     processedDocCount++;
                     int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
@@ -225,10 +229,10 @@ public class InferenceRunner {
         }
     }
 
-    private Map<String, Object> featuresFromDoc(SearchHit doc) {
+    private Map<String, Object> featuresFromDoc(SearchHit doc, SourceSupplier sourceSupplier) {
         Map<String, Object> features = new HashMap<>();
         for (ExtractedField extractedField : extractedFields.getAllFields()) {
-            Object[] values = extractedField.value(doc);
+            Object[] values = extractedField.value(doc, sourceSupplier);
             if (values.length == 1) {
                 features.put(extractedField.getName(), values[0]);
             }
@@ -236,11 +240,10 @@ public class InferenceRunner {
         return features;
     }
 
-    private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {
+    private IndexRequest createIndexRequest(SearchHit hit, SourceSupplier sourceSupplier, InferenceResults results, String resultField) {
         Map<String, Object> resultsMap = new LinkedHashMap<>(results.asMap());
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
-
-        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
+        Map<String, Object> source = new LinkedHashMap<>(sourceSupplier.get());
         source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
         indexRequest.id(hit.getId());

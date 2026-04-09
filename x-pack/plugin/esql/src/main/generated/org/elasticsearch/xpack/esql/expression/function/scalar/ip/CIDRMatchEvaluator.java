@@ -9,38 +9,43 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link CIDRMatch}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class CIDRMatchEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CIDRMatchEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator ip;
+  private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator[] cidrs;
+  private final ExpressionEvaluator ip;
+
+  private final ExpressionEvaluator[] cidrs;
 
   private final DriverContext driverContext;
 
-  public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
+  private Warnings warnings;
+
+  public CIDRMatchEvaluator(Source source, ExpressionEvaluator ip, ExpressionEvaluator[] cidrs,
+      DriverContext driverContext) {
+    this.source = source;
     this.ip = ip;
     this.cidrs = cidrs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,6 +72,16 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += ip.baseRamBytesUsed();
+    for (ExpressionEvaluator e : cidrs) {
+      baseRamBytesUsed += e.baseRamBytesUsed();
+    }
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
@@ -76,36 +91,37 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         cidrsScratch[i] = new BytesRef();
       }
       position: for (int p = 0; p < positionCount; p++) {
-        if (ipBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (ipBlock.getValueCount(p) != 1) {
-          if (ipBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (ipBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         for (int i = 0; i < cidrsBlocks.length; i++) {
-          if (cidrsBlocks[i].isNull(p)) {
-            result.appendNull();
-            continue position;
-          }
-          if (cidrsBlocks[i].getValueCount(p) != 1) {
-            if (cidrsBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-            }
-            result.appendNull();
-            continue position;
+          switch (cidrsBlocks[i].getValueCount(p)) {
+            case 0:
+                result.appendNull();
+                continue position;
+            case 1:
+                break;
+            default:
+                warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                result.appendNull();
+                continue position;
           }
         }
+        BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
         // unpack cidrsBlocks into cidrsValues
         for (int i = 0; i < cidrsBlocks.length; i++) {
           int o = cidrsBlocks[i].getFirstValueIndex(p);
           cidrsValues[i] = cidrsBlocks[i].getBytesRef(o, cidrsScratch[i]);
         }
-        result.appendBoolean(CIDRMatch.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), cidrsValues));
+        result.appendBoolean(CIDRMatch.process(ip, cidrsValues));
       }
       return result.build();
     }
@@ -121,11 +137,12 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         cidrsScratch[i] = new BytesRef();
       }
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef ip = ipVector.getBytesRef(p, ipScratch);
         // unpack cidrsVectors into cidrsValues
         for (int i = 0; i < cidrsVectors.length; i++) {
           cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
         }
-        result.appendBoolean(p, CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+        result.appendBoolean(p, CIDRMatch.process(ip, cidrsValues));
       }
       return result.build();
     }
@@ -141,15 +158,22 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory ip;
+    private final ExpressionEvaluator.Factory ip;
 
-    private final EvalOperator.ExpressionEvaluator.Factory[] cidrs;
+    private final ExpressionEvaluator.Factory[] cidrs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip,
-        EvalOperator.ExpressionEvaluator.Factory[] cidrs) {
+    public Factory(Source source, ExpressionEvaluator.Factory ip,
+        ExpressionEvaluator.Factory[] cidrs) {
       this.source = source;
       this.ip = ip;
       this.cidrs = cidrs;
@@ -157,7 +181,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public CIDRMatchEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
       return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context);
     }
 

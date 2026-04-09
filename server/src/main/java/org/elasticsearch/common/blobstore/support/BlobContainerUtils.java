@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.support;
@@ -21,7 +22,7 @@ public class BlobContainerUtils {
         // no instances
     }
 
-    public static final int MAX_REGISTER_CONTENT_LENGTH = 2 * Long.BYTES;
+    public static final int MAX_REGISTER_CONTENT_LENGTH = 4 * Long.BYTES;
 
     public static void ensureValidRegisterContent(BytesReference bytesReference) {
         if (bytesReference.length() > MAX_REGISTER_CONTENT_LENGTH) {
@@ -32,9 +33,9 @@ public class BlobContainerUtils {
     }
 
     /**
-     * Many blob stores have consistent (linearizable/atomic) read semantics and in these casees it is safe to implement {@link
-     * BlobContainer#getRegister} by simply reading the blob using this utility.
-     *
+     * Many blob stores have consistent read-after-write semantics and in these cases it is safe to implement
+     * {@link BlobContainer#getRegister} by simply reading the blob using this utility.
+     * <p>
      * NB it is not safe for the supplied stream to resume a partial downloads, because the resumed stream may see a different state from
      * the original.
      */

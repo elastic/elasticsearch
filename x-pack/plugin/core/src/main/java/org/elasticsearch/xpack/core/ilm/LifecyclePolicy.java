@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +32,8 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -110,11 +112,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         name = in.readString();
         phases = in.readImmutableMap(Phase::new);
         this.metadata = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            this.deprecated = null;
-        }
+        this.deprecated = in.readOptionalBoolean();
     }
 
     /**
@@ -156,9 +154,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeWriteable);
         out.writeGenericMap(this.metadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(deprecated);
-        }
+        out.writeOptionalBoolean(deprecated);
     }
 
     /**
@@ -220,16 +216,16 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      * This method is used to compile this policy into its execution plan built out
      * of {@link Step} instances. The order of the {@link Phase}s and {@link LifecycleAction}s is
      * determined by the {@link LifecycleType} associated with this policy.
-     *
+     * <p>
      * The order of the policy will have this structure:
-     *
+     * <p>
      * - initialize policy context step
      * - phase-1 phase-after-step
      * - ... phase-1 action steps
      * - phase-2 phase-after-step
      * - ...
      * - terminal policy step
-     *
+     * <p>
      * We first initialize the policy's context and ensure that the index has proper settings set.
      * Then we begin each phase's after-step along with all its actions as steps. Finally, we have
      * a terminal step to inform us that this policy's steps are all complete. Each phase's `after`
@@ -364,5 +360,14 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
+    public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
+        Phase coldPhase = phases.get(COLD_PHASE);
+        if (coldPhase != null) {
+            return coldPhase.maybeAddDeprecationWarningForFreezeAction(policyName);
+        }
+        return false;
     }
 }

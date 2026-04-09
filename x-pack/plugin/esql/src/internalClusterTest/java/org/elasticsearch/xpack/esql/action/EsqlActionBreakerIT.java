@@ -17,12 +17,17 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,11 +35,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute.operator.exchange:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class InternalTransportSettingPlugin extends Plugin {
@@ -49,6 +55,8 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
+        assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
+        plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }
 
@@ -78,6 +86,18 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
+    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
+        @Override
+        protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+            return new BlockFactoryProvider(new MockBlockFactory(builder));
+        }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+        }
+    }
+
     private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
         try {
@@ -85,6 +105,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         } catch (Exception e) {
             logger.info("request failed", e);
             ensureBlocksReleased();
+            EsqlTestUtils.assertEsqlFailure(e);
             throw e;
         } finally {
             setRequestCircuitBreakerLimit(null);
@@ -92,16 +113,31 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
+        Exception failure = null;
         try {
-            return runWithBreaking(request);
-        } catch (Exception e) {
-            try (EsqlQueryResponse resp = super.run(request)) {
-                assertThat(e, instanceOf(CircuitBreakingException.class));
-                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
-                resp.incRef();
+            final EsqlQueryResponse resp = runWithBreaking(request);
+            if (resp.isPartial() == false) {
                 return resp;
             }
+            try (resp) {
+                assertTrue(request.allowPartialResults());
+            }
+        } catch (Exception e) {
+            failure = e;
+        }
+        // Re-run if the previous query failed or returned partial results
+        // Only check the previous failure if the second query succeeded
+        try (EsqlQueryResponse resp = super.run(request)) {
+            if (failure != null) {
+                assertThat(failure, instanceOf(CircuitBreakingException.class));
+                assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            }
+            resp.incRef();
+            return resp;
         }
     }
 
@@ -128,9 +164,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-                var request = EsqlQueryRequest.syncEsqlQueryRequest();
-                request.query("from test_breaker | stats count_distinct(foo) by bar");
-                request.pragmas(randomPragmas());
+                var request = syncEsqlQueryRequest("from test_breaker | stats count_distinct(foo) by bar").pragmas(randomPragmas());
                 try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {
 
                 }

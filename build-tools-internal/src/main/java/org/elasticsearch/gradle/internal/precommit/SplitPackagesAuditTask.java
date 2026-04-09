@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -17,6 +19,10 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
@@ -130,6 +136,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
     }
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
+
+        @Inject
+        public abstract Problems getProblems();
+
         @Override
         public void execute() {
             final Parameters parameters = getParameters();
@@ -149,6 +159,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
             filterSplitPackages(splitPackages);
 
             // Finally, print out (and fail) if we have any split packages
+            ProblemReporter reporter = getProblems().getReporter();
             for (var entry : splitPackages.entrySet()) {
                 String packageName = entry.getKey();
                 List<File> deps = dependencyPackages.get(packageName);
@@ -158,7 +169,15 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 deps.forEach(f -> msg.add("    " + formatDependency(f)));
                 msg.add("  Classes:");
                 entry.getValue().forEach(c -> msg.add("    '" + c + "',"));
-                LOGGER.error(String.join(System.lineSeparator(), msg));
+                String fullMessage = String.join(System.lineSeparator(), msg);
+                LOGGER.error(fullMessage);
+                reporter.report(
+                    ProblemId.create("split-package", "Split package detected", ElasticsearchBuildProblems.SPLIT_PACKAGES),
+                    spec -> spec.contextualLabel("Split package '" + packageName + "' in project " + projectPath)
+                        .details(fullMessage)
+                        .severity(Severity.ERROR)
+                        .solution("Choose a new package name for the classes added. DO NOT add these to the ignore list.")
+                );
             }
             if (splitPackages.isEmpty() == false) {
                 throw new GradleException(

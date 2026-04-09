@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
@@ -21,11 +22,12 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
-import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
+import org.gradle.api.tasks.util.internal.PatternSetFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,14 +66,14 @@ public class CopyRestApiTask extends DefaultTask {
     @Inject
     public CopyRestApiTask(
         ProjectLayout projectLayout,
-        Factory<PatternSet> patternSetFactory,
+        PatternSetFactory patternSetFactory,
         FileSystemOperations fileSystemOperations,
         ObjectFactory objectFactory
     ) {
         this.include = objectFactory.listProperty(String.class);
         this.outputResourceDir = objectFactory.directoryProperty();
         this.additionalYamlTestsDir = objectFactory.directoryProperty();
-        this.patternSet = patternSetFactory.create();
+        this.patternSet = patternSetFactory.createPatternSet();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
     }
@@ -89,6 +91,7 @@ public class CopyRestApiTask extends DefaultTask {
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
         boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();

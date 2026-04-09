@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry;
@@ -11,9 +12,9 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,12 +85,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public TelemetryProvider getTelemetryProvider(Settings settings) {
-        return new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
-
+        return new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meter;

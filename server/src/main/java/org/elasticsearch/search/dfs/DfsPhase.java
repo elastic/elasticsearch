@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.dfs;
@@ -30,10 +31,12 @@ import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.ProfilingQuery;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -52,7 +55,9 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
  */
 public class DfsPhase {
 
-    public void execute(SearchContext context) {
+    private DfsPhase() {}
+
+    public static void execute(SearchContext context) {
         try {
             collectStatistics(context);
             executeKnnVectorQuery(context);
@@ -60,12 +65,14 @@ public class DfsPhase {
             if (context.getProfilers() != null) {
                 context.dfsResult().profileResult(context.getProfilers().getDfsProfiler().buildDfsPhaseResults());
             }
+        } catch (SearchTimeoutException e) {
+            throw e;
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 
-    private void collectStatistics(SearchContext context) throws IOException {
+    private static void collectStatistics(SearchContext context) throws IOException {
         final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
@@ -174,7 +181,7 @@ public class DfsPhase {
         return null;
     };
 
-    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
+    static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -192,11 +199,46 @@ public class DfsPhase {
             }
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
-        for (int i = 0; i < knnSearch.size(); i++) {
-            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
-            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+        final long afterQueryTime;
+        final long beforeQueryTime = System.nanoTime();
+        var opsListener = context.indexShard().getSearchOperationListener();
+        opsListener.onPreQueryPhase(context);
+
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+        if (timeoutRunnable != null) {
+            context.searcher().addQueryCancellation(timeoutRunnable);
+        }
+        try {
+            for (int i = 0; i < knnSearch.size(); i++) {
+                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
+                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+
+                // Re-throw so the catch block below can handle KNN timeout consistently.
+                if (context.searcher().timeExceeded()) {
+                    context.searcher().throwTimeExceededException();
+                }
+            }
+            afterQueryTime = System.nanoTime();
+            opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+            opsListener = null;
+        } catch (ContextIndexSearcher.TimeExceededException e) {
+            context.dfsResult().knnResults(List.of());
+            if (context.request().allowPartialSearchResults() == false) {
+                throw new SearchTimeoutException(context.shardTarget(), "Time exceeded");
+            }
+            context.dfsResult().searchTimedOut(true);
+            opsListener.onQueryPhase(context, System.nanoTime() - beforeQueryTime);
+            opsListener = null;
+            return;
+        } finally {
+            if (timeoutRunnable != null) {
+                context.searcher().removeQueryCancellation(timeoutRunnable);
+            }
+            if (opsListener != null) {
+                opsListener.onFailedQueryPhase(context);
+            }
         }
         context.dfsResult().knnResults(knnResults);
     }
@@ -221,8 +263,8 @@ public class DfsPhase {
             );
             topDocs = searcher.search(knnQuery, ipcm);
 
-            if (knnQuery instanceof ProfilingQuery profilingQuery) {
-                profilingQuery.profile(knnProfiler);
+            if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.profile(knnProfiler);
             }
 
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());

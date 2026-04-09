@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -208,9 +209,10 @@ public final class SearchResponseMerger implements Releasable {
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
+            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
-                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
             SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
@@ -231,7 +233,8 @@ public final class SearchResponseMerger implements Releasable {
                 tookInMillis,
                 shardFailures,
                 clusters,
-                null
+                null,
+                topHitsToRelease
             );
         } finally {
             mergedSearchHits.decRef();

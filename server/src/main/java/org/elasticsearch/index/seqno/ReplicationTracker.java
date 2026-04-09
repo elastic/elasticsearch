@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -21,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -470,9 +470,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return emptyIfNull(retentionLeases);
     }
 
-    @UpdateForV9
     private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
-        // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
+        // `MetadataStateFormat.FORMAT.loadLatestState` can actually return null when the state directory
+        // on a node hasn't been initialized yet
         return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;
     }
 

@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link FloatArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class FloatBigArrayVector extends AbstractVector implements FloatVector, Releasable {
 
@@ -52,6 +52,20 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }
@@ -67,13 +81,39 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final FloatArray filtered = blockFactory.bigArrays().newFloatArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
         return new FloatBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public FloatBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new FloatVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new FloatVectorBlock(this);
+            }
+            return (FloatBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendFloat(getFloat(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

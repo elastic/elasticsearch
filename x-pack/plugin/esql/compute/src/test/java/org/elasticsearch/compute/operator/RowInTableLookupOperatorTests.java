@@ -8,11 +8,14 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -76,7 +79,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new RowInTableLookupOperator.Factory(
             new RowInTableLookupOperator.Key[] {
                 new RowInTableLookupOperator.Key(
@@ -95,20 +98,19 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesRegex(
-            "RowInTableLookup\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, keys=\\[foo], mapping=\\[0]]"
+            "RowInTableLookup\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+(\\.\\d*k)?b}, keys=\\[foo], mapping=\\[0]]"
         );
     }
 
     public void testSelectBlocks() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(
-            new TupleBlockSourceOperator(
-                context.blockFactory(),
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(
+            new TupleLongLongBlockSourceOperator(
+                runner.blockFactory(),
                 LongStream.range(0, 1000).mapToObj(l -> Tuple.tuple(randomLong(), randomFrom(1L, 7L, 14L, 20L)))
             )
         );
-        List<Page> clonedInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        List<Page> results = drive(
+        List<Page> results = runner.run(
             new RowInTableLookupOperator.Factory(
                 new RowInTableLookupOperator.Key[] {
                     new RowInTableLookupOperator.Key(
@@ -116,10 +118,8 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                         TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
                     ) },
                 new int[] { 1 }
-            ).get(context),
-            input.iterator(),
-            context
+            )
         );
-        assertSimpleOutput(clonedInput, results, 1, 2);
+        assertSimpleOutput(runner.deepCopy(), results, 1, 2);
     }
 }

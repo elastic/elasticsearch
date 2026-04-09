@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class Annotation implements ToXContentObject, Writeable {
+
+    private static final TransportVersion SEARCH_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
+        "ml_annotation_search_scope_changed_event"
+    );
 
     public enum Type {
         ANNOTATION,
@@ -44,10 +49,15 @@ public class Annotation implements ToXContentObject, Writeable {
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED,
         MODEL_CHANGE,
-        CATEGORIZATION_STATUS_CHANGE;
+        CATEGORIZATION_STATUS_CHANGE,
+        SEARCH_SCOPE_CHANGED;
 
         public static Event fromString(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
         }
 
         @Override
@@ -245,9 +255,13 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (event != null) {
+        Event eventToWrite = event;
+        if (eventToWrite == Event.SEARCH_SCOPE_CHANGED && out.getTransportVersion().supports(SEARCH_SCOPE_CHANGED_EVENT) == false) {
+            eventToWrite = null;
+        }
+        if (eventToWrite != null) {
             out.writeBoolean(true);
-            out.writeEnum(event);
+            out.writeEnum(eventToWrite);
         } else {
             out.writeBoolean(false);
         }
@@ -332,17 +346,33 @@ public class Annotation implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ANNOTATION.getPreferredName(), annotation);
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            CREATE_TIME.getPreferredName(),
+            CREATE_TIME.getPreferredName() + "_string",
+            createTime.getTime()
+        );
         builder.field(CREATE_USERNAME.getPreferredName(), createUsername);
-        builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            TIMESTAMP.getPreferredName(),
+            TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         if (endTimestamp != null) {
-            builder.timeField(END_TIMESTAMP.getPreferredName(), END_TIMESTAMP.getPreferredName() + "_string", endTimestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                END_TIMESTAMP.getPreferredName(),
+                END_TIMESTAMP.getPreferredName() + "_string",
+                endTimestamp.getTime()
+            );
         }
         if (jobId != null) {
             builder.field(Job.ID.getPreferredName(), jobId);
         }
         if (modifiedTime != null) {
-            builder.timeField(MODIFIED_TIME.getPreferredName(), MODIFIED_TIME.getPreferredName() + "_string", modifiedTime.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                MODIFIED_TIME.getPreferredName(),
+                MODIFIED_TIME.getPreferredName() + "_string",
+                modifiedTime.getTime()
+            );
         }
         if (modifiedUsername != null) {
             builder.field(MODIFIED_USERNAME.getPreferredName(), modifiedUsername);

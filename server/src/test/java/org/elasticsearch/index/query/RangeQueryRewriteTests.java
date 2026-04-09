@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -49,7 +50,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
@@ -90,7 +93,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
@@ -133,7 +138,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT

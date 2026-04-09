@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
 
@@ -11,6 +12,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.internal.file.Chmod;
 
 import java.io.File;
@@ -39,6 +41,11 @@ public class EmptyDirTask extends DefaultTask {
         throw new UnsupportedOperationException();
     }
 
+    @Inject
+    public BuildLayout getBuildLayout() {
+        throw new UnsupportedOperationException();
+    }
+
     @OutputDirectory
     public File getDir() {
         return dir;
@@ -46,7 +53,8 @@ public class EmptyDirTask extends DefaultTask {
 
     @Input
     public String getDirPath() {
-        return dir.getPath();
+        // ensure @Input is stable by returning path relative to root project
+        return getBuildLayout().getRootDirectory().toPath().relativize(dir.toPath()).toString();
     }
 
     /**

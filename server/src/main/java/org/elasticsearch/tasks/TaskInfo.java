@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,7 +67,7 @@ public record TaskInfo(
         return new TaskInfo(
             taskId,
             in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) ? in.readString() : taskId.getNodeId(),
+            in.readString(),
             in.readString(),
             in.readOptionalString(),
             in.readOptionalNamedWriteable(Task.Status.class),
@@ -84,9 +84,7 @@ public record TaskInfo(
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeString(node);
-        }
+        out.writeString(node);
         out.writeString(action);
         out.writeOptionalString(description);
         out.writeOptionalNamedWriteable(status);
@@ -114,7 +112,7 @@ public record TaskInfo(
         if (description != null) {
             builder.field("description", description);
         }
-        builder.timeField("start_time_in_millis", "start_time", startTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTime);
         if (builder.humanReadable()) {
             builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
         }

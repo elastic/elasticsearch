@@ -1,17 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess.lib;
+
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+
+import java.lang.foreign.MemorySegment;
 
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */
 public non-sealed interface PosixCLibrary extends NativeLibrary {
+
+    /** socket domain indicating unix file socket */
+    short AF_UNIX = 1;
+
+    /** socket type indicating a datagram-oriented socket */
+    int SOCK_DGRAM = 2;
+
+    int POSIX_MADV_NORMAL = 0;
+    int POSIX_MADV_RANDOM = 1;
+    int POSIX_MADV_SEQUENTIAL = 2;
+    int POSIX_MADV_WILLNEED = 3;
+    int POSIX_MADV_DONTNEED = 4;
+    int POSIX_MADV_NOREUSE = 5;
 
     /**
      * Gets the effective userid of the current process.
@@ -55,6 +73,39 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      */
     int mlockall(int flags);
 
+    /**
+     * Provides advice to the operating system about how a region of memory will be accessed,
+     * allowing the kernel to optimize memory management.
+     * <p>
+     * This method is a thin wrapper around the POSIX {@code madvise(2)} system
+     * call. The call is advisory only and does not guarantee any specific behavior.
+     *
+     * <p><strong>Requirements:</strong>
+     * <ul>
+     *   <li>The starting address of {@code segment} must be aligned to the system page size.</li>
+     *   <li>{@code segment} must represent native (off-heap) memory.
+     *       Passing a non-native {@link MemorySegment} will result in an {@link IllegalArgumentException}.</li>
+     * </ul>
+     *
+     * @param segment
+     *     the starting memory segment of the region to be advised; must refer to native memory and be page-size aligned
+     * @param length
+     *     the length in bytes of the memory region starting at {@code segment}
+     * @param advice
+     *     the access pattern advice (for example {@code MADV_WILLNEED}, {@code MADV_DONTNEED}, {@code MADV_SEQUENTIAL}, etc.)
+     * @return
+     *     {@code 0} on success, or {@code -1} on failure with {@code errno} set to indicate the error
+     *
+     * @throws IllegalArgumentException
+     *     if {@code segment} does not represent native memory
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man2/madvise.2.html">madvise manpage</a>
+     */
+    int madvise(MemorySegment segment, long offset, long length, int advice);
+
+    /** Returns native page size. */
+    int getPageSize();
+
     /** corresponds to struct stat64 */
     interface Stat64 {
         long st_size();
@@ -67,8 +118,6 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     int open(String pathname, int flags, int mode);
 
     int open(String pathname, int flags);
-
-    int close(int fd);
 
     int fstat64(int fd, Stat64 stats);
 
@@ -89,6 +138,55 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
     FStore newFStore();
 
     int fcntl(int fd, int cmd, FStore fst);
+
+    /**
+     * Open a file descriptor to connect to a socket.
+     *
+     * @param domain The socket protocol family, eg AF_UNIX
+     * @param type The socket type, eg SOCK_DGRAM
+     * @param protocol The protocol for the given protocl family, normally 0
+     * @return an open file descriptor, or -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/socket.2.html">socket manpage</a>
+     */
+    int socket(int domain, int type, int protocol);
+
+    /**
+     * Marker interface for sockaddr struct implementations.
+     */
+    interface SockAddr {}
+
+    /**
+     * Create a sockaddr for the AF_UNIX family.
+     */
+    SockAddr newUnixSockAddr(String path);
+
+    /**
+     * Connect a socket to an address.
+     *
+     * @param sockfd An open socket file descriptor
+     * @param addr The address to connect to
+     * @return 0 on success, -1 on failure with errno set
+     */
+    int connect(int sockfd, SockAddr addr);
+
+    /**
+     * Send a message to a socket.
+     *
+     * @param sockfd The open socket file descriptor
+     * @param buffer The message bytes to send
+     * @param flags Flags that may adjust how the message is sent
+     * @return The number of bytes sent, or -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/sendto.2.html">send manpage</a>
+     */
+    long send(int sockfd, CloseableByteBuffer buffer, int flags);
+
+    /**
+     * Close a file descriptor
+     * @param fd The file descriptor to close
+     * @return 0 on success, -1 on failure with errno set
+     * @see <a href="https://man7.org/linux/man-pages/man2/close.2.html">close manpage</a>
+     */
+    int close(int fd);
 
     /**
      * Return a string description for an error.

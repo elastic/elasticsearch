@@ -7,19 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class IntArrayVector extends AbstractVector implements IntVector {
 
@@ -83,6 +88,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -93,10 +103,36 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendInt(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new IntVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new IntVectorBlock(this);
+            }
+            return (IntBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendInt(getInt(p));
+                } else {
+                    builder.appendNull();
+                }
             }
             return builder.build();
         }
@@ -109,6 +145,20 @@ final class IntArrayVector extends AbstractVector implements IntVector {
 
     public static long ramBytesEstimated(int[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntVector.FixedBuilder builder = blockFactory().newIntVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendInt(getInt(i));
+            }
+            return builder.build();
+        }
     }
 
     /**

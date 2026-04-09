@@ -13,12 +13,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -41,16 +41,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Locate extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Locate", Locate::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Locate.class).ternary(Locate::new).name("locate");
 
     private final Expression str;
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = "Returns an integer that indicates the position of a keyword substring within another string.",
-        examples = @Example(file = "string", tag = "locate")
-    )
+    @FunctionInfo(returnType = "integer", description = """
+        Returns an integer that indicates the position of a keyword substring within another string.
+        Returns `0` if the substring cannot be found.
+        Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))
     public Locate(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
@@ -162,7 +162,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         ExpressionEvaluator.Factory substrExpr = toEvaluator.apply(substr);
         if (start == null) {

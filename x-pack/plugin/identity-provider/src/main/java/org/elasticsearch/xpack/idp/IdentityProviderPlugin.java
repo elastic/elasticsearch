@@ -7,21 +7,13 @@
 
 package org.elasticsearch.xpack.idp;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -108,6 +100,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             index,
             serviceProviderFactory
         );
+        services.clusterService().addListener(registeredServiceProviderResolver);
+
         final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
             services.environment(),
             services.resourceWatcherService(),
@@ -125,28 +119,22 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         if (enabled == false) {
             return List.of();
         }
         return List.of(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
-            new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
-            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
-            new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
+            new ActionHandler(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+            new ActionHandler(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+            new ActionHandler(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
+            new ActionHandler(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
+            new ActionHandler(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

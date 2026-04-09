@@ -37,7 +37,28 @@ public class EqlSpecIT extends EqlSpecTestCase {
         return REMOTE_CLUSTER.getHttpAddresses();
     }
 
-    public EqlSpecIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        super(remoteClusterIndex(TEST_INDEX), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlSpecIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        super(
+            remoteClusterIndex(TEST_INDEX),
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 }

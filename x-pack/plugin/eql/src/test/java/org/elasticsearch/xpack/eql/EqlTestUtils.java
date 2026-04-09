@@ -51,6 +51,9 @@ public final class EqlTestUtils {
         null,
         123,
         1,
+        false,
+        true,
+        null,
         "",
         new TaskId("test", 123),
         null
@@ -69,6 +72,9 @@ public final class EqlTestUtils {
             randomIndicesOptions(),
             randomIntBetween(1, 1000),
             randomIntBetween(1, 1000),
+            randomBoolean(),
+            randomBoolean(),
+            null,
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomTask()

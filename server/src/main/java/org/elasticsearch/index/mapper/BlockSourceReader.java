@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -15,12 +17,18 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Loads values from {@code _source}. This whole process is very slow and cast-tastic,
@@ -28,13 +36,17 @@ import java.util.List;
  * slow.
  */
 public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(1).getBytes();
+
+    private final CircuitBreaker breaker;
     private final ValueFetcher fetcher;
     private final List<Object> ignoredValues = new ArrayList<>();
     private final DocIdSetIterator iter;
     private final Thread creationThread;
     private int docId = -1;
 
-    private BlockSourceReader(ValueFetcher fetcher, DocIdSetIterator iter) {
+    private BlockSourceReader(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+        this.breaker = breaker;
         this.fetcher = fetcher;
         this.iter = iter;
         this.creationThread = Thread.currentThread();
@@ -83,6 +95,11 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         return creationThread == Thread.currentThread() && docId <= startingDocID;
     }
 
+    @Override
+    public final void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+    }
+
     public interface LeafIteratorLookup {
         DocIdSetIterator lookup(LeafReaderContext ctx) throws IOException;
     }
@@ -97,13 +114,13 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public final IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return fetcher.storedFieldsSpec();
         }
 
         @Override
@@ -117,15 +134,18 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public final RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public final RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
             DocIdSetIterator iter = lookup.lookup(context);
             if (iter == null) {
-                return new ConstantNullsReader();
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+                return ConstantNull.ROW_READER;
             }
-            return rowStrideReader(context, iter);
+            return rowStrideReader(breaker, context, iter);
         }
 
-        protected abstract RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) throws IOException;
+        protected abstract RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter)
+            throws IOException;
 
         @Override
         public final String toString() {
@@ -149,8 +169,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
-            return new Booleans(fetcher, iter);
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Booleans(breaker, fetcher, iter);
         }
 
         @Override
@@ -160,8 +180,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     private static class Booleans extends BlockSourceReader {
-        Booleans(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        Booleans(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
@@ -189,8 +209,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        protected RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) throws IOException {
-            return new BytesRefs(fetcher, iter);
+        protected RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter)
+            throws IOException {
+            return new BytesRefs(breaker, fetcher, iter);
         }
 
         @Override
@@ -210,8 +231,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        protected RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
-            return new Geometries(fetcher, iter);
+        protected RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Geometries(breaker, fetcher, iter);
         }
 
         @Override
@@ -223,13 +244,13 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private static class BytesRefs extends BlockSourceReader {
         private final BytesRef scratch = new BytesRef();
 
-        BytesRefs(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        BytesRefs(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, Objects.toString(v)));
         }
 
         @Override
@@ -240,8 +261,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
     private static class Geometries extends BlockSourceReader {
 
-        Geometries(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        Geometries(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
@@ -273,8 +294,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
-            return new Doubles(fetcher, iter);
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Doubles(breaker, fetcher, iter);
         }
 
         @Override
@@ -284,8 +305,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     private static class Doubles extends BlockSourceReader {
-        Doubles(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        Doubles(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
@@ -296,6 +317,49 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Doubles";
+        }
+    }
+
+    /**
+     * Load {@code float}s from {@code _source}.
+     */
+    public static class DenseVectorBlockLoader extends SourceBlockLoader {
+        private final int dimensions;
+
+        public DenseVectorBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
+            super(fetcher, lookup);
+            this.dimensions = dimensions;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.denseVectors(expectedCount, dimensions);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new DenseVectors(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "DenseVectors";
+        }
+    }
+
+    private static class DenseVectors extends BlockSourceReader {
+        DenseVectors(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.FloatBuilder) builder).appendFloat(((Number) v).floatValue());
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.DenseVectors";
         }
     }
 
@@ -313,8 +377,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) throws IOException {
-            return new Ints(fetcher, iter);
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter)
+            throws IOException {
+            return new Ints(breaker, fetcher, iter);
         }
 
         @Override
@@ -324,8 +389,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     private static class Ints extends BlockSourceReader {
-        Ints(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        Ints(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
@@ -353,8 +418,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
-            return new Longs(fetcher, iter);
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Longs(breaker, fetcher, iter);
         }
 
         @Override
@@ -364,8 +429,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     private static class Longs extends BlockSourceReader {
-        Longs(ValueFetcher fetcher, DocIdSetIterator iter) {
-            super(fetcher, iter);
+        Longs(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
         }
 
         @Override
@@ -380,9 +445,49 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
+     * Load {@code ip}s from {@code _source}.
+     */
+    public static class IpsBlockLoader extends SourceBlockLoader {
+        public IpsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Ips(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Ips";
+        }
+    }
+
+    private static class Ips extends BlockSourceReader {
+        Ips(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(InetAddressPoint.encode((InetAddress) v)));
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Ips";
+        }
+    }
+
+    /**
      * Convert a {@link String} into a utf-8 {@link BytesRef}.
      */
-    static BytesRef toBytesRef(BytesRef scratch, String v) {
+    public static BytesRef toBytesRef(BytesRef scratch, String v) {
         int len = UnicodeUtil.maxUTF8Length(v.length());
         if (scratch.bytes.length < len) {
             scratch.bytes = new byte[len];
@@ -392,7 +497,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
-     * Build a {@link LeafIteratorLookup} which checks for norms of a text field.
+     * Build a {@link LeafIteratorLookup} which matches all documents in a segment
      */
     public static LeafIteratorLookup lookupMatchingAll() {
         return new LeafIteratorLookup() {

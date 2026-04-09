@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -41,7 +42,10 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Page page) {
+    public void addRawInput(Page page, BooleanVector mask) {
+        if (mask.isConstant() == false || mask.getBoolean(0) == false) {
+            throw new IllegalStateException("can't mask partial");
+        }
         addIntermediateInput(page);
     }
 
@@ -65,7 +69,8 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
         final Block[] partialBlocks = new Block[groupingAggregator.intermediateBlockCount()];
         boolean success = false;
         try (IntVector selected = outputPositions()) {
-            groupingAggregator.evaluateIntermediate(partialBlocks, 0, selected);
+            groupingAggregator.prepareEvaluateIntermediate(selected, new GroupingAggregatorEvaluationContext(driverContext))
+                .evaluate(partialBlocks, 0, selected);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -78,7 +83,8 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
         try (IntVector selected = outputPositions()) {
-            groupingAggregator.evaluateFinal(blocks, offset, selected, driverContext);
+            groupingAggregator.prepareEvaluateFinal(selected, new GroupingAggregatorEvaluationContext(driverContext))
+                .evaluate(blocks, offset, selected);
         }
     }
 

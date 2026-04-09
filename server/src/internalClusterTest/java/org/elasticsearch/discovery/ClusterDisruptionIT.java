@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -293,7 +293,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         NetworkDisruption scheme = addRandomDisruptionType(partitions);
         scheme.startDisrupting();
         ensureStableCluster(2, notIsolatedNode);
-        assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
+        assertFalse(
+            client(notIsolatedNode).admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "test")
+                .setWaitForYellowStatus()
+                .get()
+                .isTimedOut()
+        );
 
         DocWriteResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
@@ -424,12 +431,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         assertBusy(() -> {
-            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get().isTimedOut());
             assertTrue(
                 internalCluster().client(masterNode)
                     .admin()
                     .cluster()
-                    .prepareHealth()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForNodes("2")
                     .setTimeout(TimeValue.timeValueSeconds(2))
                     .get()
@@ -464,7 +471,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
                 final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metadata().hasIndex(idxName) == false);
+                assertTrue("index not deleted on " + masterNode, masterState.metadata().getProject().hasIndex(idxName) == false);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
@@ -512,7 +519,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
             IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
-            Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
+            Set<String> docs = getShardDocIDs(shard);
             assertThat(
                 "shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs  acked docIds [" + ackedDocs + "]",
                 ackedDocs,

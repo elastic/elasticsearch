@@ -11,15 +11,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.compute.data.BasicBlockTests.randomBlock;
-import static org.elasticsearch.compute.data.BasicBlockTests.valuesAtPositions;
-import static org.elasticsearch.compute.data.BlockTestUtils.deepCopyOf;
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
+import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -46,7 +47,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new MvExpandOperator.Factory(0, randomIntBetween(1, 1000));
     }
 
@@ -202,16 +203,14 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     public void testNoopStatus() {
         BlockFactory blockFactory = blockFactory();
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1000));
-        List<Page> result = drive(
-            op,
-            List.of(new Page(blockFactory.newIntVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
-            driverContext()
-        );
+        List<Page> result = new TestDriverRunner().builder(driverContext())
+            .input(blockFactory.newIntVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())
+            .run(op);
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(1));
     }
 
@@ -219,19 +218,19 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1));
         BlockFactory blockFactory = blockFactory();
         var builder = blockFactory.newIntBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
-        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext());
+        List<Page> result = new TestDriverRunner().builder(driverContext()).input(builder.build()).run(op);
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesIn(), equalTo(1));
-        assertThat(status.pagesOut(), equalTo(1));
+        assertThat(status.pagesReceived(), equalTo(1));
+        assertThat(status.pagesEmitted(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
         result.forEach(Page::releaseBlocks);
     }
 
     public void testExpandWithBytesRefs() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(new AbstractBlockSourceOperator(context.blockFactory(), 8 * 1024) {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(new AbstractBlockSourceOperator(runner.blockFactory(), 8 * 1024) {
             private int idx;
 
             @Override
@@ -243,13 +242,12 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             protected Page createPage(int positionOffset, int length) {
                 idx += length;
                 return new Page(
-                    randomBlock(context.blockFactory(), ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
-                    randomBlock(context.blockFactory(), ElementType.INT, length, false, 1, 10, 0, 0).block()
+                    randomBlock(blockFactory, ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(blockFactory, ElementType.INT, length, false, 1, 10, 0, 0).block()
                 );
             }
         });
-        List<Page> origInput = deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        List<Page> results = drive(new MvExpandOperator(0, randomIntBetween(1, 1000)), input.iterator(), context);
-        assertSimpleOutput(origInput, results);
+        List<Page> results = runner.run(new MvExpandOperator(0, randomIntBetween(1, 1000)));
+        assertSimpleOutput(runner.deepCopy(), results);
     }
 }

@@ -5,13 +5,15 @@
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "hidden": true,
-        "lifecycle.rollover_alias": "profiling-executables"
+        "lifecycle.rollover_alias": "profiling-executables",
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
+        }
       }
     },
     "mappings": {
-      "_source": {
-        "mode": "synthetic"
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.executables.version},

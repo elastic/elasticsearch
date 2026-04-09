@@ -43,7 +43,6 @@ public class SqlTestClusterWithRemote implements TestRule {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.autoconfiguration.enabled", "false")
             .user(USER_NAME, PASSWORD)
-            .plugin("freeze-plugin")
             .build();
     }
 
@@ -58,7 +57,6 @@ public class SqlTestClusterWithRemote implements TestRule {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.autoconfiguration.enabled", "false")
             .user(USER_NAME, PASSWORD)
-            .plugin("freeze-plugin")
             .build();
     }
 

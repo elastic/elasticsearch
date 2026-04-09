@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -24,8 +23,8 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.calendars.Calendar.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetCalendarsAction extends BaseRestHandler {
@@ -33,14 +32,10 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, BASE_PATH + "calendars/").replaces(GET, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build(),
-            Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, BASE_PATH + "calendars/").replaces(POST, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build()
+            new Route(GET, BASE_PATH + "calendars/{" + ID + "}"),
+            new Route(GET, BASE_PATH + "calendars/"),
+            new Route(POST, BASE_PATH + "calendars/{" + ID + "}"),
+            new Route(POST, BASE_PATH + "calendars/")
         );
     }
 

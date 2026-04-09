@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -12,11 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit.Fields;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,8 +51,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     }
 
     public static SearchSortValues readFrom(StreamInput in) throws IOException {
-        Object[] formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        Object[] rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        Object[] formattedSortValues = Lucene.readSortValues(in);
+        Object[] rawSortValues = Lucene.readSortValues(in);
         if (formattedSortValues.length == 0 && rawSortValues.length == 0) {
             return EMPTY;
         }
@@ -63,6 +62,21 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     private SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
         this.formattedSortValues = formattedSortValues;
         this.rawSortValues = rawSortValues;
+    }
+
+    /**
+     * Build sort values from pre-formatted and raw arrays. Use this when the formatted values
+     * were produced with the correct per-field format (e.g. from a shard hit) and must not be
+     * re-formatted with a single format like RAW, which would fail for non-UTF-8 BytesRefs
+     * (e.g. version field).
+     */
+    public static SearchSortValues fromFormattedAndRaw(Object[] formattedSortValues, Object[] rawSortValues) {
+        Objects.requireNonNull(formattedSortValues);
+        Objects.requireNonNull(rawSortValues);
+        if (formattedSortValues.length != rawSortValues.length) {
+            throw new IllegalArgumentException("formattedSortValues and rawSortValues must have the same length");
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
     }
 
     @Override
@@ -81,11 +95,6 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             builder.endArray();
         }
         return builder;
-    }
-
-    public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        return new SearchSortValues(parser.list().toArray());
     }
 
     /**

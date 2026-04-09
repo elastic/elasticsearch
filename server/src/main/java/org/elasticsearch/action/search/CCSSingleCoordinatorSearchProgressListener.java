@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -37,14 +38,14 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * Executed when shards are ready to be queried (after can-match)
      *
      * @param shards The list of shards to query.
-     * @param skipped The list of skipped shards.
+     * @param skippedByClusterAlias The number of skipped shards per cluster.
      * @param clusters The statistics for remote clusters included in the search.
      * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      **/
     @Override
     public void onListShards(
         List<SearchShard> shards,
-        List<SearchShard> skipped,
+        Map<String, Integer> skippedByClusterAlias,
         SearchResponse.Clusters clusters,
         boolean fetchPhase,
         TransportSearchAction.SearchTimeProvider timeProvider
@@ -55,7 +56,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         this.timeProvider = timeProvider;
 
         // Partition by clusterAlias and get counts
-        Map<String, Integer> skippedByClusterAlias = partitionCountsByClusterAlias(skipped);
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
         Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
         skippedByClusterAlias.forEach((cluster, count) -> totalByClusterAlias.merge(cluster, count, Integer::sum));
@@ -64,19 +64,26 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = entry.getKey();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
-                assert v.getTotalShards() == null : "total shards should not be set on a Cluster before onListShards";
+                assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
+                    : "total shards should not be set on a Cluster before onListShards, except skipped";
 
                 int totalCount = entry.getValue();
                 int skippedCount = skippedByClusterAlias.getOrDefault(k, 0);
+                if (v.getSkippedShards() != null) {
+                    skippedCount += v.getSkippedShards();
+                    totalCount += v.getTotalShards();
+                }
                 TimeValue took = null;
 
                 SearchResponse.Cluster.Status status = v.getStatus();
-                assert status == SearchResponse.Cluster.Status.RUNNING : "should have RUNNING status during onListShards but has " + status;
 
                 // if all shards are marked as skipped, the search is done - mark as SUCCESSFUL
                 if (skippedCount == totalCount) {
                     took = new TimeValue(timeProvider.buildTookInMillis());
                     status = SearchResponse.Cluster.Status.SUCCESSFUL;
+                } else {
+                    assert status == SearchResponse.Cluster.Status.RUNNING
+                        : "should have RUNNING status during onListShards but has " + status;
                 }
                 return new SearchResponse.Cluster.Builder(v).setStatus(status)
                     .setTotalShards(totalCount)
@@ -187,7 +194,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue().intValue();
+            int successfulCount = entry.getValue();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
@@ -230,7 +237,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
-            int successfulCount = entry.getValue().intValue();
+            int successfulCount = entry.getValue();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();

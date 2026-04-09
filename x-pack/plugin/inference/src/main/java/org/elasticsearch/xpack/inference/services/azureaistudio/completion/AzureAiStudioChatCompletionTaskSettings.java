@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,9 +61,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
@@ -72,8 +69,9 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     /**
      * Creates a new {@link AzureOpenAiEmbeddingsTaskSettings} object by overriding the values in originalSettings with the ones
      * passed in via requestSettings if the fields are not null.
+     *
      * @param originalSettings the original {@link AzureOpenAiEmbeddingsTaskSettings} from the inference entity configuration from storage
-     * @param requestSettings the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
+     * @param requestSettings  the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
      * @return a new {@link AzureOpenAiEmbeddingsTaskSettings}
      */
     public static AzureAiStudioChatCompletionTaskSettings of(
@@ -141,7 +139,12 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return temperature == null && topP == null && doSample == null && maxNewTokens == null;
     }
 
     @Override
@@ -174,6 +177,20 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public String toString() {
+        return "AzureAiStudioChatCompletionTaskSettings{"
+            + "temperature="
+            + temperature
+            + ", topP="
+            + topP
+            + ", doSample="
+            + doSample
+            + ", maxNewTokens="
+            + maxNewTokens
+            + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -189,4 +206,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
         return Objects.hash(temperature, topP, doSample, maxNewTokens);
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
+            newSettings
+        );
+        return of(this, requestSettings);
+    }
 }

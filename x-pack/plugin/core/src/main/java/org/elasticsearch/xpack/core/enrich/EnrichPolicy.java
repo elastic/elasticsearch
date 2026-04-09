@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,8 +33,8 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
-    private static final String ELASTICEARCH_VERSION_DEPRECATION_MESSAGE =
-        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in Elasticsearch 9.0";
+    private static final String ELASTICSEARCH_VERSION_DEPRECATION_MESSAGE =
+        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in a future version of Elasticsearch";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPolicy.class);
 
@@ -117,10 +115,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.indices = in.readStringCollectionAsList();
         this.matchField = in.readString();
         this.enrichFields = in.readStringCollectionAsList();
-        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            // consume the passed-in meaningless version that old elasticsearch clusters will send
-            Version.readVersion(in);
-        }
     }
 
     public EnrichPolicy(String type, QuerySource query, List<String> indices, String matchField, List<String> enrichFields) {
@@ -146,7 +140,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             deprecationLogger.warn(
                 DeprecationCategory.OTHER,
                 "enrich_policy_with_elasticsearch_version",
-                ELASTICEARCH_VERSION_DEPRECATION_MESSAGE
+                ELASTICSEARCH_VERSION_DEPRECATION_MESSAGE
             );
         }
     }
@@ -208,10 +202,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
-        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            // emit the current version of elasticsearch for bwc serialization reasons
-            Version.writeVersion(Version.CURRENT, out);
-        }
     }
 
     @Override

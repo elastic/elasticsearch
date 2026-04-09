@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link IntArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
@@ -104,6 +104,20 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntVector.FixedBuilder builder = blockFactory().newIntVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendInt(getInt(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -119,13 +133,39 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
         return new IntBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new IntVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new IntVectorBlock(this);
+            }
+            return (IntBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendInt(getInt(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

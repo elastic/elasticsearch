@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 
 /**
  * Request to retrieve built-in (cluster/index) privileges.
  */
-public final class GetBuiltinPrivilegesRequest extends ActionRequest {
+public final class GetBuiltinPrivilegesRequest extends LegacyActionRequest {
 
     public GetBuiltinPrivilegesRequest() {}
 

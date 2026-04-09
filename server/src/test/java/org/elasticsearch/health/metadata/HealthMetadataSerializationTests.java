@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.metadata;
@@ -62,7 +63,16 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
-        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
+        return randomBoolean() ? randomShardLimitsMetadataNonNull() : null;
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadataNonNull() {
+        return new HealthMetadata.ShardLimits(
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000),
+            randomIntBetween(1, 10000)
+        );
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -92,12 +102,27 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
         switch (randomInt(5)) {
-            case 0 -> highWatermark = randomRelativeByteSizeValue();
-            case 1 -> highWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
-            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
-            case 3 -> floodStageWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
-            case 4 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
-            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 0 -> highWatermark = randomValueOtherThan(highWatermark, HealthMetadataSerializationTests::randomRelativeByteSizeValue);
+            case 1 -> highWatermarkMaxHeadRoom = randomValueOtherThan(
+                highWatermarkMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
+            case 2 -> floodStageWatermark = randomValueOtherThan(
+                floodStageWatermark,
+                HealthMetadataSerializationTests::randomRelativeByteSizeValue
+            );
+            case 3 -> floodStageWatermarkMaxHeadRoom = randomValueOtherThan(
+                floodStageWatermarkMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
+            case 4 -> floodStageWatermarkFrozen = randomValueOtherThan(
+                floodStageWatermarkFrozen,
+                HealthMetadataSerializationTests::randomRelativeByteSizeValue
+            );
+            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = randomValueOtherThan(
+                floodStageWatermarkFrozenMaxHeadRoom,
+                () -> ByteSizeValue.ofGb(randomIntBetween(10, 999))
+            );
         }
         return new HealthMetadata.Disk(
             highWatermark,
@@ -111,13 +136,31 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
 
     static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
         if (base == null) {
-            return null;
+            return randomShardLimitsMetadataNonNull();
         }
-        if (randomBoolean()) {
-            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
-        } else {
-            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+
+        int maxShardsPerNode = base.maxShardsPerNode();
+        int maxShardsPerNodeFrozen = base.maxShardsPerNodeFrozen();
+        int shardCapacityUnhealthyThresholdYellow = base.shardCapacityUnhealthyThresholdYellow();
+        int shardCapacityUnhealthyThresholdRed = base.shardCapacityUnhealthyThresholdRed();
+        switch (randomInt(3)) {
+            case 0 -> maxShardsPerNode = randomValueOtherThan(maxShardsPerNode, () -> randomIntBetween(1, 10000));
+            case 1 -> maxShardsPerNodeFrozen = randomValueOtherThan(maxShardsPerNodeFrozen, () -> randomIntBetween(1, 10000));
+            case 2 -> shardCapacityUnhealthyThresholdYellow = randomValueOtherThan(
+                shardCapacityUnhealthyThresholdYellow,
+                () -> randomIntBetween(1, 10000)
+            );
+            case 3 -> shardCapacityUnhealthyThresholdRed = randomValueOtherThan(
+                shardCapacityUnhealthyThresholdRed,
+                () -> randomIntBetween(1, 10000)
+            );
         }
+        return new HealthMetadata.ShardLimits(
+            maxShardsPerNode,
+            maxShardsPerNodeFrozen,
+            shardCapacityUnhealthyThresholdYellow,
+            shardCapacityUnhealthyThresholdRed
+        );
     }
 
     private HealthMetadata mutate(HealthMetadata base) {

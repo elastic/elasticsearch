@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.get;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -128,7 +130,7 @@ public class MultiGetResponseTests extends ESTestCase {
                     if (MultiGetResponse.INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && MultiGetResponse.ID.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        getResult = GetResult.fromXContentEmbedded(parser, index, id);
+                        getResult = GetResultTests.parseInstanceFromEmbedded(parser, index, id);
                     }
                     break;
                 case VALUE_STRING:

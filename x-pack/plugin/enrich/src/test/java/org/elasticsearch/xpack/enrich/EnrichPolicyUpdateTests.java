@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -16,7 +14,6 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -48,7 +45,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
     public void testUpdatePolicyOnly() {
         IngestService ingestService = getInstanceFromNode(IngestService.class);
-        createIndex("index", Settings.EMPTY, "_doc", "key1", "type=keyword", "field1", "type=keyword");
+        createIndex("index", Settings.EMPTY, "key1", "type=keyword", "field1", "type=keyword");
 
         EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
         createSourceIndices(client(), instance1);
@@ -63,10 +60,8 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
             equalTo(true)
         );
 
-        String pipelineConfig = """
-            {"processors":[{"enrich": {"policy_name": "my_policy", "field": "key", "target_field": "target"}}]}""";
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", new BytesArray(pipelineConfig), XContentType.JSON);
-        assertAcked(clusterAdmin().putPipeline(putPipelineRequest).actionGet());
+        putJsonPipeline("1", """
+            {"processors":[{"enrich": {"policy_name": "my_policy", "field": "key", "target_field": "target"}}]}""");
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");
         assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(MatchProcessor.class));
 

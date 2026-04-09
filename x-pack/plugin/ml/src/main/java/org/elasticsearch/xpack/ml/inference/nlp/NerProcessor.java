@@ -106,9 +106,7 @@ public class NerProcessor extends NlpTask.Processor {
                 ve.addValidationError("classification label [" + label + "] is not an entity I-O-B tag.");
             }
         }
-        if (ve.validationErrors().isEmpty() == false) {
-            throw ve;
-        }
+        ve.throwIfValidationErrorsExist();
     }
 
     static IobTag[] buildIobMap(List<String> classificationLabels) {
@@ -172,6 +170,7 @@ public class NerProcessor extends NlpTask.Processor {
     }
 
     record NerResultProcessor(IobTag[] iobMap, String resultsField, boolean ignoreCase) implements NlpTask.ResultProcessor {
+
         NerResultProcessor(IobTag[] iobMap, String resultsField, boolean ignoreCase) {
             this.iobMap = iobMap;
             this.resultsField = Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD);

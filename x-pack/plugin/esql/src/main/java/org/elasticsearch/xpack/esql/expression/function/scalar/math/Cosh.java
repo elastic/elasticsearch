@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -26,18 +27,20 @@ import java.util.List;
  */
 public class Cosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cosh", Cosh::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Cosh.class).unary(Cosh::new).name("cosh");
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.",
         examples = @Example(file = "floats", tag = "cosh")
     )
     public Cosh(
         Source source,
         @Param(
-            name = "angle",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "An angle, in radians. If `null`, the function returns `null`."
+            description = "Numeric expression. If `null`, the function returns `null`."
+
         ) Expression angle
     ) {
         super(source, angle);
@@ -53,7 +56,7 @@ public class Cosh extends AbstractTrigonometricFunction {
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
         return new CoshEvaluator.Factory(source(), field);
     }
 

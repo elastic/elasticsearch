@@ -42,14 +42,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Streams;
@@ -57,7 +55,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -76,8 +73,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.HostnameVerifier;
 
 public class HttpClient implements Closeable {
 
@@ -118,9 +113,7 @@ public class HttpClient implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
-        HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
+        SSLConnectionSocketFactory factory = sslService.profile(SETTINGS_SSL_PREFIX).connectionSocketFactory();
         clientBuilder.setSSLSocketFactory(factory);
 
         final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();
@@ -235,6 +228,7 @@ public class HttpClient implements Closeable {
         }
 
         RequestConfig.Builder config = RequestConfig.custom();
+        validateProxyAgainstWhitelist(request.proxy);
         setProxy(config, request, settingsProxy);
         HttpClientContext localContext = HttpClientContext.create();
         // auth
@@ -271,7 +265,7 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
+        try (CloseableHttpResponse response = client.execute(httpHost, internalRequest, localContext)) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
@@ -429,6 +423,26 @@ public class HttpClient implements Closeable {
         return whitelistAutomaton.get().run(host);
     }
 
+    /**
+     * Validates that a per-request proxy host is whitelisted. System-wide proxies configured via {@code xpack.http.proxy.host} are exempt
+     */
+    private void validateProxyAgainstWhitelist(HttpProxy proxy) {
+        if (proxy == null || proxy.equals(HttpProxy.NO_PROXY)) {
+            return;
+        }
+        HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort(), proxy.getScheme() != null ? proxy.getScheme().scheme() : null);
+        if (isWhitelisted(proxyHost.toURI()) == false) {
+            throw new ElasticsearchException(
+                "proxy host ["
+                    + proxyHost.toURI()
+                    + "] is not whitelisted in setting ["
+                    + HttpSettings.HOSTS_WHITELIST.getKey()
+                    + "], "
+                    + "will not connect"
+            );
+        }
+    }
+
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
 
     // visible for testing
@@ -440,7 +454,7 @@ public class HttpClient implements Closeable {
         }
 
         Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
-        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        whiteListAutomaton = Operations.determinize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }
 }

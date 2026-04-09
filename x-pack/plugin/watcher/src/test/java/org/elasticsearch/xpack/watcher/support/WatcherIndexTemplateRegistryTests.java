@@ -6,21 +6,20 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -80,6 +79,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
+    private ProjectClient projectClient;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -88,17 +88,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
+        projectClient = mock(ProjectClient.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        AdminClient adminClient = mock(AdminClient.class);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        when(client.admin()).thenReturn(adminClient);
-        doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new TestPutIndexTemplateResponse(true));
-            return null;
-        }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
+        when(client.projectClient(any())).thenReturn(projectClient);
 
         clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -126,15 +119,12 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
             TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        verify(projectClient, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
-        // now delete one template from the cluster state and lets retry
-        Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
-        ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
+        ClusterChangedEvent newEvent = addTemplateToState(event);
         registry.clusterChanged(newEvent);
         argumentCaptor = ArgumentCaptor.forClass(TransportPutComposableIndexTemplateAction.Request.class);
-        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        verify(projectClient, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
         TransportPutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
@@ -154,22 +144,20 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             client,
             xContentRegistry
         );
-        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
             TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        verify(projectClient, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
-        Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
-        ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
+        ClusterChangedEvent newEvent = addTemplateToState(event);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        verify(projectClient, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
-        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
+        verify(projectClient, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
@@ -178,7 +166,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(1)).execute(eq(ILMActions.PUT), any(), any());
+        verify(projectClient, times(1)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExists() {
@@ -192,7 +180,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
+        verify(projectClient, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testNoPolicyButILMDisabled() {
@@ -206,9 +194,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             client,
             xContentRegistry
         );
-        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
+        verify(projectClient, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
@@ -228,7 +216,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
-            verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
+            verify(projectClient, times(0)).execute(eq(ILMActions.PUT), any(), any());
         }
     }
 
@@ -289,7 +277,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(".watch-history-6", null);
+        existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
@@ -301,7 +289,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(".watch-history-6", null);
+        existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
@@ -313,16 +301,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        Map<String, IndexTemplateMetadata> indexTemplates = new HashMap<>();
+        Map<String, ComposableIndexTemplate> indexTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
-            when(mockTemplate.version()).thenReturn(template.getValue());
-            when(mockTemplate.getVersion()).thenReturn(template.getValue());
+            final ComposableIndexTemplate mockTemplate = mock(ComposableIndexTemplate.class);
+            when(mockTemplate.version()).thenReturn((long) template.getValue());
             indexTemplates.put(template.getKey(), mockTemplate);
         }
 
@@ -331,34 +317,24 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(indexTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .templates(indexTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
-        Map<String, Integer> existingTemplateNames,
-        Map<String, LifecyclePolicy> existingPolicies,
-        DiscoveryNodes nodes
-    ) {
-        return createClusterChangedEvent(Settings.EMPTY, existingTemplateNames, existingPolicies, nodes);
-    }
-
-    private ClusterChangedEvent createClusterChangedEvent(
-        Settings nodeSettings,
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(nodeSettings, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(existingTemplates, existingPolicies, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -370,6 +346,16 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return event;
     }
 
+    private ClusterChangedEvent addTemplateToState(ClusterChangedEvent previousEvent) {
+        final ComposableIndexTemplate mockTemplate = mock(ComposableIndexTemplate.class);
+        when(mockTemplate.version()).thenReturn((long) INDEX_TEMPLATE_VERSION);
+        ProjectMetadata newProject = ProjectMetadata.builder(previousEvent.state().metadata().projects().values().iterator().next())
+            .put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, mockTemplate)
+            .build();
+        ClusterState newState = ClusterState.builder(previousEvent.state()).putProjectMetadata(newProject).build();
+        return new ClusterChangedEvent("created-from-test", newState, previousEvent.state());
+    }
+
     private ClusterState createClusterState(Map<String, Integer> existingTemplates) {
         Metadata.Builder metadataBuilder = Metadata.builder();
         HashMap<String, ComposableIndexTemplate> templates = new HashMap<>();
@@ -379,7 +365,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             when(indexTemplate.indexPatterns()).thenReturn(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
             templates.put(template.getKey(), indexTemplate);
         }
-        metadataBuilder.indexTemplates(templates);
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        final var projectId = ProjectId.DEFAULT;
+        metadataBuilder.put(ProjectMetadata.builder(projectId).indexTemplates(templates));
 
         return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }

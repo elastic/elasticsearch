@@ -85,7 +85,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                     return null;
                 }
                 final String javaPattern = msToJavaPattern(pattern);
-                return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
+                return DateTimeFormatter.ofPattern(javaPattern, Locale.ENGLISH)::format;
             }
         },
         DATE_FORMAT {
@@ -97,7 +97,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         DATE_TIME_FORMAT {
             @Override
             protected Function<TemporalAccessor, String> formatterFor(String pattern) {
-                return DateTimeFormatter.ofPattern(pattern, Locale.ROOT)::format;
+                return DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)::format;
             }
         },
         TO_CHAR {

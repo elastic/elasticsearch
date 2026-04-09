@@ -1,5 +1,0 @@
-pr: 107663
-summary: Optimize `GeoBounds` and `GeoCentroid` aggregations for single value fields
-area: Geo
-type: enhancement
-issues: []

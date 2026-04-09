@@ -16,28 +16,30 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvFirst extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvFirst", MvFirst::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFirst.class).unary(MvFirst::new).name("mv_first");
 
     @FunctionInfo(
         returnType = {
@@ -45,25 +47,28 @@ public class MvFirst extends AbstractMultivalueFunction {
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
             Converts a multivalued expression into a single valued column containing the
             first value. This is most useful when reading from a function that emits
-            multivalued columns in a known order like <<esql-split>>.
-
+            multivalued columns in a known order like <<esql-split>>.""",
+        detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
             rely on that. If you need the minimum value use <<esql-mv_min>> instead of
-            `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a
+            `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn’t a
             performance benefit to `MV_FIRST`.""",
         examples = @Example(file = "string", tag = "mv_first")
     )
@@ -76,9 +81,13 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -86,7 +95,7 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -103,7 +112,7 @@ public class MvFirst extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -114,7 +123,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             case DOUBLE -> new MvFirstDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvFirstIntEvaluator.Factory(fieldEval);
             case LONG -> new MvFirstLongEvaluator.Factory(fieldEval);
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

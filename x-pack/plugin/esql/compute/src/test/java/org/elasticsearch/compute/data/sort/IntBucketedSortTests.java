@@ -14,27 +14,29 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class IntBucketedSortTests extends BucketedSortTestCase<IntBucketedSort> {
+public class IntBucketedSortTests extends BucketedSortTestCase<IntBucketedSort, Integer> {
     @Override
     protected IntBucketedSort build(SortOrder sortOrder, int bucketSize) {
         return new IntBucketedSort(bigArrays(), sortOrder, bucketSize);
     }
 
     @Override
-    protected Object expectedValue(double v) {
-        return (int) v;
-    }
-
-    @Override
-    protected double randomValue() {
+    protected Integer randomValue() {
         return randomInt();
     }
 
     @Override
-    protected void collect(IntBucketedSort sort, double value, int bucket) {
-        sort.collect((int) value, bucket);
+    protected List<Integer> threeSortedValues() {
+        return List.of(Integer.MIN_VALUE, randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MAX_VALUE);
+    }
+
+    @Override
+    protected void collect(IntBucketedSort sort, Integer value, int bucket) {
+        sort.collect(value, bucket);
     }
 
     @Override
@@ -48,11 +50,11 @@ public class IntBucketedSortTests extends BucketedSortTestCase<IntBucketedSort> 
     }
 
     @Override
-    protected void assertBlockTypeAndValues(Block block, Object... values) {
+    protected void assertBlockTypeAndValues(Block block, List<Integer> values) {
         assertThat(block.elementType(), equalTo(ElementType.INT));
         var typedBlock = (IntBlock) block;
-        for (int i = 0; i < values.length; i++) {
-            assertThat(typedBlock.getInt(i), equalTo(values[i]));
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(typedBlock.getInt(i), equalTo(values.get(i)));
         }
     }
 }

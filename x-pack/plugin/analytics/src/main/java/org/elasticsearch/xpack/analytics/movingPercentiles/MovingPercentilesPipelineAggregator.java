@@ -15,10 +15,10 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
@@ -42,7 +41,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
+        InternalMultiBucketAggregation<?, ?> histo = asMultiBucketAggregation(aggregation);
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -72,7 +71,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         PercentileConfig config
     ) {
 
-        List<TDigestState> values = buckets.stream()
+        List<HistogramUnionState> values = buckets.stream()
             .map(b -> resolveTDigestBucketValue(histo, b, bucketsPaths()[0]))
             .filter(Objects::nonNull)
             .toList();
@@ -84,16 +83,16 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
-            TDigestState state = null;
+            HistogramUnionState state = null;
             int fromIndex = clamp(index - window + shift, values.size());
             int toIndex = clamp(index + shift, values.size());
             for (int i = fromIndex; i < toIndex; i++) {
-                TDigestState bucketState = values.get(i);
+                HistogramUnionState bucketState = values.get(i);
                 if (bucketState != null) {
                     if (state == null) {
                         // We have to create a new TDigest histogram because otherwise it will alter the
                         // existing histogram and bucket value
-                        state = TDigestState.createUsingParamsFrom(bucketState);
+                        state = HistogramUnionState.createUsingParamsFrom(bucketState);
                     }
                     state.add(bucketState);
 
@@ -101,9 +100,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().collect(Collectors.toList());
-                aggs.add(new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata())
+                    )
+                );
             }
             newBuckets.add(newBucket);
             index++;
@@ -147,9 +151,14 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = new ArrayList<>(bucket.getAggregations().asList());
-                aggs.add(new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata())
+                    )
+                );
             }
             newBuckets.add(newBucket);
             index++;
@@ -186,7 +195,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
     }
 
-    private static TDigestState resolveTDigestBucketValue(
+    private static HistogramUnionState resolveTDigestBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath

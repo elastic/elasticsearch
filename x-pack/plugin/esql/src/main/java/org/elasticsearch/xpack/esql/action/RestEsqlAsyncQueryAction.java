@@ -14,7 +14,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,6 +28,12 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
 public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlAsyncQueryAction.class);
 
+    private final EsqlCapabilities capabilities;
+
+    public RestEsqlAsyncQueryAction(EsqlCapabilities capabilities) {
+        this.capabilities = capabilities;
+    }
+
     @Override
     public String getName() {
         return "esql_async_query";
@@ -41,26 +46,14 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return EsqlCapabilities.CAPABILITIES;
+        return capabilities.capabilities();
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = RequestXContent.parseAsync(parser);
+            return RestEsqlQueryAction.restChannelConsumer(RequestXContent.parseAsync(parser), request, client);
         }
-
-        LOGGER.debug("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());
-
-        return channel -> {
-            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(
-                EsqlQueryAction.INSTANCE,
-                esqlRequest,
-                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
-            );
-        };
     }
 
     @Override

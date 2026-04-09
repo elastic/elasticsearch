@@ -342,7 +342,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     public void testAllResourcesPresentAndCurrent() {
@@ -362,7 +362,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertTrue(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertTrue(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     public void testSomeResourcesMissing() {
@@ -388,7 +388,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

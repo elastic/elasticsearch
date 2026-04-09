@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -47,7 +49,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     public NoOpEngine(EngineConfig config) {
         this(
             config,
-            config.isPromotableToPrimary() ? null : new TranslogStats(0, 0, 0, 0, 0),
+            config.isPromotableToPrimary() && config.getTranslogConfig().hasTranslog() ? null : new TranslogStats(0, 0, 0, 0, 0),
             config.isPromotableToPrimary()
                 ? null
                 : new SeqNoStats(
@@ -85,12 +87,27 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
                 return null;
             }
 
@@ -165,7 +182,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                         translogDeletionPolicy,
                         engineConfig.getGlobalCheckpointSupplier(),
                         engineConfig.getPrimaryTermSupplier(),
-                        seqNo -> {}
+                        seqNo -> {},
+                        TranslogOperationAsserter.DEFAULT
                     )
                 ) {
                     translog.trimUnreferencedReaders();

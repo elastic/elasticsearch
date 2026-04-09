@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -82,7 +83,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
-    private static final ByteSizeValue SNAPSHOT_FILE_PART_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+    private static final ByteSizeValue SNAPSHOT_FILE_PART_SIZE = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
     public void testWriteFileChunksConcurrently() throws Exception {
         IndexShard sourceShard = newStartedShard(true);
@@ -453,7 +454,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             @Override
             public int getReadSnapshotFileBufferSizeForRepo(String repository) {
-                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+                return (int) ByteSizeValue.of(128, ByteSizeUnit.KB).getBytes();
             }
         };
 
@@ -525,7 +526,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             @Override
             public int getReadSnapshotFileBufferSizeForRepo(String repository) {
-                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+                return (int) ByteSizeValue.of(128, ByteSizeUnit.KB).getBytes();
             }
         };
 
@@ -635,7 +636,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             @Override
             public int getReadSnapshotFileBufferSizeForRepo(String repository) {
-                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+                return (int) ByteSizeValue.of(128, ByteSizeUnit.KB).getBytes();
             }
         };
 
@@ -698,7 +699,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
             @Override
             public int getReadSnapshotFileBufferSizeForRepo(String repository) {
-                return (int) new ByteSizeValue(128, ByteSizeUnit.KB).getBytes();
+                return (int) ByteSizeValue.of(128, ByteSizeUnit.KB).getBytes();
             }
         };
 
@@ -712,7 +713,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
             "name",
             storeFileMetadata,
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
         );
 
         recoveryTarget.incRef();

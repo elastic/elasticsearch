@@ -13,10 +13,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -113,25 +113,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 return;
             }
 
-            ActionListener.respondAndRelease(
-                nextPhase,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    null
-                )
-            );
+            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override
@@ -264,25 +246,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 awaitForLatch();
             }
 
-            ActionListener.respondAndRelease(
-                nextPhase,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    null
-                )
-            );
+            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override

@@ -12,24 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MedianAbsoluteDeviationFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public MedianAbsoluteDeviationFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public MedianAbsoluteDeviationFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MedianAbsoluteDeviationFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return MedianAbsoluteDeviationFloatAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MedianAbsoluteDeviationFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MedianAbsoluteDeviationFloatAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MedianAbsoluteDeviationFloatGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return MedianAbsoluteDeviationFloatGroupingAggregatorFunction.create(channels, driverContext);
+      DriverContext driverContext, List<Integer> channels) {
+    return new MedianAbsoluteDeviationFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

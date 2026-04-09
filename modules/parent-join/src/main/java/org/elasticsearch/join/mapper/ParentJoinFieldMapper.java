@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.mapper;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -115,6 +117,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
@@ -150,7 +157,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         private final Joiner joiner;
 
         private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.joiner = joiner;
         }
 
@@ -210,7 +217,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;

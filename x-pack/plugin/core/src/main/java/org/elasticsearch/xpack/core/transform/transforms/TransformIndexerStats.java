@@ -24,23 +24,23 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TransformIndexerStats extends IndexerJobStats {
 
     public static final String NAME = "data_frame_indexer_transform_stats";
-    public static ParseField NUM_PAGES = new ParseField("pages_processed");
-    public static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
-    public static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
-    public static ParseField NUM_DELETED_DOCUMENTS = new ParseField("documents_deleted");
-    public static ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
-    public static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
-    public static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
-    public static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
-    public static ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
-    public static ParseField INDEX_TOTAL = new ParseField("index_total");
-    public static ParseField SEARCH_TOTAL = new ParseField("search_total");
-    public static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
-    public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
-    public static ParseField INDEX_FAILURES = new ParseField("index_failures");
-    public static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
-    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
-    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
+    public static final ParseField NUM_PAGES = new ParseField("pages_processed");
+    public static final ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
+    public static final ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
+    public static final ParseField NUM_DELETED_DOCUMENTS = new ParseField("documents_deleted");
+    public static final ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
+    public static final ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    public static final ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    public static final ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
+    public static final ParseField DELETE_TIME_IN_MS = new ParseField("delete_time_in_ms");
+    public static final ParseField INDEX_TOTAL = new ParseField("index_total");
+    public static final ParseField SEARCH_TOTAL = new ParseField("search_total");
+    public static final ParseField PROCESSING_TOTAL = new ParseField("processing_total");
+    public static final ParseField SEARCH_FAILURES = new ParseField("search_failures");
+    public static final ParseField INDEX_FAILURES = new ParseField("index_failures");
+    public static final ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
+    public static final ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
+    public static final ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
 
     // This changes how much "weight" past calculations have.
     // The shorter the window, the less "smoothing" will occur.

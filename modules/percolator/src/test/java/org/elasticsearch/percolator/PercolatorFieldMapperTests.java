@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -22,6 +23,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -30,7 +32,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -56,11 +57,11 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
@@ -416,10 +417,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateCandidateQuery() throws Exception {
-        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
+        int origMaxClauseCount = IndexSearcher.getMaxClauseCount();
         try {
             final int maxClauseCount = 100;
-            BooleanQuery.setMaxClauseCount(maxClauseCount);
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
             addQueryFieldMappings();
 
             MemoryIndex memoryIndex = new MemoryIndex(false);
@@ -434,8 +435,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
-            assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
-            assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
+            assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
+            assertThat(t.v1().clauses().get(1).query(), instanceOf(TermQuery.class));
 
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
@@ -443,12 +444,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             t = fieldType.createCandidateQuery(indexReader);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
-            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).getQuery();
-            assertEquals(maxClauseCount - 1, terms.getTermData().size());
-            assertThat(t.v1().clauses().get(1).getQuery().toString(), containsString(fieldName + ".range_field:<ranges:"));
-            assertThat(t.v1().clauses().get(2).getQuery().toString(), containsString(fieldName + ".extraction_result:failed"));
+            TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
+            assertEquals(maxClauseCount - 1, terms.getTermsCount());
+            assertThat(t.v1().clauses().get(1).query().toString(), containsString(fieldName + ".range_field:<ranges:"));
+            assertThat(t.v1().clauses().get(2).query().toString(), containsString(fieldName + ".extraction_result:failed"));
         } finally {
-            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
+            IndexSearcher.setMaxClauseCount(origMaxClauseCount);
         }
     }
 
@@ -634,7 +635,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
         assertQueryBuilder(qbSource, future.get());
@@ -1179,7 +1180,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static final class CustomParserQueryBuilder extends AbstractQueryBuilder<CustomParserQueryBuilder> {
+    public static final class CustomParserQueryBuilder extends LeafQueryBuilder<CustomParserQueryBuilder> {
         private static final String NAME = "CUSTOM";
 
         CustomParserQueryBuilder() {}
@@ -1210,7 +1211,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

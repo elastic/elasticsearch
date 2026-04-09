@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -107,7 +108,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index(indexName))
+            .addAsNew(metadata.getProject().index(indexName))
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(clusterName))
@@ -130,7 +131,11 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> assert cluster health");
-        ClusterStateHealth health = new ClusterStateHealth(clusterState);
+        ClusterStateHealth health = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         assertThat(health.getStatus(), equalTo(expectedStatus));
 
         return clusterState;

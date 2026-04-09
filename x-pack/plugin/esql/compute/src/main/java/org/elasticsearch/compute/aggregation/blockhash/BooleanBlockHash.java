@@ -25,8 +25,9 @@ import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolea
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
 
 /**
- * Maps a {@link BooleanBlock} column to group ids. Assigns group
- * {@code 0} to {@code false} and group {@code 1} to {@code true}.
+ * Maps a {@link BooleanBlock} column to group ids. Assigns
+ * {@code 0} to {@code null}, {@code 1} to {@code false}, and
+ * {@code 2} to {@code true}.
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;
@@ -109,16 +110,15 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     @Override
-    public BooleanBlock[] getKeys() {
-        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(everSeen.length)) {
-            if (everSeen[NULL_ORD]) {
-                builder.appendNull();
-            }
-            if (everSeen[FALSE_ORD]) {
-                builder.appendBoolean(false);
-            }
-            if (everSeen[TRUE_ORD]) {
-                builder.appendBoolean(true);
+    public BooleanBlock[] getKeys(IntVector selected) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                switch (selected.getInt(i)) {
+                    case NULL_ORD -> builder.appendNull();
+                    case FALSE_ORD -> builder.appendBoolean(false);
+                    case TRUE_ORD -> builder.appendBoolean(true);
+                    default -> throw new IllegalArgumentException("unexpected group id " + selected.getInt(i));
+                }
             }
             return new BooleanBlock[] { builder.build() };
         }
@@ -134,6 +134,17 @@ final class BooleanBlockHash extends BlockHash {
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public int numKeys() {
+        int numKeys = 0;
+        for (boolean b : everSeen) {
+            if (b) {
+                numKeys++;
+            }
+        }
+        return numKeys;
     }
 
     @Override

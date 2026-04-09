@@ -1,0 +1,24 @@
+= ES|QL Query Genereator
+
+These classes generate random ES|QL queries, that can then be used to test the ES|QL engine (eg. see `GenerativeIT`).
+The intention is not to test the single commands, but rather to test how ES|QL query engine
+(parser, optimizers, query layout, compute) manages very complex queries.
+
+== Implementing your own command generator
+
+If you implement a new command, and you want it to be tested by the generative tests, you can add a command generator here.
+
+All you have to do is:
+
+* add a class in `org.elasticsearch.xpack.esql.generator.command.source` (if it's a source command)
+  or in `org.elasticsearch.xpack.esql.generator.command.pipe` (if it's a pipe command)
+* Implement `CommandGenerator` interface (see its javadoc, it should be explicative. Or just have a look at one of the existing commands, eg. `SortGenerator`)
+** Implement `CommandGenerator.generate()` method, that will return the command.
+*** Have a look at `EsqlQueryGenerator`, it contains many utility methods that will help you generate random expressions.
+** Implement `CommandGenerator.validateOutput()` to validate the output of the query.
+* Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
+* Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.
+* If you get unexpected errors (real bugs in ES|QL), please open an issue and add the error to `GenerativeRestTest.ALLOWED_ERRORS`. Run tests again until everything works fine.
+
+
+IMPORTANT: be careful when validating the output (Eg. the row count), as ES|QL can be quite non-deterministic when there are no SORTs

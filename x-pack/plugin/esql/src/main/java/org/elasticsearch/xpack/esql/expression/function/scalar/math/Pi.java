@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -24,10 +26,11 @@ import java.util.List;
  */
 public class Pi extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Pi", Pi::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Pi.class).noArgs(Pi::new).name("pi");
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.",
+        description = "Returns {wikipedia}/Pi[Pi], the ratio of a circle’s circumference to its diameter.",
         examples = @Example(file = "math", tag = "pi")
     )
     public Pi(Source source) {
@@ -49,7 +52,7 @@ public class Pi extends DoubleConstantFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return Math.PI;
     }
 

@@ -7,18 +7,34 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Aggregates field values for long.
@@ -48,43 +64,47 @@ class ValuesLongAggregator {
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
     }
 
     public static void combine(GroupingState state, int groupId, long v) {
-        state.values.add(groupId, v);
+        state.addValue(groupId, v);
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getLong(i));
+            state.addValue(groupId, values.getLong(i));
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        for (int id = 0; id < state.values.size(); id++) {
-            if (state.values.getKey1(id) == statePosition) {
-                long value = state.values.getKey2(id);
-                combine(current, currentGroupId, value);
-            }
-        }
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final LongHash values;
 
         private SingleState(BigArrays bigArrays) {
             values = new LongHash(1, bigArrays);
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 
@@ -113,68 +133,132 @@ class ValuesLongAggregator {
 
     /**
      * State for a grouped {@code VALUES} aggregation. This implementation
-     * emphasizes collect-time performance over the performance of rendering
-     * results. That's good, but it's a pretty intensive emphasis, requiring
-     * an {@code O(n^2)} operation for collection to support a {@code O(1)}
-     * collector operation. But at least it's fairly simple.
+     * emphasizes collect-time performance over result rendering performance.
+     * The first value in each group is collected in the {@code firstValues}
+     * array, and subsequent values for each group are collected in {@code nextValues}.
      */
-    public static class GroupingState implements Releasable {
-        private final LongLongHash values;
+    public static class GroupingState implements GroupingAggregatorState {
+        private final BlockFactory blockFactory;
+        LongArray firstValues;
+        private BitArray seen;
+        private int maxGroupId = -1;
+        private final ValuesNextLongLong nextValues;
 
-        private GroupingState(BigArrays bigArrays) {
-            values = new LongLongHash(1, bigArrays);
-        }
-
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
-        }
-
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            if (values.size() == 0) {
-                return blockFactory.newConstantNullBlock(selected.getPositionCount());
+        private GroupingState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
+            boolean success = false;
+            try {
+                this.firstValues = driverContext.bigArrays().newLongArray(1, false);
+                this.nextValues = new ValuesNextLongLong(driverContext.blockFactory());
+                success = true;
+            } finally {
+                if (success == false) {
+                    this.close();
+                }
             }
+        }
+
+        void addValue(int groupId, long v) {
+            if (groupId > maxGroupId) {
+                firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
+                firstValues.set(groupId, v);
+                // We start in untracked mode, assuming every group has a value as an optimization to avoid allocating
+                // and updating the seen bitset. However, once some groups don't have values, we initialize the seen bitset,
+                // fill the groups that have values, and begin tracking incoming groups.
+                if (seen == null && groupId > maxGroupId + 1) {
+                    seen = new BitArray(groupId + 1, blockFactory.bigArrays());
+                    seen.fill(0, maxGroupId + 1, true);
+                }
+                trackGroupId(groupId);
+                maxGroupId = groupId;
+            } else if (hasValue(groupId) == false) {
+                firstValues.set(groupId, v);
+                trackGroupId(groupId);
+            } else if (firstValues.get(groupId) != v) {
+                nextValues.add(groupId, v);
+            }
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we track the seen values manually
+        }
+
+        private void trackGroupId(int groupId) {
+            if (seen != null) {
+                seen.set(groupId);
+            }
+        }
+
+        /**
+         * Returns true if the group has a value in firstValues; having a value in nextValues is optional.
+         * Returns false if the group does not have values in either firstValues or nextValues.
+         */
+        private boolean hasValue(int groupId) {
+            return seen == null || seen.get(groupId);
+        }
+
+        /**
+         * Builds a {@link Block} with the unique values collected for the {@code #selected}
+         * groups. This is the implementation of the final and intermediate results of the agg.
+         */
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(BlockFactory blockFactory, IntVector selected) {
+            return new PreparedForEmitting(selected, blockFactory);
+        }
+
+        private class PreparedForEmitting implements GroupingAggregatorFunction.PreparedForEvaluation {
+            private final BlockFactory blockFactory;
+            private final ValuesNextPreparedForEmitting next;
+
+            PreparedForEmitting(IntVector selected, BlockFactory blockFactory) {
+                this.blockFactory = blockFactory;
+                this.next = nextValues.prepareForEmitting(blockFactory, selected);
+            }
+
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+                blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
+            }
+
+            @Override
+            public void close() {
+                next.close();
+            }
+        }
+
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
+            /*
+             * Insert the ids in order.
+             */
             try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    long first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-                        if (values.getKey1(id) == selectedGroup) {
-                            long value = values.getKey2(id);
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.appendLong(first);
-                                    builder.appendLong(value);
-                                }
-                                default -> builder.appendLong(value);
-                            }
-                            count++;
-                        }
+                    int group = selected.getInt(s);
+                    if (group > maxGroupId || hasValue(group) == false) {
+                        builder.appendNull();
+                        continue;
                     }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendLong(first);
-                        default -> builder.endPositionEntry();
+                    long firstValue = firstValues.get(group);
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
+                    if (nextValuesEnd == nextValuesStart) {
+                        builder.appendLong(firstValue);
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendLong(firstValue);
+                        // append values from the nextValues
+                        for (int i = nextValuesStart; i < nextValuesEnd; i++) {
+                            builder.appendLong(nextValues.getLong(next, i));
+                        }
+                        builder.endPositionEntry();
                     }
                 }
                 return builder.build();
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from nulls on the values block
-        }
-
         @Override
         public void close() {
-            values.close();
+            Releasables.closeExpectNoException(seen, firstValues, nextValues);
         }
     }
 }

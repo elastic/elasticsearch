@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -142,8 +143,18 @@ public final class JvmOptionsParser {
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
-        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
+        final Map<String, JvmOption> parsedJvmOptions = JvmOption.findFinalOptions(substitutedJvmOptions);
+        final List<String> heapSettings = machineDependentHeap.determineHeapSettings(
+            args.nodeSettings(),
+            memoryInfo,
+            parsedJvmOptions,
+            substitutedJvmOptions
+        );
+        substitutedJvmOptions.addAll(heapSettings);
+        final long effectiveHeapSize = heapSettings.isEmpty()
+            ? JvmOption.extractMaxHeapSize(parsedJvmOptions)
+            : parseHeapSizeFromOptions(heapSettings);
+        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(parsedJvmOptions, effectiveHeapSize, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
@@ -268,13 +279,13 @@ public final class JvmOptionsParser {
      * and the following JVM options will not be accepted:
      * <ul>
      *     <li>
-     *         {@code 18:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 18-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 18-19:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-19:-Xlog:age*=trace,gc*,safepoint:file=gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      * </ul>
      *
@@ -352,6 +363,23 @@ public final class JvmOptionsParser {
                 invalidLineConsumer.accept(lineNumber, line);
             }
         }
+    }
+
+    /**
+     * Parses the max heap size in bytes from heap options produced by {@link MachineDependentHeap}.
+     * Expects the format {@code -Xmx<N>m}.
+     */
+    static long parseHeapSizeFromOptions(List<String> heapSettings) {
+        for (String option : heapSettings) {
+            if (option.startsWith("-Xmx")) {
+                String value = option.substring(4);
+                if (value.endsWith("m") == false) {
+                    throw new IllegalStateException("Expected heap option in megabytes: " + option);
+                }
+                return Long.parseLong(value.substring(0, value.length() - 1)) * 1024 * 1024;
+            }
+        }
+        throw new IllegalStateException("Heap settings did not contain -Xmx option: " + heapSettings);
     }
 
 }

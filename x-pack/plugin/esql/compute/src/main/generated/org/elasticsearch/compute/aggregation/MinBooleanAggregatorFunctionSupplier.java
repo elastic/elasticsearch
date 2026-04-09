@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MinBooleanAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MinBooleanAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public MinBooleanAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public MinBooleanAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MinBooleanAggregatorFunction aggregator(DriverContext driverContext) {
-    return MinBooleanAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinBooleanAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public MinBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MinBooleanGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MinBooleanAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinBooleanAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public MinBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

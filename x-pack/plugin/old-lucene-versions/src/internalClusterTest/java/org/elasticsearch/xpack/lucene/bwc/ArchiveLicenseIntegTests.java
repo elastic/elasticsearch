@@ -119,7 +119,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertBusy(
             () -> assertEquals(
                 ClusterHealthStatus.RED,
-                clusterAdmin().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getIndices().get(indexName).getStatus()
             )
         );
 

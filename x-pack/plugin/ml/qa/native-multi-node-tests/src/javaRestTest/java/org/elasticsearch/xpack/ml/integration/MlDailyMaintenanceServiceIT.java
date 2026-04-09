@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -54,6 +55,8 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             client(),
             mock(ClusterService.class),
             mock(MlAssignmentNotifier.class),
+            mock(IndexNameExpressionResolver.class),
+            true,
             true,
             true,
             true

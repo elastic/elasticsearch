@@ -1,5 +1,0 @@
-pr: 108895
-summary: Add permission to secure access to certain config files specified by settings
-area: "Security"
-type: bug
-issues: []

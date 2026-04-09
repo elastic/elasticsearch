@@ -7,43 +7,48 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 import java.util.Arrays;
 import java.util.BitSet;
+// end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
- * This class is generated. Edit {@code InEvaluator.java.st} instead.
+ * {@link ExpressionEvaluator} implementation for {@link In}.
+ * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
-    private final Warnings warnings;
+public class InBooleanEvaluator implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InBooleanEvaluator.class);
 
-    private final EvalOperator.ExpressionEvaluator lhs;
+    private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator[] rhs;
+    private final ExpressionEvaluator lhs;
+
+    private final ExpressionEvaluator[] rhs;
 
     private final DriverContext driverContext;
 
-    public InBooleanEvaluator(
-        Source source,
-        EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator[] rhs,
-        DriverContext driverContext
-    ) {
+    private Warnings warnings;
+
+    public InBooleanEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator[] rhs, DriverContext driverContext) {
+        this.source = source;
         this.lhs = lhs;
         this.rhs = rhs;
         this.driverContext = driverContext;
-        this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
 
     @Override
@@ -84,7 +89,7 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
                 }
                 if (lhsBlock.getValueCount(p) != 1) {
                     if (lhsBlock.getValueCount(p) > 1) {
-                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                     }
                     result.appendNull();
                     continue;
@@ -101,7 +106,7 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
                     }
                     if (rhsBlocks[i].getValueCount(p) > 1) {
                         mvs.set(i);
-                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
                     if (hasTrue && hasFalse) {
@@ -163,16 +168,33 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += lhs.baseRamBytesUsed();
+        for (ExpressionEvaluator r : rhs) {
+            baseRamBytesUsed += r.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
+    @Override
     public void close() {
         Releasables.closeExpectNoException(lhs, () -> Releasables.close(rhs));
     }
 
-    static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory lhs;
-        private final EvalOperator.ExpressionEvaluator.Factory[] rhs;
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+        }
+        return warnings;
+    }
 
-        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, EvalOperator.ExpressionEvaluator.Factory[] rhs) {
+    static class Factory implements ExpressionEvaluator.Factory {
+        private final Source source;
+        private final ExpressionEvaluator.Factory lhs;
+        private final ExpressionEvaluator.Factory[] rhs;
+
+        Factory(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory[] rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
@@ -180,9 +202,7 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
 
         @Override
         public InBooleanEvaluator get(DriverContext context) {
-            EvalOperator.ExpressionEvaluator[] rhs = Arrays.stream(this.rhs)
-                .map(a -> a.get(context))
-                .toArray(EvalOperator.ExpressionEvaluator[]::new);
+            ExpressionEvaluator[] rhs = Arrays.stream(this.rhs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
             return new InBooleanEvaluator(source, lhs.get(context), rhs, context);
         }
 

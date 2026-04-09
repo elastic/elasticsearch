@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.dra
@@ -14,6 +15,7 @@ import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 import spock.lang.Shared
+import spock.lang.Unroll
 
 class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 
@@ -28,7 +30,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         plugins {
             id 'elasticsearch.dra-artifacts'
         }
-        
+
         repositories.all {
             // for supporting http testing repos here
             allowInsecureProtocol = true
@@ -37,7 +39,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def "provides flag indicating dra usage"() {
-        setup:
+        given:
         repository.generateJar("org.acme", "ml-cpp", "8.6.0-SNAPSHOT")
         buildFile << """
         if(useDra == false) {
@@ -49,7 +51,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
                   artifact()
                 }
               }
-            }  
+            }
         }
         """
 
@@ -57,11 +59,11 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         configurations {
             someConfig
         }
-        
+
         dependencies {
             someConfig "org.acme:ml-cpp:8.6.0-SNAPSHOT"
         }
-        
+
         tasks.register('resolveArtifacts') {
             doLast {
                 configurations.someConfig.files.each { println it }
@@ -83,8 +85,9 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
     }
 
+    @Unroll
     def "configures repositories to resolve #draKey like dra #workflow artifacts"() {
-        setup:
+        given:
         repository.generateJar("some.group", "bar", "1.0.0")
         repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")
         repository.configureBuild(buildFile)
@@ -92,13 +95,13 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         configurations {
             someConfig
         }
-        
+
         dependencies {
             someConfig "some.group:bar:1.0.0"
             someConfig "some.group:baz:1.0.0-SNAPSHOT"
             someConfig "org.acme:$draArtifact:$draVersion:deps@zip"
         }
-        
+
         tasks.register('resolveArtifacts') {
             doLast {
                 configurations.someConfig.files.each { println it }

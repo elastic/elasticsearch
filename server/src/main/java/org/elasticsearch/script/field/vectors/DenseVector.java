@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -34,7 +35,7 @@ public interface DenseVector {
 
     float getMagnitude();
 
-    int dotProduct(byte[] queryVector);
+    double dotProduct(byte[] queryVector);
 
     double dotProduct(float[] queryVector);
 
@@ -175,7 +176,7 @@ public interface DenseVector {
     int size();
 
     static float getMagnitude(byte[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(byte[] vector, int dims) {
@@ -204,7 +205,7 @@ public interface DenseVector {
     }
 
     static float getMagnitude(float[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(List<Number> vector) {
@@ -238,7 +239,7 @@ public interface DenseVector {
         }
 
         @Override
-        public int dotProduct(byte[] queryVector) {
+        public double dotProduct(byte[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

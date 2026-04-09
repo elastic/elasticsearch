@@ -7,12 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.junit.Before;
@@ -32,8 +33,8 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileIntAggregatorFunctionSupplier(percentile);
     }
 
     @Override
@@ -52,15 +53,16 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
-        input.stream().flatMapToInt(p -> allInts(p, group)).forEach(td::add);
-        if (td.size() > 0) {
-            double expected = td.quantile(percentile / 100);
-            double value = ((DoubleBlock) result).getDouble(position);
-            double errorDelta = Math.abs(expected * 0.1);
-            assertThat(value, closeTo(expected, errorDelta));
-        } else {
-            assertTrue(result.isNull(position));
+        try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
+            input.stream().flatMapToInt(p -> allInts(p, group)).forEach(td::add);
+            if (td.size() > 0) {
+                double expected = td.quantile(percentile / 100);
+                double value = ((DoubleBlock) result).getDouble(position);
+                double errorDelta = Math.abs(expected * 0.1);
+                assertThat(value, closeTo(expected, errorDelta));
+            } else {
+                assertTrue(result.isNull(position));
+            }
         }
     }
 }

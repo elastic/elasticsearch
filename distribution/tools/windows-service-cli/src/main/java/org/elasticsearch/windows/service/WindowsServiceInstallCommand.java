@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
@@ -63,7 +64,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(args, "--StopMode", "jvm");
         addQuotedArg(args, "--StartPath", quote(pinfo.workingDir().toString()));
         addArg(args, "++JvmOptions", "-Dcli.name=windows-service-daemon");
-        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli");
+        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/server-launcher,lib/tools/windows-service-cli");
         addArg(args, "++Environment", String.format(java.util.Locale.ROOT, "HOSTNAME=%s", pinfo.envVars().get("COMPUTERNAME")));
 
         String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");

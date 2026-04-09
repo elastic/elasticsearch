@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -22,7 +24,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,8 +36,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notANumber;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -63,20 +62,17 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
 
         if (allowsIndexTimeScript()) {
-            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
-            checker.registerUpdateCheck(b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "fail");
-            }, b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "continue");
-            }, m -> assertThat((m).onScriptError, is(OnScriptError.CONTINUE)));
+            registerScriptChecks(checker);
+        } else {
+            checker.registerIgnoredParameter("script");
+            checker.registerIgnoredParameter("on_script_error");
         }
+
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     @Override
@@ -254,6 +250,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         // dimension = true is allowed
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testMetricType() throws IOException {
@@ -299,7 +297,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -332,12 +330,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
 
             @Override
-            ScriptFactory emptyFieldScript() {
+            protected ScriptFactory emptyFieldScript() {
                 return null;
             }
 
             @Override
-            ScriptFactory nonEmptyFieldScript() {
+            protected ScriptFactory nonEmptyFieldScript() {
                 return null;
             }
         };
@@ -375,27 +373,37 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
     }
 
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        // Block loader can either use doc values or source.
-        // So with synthetic source it only works when doc values are enabled.
-        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues(), mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return n -> ((Number) n); // Just assert it's a number
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
-    }
-
     protected abstract Number randomNumber();
 
-    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    protected final class NumberSyntheticSourceSupportForKeepTests extends NumberSyntheticSourceSupport {
+        private final boolean preserveSource;
+
+        protected NumberSyntheticSourceSupportForKeepTests(
+            Function<Number, Number> round,
+            boolean ignoreMalformed,
+            Mapper.SourceKeepMode sourceKeepMode
+        ) {
+            super(round, ignoreMalformed);
+            this.preserveSource = sourceKeepMode == Mapper.SourceKeepMode.ALL;
+        }
+
+        @Override
+        public boolean preservesExactSource() {
+            return preserveSource;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            var example = super.example(maxVals);
+            return new SyntheticSourceExample(
+                example.expectedForSyntheticSource(),
+                example.expectedForSyntheticSource(),
+                example.mapping()
+            );
+        }
+    }
+
+    protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();
@@ -421,51 +429,36 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 Tuple<Object, Object> v = generateValue();
                 if (preservesExactSource()) {
                     var rawInput = v.v1();
-
-                    // This code actually runs with synthetic source disabled
-                    // to test block loader loading from source.
-                    // That's why we need to set expected block loader value here.
-                    var blockLoaderResult = v.v2() instanceof Number n ? round.apply(n) : null;
-                    return new SyntheticSourceExample(rawInput, rawInput, blockLoaderResult, this::mapping);
+                    return new SyntheticSourceExample(rawInput, rawInput, this::mapping);
                 }
                 if (v.v2() instanceof Number n) {
                     Number result = round.apply(n);
-                    return new SyntheticSourceExample(v.v1(), result, result, this::mapping);
+                    return new SyntheticSourceExample(v.v1(), result, this::mapping);
                 }
                 // ignore_malformed value
-                return new SyntheticSourceExample(v.v1(), v.v2(), List.of(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
             List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            Object out;
-            List<Object> outBlockList;
+
             if (preservesExactSource()) {
-                // This code actually runs with synthetic source disabled
-                // to test block loader loading from source.
-                // That's why we need to set expected block loader value here.
-                out = in;
-                outBlockList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .collect(Collectors.toCollection(ArrayList::new));
+                return new SyntheticSourceExample(in, in, this::mapping);
             } else {
                 List<Object> outList = values.stream()
                     .filter(v -> v.v2() instanceof Number)
                     .map(t -> round.apply((Number) t.v2()))
                     .sorted()
                     .collect(Collectors.toCollection(ArrayList::new));
-                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
-                out = outList.size() == 1 ? outList.get(0) : outList;
+                List<Object> malformed = values.stream()
+                    .filter(v -> false == v.v2() instanceof Number)
+                    .map(Tuple::v2)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
+                malformed.forEach(outList::add);
+                var out = outList.size() == 1 ? outList.get(0) : outList;
 
-                outBlockList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .sorted()
-                    .collect(Collectors.toCollection(ArrayList::new));
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
-
-            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private Tuple<Object, Object> generateValue() {
@@ -506,5 +499,54 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    public void testMultiValueSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+        }));
+        assertThat(
+            getDocValuesParameters(mapperService),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                )
+            )
+        );
+    }
+
+    public void testMultiValueDefaultIsSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertThat(getDocValuesParameters(mapperService).multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+    }
+
+    public void testMultiValueSortedSetNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
+        );
     }
 }

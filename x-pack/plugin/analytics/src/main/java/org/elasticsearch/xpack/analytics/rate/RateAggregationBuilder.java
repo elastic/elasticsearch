@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,10 +87,8 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         } else {
             rateUnit = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            if (in.readBoolean()) {
-                rateMode = in.readEnum(RateMode.class);
-            }
+        if (in.readBoolean()) {
+            rateMode = in.readEnum(RateMode.class);
         }
     }
 
@@ -107,13 +104,11 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         } else {
             out.writeByte((byte) 0);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            if (rateMode != null) {
-                out.writeBoolean(true);
-                out.writeEnum(rateMode);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (rateMode != null) {
+            out.writeBoolean(true);
+            out.writeEnum(rateMode);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -220,6 +215,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_10_0;
+        return TransportVersion.zero();
     }
 }

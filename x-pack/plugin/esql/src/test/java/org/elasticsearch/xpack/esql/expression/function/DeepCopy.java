@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnaryExpression;
@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Expression that makes a deep copy of the block it receives.
@@ -41,18 +40,21 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
-        EvalOperator.ExpressionEvaluator.Factory childEval = toEvaluator.apply(child());
-        return ctx -> new EvalOperator.ExpressionEvaluator() {
-            private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory childEval = toEvaluator.apply(child());
+        return ctx -> new ExpressionEvaluator() {
+            private final ExpressionEvaluator child = childEval.get(ctx);
 
             @Override
             public Block eval(Page page) {
                 try (Block block = child.eval(page)) {
                     return BlockUtils.deepCopyOf(block, ctx.blockFactory());
                 }
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override

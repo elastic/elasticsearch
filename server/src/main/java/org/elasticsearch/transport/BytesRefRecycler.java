@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -14,6 +15,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 public class BytesRefRecycler implements Recycler<BytesRef> {
 
+    /**
+     * A non-recycling {@link BytesRefRecycler} which simply allocates a fresh 16kiB {@code byte[]} each time. This is only really
+     * appropriate for use in tests.
+     */
+    // TODO move to test framework?
     public static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
     private final PageCacheRecycler recycler;

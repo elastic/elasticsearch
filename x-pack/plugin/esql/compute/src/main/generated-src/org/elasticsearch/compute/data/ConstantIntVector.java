@@ -7,13 +7,19 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant int value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantIntVector extends AbstractVector implements IntVector {
 
@@ -32,13 +38,44 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public IntBlock asBlock() {
         return new IntVectorBlock(this);
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantIntVector(value, positions.length);
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new IntVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new IntVectorBlock(this);
+            }
+            return (IntBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendInt(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override
@@ -80,6 +117,15 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantIntVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -87,6 +133,11 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public IntVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantIntVector(value, getPositionCount());
     }
 
     @Override

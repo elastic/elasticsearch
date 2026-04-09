@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.readiness;
@@ -15,6 +16,7 @@ import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
@@ -44,9 +46,11 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeTrue(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
+        try (SocketChannel channel = SocketChannel.open(family)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
                     channelConnect(channel, socketAddress);
@@ -65,9 +69,11 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeFalse(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
+        try (SocketChannel channel = SocketChannel.open(family)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 expectThrows(ConnectException.class, () -> {
                     var result = channelConnect(channel, socketAddress);

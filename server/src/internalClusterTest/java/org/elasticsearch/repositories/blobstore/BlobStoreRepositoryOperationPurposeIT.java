@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -27,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -35,7 +38,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -96,17 +98,27 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                metadata -> new AssertingRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new AssertingRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }
 
     private static class AssertingRepository extends FsRepository {
         AssertingRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -114,7 +126,7 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override
@@ -133,11 +145,6 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             return new AssertingBlobContainer(delegateBlobStore.blobContainer(path));
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            delegateBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
         }
 
         @Override
@@ -187,6 +194,19 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
             assertPurposeConsistency(purpose, blobName);
             super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
+        }
+
+        @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
+            assertPurposeConsistency(purpose, blobName);
+            super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override

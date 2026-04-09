@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,10 +24,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -133,13 +133,13 @@ public class PlanStreamInputTests extends ESTestCase {
 
         for (var delim : new String[] { "", "\r", "\n", "\r\n" }) {
             String query = queryFn.apply(delim);
-            EsqlConfiguration config = configuration(query);
+            Configuration config = configuration(query);
 
-            LogicalPlan planIn = analyze(query);
+            LogicalPlan planIn = analyzer().addEmployees("test").query(query);
             LogicalPlan planOut = serializeDeserialize(
                 planIn,
-                PlanStreamOutput::writeLogicalPlanNode,
-                PlanStreamInput::readLogicalPlanNode,
+                PlanStreamOutput::writeNamedWriteable,
+                in -> in.readNamedWriteable(LogicalPlan.class),
                 config
             );
             assertThat(planIn, equalTo(planOut));

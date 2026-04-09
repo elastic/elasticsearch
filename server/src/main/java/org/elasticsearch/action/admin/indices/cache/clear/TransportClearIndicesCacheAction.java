@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.cache.clear;
@@ -17,12 +18,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,10 +37,12 @@ import java.io.IOException;
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     public static final ActionType<BroadcastResponse> TYPE = new ActionType<>("indices:admin/cache/clear");
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportClearIndicesCacheAction(
@@ -46,6 +50,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -59,6 +64,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             false
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,6 +95,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         ClearIndicesCacheRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<EmptyResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -108,7 +115,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ClearIndicesCacheRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
@@ -118,6 +125,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ClearIndicesCacheRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

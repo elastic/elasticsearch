@@ -14,13 +14,14 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -31,25 +32,26 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 
 /**
- * Reduce a multivalued field to a single valued field containing the average value.
+ * Reduce a multivalued field to a single valued field containing the median of the values.
  */
 public class MvMedian extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMedian", MvMedian::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMedian.class).unary(MvMedian::new).name("mv_median");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the median value.",
+        description = "Converts a multivalued field into a single valued field containing the {wikipedia}/Median[median] value.",
         examples = {
             @Example(file = "math", tag = "mv_median"),
             @Example(
                 description = "If the row has an even number of values for a column, "
                     + "the result will be the average of the middle two entries. If the column is not floating point, "
-                    + "the average rounds *down*:",
+                    + "the average rounds **down**:",
                 file = "math",
                 tag = "mv_median_round_down"
             ) }
@@ -59,7 +61,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         @Param(
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -106,7 +108,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         public int count;
     }
 
-    @MvEvaluator(extraName = "Double", finish = "finish")
+    @MvEvaluator(extraName = "Double", finish = "finish", ascending = "ascending")
     static void process(Doubles doubles, double v) {
         if (doubles.values.length < doubles.count + 1) {
             doubles.values = ArrayUtil.grow(doubles.values, doubles.count + 1);

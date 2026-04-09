@@ -7,17 +7,16 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -66,14 +65,32 @@ public class ExchangeBufferTests extends ESTestCase {
         blockFactory.ensureAllBlocksAreReleased();
     }
 
+    public void testOutstandingPages() throws Exception {
+        ExchangeBuffer buffer = new ExchangeBuffer(randomIntBetween(1000, 10000));
+        var blockFactory = blockFactory();
+        Page p1 = randomPage(blockFactory);
+        Page p2 = randomPage(blockFactory);
+        buffer.addPage(p1);
+        buffer.addPage(p2);
+        buffer.finish(false);
+        buffer.addPage(randomPage(blockFactory));
+        assertThat(buffer.size(), equalTo(2));
+        assertSame(buffer.pollPage(), p1);
+        p1.releaseBlocks();
+        assertSame(buffer.pollPage(), p2);
+        p2.releaseBlocks();
+        assertNull(buffer.pollPage());
+        assertTrue(buffer.isFinished());
+        blockFactory.ensureAllBlocksAreReleased();
+    }
+
     private static MockBlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        return new MockBlockFactory(breaker, bigArrays);
+        return new MockBlockFactory(BlockFactory.builder(bigArrays));
     }
 
     private static Page randomPage(BlockFactory blockFactory) {
-        Block block = BasicBlockTests.randomBlock(
+        Block block = RandomBlock.randomBlock(
             blockFactory,
             randomFrom(ElementType.LONG, ElementType.BYTES_REF, ElementType.BOOLEAN),
             randomIntBetween(1, 100),

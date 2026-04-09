@@ -11,8 +11,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +66,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -109,7 +110,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] firstAttemptShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -119,7 +120,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         // let's check ILM for the managed index is waiting in the `shrunk-shards-allocated` step
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -129,7 +130,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // now to the tricky bit
         // we'll use the cluster service to issue a move-to-step task in order to manipulate the ILM execution state `step_time` value to
         // a very low value (in order to trip the LIFECYCLE_STEP_WAIT_TIME_THRESHOLD threshold and retry the shrink cycle)
-        IndexMetadata managedIndexMetadata = clusterService().state().metadata().index(managedIndex);
+        @FixForMultiProject(description = "ilm is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        IndexMetadata managedIndexMetadata = clusterService().state().metadata().getProject(projectId).index(managedIndex);
         Step.StepKey currentStepKey = new Step.StepKey("warm", ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
 
         String masterNode = masterOnlyNodes.get(0);
@@ -142,7 +145,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                final var projectState = currentState.projectState();
                 return new MoveToNextStepUpdateTask(
+                    projectState.projectId(),
                     managedIndexMetadata.getIndex(),
                     policy,
                     currentStepKey,
@@ -150,7 +155,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
                     nowWayBackInThePastSupplier,
                     indexLifecycleService.getPolicyRegistry(),
                     state -> {}
-                ).execute(currentState);
+                ).execute(projectState);
             }
 
             @Override
@@ -161,7 +166,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -174,14 +179,16 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // the shrink index generated in the first attempt must've been deleted!
         assertBusy(() -> assertFalse(indexExists(firstAttemptShrinkIndexName[0])));
 
-        assertBusy(() -> assertTrue(indexExists(secondCycleShrinkIndexName[0])), 30, TimeUnit.SECONDS);
+        awaitIndexExists(secondCycleShrinkIndexName[0]);
 
         // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this
         // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
         setReplicaCount(0, secondCycleShrinkIndexName[0]);
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                secondCycleShrinkIndexName[0]
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses()
                 .get(secondCycleShrinkIndexName[0]);

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 
@@ -37,7 +39,7 @@ public abstract class MultiEngineGet {
         return true;
     }
 
-    public abstract Engine.GetResult get(Engine.Get get);
+    public abstract Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary);
 
     final Engine.Searcher wrapSearchSearchWithCache(Engine.Searcher searcher) {
         assert assertAccessingThread();

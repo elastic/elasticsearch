@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,13 +45,13 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        return VectorUtil.dotProduct(docVector, queryVector);
+        return ESVectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -102,7 +103,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
+        return Math.sqrt(ESVectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

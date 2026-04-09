@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,14 +40,15 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         "ToDegrees",
         ToDegrees::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class).unary(ToDegrees::new).name("to_degrees");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToDegreesEvaluator.Factory::new),
-        Map.entry(INTEGER, (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
-        Map.entry(LONG, (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
+        Map.entry(INTEGER, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
+        Map.entry(LONG, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
         Map.entry(
             UNSIGNED_LONG,
-            (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromUnsignedLongEvaluator.Factory(field, source), source)
+            (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
         )
     );
 

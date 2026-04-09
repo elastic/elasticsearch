@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.profiling.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,7 +21,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -46,18 +44,21 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     protected final ThreadPool threadPool;
     protected final Client client;
     private final IndexStateResolver indexStateResolver;
+    private final ProfilingIndexTemplateRegistry templateRegistry;
     private volatile boolean templatesEnabled;
 
     AbstractProfilingPersistenceManager(
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        IndexStateResolver indexStateResolver
+        IndexStateResolver indexStateResolver,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
         this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
         this.indexStateResolver = indexStateResolver;
+        this.templateRegistry = templateRegistry;
     }
 
     public void initialize() {
@@ -71,18 +72,6 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
 
     public void setTemplatesEnabled(boolean templatesEnabled) {
         this.templatesEnabled = templatesEnabled;
-    }
-
-    private static boolean isMixedVersionCluster(DiscoveryNodes nodes) {
-        Version version = null;
-        for (var n : nodes) {
-            if (version == null) {
-                version = n.getVersion();
-            } else if (version.equals(n.getVersion()) == false) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override
@@ -100,7 +89,7 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
             return;
         }
 
-        if (isMixedVersionCluster(event.state().nodes())) {
+        if (event.state().nodes().isMixedVersionCluster()) {
             logger.debug("Skipping up-to-date check as cluster has mixed versions");
             return;
         }
@@ -131,7 +120,7 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     }
 
     protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
-        return ProfilingIndexTemplateRegistry.isAllResourcesCreated(event.state(), settings);
+        return templateRegistry.isAllResourcesCreated(event.state(), settings);
     }
 
     /**

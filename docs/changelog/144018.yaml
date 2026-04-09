@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144018
+summary: "[ES|QL|DS] Parquet row-group level split parallelism"
+type: enhancement

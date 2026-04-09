@@ -1,6 +1,0 @@
-pr: 108106
-summary: Simulate should succeed if `ignore_missing_pipeline`
-area: Ingest Node
-type: bug
-issues:
- - 107314

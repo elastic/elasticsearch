@@ -1,36 +1,43 @@
 {
   "enrich.get_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-enrich-policy-api.html",
-      "description": "Gets information about an enrich policy."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-get-policy",
+      "description": "Get an enrich policy"
     },
-    "stability" : "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_enrich/policy/{name}",
-          "methods": [ "GET" ],
+          "methods": [
+            "GET"
+          ],
           "parts": {
             "name": {
-              "type" : "list",
-              "description" : "A comma-separated list of enrich policy names"
+              "type": "list",
+              "description": "A comma-separated list of enrich policy names"
             }
           }
         },
         {
           "path": "/_enrich/policy",
-          "methods": [ "GET" ]
+          "methods": [
+            "GET"
+          ]
         }
       ]
     },
     "params": {
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       }
     }
   }

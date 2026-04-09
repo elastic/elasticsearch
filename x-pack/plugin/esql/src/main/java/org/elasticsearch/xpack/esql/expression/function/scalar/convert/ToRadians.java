@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -38,14 +39,15 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         "ToRadians",
         ToRadians::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToRadians.class).unary(ToRadians::new).name("to_radians");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
-        Map.entry(INTEGER, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
-        Map.entry(LONG, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
+        Map.entry(INTEGER, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
+        Map.entry(LONG, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
         Map.entry(
             UNSIGNED_LONG,
-            (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromUnsignedLongEvaluator.Factory(field, source), source)
+            (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
         )
     );
 

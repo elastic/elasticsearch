@@ -1,0 +1,277 @@
+setup:
+  - requires:
+      cluster_features: [ "search.rescore.script" ]
+      reason: "Test requires feature 'search.rescore.script' to test script rescore"
+      test_runner_features: "close_to"
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+
+  - do:
+      indices.create:
+        index: books
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              title:
+                type: text
+              author:
+                type: keyword
+              num_likes:
+                type: integer
+
+  - do:
+      bulk:
+        index: books
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"title": "The Ethics of Ambiguity", "author": "Simone de Beauvoir", "num_likes": 150}'
+          - '{"index": {"_id": "2"}}'
+          - '{"title": "The Ethics of Being and Nothingness", "author": "Jean-Paul Sartre", "num_likes": 250}'
+          - '{"index": {"_id": "3"}}'
+          - '{"title": "The Ambiguity of The Second Sex", "author": "Simone de Beauvoir", "num_likes": 300}'
+          - '{"index": {"_id": "4"}}'
+          - '{"title": "The Ethics of Nausea", "author": "Jean-Paul Sartre", "num_likes": 180}'
+          - '{"index": {"_id": "5"}}'
+          - '{"title": "The Ambiguity in the Myth of Sisyphus", "author": "Albert Camus", "num_likes": 220}'
+
+---
+"Basic script rescore":
+
+  # simple rescore script for all top docs
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+             title: "ethics of ambiguity"
+          rescore:
+            window_size: 5
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier"
+                params:
+                  multiplier: 10
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: "3" }
+  - close_to: { hits.hits.0._score:  {value: 3000, error: 0.0001} }
+  - match: { hits.hits.1._id: "2" }
+  - close_to: { hits.hits.1._score:  {value: 2500, error: 0.0001} }
+  - match: { hits.hits.2._id: "5" }
+  - close_to: { hits.hits.2._score:  {value: 2200, error: 0.0001} }
+  - match: { hits.hits.3._id: "4" }
+  - close_to: { hits.hits.3._score:  {value: 1800, error: 0.0001} }
+  - match: { hits.hits.4._id: "1" }
+  - close_to: { hits.hits.4._score:  {value: 1500, error: 0.0001} }
+
+  # rescore script with _score for all top docs
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 5
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier + _score"
+                params:
+                  multiplier: 10
+  - match: { hits.hits.0._id: "3" }
+  - close_to: { hits.hits.0._score: { value: 3000.5989, error: 0.0001 } }
+  - match: { hits.hits.1._id: "2" }
+  - close_to: { hits.hits.1._score: { value: 2500.5989, error: 0.0001 } }
+  - match: { hits.hits.2._id: "5" }
+  - close_to: { hits.hits.2._score: { value: 2200.5583, error: 0.0001 } }
+  - match: { hits.hits.3._id: "4" }
+  - close_to: { hits.hits.3._score: { value: 1800.7003, error: 0.0001 } }
+  - match: { hits.hits.4._id: "1" }
+  - close_to: { hits.hits.4._score: { value: 1501.3032, error: 0.0001 } }
+
+  # simple rescore script for small window size
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 3
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier"
+                params:
+                  multiplier: 10
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 2500, error: 0.0001 } }
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.1._score: { value: 1800, error: 0.0001 } }
+  - match: { hits.hits.2._id: "1" }
+  - close_to: { hits.hits.2._score: { value: 1500, error: 0.0001 } }
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.59879, error: 0.0001 } }
+  - match: { hits.hits.4._id: "5" }
+  - close_to: { hits.hits.4._score: { value: 0.5583, error: 0.0001 } }
+
+  # rescore script with _score for small window size
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 3
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier + _score"
+                params:
+                  multiplier: 10
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 2500.5989, error: 0.0001 } }
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.1._score: { value: 1800.7003, error: 0.0001 } }
+  - match: { hits.hits.2._id: "1" }
+  - close_to: { hits.hits.2._score: { value: 1501.3032, error: 0.0001 } }
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.59879, error: 0.0001 } }
+  - match: { hits.hits.4._id: "5" }
+  - close_to: { hits.hits.4._score: { value: 0.5583, error: 0.0001 } }
+
+---
+"Multiple script rescore":
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            - window_size: 3
+              script:
+                script:
+                  source: "doc['num_likes'].value * params.multiplier + _score"
+                  params:
+                    multiplier: 10
+            - window_size: 2
+              script:
+                script:
+                  source: "_score * params.factor"
+                  params:
+                    factor: 10
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 25005.989, error: 0.005 } } # rescored by 1st and 2nd scripts
+  - match: { hits.hits.1._id: "4" }
+  - close_to: { hits.hits.1._score: { value: 18007.0039, error: 0.005 } } # rescored by 1st and 2nd scripts
+  - match: { hits.hits.2._id: "1" }
+  - close_to: { hits.hits.2._score: { value: 1501.3032, error: 0.0005 } } # rescored by 1st script
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.59879, error: 0.0001 } } # not rescored
+  - match: { hits.hits.4._id: "5" }
+  - close_to: { hits.hits.4._score: { value: 0.5583, error: 0.0001 } } # not rescored
+
+---
+"Rescore Script With Explanation":
+  - do:
+      search:
+        index: books
+        explain: true
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 3
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier + _score"
+                params:
+                  multiplier: 10
+  - match: { hits.total.value: 5 }
+
+  # hit went through rescore
+  - contains: { hits.hits.0._explanation.description: "script score function" }
+  - close_to: { hits.hits.0._explanation.value: { value: 2500.5989, error: 0.0001 } }
+  - match: { hits.hits.0._explanation.details.0.description: '_score: ' }
+  - close_to: { hits.hits.0._explanation.details.0.value: { value: 0.5987902, error: 0.0001 } }
+
+  # hit did not go through rescore
+  - match: { hits.hits.4._explanation.description: "sum of:" }
+  - close_to: { hits.hits.4._explanation.value: { value: 0.5583, error: 0.0001 } }
+
+
+---
+"Script rescore on Multiple Segments":
+  # update some documents to create multiple segments
+  - do:
+      bulk:
+        index: books
+        refresh: true
+        body:
+          - '{"update": {"_id": "1"}}'
+          - '{"doc": {"num_likes": 300}}'
+          - '{"update": {"_id": "3"}}'
+          - '{"doc": {"num_likes": 150}}'
+
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 5
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier + _score"
+                params:
+                  multiplier: 10
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 3001.1267, error: 0.0001 } }
+  - match: { hits.hits.1._id: "2" }
+  - close_to: { hits.hits.1._score: { value: 2500.6064, error: 0.0001 } }
+  - match: { hits.hits.2._id: "5" }
+  - close_to: { hits.hits.2._score: { value: 2200.3877, error: 0.0001 } }
+  - match: { hits.hits.3._id: "4" }
+  - close_to: { hits.hits.3._score: { value: 1800.7106, error: 0.0001 } }
+  - match: { hits.hits.4._id: "3" }
+  - close_to: { hits.hits.4._score: { value: 1500.4163, error: 0.0001 } }
+
+  # rescore script with _score for small window size
+  - do:
+      search:
+        index: books
+        body:
+          query:
+            match:
+              title: "ethics of ambiguity"
+          rescore:
+            window_size: 3
+            script:
+              script:
+                source: "doc['num_likes'].value * params.multiplier + _score"
+                params:
+                  multiplier: 10
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 3001.1267, error: 0.0001 } }
+  - match: { hits.hits.1._id: "2" }
+  - close_to: { hits.hits.1._score: { value: 2500.6064, error: 0.0001 } }
+  - match: { hits.hits.2._id: "4" }
+  - close_to: { hits.hits.2._score: { value: 1800.7106, error: 0.0001 } }
+  - match: { hits.hits.3._id: "3" }
+  - close_to: { hits.hits.3._score: { value: 0.41622, error: 0.0001 } }
+  - match: { hits.hits.4._id: "5" }
+  - close_to: { hits.hits.4._score: { value: 0.38778, error: 0.0001 } }
+

@@ -130,19 +130,6 @@ m:double           | p50:double           | job_positions:keyword
 3.9299999999999997 | 3.9299999999999997   | "Architect"
 ;
 
-medianAbsoluteDeviation
-// tag::median-absolute-deviation[]
-FROM employees
-| STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
-// end::median-absolute-deviation[]
-;
-
-// tag::median-absolute-deviation-result[]
-MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
-47003                 | 10096.5
-// end::median-absolute-deviation-result[]
-;
-
 medianViaExpression
 from employees | stats p50 = percentile(salary_change, 25*2);
 
@@ -170,19 +157,6 @@ median_max_salary_change:double
 // end::docsStatsMedianNestedExpression-result[]
 ;
 
-docsStatsMADNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
-// tag::docsStatsMADNestedExpression[]
-FROM employees
-| STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))
-// end::docsStatsMADNestedExpression[]
-;
-
-// tag::docsStatsMADNestedExpression-result[]
-m_a_d_max_salary_change:double
-5.69
-// end::docsStatsMADNestedExpression-result[]
-;
-
 docsStatsPercentileNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 // tag::docsStatsPercentileNestedExpression[]
 FROM employees
@@ -195,3 +169,69 @@ p80_max_salary_change:double
 12.132
 // end::docsStatsPercentileNestedExpression-result[]
 ;
+
+constantsFrom
+required_capability: fn_mv_percentile
+from employees
+| eval single = 7, mv = [1, 7, 10]
+| stats
+    eval_single = percentile(single, 50),
+    eval_mv = percentile(mv, 50),
+    constant_single = percentile(5, 50),
+    constant_mv = percentile([1, 5, 10], 50);
+
+eval_single:double | eval_mv:double | constant_single:double | constant_mv:double
+7                  | 7              | 5                      | 5
+;
+
+constantsRow
+required_capability: fn_mv_percentile
+row single=7, mv=[1, 7, 10]
+| stats
+    eval_single = percentile(single, 50),
+    eval_mv = percentile(mv, 50),
+    constant_single = percentile(5, 50),
+    constant_mv = percentile([1, 5, 10], 50);
+
+eval_single:double | eval_mv:double | constant_single:double | constant_mv:double
+7                  | 7              | 5                      | 5
+;
+
+singleConstant
+required_capability: fn_mv_percentile
+row a=0
+| stats constant_single = percentile(5, 50);
+
+constant_single:double
+5
+;
+
+percentile precision tests with table read
+required_capability: fix_percentile_precision
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| KEEP emp_no
+| STATS p1 = percentile(emp_no, 50), p2 = percentile(emp_no, 50.55), p3 = percentile(emp_no, 51.0),
+        p4 = percentile(emp_no, 97), p5 = percentile(emp_no, 97.30), p6 = percentile(emp_no, 97.6)
+;
+
+p1:double | p2:double  | p3:double | p4:double | p5:double | p6:double
+10005.5   | 10005.5495 | 10005.59  | 10009.73  | 10009.757 | 10009.784
+;
+
+percentile precision tests with row
+required_capability: fix_percentile_precision
+
+ROW x = [1.1, 2.71, 3.14, 4.0, 5.55, 6, 7, 8, 9, 10, 11.99] 
+| STATS p1=percentile(x, 10.5), p2=percentile(x, 10.55), p3=percentile(x, 11.0),
+        p4=percentile(x, 90.0), p5=percentile(x, 90.28), p6=percentile(x, 90.7)
+;
+
+p1:double | p2:double | p3:double | p4:double | p5:double | p6:double
+2.7315    | 2.73365   | 2.753     | 10.0      | 10.05572  | 10.1393
+;
+
+
+

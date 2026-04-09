@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.reload;
@@ -19,11 +20,12 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +33,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,7 +43,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
     NodesReloadSecureSettingsRequest.NodeRequest,
-    NodesReloadSecureSettingsResponse.NodeResponse> {
+    NodesReloadSecureSettingsResponse.NodeResponse,
+    Void> {
 
     public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = new ActionType<>("cluster:admin/nodes/reload_secure_settings");
 
@@ -106,12 +112,16 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         Task task
     ) {
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configDir())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(
                     clusterService.localNode(),
-                    new IllegalStateException("Keystore is missing")
+                    new IllegalStateException("Keystore is missing"),
+                    null,
+                    null,
+                    null,
+                    null
                 );
             }
             // decrypt the keystore using the password from the request
@@ -123,6 +133,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
+                logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {
@@ -131,9 +142,35 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 }
             });
             ExceptionsHelper.rethrowAndSuppress(exceptions);
-            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
+            Path keystorePath = KeyStoreWrapper.keystorePath(environment.configDir());
+            return new NodesReloadSecureSettingsResponse.NodeResponse(
+                clusterService.localNode(),
+                null,
+                keystore.getSettingNames().toArray(String[]::new),
+                keystorePath.toString(),
+                failsafeSha256Digest(keystorePath),
+                failsafeLastModifiedTime(keystorePath)
+            );
         } catch (final Exception e) {
-            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
+            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e, null, null, null, null);
+        }
+    }
+
+    private static Long failsafeLastModifiedTime(Path path) {
+        try {
+            return Files.readAttributes(path, BasicFileAttributes.class).lastModifiedTime().toMillis();
+        } catch (IOException e) {
+            logger.warn("Failed to read last modified time of [" + path + "]", e);
+            return null;
+        }
+    }
+
+    private static String failsafeSha256Digest(Path path) {
+        try {
+            return MessageDigests.toHexString(MessageDigests.sha256().digest(Files.readAllBytes(path)));
+        } catch (IOException e) {
+            logger.warn("Failed to compute SHA-256 digest of [" + path + "]", e);
+            return null;
         }
     }
 

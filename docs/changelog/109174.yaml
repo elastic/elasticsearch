@@ -1,5 +1,0 @@
-pr: 109174
-summary: "ESQL: Change \"substring\" function to not return null on empty string"
-area: ES|QL
-type: bug
-issues: []

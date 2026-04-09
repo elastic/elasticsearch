@@ -20,7 +20,7 @@ public class DateDiffSerializationTests extends AbstractExpressionSerializationT
         Expression unit = randomChild();
         Expression startTimestamp = randomChild();
         Expression endTimestamp = randomChild();
-        return new DateDiff(source, unit, startTimestamp, endTimestamp);
+        return new DateDiff(source, unit, startTimestamp, endTimestamp, configuration());
     }
 
     @Override
@@ -34,11 +34,6 @@ public class DateDiffSerializationTests extends AbstractExpressionSerializationT
             case 1 -> startTimestamp = randomValueOtherThan(startTimestamp, AbstractExpressionSerializationTests::randomChild);
             case 2 -> endTimestamp = randomValueOtherThan(endTimestamp, AbstractExpressionSerializationTests::randomChild);
         }
-        return new DateDiff(source, unit, startTimestamp, endTimestamp);
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
+        return new DateDiff(source, unit, startTimestamp, endTimestamp, configuration());
     }
 }

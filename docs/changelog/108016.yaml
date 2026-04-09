@@ -1,5 +1,0 @@
-pr: 108016
-summary: Optimise `BinaryRangeAggregator` for single value fields
-area: Aggregations
-type: enhancement
-issues: []

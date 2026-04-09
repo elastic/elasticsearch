@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class SubSerializationTests extends AbstractArithmeticSerializationTests<Sub> {
     @Override
     protected Sub create(Source source, Expression left, Expression right) {
-        return new Sub(source, left, right);
+        return new Sub(source, left, right, configuration());
     }
 }

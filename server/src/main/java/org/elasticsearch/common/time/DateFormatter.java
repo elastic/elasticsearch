@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -24,7 +26,7 @@ import java.util.Locale;
 public interface DateFormatter {
 
     /**
-     * Try to parse input to a java time TemporalAccessor
+     * Parse input to a java time TemporalAccessor
      * @param input                   An arbitrary string resembling the string representation of a date or time
      * @throws DateTimeParseException If parsing fails, this exception will be thrown.
      *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
@@ -33,10 +35,25 @@ public interface DateFormatter {
     TemporalAccessor parse(String input);
 
     /**
+     * Try to parse input to a java time TemporalAccessor
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return      The java time object containing the parsed input, or {@code null} if parsing failed
+     */
+    @Nullable
+    TemporalAccessor tryParse(String input);
+
+    /**
      * Parse the given input into millis-since-epoch.
      */
     default long parseMillis(String input) {
         return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into nanos-since-epoch.
+     */
+    default long parseNanos(String input) {
+        return DateUtils.toLong(DateFormatters.from(parse(input)).toInstant());
     }
 
     /**
@@ -69,6 +86,14 @@ public interface DateFormatter {
     default String formatMillis(long millis) {
         ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
         return format(Instant.ofEpochMilli(millis).atZone(zone));
+    }
+
+    /**
+     * Return the given nanoseconds-since-epoch formatted with this format.
+     */
+    default String formatNanos(long nanos) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(nanos / 1_000_000).plusNanos(nanos % 1_000_000).atZone(zone));
     }
 
     /**

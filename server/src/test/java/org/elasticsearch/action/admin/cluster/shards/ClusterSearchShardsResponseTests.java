@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
@@ -55,7 +56,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
             DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
                 .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+                .version(randomCompatibleVersion(Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
             nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {
@@ -75,7 +76,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             clusterSearchShardsResponse.writeTo(out);

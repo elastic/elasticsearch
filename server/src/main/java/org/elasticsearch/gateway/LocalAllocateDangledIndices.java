@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -19,14 +19,13 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,9 +33,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -117,13 +117,14 @@ public class LocalAllocateDangledIndices {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }
-                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+                    ProjectMetadata.Builder project = ProjectMetadata.builder(currentState.metadata().getProject());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(
                         allocationService.getShardRoutingRoleStrategy(),
                         currentState.routingTable()
                     );
                     IndexVersion minIndexCompatibilityVersion = currentState.nodes().getMinSupportedIndexVersion();
+                    IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.nodes().getMinReadOnlySupportedIndexVersion();
                     IndexVersion maxIndexCompatibilityVersion = currentState.nodes().getMaxDataNodeCompatibleIndexVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
@@ -150,10 +151,10 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().hasIndex(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasAlias(indexMetadata.getIndex().getName())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                 indexMetadata.getIndex(),
@@ -161,7 +162,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                        if (currentState.metadata().getProject().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since it was recently deleted",
                                 indexMetadata.getIndex(),
@@ -175,7 +176,11 @@ public class LocalAllocateDangledIndices {
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
                             // with the current version.
-                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, minIndexCompatibilityVersion);
+                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                                indexMetadata,
+                                minIndexCompatibilityVersion,
+                                minReadOnlyIndexCompatibilityVersion
+                            );
                             newIndexMetadata = IndexMetadata.builder(newIndexMetadata)
                                 .settings(
                                     Settings.builder()
@@ -199,7 +204,7 @@ public class LocalAllocateDangledIndices {
                                 .version(indexMetadata.getVersion() + 1)
                                 .build();
                         }
-                        metadata.put(newIndexMetadata, false);
+                        project.put(newIndexMetadata, false);
                         blocks.addBlocks(newIndexMetadata);
                         if (newIndexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                             routingTableBuilder.addAsFromDangling(newIndexMetadata);
@@ -214,7 +219,7 @@ public class LocalAllocateDangledIndices {
 
                     RoutingTable routingTable = routingTableBuilder.build();
                     ClusterState updatedState = ClusterState.builder(currentState)
-                        .metadata(metadata)
+                        .putProjectMetadata(project)
                         .blocks(blocks)
                         .routingTable(routingTable)
                         .build();
@@ -245,7 +250,7 @@ public class LocalAllocateDangledIndices {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    public static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends AbstractTransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetadata[] indices;
@@ -269,21 +274,14 @@ public class LocalAllocateDangledIndices {
         }
     }
 
+    // TODO: can this be removed completely?
     public static class AllocateDangledResponse extends TransportResponse {
 
-        private AllocateDangledResponse(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readBoolean();
-            }
-        }
+        private AllocateDangledResponse(StreamInput in) throws IOException {}
 
         private AllocateDangledResponse() {}
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeBoolean(true);
-            }
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

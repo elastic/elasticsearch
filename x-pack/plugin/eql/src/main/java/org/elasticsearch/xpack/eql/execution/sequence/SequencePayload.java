@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
@@ -19,8 +20,14 @@ class SequencePayload extends AbstractPayload {
 
     private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
 
-    SequencePayload(List<Sequence> sequences, List<List<SearchHit>> docs, boolean timedOut, TimeValue timeTook) {
-        super(timedOut, timeTook);
+    SequencePayload(
+        List<Sequence> sequences,
+        List<List<SearchHit>> docs,
+        boolean timedOut,
+        TimeValue timeTook,
+        ShardSearchFailure[] shardFailures
+    ) {
+        super(timedOut, timeTook, shardFailures);
         values = new ArrayList<>(sequences.size());
 
         for (int i = 0; i < sequences.size(); i++) {

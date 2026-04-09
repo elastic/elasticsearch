@@ -7,78 +7,166 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
-import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
-    private final Metrics metrics;
+    static final String UNMAPPED_TIMESTAMP_SUFFIX = "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
 
-    public Verifier(Metrics metrics) {
+    /**
+     * Extra plan verification checks defined in plugins.
+     */
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
+    private final Metrics metrics;
+    private final XPackLicenseState licenseState;
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState) {
+        this(metrics, licenseState, Collections.emptyList());
+    }
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
+        this.licenseState = licenseState;
+        this.extraCheckers = extraCheckers;
     }
 
     /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param unmappedResolution How unmapped fields are resolved for this query.
+     * @return A collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
-        Set<Failure> failures = new LinkedHashSet<>();
-        // alias map, collected during the first iteration for better error messages
-        AttributeMap<Expression> aliases = new AttributeMap<>();
+
+        Failures failures = new Failures();
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
+            && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
+        checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
+
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
+
+        // in case of failures bail-out as all other checks will be redundant
+        if (failures.hasFailures()) {
+            return failures.failures();
+        }
+
+        if (unmappedResolution == UnmappedResolution.LOAD) {
+            checkLoadModeDisallowedCommands(plan, failures);
+            checkLoadModeDisallowedFunctions(plan, failures);
+            checkFlattenedSubFieldLoad(plan, failures);
+        }
+
+        // collect plan checkers
+        var planCheckers = planCheckers(plan);
+        planCheckers.addAll(extraCheckers);
+
+        // Concrete verifications
+        plan.forEachDown(p -> {
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
+            }
+
+            planCheckers.forEach(c -> c.accept(p, failures));
+            p.forEachExpression(e -> {
+                if (e instanceof PostAnalysisVerificationAware va) {
+                    va.postAnalysisVerification(failures);
+                }
+            });
+
+            checkOperationsOnUnsignedLong(p, failures);
+            checkBinaryComparison(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
+            checkInsist(p, failures);
+            checkLimitBeforeInlineStats(p, failures);
+            checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
+        });
+
+        if (failures.hasFailures() == false) {
+            licenseCheck(plan, failures);
+        }
+
+        // gather metrics
+        if (failures.hasFailures() == false) {
+            gatherMetrics(plan, partialMetrics);
+        }
+
+        return failures.failures();
+    }
+
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -90,7 +178,6 @@ public class Verifier {
             }
             // p is resolved, skip
             else if (p.resolved()) {
-                p.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
                 return;
             }
 
@@ -101,16 +188,22 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // we're only interested in the children
+                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                        return;
+                    }
+
+                    // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
                         return;
                     }
 
+                    if (skipUnresolvedTimestamp && ae instanceof UnresolvedTimestamp) {
+                        return;
+                    }
                     if (ae instanceof Unresolvable u) {
-                        // special handling for Project and unsupported types
-                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
-                            failures.add(fail(ae, u.unresolvedMessage()));
-                        }
+                        failures.add(fail(ae, u.unresolvedMessage()));
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));
@@ -123,9 +216,20 @@ public class Verifier {
                 // do groupings first
                 var groupings = agg.groupings();
                 groupings.forEach(unresolvedExpressions);
+
+                // We don't count _timeseries which is added implicitly to grouping but not to a list of aggs
+                boolean hasGroupByAll = false;
+                for (Expression grouping : groupings) {
+                    if (MetadataAttribute.isTimeSeriesAttribute(grouping)) {
+                        hasGroupByAll = true;
+                        break;
+                    }
+                }
+                int groupingSize = hasGroupByAll ? groupings.size() - 1 : groupings.size();
+
                 // followed by just the aggregates (to avoid going through the groups again)
                 var aggs = agg.aggregates();
-                int size = aggs.size() - groupings.size();
+                int size = aggs.size() - groupingSize;
                 aggs.subList(0, size).forEach(unresolvedExpressions);
             }
             // similar approach for Lookup
@@ -140,272 +244,59 @@ public class Verifier {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
             }
+            // The expressions of the PromqlCommand itself are not relevant here.
+            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
+            else if (p instanceof PromqlCommand promql) {
+                promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
+            }
 
             else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
+    }
 
-        // in case of failures bail-out as all other checks will be redundant
-        if (failures.isEmpty() == false) {
-            return failures;
-        }
-
-        // Concrete verifications
+    /**
+     * Build a list of checkers based on the components in the plan.
+     */
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+        List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
+        Consumer<? super Node<?>> collectPlanCheckers = p -> {
+            if (p instanceof PostAnalysisPlanVerificationAware pva) {
+                planCheckers.add(pva.postAnalysisPlanVerification());
+            }
+        };
         plan.forEachDown(p -> {
-            // if the children are unresolved, so will this node; counting it will only add noise
-            if (p.childrenResolved() == false) {
-                return;
+            collectPlanCheckers.accept(p);
+            p.forEachExpression(collectPlanCheckers);
+
+            if (p instanceof PostAnalysisVerificationAware va) {
+                planCheckers.add((lp, failures) -> {
+                    if (lp.getClass().equals(va.getClass())) {
+                        va.postAnalysisVerification(failures);
+                    }
+                });
             }
-            checkFilterConditionType(p, failures);
-            checkAggregate(p, failures);
-            checkRegexExtractOnlyOnStrings(p, failures);
-
-            checkRow(p, failures);
-            checkEvalFields(p, failures);
-
-            checkOperationsOnUnsignedLong(p, failures);
-            checkBinaryComparison(p, failures);
-            checkForSortOnSpatialTypes(p, failures);
         });
-        checkRemoteEnrich(plan, failures);
-
-        // gather metrics
-        if (failures.isEmpty()) {
-            gatherMetrics(plan, partialMetrics);
-        }
-
-        return failures;
+        return planCheckers;
     }
 
-    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof Filter f) {
-            Expression condition = f.condition();
-            if (condition.dataType() != BOOLEAN) {
-                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
-            }
-        }
-    }
-
-    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Aggregate agg) {
-            List<Expression> groupings = agg.groupings();
-            AttributeSet groupRefs = new AttributeSet();
-            // check grouping
-            // The grouping can not be an aggregate function
-            groupings.forEach(e -> {
-                e.forEachUp(g -> {
-                    if (g instanceof AggregateFunction af) {
-                        failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
-                    } else if (g instanceof GroupingFunction gf) {
-                        gf.children()
-                            .forEach(
-                                c -> c.forEachDown(
-                                    GroupingFunction.class,
-                                    inner -> failures.add(
-                                        fail(
-                                            inner,
-                                            "cannot nest grouping functions; found [{}] inside [{}]",
-                                            inner.sourceText(),
-                                            gf.sourceText()
-                                        )
-                                    )
-                                )
-                            );
-                    }
-                });
-                // keep the grouping attributes (common case)
-                Attribute attr = Expressions.attribute(e);
-                if (attr != null) {
-                    groupRefs.add(attr);
-                }
-                if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                    failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
-                }
-            });
-
-            // check aggregates - accept only aggregate functions or expressions over grouping
-            // don't allow the group by itself to avoid duplicates in the output
-            // and since the groups are copied, only look at the declared aggregates
-            List<? extends NamedExpression> aggs = agg.aggregates();
-            aggs.subList(0, aggs.size() - groupings.size()).forEach(e -> {
-                var exp = Alias.unwrap(e);
-                if (exp.foldable()) {
-                    failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
-                }
-                // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
-            });
-            if (agg.aggregateType() == Aggregate.AggregateType.METRICS) {
-                aggs.forEach(a -> checkRateAggregates(a, 0, failures));
-            } else {
-                agg.forEachExpression(
-                    Rate.class,
-                    r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
-                );
-            }
-        } else {
-            p.forEachExpression(
-                GroupingFunction.class,
-                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
-            );
-        }
-    }
-
-    private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
-        if (expr instanceof AggregateFunction) {
-            nestedLevel++;
-        }
-        if (expr instanceof Rate r) {
-            if (nestedLevel != 2) {
-                failures.add(
-                    fail(
-                        expr,
-                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
-                        r.sourceText()
-                    )
-                );
-            }
-        }
-        for (Expression child : expr.children()) {
-            checkRateAggregates(child, nestedLevel, failures);
-        }
-    }
-
-    // traverse the expression and look either for an agg function or a grouping match
-    // stop either when no children are left, the leafs are literals or a reference attribute is given
-    private static void checkInvalidNamedExpressionUsage(
-        Expression e,
-        List<Expression> groups,
-        AttributeSet groupRefs,
-        Set<Failure> failures,
-        int level
-    ) {
-        // found an aggregate, constant or a group, bail out
-        if (e instanceof AggregateFunction af) {
-            af.field().forEachDown(AggregateFunction.class, f -> {
-                // rate aggregate is allowed to be inside another aggregate
-                if (f instanceof Rate == false) {
-                    failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
-                }
-            });
-        } else if (e instanceof GroupingFunction gf) {
-            // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
-            // be verified (by check above in checkAggregate()), so do it explicitly here
-            if (groups.stream().anyMatch(ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
-            } else if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
-            }
-        } else if (e.foldable()) {
-            // don't do anything
-        } else if (groups.contains(e) || groupRefs.contains(e)) {
-            if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
-            }
-        }
-        // if a reference is found, mark it as an error
-        else if (e instanceof NamedExpression ne) {
-            boolean foundInGrouping = false;
-            for (Expression g : groups) {
-                if (g.anyMatch(se -> se.semanticEquals(ne))) {
-                    foundInGrouping = true;
-                    failures.add(
-                        fail(
-                            e,
-                            "column [{}] cannot be used as an aggregate once declared in the STATS BY grouping key [{}]",
-                            ne.name(),
-                            g.sourceText()
-                        )
-                    );
-                    break;
-                }
-            }
-            if (foundInGrouping == false) {
-                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
-            }
-        }
-        // other keep on going
-        else {
-            for (Expression child : e.children()) {
-                checkInvalidNamedExpressionUsage(child, groups, groupRefs, failures, level + 1);
-            }
-        }
-    }
-
-    private static void addFailureOnGroupingUsedNakedInAggs(Set<Failure> failures, Expression e, String element) {
-        failures.add(
-            fail(e, "grouping {} [{}] cannot be used as an aggregate once declared in the STATS BY clause", element, e.sourceText())
-        );
-    }
-
-    private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof RegexExtract re) {
-            Expression expr = re.input();
-            DataType type = expr.dataType();
-            if (EsqlDataTypes.isString(type) == false) {
-                failures.add(
-                    fail(
-                        expr,
-                        "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
-                        re.getClass().getSimpleName(),
-                        expr.sourceText(),
-                        type
-                    )
-                );
-            }
-        }
-    }
-
-    private static void checkRow(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Row row) {
-            row.fields().forEach(a -> {
-                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-                }
-            });
-        }
-    }
-
-    private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Eval eval) {
-            eval.fields().forEach(field -> {
-                // check supported types
-                DataType dataType = field.dataType();
-                if (EsqlDataTypes.isRepresentable(dataType) == false) {
-                    failures.add(
-                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
-                    );
-                }
-                // check no aggregate functions are used
-                field.forEachDown(AggregateFunction.class, af -> {
-                    if (af instanceof Rate) {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
-                    } else {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
-                    }
-                });
-            });
-        }
-    }
-
-    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Set<Failure> failures) {
-        p.forEachExpression(e -> {
-            Failure f = null;
-
-            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
-                f = validateUnsignedLongOperator(bo);
-            } else if (e instanceof Neg neg) {
-                f = validateUnsignedLongNegation(neg);
-            }
-
+    /**
+     * This validates only the negation operator, the rest of the validation is performed in
+     * {@link Verifier#validateBinaryComparison(BinaryComparison)}
+     * and
+     * {@link EsqlBinaryComparison#areTypesCompatible(DataType, DataType)}
+     */
+    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
+        p.forEachExpression(Neg.class, neg -> {
+            Failure f = validateUnsignedLongNegation(neg);
             if (f != null) {
                 failures.add(f);
             }
         });
     }
 
-    private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
+    private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
         p.forEachExpression(BinaryComparison.class, bc -> {
             Failure f = validateBinaryComparison(bc);
             if (f != null) {
@@ -414,39 +305,273 @@ public class Verifier {
         });
     }
 
+    private static void checkInsist(LogicalPlan p, Failures failures) {
+        if (p instanceof Insist i) {
+            LogicalPlan child = i.child();
+            if ((child instanceof EsRelation || child instanceof Insist) == false) {
+                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
+        }
+    }
+
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
+     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project || p instanceof Insist) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
+        }
+    }
+
+    /*
+     * This is a rudimentary check to prevent INLINE STATS after LIMIT. A LIMIT command can be added by other commands by default,
+     * the best example being FORK. A more robust solution would be to track the commands that add LIMIT and prevent them from doing so
+     * if INLINE STATS is present in the plan. However, this would require authors of new such commands to be aware of this limitation and
+     * implement the necessary checks, which is error-prone.
+     */
+    private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
+        if (plan instanceof InlineStats is) {
+            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            is.forEachDownMayReturnEarly((p, breakEarly) -> {
+                if (p instanceof Limit l) {
+                    inlineStatsDescendantLimit.set(l);
+                    breakEarly.set(true);
+                    return;
+                }
+            });
+
+            var firstLimit = inlineStatsDescendantLimit.get();
+            if (firstLimit != null) {
+                var isString = is.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? is.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : is.sourceText();
+                var limitString = firstLimit.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? firstLimit.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : firstLimit.sourceText();
+                failures.add(
+                    fail(
+                        is,
+                        "INLINE STATS cannot be used after an explicit or implicit LIMIT command, but was [{}] after [{}] [{}]",
+                        isString,
+                        limitString,
+                        firstLimit.source().source().toString()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * {@code WITHOUT(...)} is only supported on the time-series {@link TimeSeriesAggregate} path for now; relax when non-TS support lands.
+     */
+    private static void checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate agg && (p instanceof TimeSeriesAggregate) == false) {
+            for (Expression g : agg.groupings()) {
+                if (Alias.unwrap(g) instanceof TimeSeriesWithout) {
+                    failures.add(fail(g, "WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+                }
+            }
+        }
+    }
+
+    /**
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static boolean isTimestampUnmappedInAllIndices(LogicalPlan plan, Failures failures) {
+        if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
+            return false;
+        }
+        plan.forEachDown(p -> {
+            if (p instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                failures.add(fail(p, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, p.sourceText()));
+            }
+            p.forEachExpression(Expression.class, e -> {
+                if (e instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                    failures.add(fail(e, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, e.sourceText()));
+                }
+            });
+        });
+        return true;
+    }
+
+    private static boolean hasTimestamp(EsRelation relation) {
+        for (Attribute attr : relation.output()) {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(attr.name())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, LOOKUP JOIN, subqueries/views).
+     * See https://github.com/elastic/elasticsearch/issues/142033
+     */
+    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (p instanceof Fork && p instanceof UnionAll == false) {
+                failures.add(fail(p, "FORK is not supported with unmapped_fields=\"load\""));
+            }
+            if (p instanceof Subquery) {
+                failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
+            }
+            if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+            }
+            if (p instanceof PromqlCommand) {
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+            }
+        });
+    }
+
+    /**
+     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
+     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
+     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+     */
+    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
+        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+        fullTextFunctions.forEach(
+            f -> failures.add(
+                fail(
+                    f,
+                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
+                    f.functionName()
+                )
+            )
+        );
+    }
+
+    /**
+     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     */
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+
+            if (flattenedFieldNames.isEmpty()) {
+                return;
+            }
+
+            for (Attribute attr : esRelation.output()) {
+                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                    continue;
+                }
+
+                String name = fa.name();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
+                for (String parent : prefixes) {
+                    if (flattenedFieldNames.contains(parent)) {
+                        // It is sufficient to find "a" flattened field with a name matching the parent's.
+                        Failure failure = fail(
+                            fa,
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                                + "unmapped_fields=\"load\"",
+                            name,
+                            parent
+                        );
+                        failures.add(failure);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private static Set<String> flattenedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute fa
+                && fa.field() instanceof UnsupportedEsField uef
+                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                names.add(fa.name());
+            }
+        }
+
+        return names;
+    }
+
+    private void licenseCheck(LogicalPlan plan, Failures failures) {
+        Consumer<Node<?>> licenseCheck = n -> {
+            if (n instanceof LicenseAware la && la.licenseCheck(licenseState) == false) {
+                failures.add(fail(n, "current license is non-compliant for [{}]", n.sourceText()));
+            }
+        };
+        plan.forEachDown(p -> {
+            licenseCheck.accept(p);
+            p.forEachExpression(Expression.class, licenseCheck);
+        });
+    }
+
     private void gatherMetrics(LogicalPlan plan, BitSet b) {
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
+    }
+
+    public XPackLicenseState licenseState() {
+        return licenseState;
     }
 
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
-        if (bc.left().dataType().isNumeric()) {
-            if (false == bc.right().dataType().isNumeric()) {
-                return fail(
-                    bc,
-                    "first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
-                    bc.sourceText(),
-                    bc.right().dataType().typeName()
-                );
-            }
+        if (areTypesCompatible(bc.left().dataType(), bc.right().dataType())) {
             return null;
         }
 
+        Failure typeCheckFailure = checkBinaryComparisonLeftOperandType(bc);
+        if (typeCheckFailure != null) {
+            return typeCheckFailure;
+        }
+
+        return fail(bc, formatIncompatibleTypesMessage(bc.left().dataType(), bc.right().dataType(), bc.sourceText()));
+    }
+
+    /**
+     * Check that the left operand of a binary comparison is of an allowed type.
+     * This validates that the comparison operation is supported for the given data types.
+     *
+     * @return a Failure if the left operand type is not allowed, null otherwise
+     */
+    private static Failure checkBinaryComparisonLeftOperandType(BinaryComparison bc) {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
+        allowed.add(DataType.DATE_NANOS);
         allowed.add(DataType.VERSION);
         allowed.add(DataType.GEO_POINT);
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }
@@ -459,44 +584,6 @@ public class Verifier {
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
-        }
-        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
-            return null;
-        }
-        if (bc.left().dataType() != bc.right().dataType()) {
-            return fail(
-                bc,
-                "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
-                bc.sourceText(),
-                bc.left().dataType().typeName(),
-                bc.left().dataType().typeName(),
-                bc.right().dataType().typeName()
-            );
-        }
-        return null;
-    }
-
-    /** Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
-     *  - unsigned longs are passed through the engine as longs, so/and
-     *  - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
-     *  - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
-     *  ex: (double) 18446744073709551615 == (double) 18446744073709551614
-     *  - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
-     *  Let the user handle the operation explicitly.
-     */
-    public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
-        DataType leftType = bo.left().dataType();
-        DataType rightType = bo.right().dataType();
-        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
-            return fail(
-                bo,
-                "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
-                bo.sourceText(),
-                leftType.typeName(),
-                rightType.typeName(),
-                DataType.UNSIGNED_LONG.typeName(),
-                DataType.UNSIGNED_LONG.typeName()
-            );
         }
         return null;
     }
@@ -515,59 +602,5 @@ public class Verifier {
             );
         }
         return null;
-    }
-
-    /**
-     * Makes sure that spatial types do not appear in sorting contexts.
-     */
-    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof OrderBy ob) {
-            ob.forEachExpression(Attribute.class, attr -> {
-                DataType dataType = attr.dataType();
-                if (EsqlDataTypes.isSpatial(dataType)) {
-                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
-                }
-            });
-        }
-    }
-
-    /**
-     * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
-     * <p>
-     * TODO:
-     * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
-     * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
-     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH _remote:` doesn't work.
-     * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
-     * which is equivalent to bringing all data to the coordinating cluster.
-     * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
-     * retaining the originating cluster and restructing pages for routing, which might be complicated.
-     */
-    private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
-        boolean[] agg = { false };
-        boolean[] limit = { false };
-        boolean[] enrichCoord = { false };
-
-        plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Limit) {
-                limit[0] = true; // TODO: Make Limit then enrich_remote work
-            }
-            if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (limit[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
-                }
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
-            }
-        });
     }
 }

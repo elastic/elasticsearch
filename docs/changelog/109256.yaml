@@ -1,7 +1,0 @@
-pr: 109256
-summary: "[ESQL] Migrate `SimplifyComparisonArithmetics` optimization"
-area: ES|QL
-type: bug
-issues:
- - 108388
- - 108743

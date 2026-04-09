@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -44,7 +45,18 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     @Override
     protected TransportPutComposableIndexTemplateAction.Request mutateInstance(TransportPutComposableIndexTemplateAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String name = instance.name();
+        String cause = instance.cause();
+        boolean create = instance.create();
+        ComposableIndexTemplate indexTemplate = instance.indexTemplate();
+        switch (between(0, 3)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
+            case 1 -> cause = randomValueOtherThan(cause, () -> randomAlphaOfLength(4));
+            case 2 -> create = create == false;
+            case 3 -> indexTemplate = ComposableIndexTemplateTests.randomInstance();
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TransportPutComposableIndexTemplateAction.Request(name).cause(cause).create(create).indexTemplate(indexTemplate);
     }
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {

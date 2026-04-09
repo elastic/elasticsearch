@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.elasticsearch.action.ActionListener;
+
 import java.net.URI;
 
 public interface Request {
-    HttpRequest createHttpRequest();
+    void createHttpRequest(ActionListener<HttpRequest> listener);
 
     URI getURI();
 
@@ -31,4 +33,12 @@ public interface Request {
      * @return the unique identifier for the inference entity configuration
      */
     String getInferenceEntityId();
+
+    /**
+     * Streams the result in bytes to the {@link org.elasticsearch.inference.InferenceServiceResults}.
+     * Defaults to false.
+     */
+    default boolean isStreaming() {
+        return false;
+    }
 }

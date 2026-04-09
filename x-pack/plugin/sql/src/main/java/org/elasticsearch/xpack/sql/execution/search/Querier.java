@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -38,7 +39,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -100,7 +100,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -127,11 +126,12 @@ public class Querier {
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
-
+        boolean cps = cfg.crossProject() && query.isAggsOnly() && query.aggs().useImplicitGroupBy();
         SearchRequest search = prepareRequest(
             sourceBuilder,
             cfg,
             query.shouldIncludeFrozen(),
+            cps,
             Strings.commaDelimitedListToStringArray(index)
         );
 
@@ -145,16 +145,24 @@ public class Querier {
             if (query.aggs().useImplicitGroupBy()) {
                 client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
             } else {
-                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
+                searchWithPointInTime(search, cfg, new CompositeActionListener(listener, client, cfg, output, query, search));
             }
         } else {
-            searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
+            searchWithPointInTime(search, cfg, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
     }
 
-    private void searchWithPointInTime(SearchRequest search, ActionListener<SearchResponse> listener) {
-        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
+    private void searchWithPointInTime(SearchRequest search, SqlConfiguration cfg, ActionListener<SearchResponse> listener) {
+        IndicesOptions options = search.indicesOptions();
+        if (cfg.crossProject()) {
+            options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
+        }
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
+            .allowPartialSearchResults(cfg.allowPartialSearchResults())
             .keepAlive(cfg.pageTimeout());
+        if (cfg.crossProject() && cfg.projectRouting() != null) {
+            openPitRequest.projectRouting(cfg.projectRouting());
+        }
 
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
@@ -183,6 +191,13 @@ public class Querier {
         }));
     }
 
+    /**
+     * Refreshes the PIT ID on the search source with the new value returned in the response.
+     */
+    public static void refreshPointInTime(SearchResponse response, SearchSourceBuilder source) {
+        source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+    }
+
     public static void closePointInTime(Client client, BytesReference pointInTimeId, ActionListener<Boolean> listener) {
         if (pointInTimeId != null) {
             // request should not be made with the parent task assigned because the parent task might already be canceled
@@ -198,15 +213,70 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
+    /**
+     * Closes the point-in-time associated with the search response, then notifies the given listener
+     * with the last page. Retains a reference to the response so it stays alive until the close
+     * callback runs (the transport releases its ref when the search listener returns, but we consume
+     * the response in the close callback).
+     */
+    public static void closePointInTimeWithLastPage(Client client, SearchResponse response, Page lastPage, ActionListener<Page> listener) {
+        response.incRef();
+        closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean r) {
+                try {
+                    listener.onResponse(lastPage);
+                } finally {
+                    response.decRef();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    response.decRef();
+                }
+            }
+        });
+    }
+
+    /**
+     *
+     * @param source
+     * @param cfg
+     * @param includeFrozen
+     * @param cps add CPS options to the request (indices options, project routing).
+     *            If PIT is in use, CPS options are set on the PIT open request instead, so pass false here.
+     * @param indices
+     * @return
+     */
+    public static SearchRequest prepareRequest(
+        SearchSourceBuilder source,
+        SqlConfiguration cfg,
+        boolean includeFrozen,
+        boolean cps,
+        String... indices
+    ) {
         source.timeout(cfg.requestTimeout());
 
-        SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
+        SearchRequest searchRequest = new SearchRequest();
         if (source.pointInTimeBuilder() == null) {
             searchRequest.indices(indices);
             searchRequest.indicesOptions(
                 includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
             );
+        }
+        if (cps) {
+            searchRequest.indicesOptions(
+                IndicesOptions.builder(searchRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (cfg.projectRouting() != null) {
+                searchRequest.setProjectRouting(cfg.projectRouting());
+            }
         }
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());
@@ -224,7 +294,7 @@ public class Querier {
         }
 
         var totalHits = response.getHits().getTotalHits();
-        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
+        var hits = totalHits != null ? "hits " + totalHits.relation() + " " + totalHits.value() + ", " : "";
         logger.trace(
             "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
@@ -362,11 +432,6 @@ public class Querier {
         private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
 
             @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                throw new SqlIllegalArgumentException("No group-by/aggs defined");
-            }
-
-            @Override
             public Object getKey() {
                 throw new SqlIllegalArgumentException("No group-by/aggs defined");
             }
@@ -405,7 +470,7 @@ public class Querier {
             }
 
             InternalAggregations aggs = response.getAggregations();
-            if (aggs != null) {
+            if (aggs != null && aggs.asList().isEmpty() == false) {
                 InternalAggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
                 if (agg instanceof Filters filters) {
                     handleBuckets(filters.getBuckets(), response);
@@ -549,7 +614,7 @@ public class Querier {
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
-            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
+            ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value());
             for (QueryContainer.FieldInfo ref : refs) {
                 exts.add(createExtractor(ref.extraction(), totalCount));
             }

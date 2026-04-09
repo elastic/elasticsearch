@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
@@ -39,7 +41,7 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             timestamp,
             () -> timestamp + 1000
         );
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
         try (
             CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(searchProgressListener, 10)
@@ -78,8 +80,8 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
                 queryPhaseResultConsumer.consumeResult(querySearchResult, nextCounter::incrementAndGet);
             }
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertFalse(reducePhase.isEmptyResult());
             assertEquals(10, nextCounter.get());
         }
@@ -93,8 +95,8 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             )
         ) {
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertTrue(reducePhase.isEmptyResult());
         }
     }
@@ -107,7 +109,7 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
         @Override
         protected void onListShards(
             List<SearchShard> shards,
-            List<SearchShard> skippedShards,
+            Map<String, Integer> skippedByClusterAlias,
             SearchResponse.Clusters clusters,
             boolean fetchPhase,
             TransportSearchAction.SearchTimeProvider timeProvider

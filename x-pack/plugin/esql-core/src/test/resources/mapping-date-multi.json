@@ -1,9 +1,0 @@
-{
-        "properties": {
-          "date": {
-            "type": "date",
-            "format": "yyyy-MM-dd"
-          }
-        }
-      }
-}

@@ -15,7 +15,8 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -57,7 +58,18 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
             .build();
     }
 
+    @Before
+    public void waitForSecurityIndex() throws Exception {
+        assertSecurityIndexActive();
+    }
+
+    @After
+    public void cleanupSecurityIndex() throws Exception {
+        super.deleteSecurityIndex();
+    }
+
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
+        internalCluster().startNode();
         TransportAddress transportAddress = randomFrom(
             internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses()
         );
@@ -68,6 +80,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
+        internalCluster().startNode();
         try (Socket socket = new Socket()) {
             trySocketConnection(socket, getProfileAddress("client"));
             assertThat(socket.isClosed(), is(true));
@@ -77,7 +90,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     @SuppressForbidden(reason = "Allow opening socket for test")
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
-        SocketAccess.doPrivileged(() -> socket.connect(address, 5000));
+        socket.connect(address, 5000);
 
         assertThat(socket.isConnected(), is(true));
         try (OutputStream os = socket.getOutputStream()) {

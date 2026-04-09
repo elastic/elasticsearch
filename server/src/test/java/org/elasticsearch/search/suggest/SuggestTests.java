@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchModule;
@@ -32,6 +31,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -293,29 +293,9 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersion.current()
-        );
+        TransportVersion bwcVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final Suggest suggest = createTestItem();
-        // suggest is disallowed when using rank, but the randomization rarely sets it
-        // we need to make sure CompletionSuggestion$Entry$Option doesn't have "rank" set
-        // because for some older versions it will not serialize.
-        if (bwcVersion.before(TransportVersions.V_8_8_0)) {
-            for (CompletionSuggestion s : suggest.filter(CompletionSuggestion.class)) {
-                for (CompletionSuggestion.Entry entry : s.entries) {
-                    List<CompletionSuggestion.Entry.Option> options = entry.getOptions();
-                    for (CompletionSuggestion.Entry.Option o : entry.getOptions()) {
-                        if (o.getHit() != null) {
-                            o.getHit().setRank(-1);
-                        }
-                    }
-                }
-            }
-        }
-
         final Suggest bwcSuggest;
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());

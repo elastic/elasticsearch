@@ -12,15 +12,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single boolean.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-State.java.st} instead.
  */
 final class BooleanState implements AggregatorState {
     private boolean value;
     private boolean seen;
-
-    BooleanState() {
-        this(false);
-    }
 
     BooleanState(boolean init) {
         this.value = init;

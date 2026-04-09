@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
 
@@ -21,6 +22,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.Optional;
@@ -29,6 +31,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
@@ -37,6 +40,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -66,10 +70,20 @@ public abstract class DockerBuildTask extends DefaultTask {
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        onlyIf("Docker supports all requested platforms", task -> {
+            var platforms = getPlatforms().getOrElse(Collections.emptySet());
+            if (platforms.isEmpty()) {
+                return false;
+            }
+            DockerSupportService support = getDockerSupport().get();
+            return platforms.stream()
+                .allMatch(platform -> Architecture.fromDockerPlatform(platform).map(support::isArchitectureSupported).orElse(false));
+        });
     }
 
     @TaskAction
     public void build() {
+        String dockerExecutable = getDockerSupport().get().getResolvedDockerExecutable();
         workerExecutor.noIsolation().submit(DockerBuildAction.class, params -> {
             params.getDockerContext().set(dockerContext);
             params.getMarkerFile().set(markerFile);
@@ -80,6 +94,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
             params.getPlatforms().set(getPlatforms());
+            params.getDockerExecutable().set(dockerExecutable);
         });
     }
 
@@ -146,6 +161,9 @@ public abstract class DockerBuildTask extends DefaultTask {
         return markerFile;
     }
 
+    @ServiceReference(DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
+    public abstract Property<DockerSupportService> getDockerSupport();
+
     public abstract static class DockerBuildAction implements WorkAction<Parameters> {
         private final ExecOperations execOperations;
 
@@ -161,12 +179,15 @@ public abstract class DockerBuildTask extends DefaultTask {
          */
         private void pullBaseImage(String baseImage) {
             final int maxAttempts = 10;
+            String docker = getParameters().getDockerExecutable().get();
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LoggedExec.exec(execOperations, spec -> {
-                        spec.executable("docker");
+                        maybeConfigureDockerConfig(spec);
+                        spec.executable(docker);
                         spec.args("pull");
+                        spec.environment("DOCKER_BUILDKIT", "1");
                         spec.args(baseImage);
                     });
 
@@ -178,6 +199,13 @@ public abstract class DockerBuildTask extends DefaultTask {
 
             // If we successfully ran `docker pull` above, we would have returned before this point.
             throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
+        }
+
+        private void maybeConfigureDockerConfig(ExecSpec spec) {
+            String dockerConfig = System.getenv("DOCKER_CONFIG");
+            if (dockerConfig != null) {
+                spec.environment("DOCKER_CONFIG", dockerConfig);
+            }
         }
 
         @Override
@@ -192,8 +220,10 @@ public abstract class DockerBuildTask extends DefaultTask {
             final boolean isCrossPlatform = isCrossPlatform();
 
             LoggedExec.exec(execOperations, spec -> {
-                spec.executable("docker");
+                maybeConfigureDockerConfig(spec);
 
+                spec.executable(parameters.getDockerExecutable().get());
+                spec.environment("DOCKER_BUILDKIT", "1");
                 if (isCrossPlatform) {
                     spec.args("buildx");
                 }
@@ -214,6 +244,12 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
+                } else if (!isCrossPlatform) {
+                    // For single-platform builds, add --load to ensure the image is loaded into
+                    // the local Docker daemon as a regular image, not a manifest list.
+                    // This prevents issues with newer Docker versions (23.0+) that may create
+                    // manifest lists even for single-platform builds when BuildKit is enabled.
+                    spec.args("--load");
                 }
             });
 
@@ -241,9 +277,10 @@ public abstract class DockerBuildTask extends DefaultTask {
 
         private String getImageChecksum(String imageTag) {
             final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            String docker = getParameters().getDockerExecutable().get();
 
             execOperations.exec(spec -> {
-                spec.setCommandLine("docker", "inspect", "--format", "{{ .Id }}", imageTag);
+                spec.setCommandLine(docker, "inspect", "--format", "{{ .Id }}", imageTag);
                 spec.setStandardOutput(stdout);
                 spec.setIgnoreExitValue(false);
             });
@@ -270,5 +307,7 @@ public abstract class DockerBuildTask extends DefaultTask {
         SetProperty<String> getPlatforms();
 
         Property<Boolean> getPush();
+
+        Property<String> getDockerExecutable();
     }
 }

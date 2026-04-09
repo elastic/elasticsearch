@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -40,18 +39,10 @@ public class RestSetEnabledAction extends NativeUserBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_security/user/{username}/_enable")
-                .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_security/user/{username}/_enable")
-                .replaces(PUT, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/_security/user/{username}/_disable")
-                .replaces(POST, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_security/user/{username}/_disable")
-                .replaces(PUT, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7)
-                .build()
+            new Route(POST, "/_security/user/{username}/_enable"),
+            new Route(PUT, "/_security/user/{username}/_enable"),
+            new Route(POST, "/_security/user/{username}/_disable"),
+            new Route(PUT, "/_security/user/{username}/_disable")
         );
     }
 

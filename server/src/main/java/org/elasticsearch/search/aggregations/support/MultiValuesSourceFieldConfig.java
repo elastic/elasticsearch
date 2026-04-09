@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -168,11 +168,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         this.format = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
-        } else {
-            this.includeExclude = null;
-        }
+        this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
     }
 
     public Object getMissing() {
@@ -216,9 +212,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalWriteable(includeExclude);
-        }
+        out.writeOptionalWriteable(includeExclude);
     }
 
     @Override

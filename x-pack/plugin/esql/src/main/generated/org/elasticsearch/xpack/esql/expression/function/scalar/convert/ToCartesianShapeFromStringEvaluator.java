@@ -8,27 +8,34 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToCartesianShape}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link ToCartesianShape}.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToCartesianShapeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToCartesianShapeFromStringEvaluator.class);
+
+  private final ExpressionEvaluator in;
+
+  public ToCartesianShapeFromStringEvaluator(Source source, ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "ToCartesianShapeFromString";
+  public ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -57,7 +64,7 @@ public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFu
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToCartesianShape.fromKeyword(value);
   }
@@ -97,29 +104,46 @@ public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFu
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToCartesianShape.fromKeyword(value);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToCartesianShapeFromStringEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public ToCartesianShapeFromStringEvaluator get(DriverContext context) {
-      return new ToCartesianShapeFromStringEvaluator(field.get(context), source, context);
+      return new ToCartesianShapeFromStringEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToCartesianShapeFromStringEvaluator[field=" + field + "]";
+      return "ToCartesianShapeFromStringEvaluator[" + "in=" + in + "]";
     }
   }
 }

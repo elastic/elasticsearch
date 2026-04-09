@@ -1,0 +1,138 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline"
+        body: >
+          {
+            "description": "Appends just 'before' to the steps field if the number field is less than 50, or both 'before' and 'after' if not",
+            "processors": [
+              {
+                "append": {
+                  "field": "steps",
+                  "value": "before"
+                }
+              },
+              {
+                "terminate": {
+                  "if": "ctx.number < 50"
+                }
+              },
+              {
+                "append": {
+                  "field": "steps",
+                  "value": "after"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "test-final-pipeline"
+        body: >
+          {
+            "description": "Appends 'final' to the steps field",
+            "processors": [
+              {
+                "append": {
+                  "field": "steps",
+                  "value": "final"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "test-outer-pipeline"
+        body: >
+          {
+            "description": "Runs test-pipeline and then append 'outer' to the steps field",
+            "processors": [
+              {
+                "pipeline": {
+                  "name": "test-pipeline"
+                }
+              },
+              {
+                "append": {
+                  "field": "steps",
+                  "value": "outer"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: "test-index-with-default-and-final-pipelines"
+        body:
+          settings:
+            index:
+              default_pipeline: "test-pipeline"
+              final_pipeline: "test-final-pipeline"
+  - do:
+      indices.create:
+        index: "test-vanilla-index"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-index-with-default-and-final-pipelines"
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: "test-vanilla-index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "test-pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "test-outer-pipeline"
+        ignore: 404
+
+---
+"Test pipeline including conditional terminate pipeline":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": {"_index": "test-index-with-default-and-final-pipelines" } }'
+          - '{ "comment": "should terminate", "number": 40, "steps": [] }'
+          - '{ "index": {"_index": "test-index-with-default-and-final-pipelines" } }'
+          - '{ "comment": "should continue to end", "number": 60, "steps": [] }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test-index-with-default-and-final-pipelines"
+        body:
+          sort: "number"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.number: 40 }
+  - match: { hits.hits.1._source.number: 60 }
+  - match: { hits.hits.0._source.steps: ["before", "final"] }
+  - match: { hits.hits.1._source.steps: ["before", "after", "final"] }
+
+---
+"Test pipeline with terminate invoked from an outer pipeline":
+
+  - do:
+      bulk:
+        refresh: true
+        pipeline: "test-outer-pipeline"
+        body:
+          - '{ "index": {"_index": "test-vanilla-index" } }'
+          - '{ "comment": "should terminate inner pipeline but not outer", "number": 40, "steps": [] }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "test-vanilla-index"
+        body:
+          sort: "number"
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.number: 40 }
+  - match: { hits.hits.0._source.steps: ["before", "outer"] }

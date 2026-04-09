@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -34,9 +35,12 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         "ToCartesianPoint",
         ToCartesianPoint::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToCartesianPoint.class)
+        .unary(ToCartesianPoint::new)
+        .name("to_cartesianpoint");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(CARTESIAN_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );

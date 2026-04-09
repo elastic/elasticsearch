@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.replication;
@@ -128,10 +129,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected IndexMetadata buildIndexMetadata(int replicas, Settings indexSettings, String mappings) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings settings = indexSettings(1, replicas).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(indexSettings)
             .build();
@@ -488,10 +486,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void assertAllEqual(int expectedCount) throws IOException {
-            Set<String> primaryIds = getShardDocUIDs(primary);
+            Set<String> primaryIds = getShardDocIDs(primary);
             assertThat(primaryIds.size(), equalTo(expectedCount));
             for (IndexShard replica : replicas) {
-                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> replicaIds = getShardDocIDs(replica);
                 Set<String> temp = new HashSet<>(primaryIds);
                 temp.removeAll(replicaIds);
                 assertThat(replica.routingEntry() + " is missing docs", temp, empty());
@@ -872,7 +870,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     ) {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
-                ((IndexRequest) itemRequest.request()).process(primary.indexSettings().getIndexRouting());
+                itemRequest.request().preRoutingProcess(primary.indexSettings().getIndexRouting());
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();

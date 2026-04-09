@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
+import org.elasticsearch.index.mapper.blockloader.script.IpScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.IpFieldScript;
@@ -80,7 +82,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -211,6 +214,16 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            () -> new IpFallbackSyntheticSourceReader(null)
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
+
 }

@@ -55,8 +55,6 @@ setup:
   - do:
       indices.close:
         index:  index3
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
 ---
 teardown:
@@ -155,8 +153,6 @@ teardown:
   - do:
       indices.close:
         index:  index_to_monitor
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user

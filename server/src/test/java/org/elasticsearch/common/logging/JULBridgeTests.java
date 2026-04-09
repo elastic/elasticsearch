@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
@@ -27,6 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 
+@SuppressForbidden(reason = "Allowed to use java.util.logging in JULBridgeTests")
 public class JULBridgeTests extends ESTestCase {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
@@ -147,6 +150,23 @@ public class JULBridgeTests extends ESTestCase {
         assertLogged(
             () -> logger.log(java.util.logging.Level.INFO, "{0}", "a var"),
             new SeenEventExpectation("formatted msg", "", Level.INFO, "a var")
+        );
+    }
+
+    public void testFormattedMessageWithNoParams() {
+        JULBridge.install();
+        assertLogged(
+            () -> logger.log(java.util.logging.Level.INFO, "class name is {Class}"),
+            new SeenEventExpectation("formatted msg", "", Level.INFO, "class name is {Class}")
+        );
+    }
+
+    public void testMessageWithException() {
+        JULBridge.install();
+        Object[] params = new Object[] { "1", "2" };
+        assertLogged(
+            () -> logger.log(java.util.logging.Level.INFO, "Too many arguments {}", params),
+            new SeenEventExpectation("formatted msg", "", Level.INFO, "Too many arguments {} [1, 2]")
         );
     }
 }

@@ -50,17 +50,13 @@ public class CountDistinctBooleanAggregator {
         current.collect(groupId, v);
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        current.combineStates(currentGroupId, state);
-    }
-
     public static void combineIntermediate(GroupingState current, int groupId, boolean fbit, boolean tbit) {
         if (fbit) current.bits.set(groupId * 2);
         if (tbit) current.bits.set(groupId * 2 + 1);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        LongBlock.Builder builder = ctx.blockFactory().newLongBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             long count = (state.bits.get(2 * group) ? 1 : 0) + (state.bits.get(2 * group + 1) ? 1 : 0);
@@ -120,13 +116,7 @@ public class CountDistinctBooleanAggregator {
             trackGroupId(groupId);
         }
 
-        void combineStates(int currentGroupId, GroupingState state) {
-            bits.or(state.bits);
-            trackGroupId(currentGroupId);
-        }
-
         /** Extracts an intermediate view of the contents of this state.  */
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
             try (

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -42,7 +44,7 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     }
 
     private final String fieldName;
-    DoubleFieldScript.LeafFactory leafFactory;
+    final DoubleFieldScript.LeafFactory leafFactory;
     private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
     private DoubleScriptFieldData(
@@ -90,8 +92,8 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected boolean isIndexed() {
-        return false;
+    protected IndexType indexType() {
+        return IndexType.NONE;
     }
 
     public static class DoubleScriptLeafFieldData extends LeafDoubleFieldData {

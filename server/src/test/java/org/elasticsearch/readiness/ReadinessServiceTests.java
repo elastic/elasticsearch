@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -23,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,7 +32,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -47,11 +47,13 @@ import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -59,7 +61,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     private ThreadPool threadpool;
     private Environment env;
     private FakeHttpTransport httpTransport;
-    private static final Set<String> nodeFeatures = Set.of(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED.id());
 
     private static Metadata emptyReservedStateMetadata;
     static {
@@ -103,12 +104,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     public void setUp() throws Exception {
         super.setUp();
         threadpool = new TestThreadPool("readiness_service_tests");
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool,
-            null
-        );
+        clusterService = mock(ClusterService.class);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        when(clusterService.state()).thenReturn(emptyState());
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
         httpTransport = new FakeHttpTransport();
@@ -117,6 +115,14 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     @After
     public void tearDown() throws Exception {
+        // make sure readiness service is shut down
+        if (readinessService.lifecycleState() == Lifecycle.State.STARTED) {
+            readinessService.stop();
+        }
+        if (readinessService.lifecycleState() == Lifecycle.State.STOPPED) {
+            readinessService.close();
+        }
+
         super.tearDown();
         threadpool.shutdownNow();
     }
@@ -197,9 +203,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         // test that we cannot connect to the socket anymore
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testStatusChange() throws Exception {
@@ -245,6 +248,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                                 httpTransport.node.getId(),
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(httpTransport.node.getId())
+                                    .setNodeEphemeralId(httpTransport.node.getEphemeralId())
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                                     .setStartedAtMillis(randomNonNegativeLong())
@@ -281,9 +285,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     public void testFileSettingsUpdateError() throws Exception {
@@ -303,29 +304,13 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
     }
 
-    public void testFileSettingsMixedCluster() throws Exception {
+    public void testAlreadyReadyWhenStarted() throws Exception {
+        ClusterState readyState = ClusterState.builder(noFileSettingsState()).metadata(emptyReservedStateMetadata).build();
+        when(clusterService.state()).thenReturn(readyState);
         readinessService.start();
-
-        // initially the service isn't ready because initial cluster state has not been applied yet
-        assertFalse(readinessService.ready());
-
-        ClusterState noFileSettingsState = ClusterState.builder(noFileSettingsState())
-            // the master node is upgraded to support file settings, but existing node2 is not
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures))
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
-        readinessService.clusterChanged(event);
-
-        // when upgrading from nodes before file settings exist, readiness should return true once a master is elected
         assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
     }
 
     private ClusterState emptyState() {
@@ -345,7 +330,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                     .masterNodeId(httpTransport.node.getId())
                     .localNodeId(httpTransport.node.getId())
             )
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures, "node2", nodeFeatures))
             .build();
     }
 }

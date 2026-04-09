@@ -84,8 +84,8 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
             public void close() throws IOException {}
         }
 
-        public static String MAP_REDUCER_NAME = "word-count-test-aggregation";
-        public static String AGG_NAME = "internal-map-reduce-aggregation-test";
+        public static final String MAP_REDUCER_NAME = "word-count-test-aggregation";
+        public static final String AGG_NAME = "internal-map-reduce-aggregation-test";
 
         WordCountMapReducer() {
             super(AGG_NAME, MAP_REDUCER_NAME);

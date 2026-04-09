@@ -102,7 +102,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
             ),
             response -> {
                 assertThat(response, notNullValue());
-                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
                 InternalAggregations aggs = response.getAggregations();
                 assertThat(aggs, notNullValue());
 
@@ -172,7 +172,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
 
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
-        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
+        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, HistoryStoreField.INDEX_PREFIX + "*")
+            .get();
         for (MappingMetadata mapping : mappingsResponse.getMappings().values()) {
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {

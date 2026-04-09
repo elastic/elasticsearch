@@ -10,6 +10,9 @@
   "template": {
     "lifecycle": {},
     "mappings": {
+      "_meta": {
+        "template_version": ${xpack.stack.template.version}
+      },
       "properties": {
         "meta": {
           "properties": {
@@ -40,6 +43,9 @@
           "type": "keyword"
         },
         "jobtype": {
+          "type": "keyword"
+        },
+        "scheduled_report_id": {
           "type": "keyword"
         },
         "payload": {
@@ -80,6 +86,9 @@
           "type": "keyword"
         },
         "status": {
+          "type": "keyword"
+        },
+        "space_id": {
           "type": "keyword"
         },
         "parent_id": {

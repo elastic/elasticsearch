@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assert.assertTrue;
 
 public class DependencyLicensesTaskTests {
 
@@ -62,7 +64,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("exists, but there are no dependencies"));
+        expectedException.expectMessage(containsString("license check failed"));
         getLicensesDir(project).mkdir();
         createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         task.get().checkDependencies();
@@ -80,7 +82,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithoutLicensesDirButWithDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("does not exist, but there are dependencies"));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
         task.get().checkDependencies();
@@ -94,7 +96,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithDependencyButNoLicenseFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing LICENSE for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", project.getDependencies().localGroovy());
 
@@ -105,7 +107,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithDependencyButNoNoticeFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing NOTICE for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -117,7 +119,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithStrictDependencyButNoSourcesFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Missing SOURCES for "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -152,7 +154,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithALicenseButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Unused license "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -166,7 +168,7 @@ public class DependencyLicensesTaskTests {
     @Test
     public void givenProjectWithANoticeButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(containsString("Unused notice "));
+        expectedException.expectMessage(containsString("license check failed"));
 
         project.getDependencies().add("implementation", dependency);
 
@@ -217,6 +219,48 @@ public class DependencyLicensesTaskTests {
         task.get().checkDependencies();
     }
 
+    @Test
+    public void givenProjectWithMultipleMissingFilesThenShouldCollectAllProblems() throws Exception {
+        // With the Problems API integration, the task collects all problems before throwing
+        // (instead of failing on the first missing file)
+        project.getDependencies().add("implementation", dependency);
+
+        File licensesDir = getLicensesDir(project);
+        // Create licenses dir but no LICENSE or NOTICE files - should report problems for both
+        licensesDir.mkdir();
+        try {
+            task.get().checkDependencies();
+            throw new AssertionError("Expected GradleException to be thrown");
+        } catch (GradleException e) {
+            // Should report multiple problems (missing LICENSE + missing NOTICE for each dependency)
+            assertTrue("Expected problem count in message, got: " + e.getMessage(),
+                e.getMessage().contains("license check failed"));
+            // Verify it says more than 1 problem
+            assertTrue("Expected multiple problems, got: " + e.getMessage(),
+                e.getMessage().matches(".*\\d+ problems"));
+        }
+    }
+
+    @Test
+    public void givenProjectWithUnusedFilesCollectsAllProblems() throws Exception {
+        project.getDependencies().add("implementation", dependency);
+
+        File licensesDir = getLicensesDir(project);
+        createAllDefaultDependencyFiles(licensesDir, "groovy");
+        // Add two unused files
+        createFileIn(licensesDir, "unused1-LICENSE.txt", "");
+        createFileIn(licensesDir, "unused2-NOTICE.txt", "");
+
+        try {
+            task.get().checkDependencies();
+            throw new AssertionError("Expected GradleException to be thrown");
+        } catch (GradleException e) {
+            // Should collect both unused file problems
+            assertTrue("Expected problem count in message, got: " + e.getMessage(),
+                e.getMessage().contains("license check failed"));
+        }
+    }
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
@@ -243,7 +287,7 @@ public class DependencyLicensesTaskTests {
         Path file = parent.toPath().resolve(name);
         file.toFile().createNewFile();
 
-        Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, content);
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -26,6 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 
 /**
  * Represents the current {@link ShardGeneration} for each shard in a repository.
@@ -230,6 +233,14 @@ public final class ShardGenerations {
             return this;
         }
 
+        public Builder update(UpdatedShardGenerations updatedShardGenerations) {
+            putAll(updatedShardGenerations.liveIndices());
+            // For deleted indices, we only update the generations if they are present in the existing generations, i.e.
+            // they are referenced by other snapshots.
+            updateIfPresent(updatedShardGenerations.deletedIndices());
+            return this;
+        }
+
         public Builder put(IndexId indexId, int shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
             // only track generations for successful shard status values
             return put(indexId, shardId, status.state().failed() ? null : status.generation());
@@ -243,6 +254,20 @@ public final class ShardGenerations {
             return this;
         }
 
+        private void updateIfPresent(ShardGenerations shardGenerations) {
+            shardGenerations.shardGenerations.forEach((indexId, gens) -> {
+                final Map<Integer, ShardGeneration> existingShardGens = generations.get(indexId);
+                if (existingShardGens != null) {
+                    for (int i = 0; i < gens.size(); i++) {
+                        final ShardGeneration gen = gens.get(i);
+                        if (gen != null) {
+                            existingShardGens.put(i, gen);
+                        }
+                    }
+                }
+            });
+        }
+
         private boolean noDuplicateIndicesWithSameName(IndexId newId) {
             for (IndexId id : generations.keySet()) {
                 if (id.getName().equals(newId.getName()) && id.equals(newId) == false) {
@@ -253,6 +278,9 @@ public final class ShardGenerations {
         }
 
         public ShardGenerations build() {
+            if (generations.isEmpty()) {
+                return EMPTY;
+            }
             return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
                 final Set<Integer> shardIds = entry.getValue().keySet();
                 assert shardIds.isEmpty() == false;

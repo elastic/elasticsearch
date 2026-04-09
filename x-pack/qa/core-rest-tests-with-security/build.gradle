@@ -1,5 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   testImplementation project(':x-pack:qa')
@@ -25,9 +31,9 @@ restResources {
 tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     'index/10_with_id/Index with ID',
-    'indices.get_alias/10_basic/Get alias against closed indices'
+    'indices.get_alias/10_basic/Get alias against closed indices',
   ];
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (buildParams.snapshotBuild == false) {
     blacklist += [
       'synonyms_privileges/10_synonyms_with_privileges/*',
       'synonyms_privileges/20_synonyms_no_privileges/*'

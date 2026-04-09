@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -21,6 +22,7 @@ import java.util.regex.Pattern;
 public class RepositoriesSetupPlugin implements Plugin<Project> {
 
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
+    private static final Pattern CUVS_SNAPSHOT_REGEX = Pattern.compile("([0-9\\.]+-[a-z0-9]+)-SNAPSHOT");
 
     @Override
     public void apply(Project project) {
@@ -57,6 +59,18 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
                     descriptor -> descriptor.includeVersionByRegex("org\\.apache\\.lucene", ".*", ".*-snapshot-" + revision)
                 );
                 exclusiveRepo.forRepositories(luceneRepo);
+            });
+        }
+
+        String cuvsVersion = VersionProperties.getVersions().get("cuvs_java");
+        if (cuvsVersion.contains("-SNAPSHOT")) {
+            MavenArtifactRepository cuvsRepo = repos.maven(repo -> {
+                repo.setName("cuvs-snapshots");
+                repo.setUrl("https://storage.googleapis.com/elasticsearch-cuvs-snapshots");
+            });
+            repos.exclusiveContent(exclusiveRepo -> {
+                exclusiveRepo.filter(descriptor -> descriptor.includeVersionByRegex("com\\.nvidia\\.cuvs", ".*", ".*-SNAPSHOT"));
+                exclusiveRepo.forRepositories(cuvsRepo);
             });
         }
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -19,9 +18,11 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,7 +34,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,9 +44,10 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -65,7 +66,7 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -102,13 +103,12 @@ public class HttpClientTests extends ESTestCase {
 
     public void testSend_ThrowsErrorIfCalledBeforeStart() throws Exception {
         try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager())) {
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                AssertionError.class,
-                () -> httpClient.send(HttpRequestTests.createMock("inferenceEntityId"), HttpClientContext.create(), listener)
-            );
+            var listener = new TestPlainActionFuture<HttpResult>();
+            var httpPost = createHttpPost(webServer.getPort(), "key", "value");
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
+            var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
 
-            assertThat(thrownException.getMessage(), is("call start() before attempting to send a request"));
+            assertThat(thrownException.getMessage(), containsString("Http client is not running, please retry the request"));
         }
     }
 
@@ -116,8 +116,7 @@ public class HttpClientTests extends ESTestCase {
         var asyncClient = mock(CloseableHttpAsyncClient.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[2];
+            FutureCallback<?> listener = invocation.getArgument(2);
             listener.failed(new ElasticsearchException("failure"));
             return mock(Future.class);
         }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
@@ -139,8 +138,7 @@ public class HttpClientTests extends ESTestCase {
         var asyncClient = mock(CloseableHttpAsyncClient.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[2];
+            FutureCallback<?> listener = invocation.getArgument(2);
             listener.cancelled();
             return mock(Future.class);
         }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
@@ -152,6 +150,53 @@ public class HttpClientTests extends ESTestCase {
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             client.send(httpPost, HttpClientContext.create(), listener);
+
+            var thrownException = expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is(Strings.format("Request from inference entity id [%s] was cancelled", httpPost.inferenceEntityId()))
+            );
+        }
+    }
+
+    public void testStream_FailedCallsOnFailure() throws Exception {
+        var asyncClient = mock(CloseableHttpAsyncClient.class);
+
+        doAnswer(invocation -> {
+            FutureCallback<?> listener = invocation.getArgument(3);
+            listener.failed(new ElasticsearchException("failure"));
+            return mock(Future.class);
+        }).when(asyncClient).execute(any(HttpAsyncRequestProducer.class), any(), any(), any());
+
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+            client.start();
+
+            PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
+            client.stream(httpPost, HttpClientContext.create(), listener);
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is("failure"));
+        }
+    }
+
+    public void testStream_CancelledCallsOnFailure() throws Exception {
+        var asyncClient = mock(CloseableHttpAsyncClient.class);
+
+        doAnswer(invocation -> {
+            FutureCallback<?> listener = invocation.getArgument(3);
+            listener.cancelled();
+            return mock(Future.class);
+        }).when(asyncClient).execute(any(HttpAsyncRequestProducer.class), any(), any(), any());
+
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+            client.start();
+
+            PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
+            client.stream(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(

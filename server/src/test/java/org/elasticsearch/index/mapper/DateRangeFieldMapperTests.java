@@ -1,15 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -20,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
     private static final String FROM_DATE = "2016-10-31";
@@ -32,7 +39,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
 
     @Override
     protected String storedValue() {
-        return "1477872000000";
+        return "1477958399999";
     }
 
     @Override
@@ -100,6 +107,33 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 return expectedFormatted;
             }
         };
+    }
+
+    /**
+     * Test loading blocks when there is no defined value. This is allowed
+     * for newly created indices that haven't received any documents that
+     * contain the field.
+     */
+    public void testNullValueBlockLoader() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "date_range");
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(reader.leaves().get(0)).apply(breaker)) {
+                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                    assertThat(block.get(0), nullValue());
+                }
+            }
+        }
     }
 
     @Override

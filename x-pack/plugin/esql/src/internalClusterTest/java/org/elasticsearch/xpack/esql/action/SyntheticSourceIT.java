@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -76,11 +77,6 @@ public class SyntheticSourceIT extends AbstractEsqlIntegTestCase {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
         {
-            mapping.startObject("_source");
-            mapping.field("mode", "synthetic");
-            mapping.endObject();
-        }
-        {
             mapping.startObject("properties");
             mapping.startObject("id").field("type", "keyword").endObject();
             mapping.startObject("field");
@@ -90,6 +86,8 @@ public class SyntheticSourceIT extends AbstractEsqlIntegTestCase {
         }
         mapping.endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.mapping.source.mode", "synthetic");
+
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping));
     }
 }

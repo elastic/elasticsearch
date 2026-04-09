@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -30,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +48,9 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         String modelId3 = "trained_model_3";
         Set<String> modelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
 
-        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ClusterState clusterState = buildClusterStateWithModelReferences(projectId, 2, modelId1, modelId2, modelId3);
 
         Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByResource(clusterState, modelIds);
 
@@ -69,8 +75,10 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         String modelId3 = "trained_model_3";
         Set<String> expectedModelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
 
-        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
-        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ClusterState clusterState = buildClusterStateWithModelReferences(projectId, 2, modelId1, modelId2, modelId3);
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));
@@ -80,18 +88,25 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
 
         Set<String> expectedModelIds = new HashSet<>(Arrays.asList());
 
-        ClusterState clusterState = buildClusterStateWithModelReferences(0);
-        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ClusterState clusterState = buildClusterStateWithModelReferences(projectId, 0);
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));
     }
 
     public void testNumInferenceProcessors() throws IOException {
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(null)), equalTo(0));
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(Metadata.EMPTY_METADATA)), equalTo(0));
         assertThat(
-            InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterStateWithModelReferences(1, "model1", "model2", "model3")),
+            InferenceProcessorInfoExtractor.countInferenceProcessors(
+                buildClusterStateWithModelReferences(projectId, 1, "model1", "model2", "model3")
+            ),
             equalTo(3)
         );
     }
@@ -124,9 +139,12 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         }
 
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().put(projectMetadata))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
@@ -138,6 +156,21 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             .build();
 
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(cs), equalTo(3));
+    }
+
+    public void testScriptProcessorStringConfig() throws IOException {
+        Set<String> expectedModelIds = Set.of("foo");
+
+        @FixForMultiProject(description = "InferenceProcessorInfoExtractor is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ClusterState clusterState = buildClusterStateWithPipelineConfigurations(
+            projectId,
+            Map.of("processor_does_not_have_a_definition_object", newConfigurationWithScriptProcessor("foo"))
+        );
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
     }
 
     private static PipelineConfiguration newConfigurationWithOutInferenceProcessor(int i) throws IOException {
@@ -158,7 +191,8 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
-    private static ClusterState buildClusterStateWithModelReferences(int numPipelineReferences, String... modelId) throws IOException {
+    private static ClusterState buildClusterStateWithModelReferences(ProjectId projectId, int numPipelineReferences, String... modelId)
+        throws IOException {
         Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             for (int i = 0; i < numPipelineReferences; i++) {
@@ -173,10 +207,19 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         for (int i = 0; i < numPipelinesWithoutModel; i++) {
             configurations.put("pipeline_without_model_" + i, newConfigurationWithOutInferenceProcessor(i));
         }
+
+        return buildClusterStateWithPipelineConfigurations(projectId, configurations);
+    }
+
+    private static ClusterState buildClusterStateWithPipelineConfigurations(
+        ProjectId projectId,
+        Map<String, PipelineConfiguration> configurations
+    ) throws IOException {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
 
         return ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().put(projectMetadata))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
@@ -206,6 +249,24 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         }
     }
 
+    private static PipelineConfiguration newConfigurationWithScriptProcessor(String modelId) throws IOException {
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+                .map(
+                    Collections.singletonMap(
+                        "processors",
+                        List.of(forScriptProcessorWithStringConfig(), forEachProcessorWithInference(modelId))
+                    )
+                )
+        ) {
+            return new PipelineConfiguration(
+                "pipeline_with_script_and_model_" + modelId,
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            );
+        }
+    }
+
     private static Map<String, Object> forEachProcessorWithInference(String modelId) {
         return Collections.singletonMap("foreach", new HashMap<>() {
             {
@@ -229,4 +290,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         });
     }
 
+    private static Map<String, Object> forScriptProcessorWithStringConfig() {
+        return Collections.singletonMap("script", "ctx.test=2;");
+    }
 }

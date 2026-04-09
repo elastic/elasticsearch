@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Module for URL repository'
-  classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+  description = 'Module for URL repository'
+  classname ='org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
 restResources {
@@ -30,7 +30,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   yamlRestTestImplementation project(':test:fixtures:url-fixture')
-  internalClusterTestImplementation project(':test:fixtures:url-fixture')
+  yamlRestTestImplementation project(':modules:repository-url')
 }
 
 tasks.named("thirdPartyAudit").configure {

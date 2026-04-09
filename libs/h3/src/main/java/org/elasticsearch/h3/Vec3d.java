@@ -26,7 +26,7 @@ package org.elasticsearch.h3;
 /**
  *  3D floating-point vector
  */
-final class Vec3d {
+record Vec3d(double x, double y, double z) {
 
     /** icosahedron face centers in x/y/z on the unit sphere */
     public static final Vec3d[] faceCenterPoint = new Vec3d[] {
@@ -51,14 +51,6 @@ final class Vec3d {
         new Vec3d(0.2139234834501420, -0.1478171829550704, -0.9656017935214205),   // face 18
         new Vec3d(-0.1092625278784796, 0.4811951572873210, -0.8697775121287253)   // face 19
     };
-
-    private final double x, y, z;
-
-    private Vec3d(double x, double y, double z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
 
     /**
      * Calculate the square of the distance between two 3D coordinates.
@@ -96,7 +88,7 @@ final class Vec3d {
             }
         }
         // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = FastMath.acos(1 - sqd / 2);
+        double r = FastMath.acos(1 - sqd * 0.5);
 
         if (r < Constants.EPSILON) {
             return FaceIJK.faceIjkToH3(res, face, new CoordIJK(0, 0, 0));
@@ -238,5 +230,4 @@ final class Vec3d {
     private static double magnitude(double x, double y, double z) {
         return Math.sqrt(square(x) + square(y) + square(z));
     }
-
 }

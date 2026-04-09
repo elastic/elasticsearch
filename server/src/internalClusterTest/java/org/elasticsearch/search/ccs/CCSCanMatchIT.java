@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
@@ -50,13 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
-public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
-    static final String REMOTE_CLUSTER = "cluster_a";
-
-    @Override
-    protected Collection<String> remoteClusterAlias() {
-        return List.of("cluster_a");
-    }
+public class CCSCanMatchIT extends AbstractCrossClusterSearchTestCase {
 
     private static class EngineWithExposingTimestamp extends InternalEngine {
         EngineWithExposingTimestamp(EngineConfig engineConfig) {
@@ -128,7 +122,12 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
                 .get();
             client.admin().indices().prepareOpen(index).get();
             assertBusy(() -> {
-                IndexLongFieldRange timestampRange = cluster(cluster).clusterService().state().metadata().index(index).getTimestampRange();
+                IndexLongFieldRange timestampRange = cluster(cluster).clusterService()
+                    .state()
+                    .metadata()
+                    .getProject()
+                    .index(index)
+                    .getTimestampRange();
                 assertTrue(Strings.toString(timestampRange), timestampRange.containsAllShardRanges());
             });
         } else {

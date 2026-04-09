@@ -93,7 +93,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                 return indexTemplateVersion;
             }
         };
-        indexManager = new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver) {
+        indexManager = new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver, null) {
             @Override
             protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();

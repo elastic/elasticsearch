@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -26,10 +27,11 @@ import java.util.List;
  */
 public class Sin extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sin", Sin::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sin.class).unary(Sin::new).name("sin");
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.",
+        description = "Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.",
         examples = @Example(file = "floats", tag = "sin")
     )
     public Sin(
@@ -53,7 +55,7 @@ public class Sin extends AbstractTrigonometricFunction {
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
         return new SinEvaluator.Factory(source(), field);
     }
 

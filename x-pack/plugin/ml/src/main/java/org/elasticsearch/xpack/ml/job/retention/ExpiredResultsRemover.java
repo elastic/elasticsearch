@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +98,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         ActionListener<Boolean> listener
     ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
+
+        var indicesToQuery = WritableIndexExpander.getInstance()
+            .getWritableIndices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for job [{}]. No expired results removed.", job.getId());
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs, indicesToQuery);
         request.setParentTask(getParentTaskId());
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -136,7 +146,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs, ArrayList<String> indicesToQuery) {
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,
@@ -148,7 +158,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
             .mustNot(excludeFilter);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setSlices(
+
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
             AbstractBulkByScrollRequest.AUTO_SLICES
         )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)

@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
-  name 'secondary-auth-actions-extension'
-  description 'Spi extension plugin for security to enforce custom secondary auth actions'
-  classname 'org.elasticsearch.secondary.auth.actions.SecondaryAuthActionsPlugin'
+  name = 'secondary-auth-actions-extension'
+  description = 'Spi extension plugin for security to enforce custom secondary auth actions'
+  classname ='org.elasticsearch.secondary.auth.actions.SecondaryAuthActionsPlugin'
   extendedPlugins = ['x-pack-security']
 }
 
@@ -25,5 +25,5 @@ dependencies {
 tasks.named("javadoc").configure { enabled = false }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

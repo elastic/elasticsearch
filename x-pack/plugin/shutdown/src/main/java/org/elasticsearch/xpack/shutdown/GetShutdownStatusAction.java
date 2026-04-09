@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,33 +48,14 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             this.nodeIds = nodeIds;
         }
 
-        @UpdateForV9 // only needed for bwc, inline in v9
-        public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS, in);
-            }
-        }
-
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT);
-            nodeIds = in.readStringArray();
-        }
-
-        @UpdateForV9 // only needed for bwc, remove in v9
-        private Request(TimeValue masterNodeTimeout, StreamInput in) throws IOException {
-            super(masterNodeTimeout);
-            assert in.getTransportVersion().before(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT);
             nodeIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT)) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeStringArray(this.nodeIds);
         }
 

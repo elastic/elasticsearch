@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -34,13 +35,14 @@ public record FieldDataContext(
 
     /**
      * A context to use when runtime fields are not available
-     *
+     * <p>
      * Used for validating index sorts, eager global ordinal loading, etc
      *
-     * @param reason the reason that runtime fields are not supported
+     * @param indexName the name of the current index
+     * @param reason    the reason that runtime fields are not supported
      */
-    public static FieldDataContext noRuntimeFields(String reason) {
-        return new FieldDataContext("", null, () -> {
+    public static FieldDataContext noRuntimeFields(String indexName, String reason) {
+        return new FieldDataContext(indexName, null, () -> {
             throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
         }, Set::of, MappedFieldType.FielddataOperation.SEARCH);
     }

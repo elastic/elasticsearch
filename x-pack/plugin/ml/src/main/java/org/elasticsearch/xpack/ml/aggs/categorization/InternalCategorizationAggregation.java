@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -86,7 +84,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             MultiBucketsAggregation.Bucket,
             Comparable<Bucket> {
@@ -109,16 +107,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         public Bucket(StreamInput in) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-                throw new ElasticsearchStatusException(
-                    "["
-                        + CategorizeTextAggregationBuilder.NAME
-                        + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
-                        + "] or higher and others have a version before this",
-                    RestStatus.BAD_REQUEST
-                );
-            }
             serializableCategory = new SerializableTokenListCategory(in);
             key = new BucketKey(serializableCategory);
             bucketOrd = -1;
@@ -128,22 +116,11 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-                throw new ElasticsearchStatusException(
-                    "["
-                        + CategorizeTextAggregationBuilder.NAME
-                        + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
-                        + "] or higher and others have a version before this",
-                    RestStatus.BAD_REQUEST
-                );
-            }
             serializableCategory.writeTo(out);
             aggregations.writeTo(out);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), serializableCategory.getNumMatches());
             builder.field(CommonFields.KEY.getPreferredName());
@@ -152,7 +129,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), serializableCategory.maxMatchingStringLen());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         BucketKey getRawKey() {
@@ -241,16 +217,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchStatusException(
-                "["
-                    + CategorizeTextAggregationBuilder.NAME
-                    + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
-                    + "] or higher and others have a version before this",
-                RestStatus.BAD_REQUEST
-            );
-        }
         this.similarityThreshold = in.readVInt();
         this.buckets = in.readCollectionAsList(Bucket::new);
         this.requiredSize = readSize(in);
@@ -260,16 +226,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchStatusException(
-                "["
-                    + CategorizeTextAggregationBuilder.NAME
-                    + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
-                    + "] or higher and others have a version before this",
-                RestStatus.BAD_REQUEST
-            );
-        }
         out.writeVInt(similarityThreshold);
         out.writeCollection(buckets);
         writeSize(requiredSize, out);
@@ -280,7 +236,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;
@@ -362,22 +318,17 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            similarityThreshold,
-            metadata,
-            buckets.stream()
-                .map(
-                    b -> new Bucket(
-                        new SerializableTokenListCategory(b.getSerializableCategory(), samplingContext.scaleUp(b.getDocCount())),
-                        b.getBucketOrd(),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
-                    )
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(
+                new Bucket(
+                    new SerializableTokenListCategory(bucket.getSerializableCategory(), samplingContext.scaleUp(bucket.getDocCount())),
+                    bucket.getBucketOrd(),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext)
                 )
-                .collect(Collectors.toList())
-        );
+            );
+        }
+        return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, metadata, buckets);
     }
 
     public int getSimilarityThreshold() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -13,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.UnrecoverableKeyException;
 import java.util.List;
@@ -29,15 +29,22 @@ final class SslFileUtil {
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause) {
-        return ioException(fileType, paths, cause, null);
+        return ioException(fileType, paths, cause, null, null);
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause, String detail) {
+        return ioException(fileType, paths, cause, detail, null);
+    }
+
+    static SslConfigException ioException(String fileType, List<Path> paths, IOException cause, String detail, Path basePath) {
         if (cause instanceof FileNotFoundException || cause instanceof NoSuchFileException) {
             return fileNotFound(fileType, paths, cause);
         }
         if (cause instanceof AccessDeniedException) {
             return accessDenied(fileType, paths, (AccessDeniedException) cause);
+        }
+        if (isNotEntitled(cause)) {
+            return innerAccessControlFailure(fileType, paths, cause, basePath);
         }
         String message = "cannot read configured " + fileType;
         if (paths.isEmpty() == false) {
@@ -77,7 +84,11 @@ final class SslFileUtil {
         return new SslConfigException(message, cause);
     }
 
-    static SslConfigException accessControlFailure(String fileType, List<Path> paths, AccessControlException cause, Path basePath) {
+    static SslConfigException accessControlFailure(String fileType, List<Path> paths, SecurityException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
+    private static SslConfigException innerAccessControlFailure(String fileType, List<Path> paths, Exception cause, Path basePath) {
         String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "] because ";
         if (paths.size() == 1) {
             message += "access to read the file is blocked";
@@ -113,6 +124,15 @@ final class SslFileUtil {
         }
 
         return new SslConfigException(message, cause);
+    }
+
+    private static boolean isNotEntitled(IOException ioe) {
+        for (Throwable cause = ioe.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasCause(Class<? extends Throwable> exceptionType, Throwable exception) {

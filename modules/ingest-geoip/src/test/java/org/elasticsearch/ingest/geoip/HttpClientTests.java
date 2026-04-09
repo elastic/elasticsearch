@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -13,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -46,6 +48,7 @@ public class HttpClientTests extends ESTestCase {
         server.createContext("/404/", exchange -> {
             try {
                 exchange.sendResponseHeaders(404, 0);
+                exchange.close();
             } catch (Exception e) {
                 fail(e);
             }
@@ -101,6 +104,7 @@ public class HttpClientTests extends ESTestCase {
                     exchange.getResponseHeaders().add("Location", "/" + destination + "/");
                 }
                 exchange.sendResponseHeaders(302, 0);
+                exchange.close();
             } catch (Exception e) {
                 fail(e);
             }
@@ -114,7 +118,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private static String url(final String path) {
-        String hostname = server.getAddress().getHostString();
+        String hostname = InetAddresses.toUriString(server.getAddress().getAddress());
         int port = server.getAddress().getPort();
         return "http://" + hostname + ":" + port + path;
     }

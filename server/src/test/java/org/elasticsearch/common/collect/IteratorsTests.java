@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
@@ -27,6 +28,11 @@ import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -242,6 +248,25 @@ public class IteratorsTests extends ESTestCase {
         }
     }
 
+    public void testLimit() {
+        var result = Iterators.limit(Collections.emptyIterator(), 10);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+
+        var values = List.of(1, 2, 3);
+        result = Iterators.limit(values.iterator(), 10);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2, 3));
+
+        result = Iterators.limit(values.iterator(), 2);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2));
+
+        result = Iterators.limit(values.iterator(), 0);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+    }
+
     public void testFailFast() {
         final var array = randomIntegerArray();
         assertEmptyIterator(Iterators.failFast(Iterators.forArray(array), () -> true));
@@ -288,6 +313,32 @@ public class IteratorsTests extends ESTestCase {
         final var queue = new LinkedList<>(Arrays.asList(array));
         Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
         assertEquals(array.length, index.get());
+    }
+
+    public void testCycle() {
+        final List<Integer> source = List.of(1, 5, 100, 20);
+        final Iterator<Integer> iterator = Iterators.cycling(source);
+        assertThat(iterator.hasNext(), equalTo(true));
+        for (int i = 0; i < 10; i++) {
+            assertThat(iterator.hasNext(), equalTo(true));
+            assertThat(iterator.next(), equalTo(1));
+            assertThat(iterator.next(), equalTo(5));
+            assertThat(iterator.next(), equalTo(100));
+            assertThat(iterator.next(), equalTo(20));
+        }
+    }
+
+    public void testAssertReadOnly() {
+        assumeTrue("assertions enabled", Assertions.ENABLED);
+        final List<Integer> innerList = new ArrayList<>(List.of(1, 2, 3, 4));
+        assertTrue(Iterators.equals(innerList.iterator(), Iterators.assertReadOnly(innerList.iterator()), Objects::equals));
+
+        final var readonly = Iterators.assertReadOnly(innerList.iterator());
+        assertTrue(readonly.hasNext());
+        assertEquals(Integer.valueOf(1), readonly.next());
+        expectThrows(AssertionError.class, readonly::remove);
+
+        assertEquals(List.of(1, 2, 3, 4), innerList);
     }
 
     public void testEquals() {

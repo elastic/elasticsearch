@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -12,14 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
-
-import static org.elasticsearch.test.cluster.FeatureFlag.FAILURE_STORE_ENABLED;
 
 public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -45,13 +46,23 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .feature(FAILURE_STORE_ENABLED)
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
-            .user("x_pack_rest_user", "x-pack-test-password");
-        boolean setNodes = Boolean.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
+            .user("x_pack_rest_user", "x-pack-test-password")
+            .feature(FeatureFlag.LOGS_STREAM)
+            .systemProperty("es.queryable_built_in_roles_enabled", "false");
+        if (initTestSeed().nextBoolean()) {
+            clusterBuilder.setting("xpack.license.self_generated.type", "trial");
+        }
+        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);
+        }
+        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
+        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
+        if (disableILMHistory) {
+            // disable ILM history, since it disturbs tests
+            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
         }
         return clusterBuilder.build();
     }

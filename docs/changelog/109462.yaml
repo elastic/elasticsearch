@@ -1,6 +1,0 @@
-pr: 109462
-summary: Add `wait_for_completion` parameter to delete snapshot request
-area: Distributed
-type: enhancement
-issues:
- - 101300

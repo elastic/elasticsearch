@@ -8,12 +8,12 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -25,7 +25,7 @@ public class ExchangeResponseTests extends ComputeTestCase {
         Block[] blocks = new Block[numBlocks];
         int positions = randomIntBetween(1, 10);
         for (int b = 0; b < numBlocks; b++) {
-            var block = BasicBlockTests.randomBlock(
+            var block = RandomBlock.randomBlock(
                 factory,
                 randomFrom(ElementType.BOOLEAN, ElementType.LONG, ElementType.BYTES_REF),
                 positions,

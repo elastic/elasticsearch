@@ -14,8 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -42,9 +42,8 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
-        for (DataType sType : supportedDataTyes) {
-            for (DataType dType : supportedDataTyes) {
+        for (DataType sType : DataType.stringTypes()) {
+            for (DataType dType : DataType.stringTypes()) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
                     String delimiter = randomAlphaOfLength(1);
                     List<BytesRef> strings = IntStream.range(0, between(1, 5))
@@ -75,7 +74,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     public void testConstantDelimiter() {
         DriverContext driverContext = driverContext();
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 new Split(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataType.KEYWORD))
             ).get(driverContext)
         ) {

@@ -12,7 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -20,12 +25,28 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.NoopChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
+
+    protected record ChunkedInput(String input, int startOffset, int endOffset) {}
+
+    protected static final Random random = new Random(
+        System.getProperty("tests.seed") == null
+            ? System.currentTimeMillis()
+            : Long.parseUnsignedLong(System.getProperty("tests.seed").split(":")[0], 16)
+    );
 
     protected static int stringWeight(String input, int position) {
         int hashCode = input.hashCode();
@@ -47,7 +68,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
             taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
         } else {
-            taskSettingsMap = Map.of();
+            taskSettingsMap = new HashMap<>();
         }
 
         return taskSettingsMap;
@@ -55,46 +76,79 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     @Override
     @SuppressWarnings("unchecked")
-    public TestServiceModel parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
+    public TestServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
+        var config = unparsedModel.settings();
+        var secrets = unparsedModel.secrets();
+        var taskType = unparsedModel.taskType();
+
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
-        var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
+        var secretSettingsMap = secrets == null ? null : (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
 
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+        return new TestServiceModel(unparsedModel.inferenceEntityId(), taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new TestServiceModel(config, secrets);
+    }
 
-        var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
-
-        var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
-
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
+    protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+        return TestTaskSettings.fromMap(taskSettingsMap);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, ActionListener<Boolean> listener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
     @Override
     public void close() throws IOException {}
+
+    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput chunkInput) {
+        ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
+        InferenceString inferenceString = chunkInput.input().value();
+        String inferenceStringValue = inferenceString.value();
+        if (chunkingSettings == null || inferenceString.isText() == false) {
+            return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
+        }
+
+        List<ChunkedInput> chunkedInputs = new ArrayList<>();
+        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
+            var offsets = NoopChunker.INSTANCE.chunk(inferenceStringValue, chunkingSettings);
+            List<ChunkedInput> ret = new ArrayList<>();
+            for (var offset : offsets) {
+                ret.add(new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+            }
+            return ret;
+        } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
+            WordBoundaryChunker chunker = new WordBoundaryChunker();
+            WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
+            List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
+                inferenceStringValue,
+                wordBoundaryChunkingSettings.maxChunkSize(),
+                wordBoundaryChunkingSettings.overlap()
+            );
+            for (WordBoundaryChunker.ChunkOffset offset : offsets) {
+                chunkedInputs.add(
+                    new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end())
+                );
+            }
+
+        } else {
+            // Won't implement till we need it
+            throw new UnsupportedOperationException("Test inference service only supports word chunking strategies");
+        }
+
+        return chunkedInputs;
+    }
 
     public static class TestServiceModel extends Model {
 
@@ -103,15 +157,19 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
+            TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
-            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+            this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        }
+
+        public TestServiceModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+            super(modelConfigurations, modelSecrets);
         }
 
         @Override
-        public TestTaskSettings getTaskSettings() {
-            return (TestTaskSettings) super.getTaskSettings();
+        public TaskSettings getTaskSettings() {
+            return super.getTaskSettings();
         }
 
         @Override
@@ -120,22 +178,29 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
     }
 
-    public record TestTaskSettings(Integer temperature) implements TaskSettings {
+    public record TestTaskSettings(Integer temperature, Boolean shouldFailValidation) implements TaskSettings {
 
         static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
             Integer temperature = (Integer) map.remove("temperature");
-            return new TestTaskSettings(temperature);
+            Boolean shouldFailValidation = (Boolean) map.remove("should_fail_validation");
+            return new TestTaskSettings(temperature, shouldFailValidation);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readOptionalVInt());
+            this(in.readOptionalVInt(), in.readOptionalBoolean());
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return temperature == null && shouldFailValidation == null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(temperature);
+            out.writeOptionalBoolean(shouldFailValidation);
         }
 
         @Override
@@ -143,6 +208,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             builder.startObject();
             if (temperature != null) {
                 builder.field("temperature", temperature);
+            }
+            if (shouldFailValidation != null) {
+                builder.field("should_fail_validation", shouldFailValidation);
             }
             builder.endObject();
             return builder;
@@ -157,6 +225,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return fromMap(newSettings);
+        }
     }
 
     public record TestSecretSettings(String apiKey) implements SecretSettings {
@@ -164,6 +237,10 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         static final String NAME = "test_secret_settings";
 
         public static TestSecretSettings fromMap(Map<String, Object> map) {
+            if (map == null) {
+                return null;
+            }
+
             ValidationException validationException = new ValidationException();
 
             String apiKey = (String) map.remove("api_key");
@@ -172,9 +249,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
                 validationException.addValidationError("missing api_key");
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestSecretSettings(apiKey);
         }
@@ -204,6 +279,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return TestSecretSettings.fromMap(newSecrets);
         }
     }
 }

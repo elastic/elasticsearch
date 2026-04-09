@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
@@ -28,7 +29,7 @@ import java.util.function.Consumer;
 
 import javax.inject.Inject;
 
-public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
+public abstract class ExtractCurrentVersionsTask extends AbstractVersionsTask {
     private static final Logger LOGGER = Logging.getLogger(ExtractCurrentVersionsTask.class);
 
     private Path outputFile;
@@ -52,9 +53,6 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
         LOGGER.lifecycle("Extracting latest version information");
 
         List<String> output = new ArrayList<>();
-        int transportVersion = readLatestVersion(rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH));
-        LOGGER.lifecycle("Transport version: {}", transportVersion);
-        output.add(TRANSPORT_VERSION_TYPE + ":" + transportVersion);
 
         int indexVersion = readLatestVersion(rootDir.resolve(INDEX_VERSIONS_FILE_PATH));
         LOGGER.lifecycle("Index version: {}", indexVersion);

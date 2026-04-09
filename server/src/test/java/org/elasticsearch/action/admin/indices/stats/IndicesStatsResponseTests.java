@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -43,8 +45,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
@@ -92,8 +94,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
@@ -131,8 +133,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             shards,
             0,
             null,
-            ClusterState.EMPTY_STATE.getMetadata(),
-            ClusterState.EMPTY_STATE.routingTable()
+            Metadata.EMPTY_METADATA,
+            RoutingTable.EMPTY_ROUTING_TABLE
         );
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,

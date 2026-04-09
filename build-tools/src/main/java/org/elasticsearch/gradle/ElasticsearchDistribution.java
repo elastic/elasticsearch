@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
@@ -48,6 +49,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     private final Property<Architecture> architecture;
     private final Property<String> version;
+    private final Property<Boolean> detachedVersion;
     private final Property<ElasticsearchDistributionType> type;
     private final Property<Platform> platform;
     private final Property<Boolean> bundledJdk;
@@ -68,6 +70,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.configuration = fileConfiguration;
         this.architecture = objectFactory.property(Architecture.class);
         this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
+        this.detachedVersion = objectFactory.property(Boolean.class).convention(false);
         this.type = objectFactory.property(ElasticsearchDistributionType.class);
         this.type.convention(ElasticsearchDistributionTypes.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
@@ -88,6 +91,19 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public void setVersion(String version) {
         Version.fromString(version); // ensure the version parses, but don't store as Version since that removes -SNAPSHOT
         this.version.set(version);
+    }
+
+    /**
+     * Informs if the version is not tied to any Elasticsearch release and is a custom build.
+     * This is true when the distribution is not from HEAD but also not any known released version.
+     * In that case the detached source build needs to be prepared by `usedBwcDistributionFromRef(ref, version)`.
+     */
+    public boolean isDetachedVersion() {
+        return detachedVersion.get();
+    }
+
+    public void setDetachedVersion(boolean detachedVersion) {
+        this.detachedVersion.set(detachedVersion);
     }
 
     public Platform getPlatform() {

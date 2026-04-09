@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -81,7 +82,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -122,7 +122,6 @@ import static org.mockito.Mockito.when;
  * Note for other type of integration tests you should use the external test cluster created by the Gradle integTest task.
  * For example tests extending this base class test with the non native autodetect process.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
@@ -160,8 +159,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // To remove errors from parsing build in templates that contain scaled_float
             MapperExtrasPlugin.class,
-            Wildcard.class,
-            InferencePlugin.class
+            Wildcard.class
         );
     }
 
@@ -171,8 +169,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
-        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+    public void ensureTemplatesArePresent() {
+        if (cluster().size() > 0) {
+            awaitClusterState(MachineLearning::criticalTemplatesInstalled);
+        }
     }
 
     protected Job.Builder createJob(String id) {
@@ -284,6 +284,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     protected static ThreadPool mockThreadPool() {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
@@ -513,9 +514,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
-        ClusterStateRequest csRequest = new ClusterStateRequest().clear().metadata(true);
+        ClusterStateRequest csRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true);
         ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
-        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull(tasks);
         PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
         assertNotNull(task);

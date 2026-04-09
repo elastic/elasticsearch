@@ -303,8 +303,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: update transport version when released!
-        return TransportVersion.current();
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

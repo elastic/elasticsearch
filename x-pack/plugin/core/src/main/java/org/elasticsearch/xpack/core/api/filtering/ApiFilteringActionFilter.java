@@ -14,21 +14,33 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+
+import static org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil.isOperator;
 
 public abstract class ApiFilteringActionFilter<Res extends ActionResponse> implements MappedActionFilter {
 
     private final ThreadContext threadContext;
     private final String actionName;
     private final Class<Res> responseClass;
+    private final boolean filterOperatorRequests;
 
     protected ApiFilteringActionFilter(ThreadContext threadContext, String actionName, Class<Res> responseClass) {
+        this(threadContext, actionName, responseClass, false);
+    }
+
+    protected ApiFilteringActionFilter(
+        ThreadContext threadContext,
+        String actionName,
+        Class<Res> responseClass,
+        boolean filterOperatorRequests
+    ) {
         assert threadContext != null : "threadContext cannot be null";
         assert actionName != null : "actionName cannot be null";
         assert responseClass != null : "responseClass cannot be null";
         this.threadContext = threadContext;
         this.actionName = actionName;
         this.responseClass = responseClass;
+        this.filterOperatorRequests = filterOperatorRequests;
     }
 
     @Override
@@ -45,7 +57,7 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         ActionFilterChain<Request, Response> chain
     ) {
         final ActionListener<Response> responseFilteringListener;
-        if (isOperator() == false && actionName.equals(action)) {
+        if ((filterOperatorRequests || isOperator(threadContext) == false) && actionName.equals(action)) {
             responseFilteringListener = listener.map(this::filter);
         } else {
             responseFilteringListener = listener;
@@ -60,12 +72,6 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         } else {
             return response;
         }
-    }
-
-    private boolean isOperator() {
-        return AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-        );
     }
 
     protected abstract Res filterResponse(Res response) throws Exception;

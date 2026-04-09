@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -36,8 +40,6 @@ public class AutomatonQueries {
 
         Automaton a = Operations.concatenate(list);
         // since all elements in the list should be deterministic already, the concatenation also is, so no need to determinized
-        assert a.isDeterministic();
-        a = MinimizationOperations.minimize(a, 0);
         assert a.isDeterministic();
         return a;
     }
@@ -69,8 +71,59 @@ public class AutomatonQueries {
     /**
      * Convert Lucene wildcard syntax into an automaton.
      */
-    @SuppressWarnings("fallthrough")
     public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery) {
+        Automaton nfa = toCaseInsensitiveWildcardNFA(wildcardquery);
+        return Operations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    /**
+     * Convert Lucene wildcard syntax into an automaton, checking a circuit breaker
+     * during determinization to prevent OOM from huge automatons.
+     */
+    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+        Automaton nfa = toCaseInsensitiveWildcardNFA(wildcardquery);
+        return CircuitBreakingOperations.determinize(
+            nfa,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            circuitBreaker,
+            "wildcard-ci:" + wildcardquery.field()
+        );
+    }
+
+    /**
+     * Convert Lucene wildcard syntax into a case-sensitive automaton, checking a circuit breaker
+     * during determinization to prevent OOM from huge automatons.
+     */
+    public static Automaton toWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+        Automaton nfa = toWildcardNFA(wildcardquery);
+        return CircuitBreakingOperations.determinize(
+            nfa,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            circuitBreaker,
+            "wildcard:" + wildcardquery.field()
+        );
+    }
+
+    /**
+     * Build a deterministic automaton from a regular expression, checking a circuit breaker
+     * during determinization to prevent OOM from huge automatons.
+     */
+    public static Automaton toRegexpAutomaton(
+        Term term,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        CircuitBreaker circuitBreaker
+    ) {
+        Automaton nfa = new RegExp(term.text(), syntaxFlags, matchFlags).toAutomaton();
+        return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+    }
+
+    /**
+     * Build the NFA for a case-insensitive wildcard pattern without determinizing.
+     */
+    @SuppressWarnings("fallthrough")
+    static Automaton toCaseInsensitiveWildcardNFA(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
         String wildcardText = wildcardquery.text();
@@ -102,6 +155,42 @@ public class AutomatonQueries {
         return Operations.concatenate(automata);
     }
 
+    /**
+     * Build the NFA for a case-sensitive wildcard pattern without determinizing.
+     * This mirrors {@link WildcardQuery#toAutomaton(Term, int)} but stops before the determinize step.
+     */
+    public static Automaton toWildcardNFA(Term wildcardquery) {
+        List<Automaton> automata = new ArrayList<>();
+
+        String wildcardText = wildcardquery.text();
+
+        for (int i = 0; i < wildcardText.length();) {
+            final int c = wildcardText.codePointAt(i);
+            int length = Character.charCount(c);
+            switch (c) {
+                case WILDCARD_STRING:
+                    automata.add(Automata.makeAnyString());
+                    break;
+                case WILDCARD_CHAR:
+                    automata.add(Automata.makeAnyChar());
+                    break;
+                case WILDCARD_ESCAPE:
+                    // add the next codepoint instead, if it exists
+                    if (i + length < wildcardText.length()) {
+                        final int nextChar = wildcardText.codePointAt(i + length);
+                        length += Character.charCount(nextChar);
+                        automata.add(Automata.makeChar(nextChar));
+                        break;
+                    } // else fallthru, lenient parsing with a trailing \
+                default:
+                    automata.add(Automata.makeChar(c));
+            }
+            i += length;
+        }
+
+        return Operations.concatenate(automata);
+    }
+
     protected static Automaton toCaseInsensitiveString(BytesRef br) {
         return toCaseInsensitiveString(br.utf8ToString());
     }
@@ -116,7 +205,6 @@ public class AutomatonQueries {
         Automaton a = Operations.concatenate(list);
         // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
         assert a.isDeterministic();
-        a = MinimizationOperations.minimize(a, 0);
         return a;
     }
 
@@ -131,7 +219,6 @@ public class AutomatonQueries {
         if (altCase != codepoint) {
             result = Operations.union(case1, Automata.makeChar(altCase));
             // this automaton should always be deterministic, no need to determinize
-            result = MinimizationOperations.minimize(result, 0);
             assert result.isDeterministic();
         } else {
             result = case1;

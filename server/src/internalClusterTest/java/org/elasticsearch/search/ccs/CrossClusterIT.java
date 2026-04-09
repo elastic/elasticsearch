@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -46,7 +47,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -62,6 +62,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,25 +82,15 @@ import static org.hamcrest.Matchers.nullValue;
 // formerly called CrossClusterSearchIT, but since this one mostly does
 // actions besides searching, it was renamed so a new CrossClusterSearchIT
 // can focus on several cross cluster search scenarios.
-public class CrossClusterIT extends AbstractMultiClustersTestCase {
+public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
-        return List.of("cluster_a");
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of();
     }
 
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
-    private int indexDocs(Client client, String index) {
-        int numDocs = between(1, 10);
-        for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("f", "v").get();
-        }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
+    protected int indexDocs(Client client, String index) {
+        return indexDocs(client, "f", index);
     }
 
     public void testRemoteClusterClientRole() throws Exception {
@@ -181,14 +172,17 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                     }
                 }
             });
-            assertBusy(() -> assertTrue(future.isDone()));
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                // ignored
+            }
             configureAndConnectsToRemoteClusters();
         } finally {
             SearchListenerPlugin.allowQueryPhase();
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108061")
     public void testCancel() throws Exception {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");
@@ -224,7 +218,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client("cluster_a").admin()
                 .cluster()
-                .prepareHealth("prod")
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "prod")
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -297,20 +291,21 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.allowQueryPhase();
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-        assertBusy(() -> assertTrue(cancelFuture.isDone()));
+        try {
+            queryFuture.get();
+            fail("query should have failed");
+        } catch (ExecutionException e) {
+            assertNotNull(e.getCause());
+            Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull(t);
+        }
+        cancelFuture.get();
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
-
-        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
-        assertNotNull(e);
-        assertNotNull(e.getCause());
-        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-        assertNotNull(t);
     }
 
     /**
@@ -607,7 +602,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomFrom("cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(numShards));
+            assertEquals(resp.getNumSkippedShards(), numShards);
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }
@@ -624,7 +619,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomFrom("cluster_a", "cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(numShards));
+            assertEquals(resp.getNumSkippedShards(), numShards);
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }

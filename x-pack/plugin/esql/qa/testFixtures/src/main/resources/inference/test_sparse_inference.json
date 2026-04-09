@@ -1,0 +1,5 @@
+{
+  "service": "test_service",
+  "service_settings": { "model": "my_model", "api_key": "abc64" },
+  "task_settings": { }
+}

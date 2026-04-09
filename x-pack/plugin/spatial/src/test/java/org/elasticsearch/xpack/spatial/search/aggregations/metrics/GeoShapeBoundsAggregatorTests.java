@@ -62,6 +62,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -96,6 +97,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -126,6 +128,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 null,
+                false,
                 Collections.emptyMap()
             );
 
@@ -165,6 +168,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 null,
+                false,
                 Collections.emptyMap()
             );
 
@@ -230,6 +234,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {

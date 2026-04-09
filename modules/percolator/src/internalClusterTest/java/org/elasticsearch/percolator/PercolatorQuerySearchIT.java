@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.percolator;
 
@@ -888,7 +889,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(e.getCause().getMessage(), equalTo("a document can only contain one percolator query"));
     }
 
-    public void testPercolateQueryWithNestedDocuments() throws Exception {
+    /**
+     * Mapping for percolator tests that use nested "employee" documents.
+     * Includes query (percolator), id (keyword), companyname (text), and employee (nested with name).
+     */
+    private XContentBuilder nestedPercolatorMapping() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject()
             .startObject("properties")
@@ -911,7 +916,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping));
+        return mapping;
+    }
+
+    public void testPercolateQueryWithNestedDocuments() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(nestedPercolatorMapping()));
         prepareIndex("test").setId("q1")
             .setSource(
                 jsonBuilder().startObject()
@@ -1358,13 +1367,128 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             """);
         indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
         ensureGreen();
-        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, null);
+        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, 10f, null, null);
 
         IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("knn_query1")
             .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());
 
         DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get());
         assertThat(exception.getMessage(), containsString("the [knn] query is unsupported inside a percolator"));
+    }
+
+    public void testPercolatorBooleanQueriesWithConcurrency() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+                .setMapping("field1", "type=long", "query", "type=percolator")
+        );
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("4")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("5")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("6")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+
+        indicesAdmin().prepareRefresh().get();
+
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 3);
+        });
+    }
+
+    public void testPercolatorNestedQueriesWithConcurrency() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+                .setMapping(nestedPercolatorMapping())
+        );
+
+        QueryBuilder nestedVirginia = QueryBuilders.nestedQuery(
+            "employee",
+            QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND),
+            ScoreMode.Avg
+        );
+        QueryBuilder nestedTony = QueryBuilders.nestedQuery(
+            "employee",
+            QueryBuilders.matchQuery("employee.name", "tony stark").operator(Operator.AND),
+            ScoreMode.Avg
+        );
+
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("query", nestedVirginia).endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("query", nestedTony).endObject()).get();
+        prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("query", nestedVirginia).endObject()).get();
+        prepareIndex("test").setId("4").setSource(jsonBuilder().startObject().field("query", nestedTony).endObject()).get();
+        prepareIndex("test").setId("5").setSource(jsonBuilder().startObject().field("query", nestedVirginia).endObject()).get();
+        prepareIndex("test").setId("6").setSource(jsonBuilder().startObject().field("query", nestedTony).endObject()).get();
+
+        indicesAdmin().prepareRefresh().get();
+
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .startArray("employee")
+                .startObject()
+                .field("name", "virginia potts")
+                .endObject()
+                .startObject()
+                .field("name", "tony stark")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 6);
+        });
+
+        BytesReference sourceVirginiaOnly = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .startArray("employee")
+                .startObject()
+                .field("name", "virginia potts")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", sourceVirginiaOnly, XContentType.JSON)), response -> {
+            assertHitCount(response, 3);
+        });
     }
 
 }

@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -29,7 +28,7 @@ public final class TransportLogger {
             try {
                 String logMessage = format(channel, message, "READ");
                 logger.trace(logMessage);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn("an exception occurred formatting a READ trace message", e);
             }
         }
@@ -40,7 +39,7 @@ public final class TransportLogger {
             try {
                 String logMessage = format(channel, message, "READ");
                 logger.trace(logMessage);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn("an exception occurred formatting a READ trace message", e);
             }
         }
@@ -56,7 +55,7 @@ public final class TransportLogger {
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);
                 String logMessage = format(channel, withoutHeader, "WRITE");
                 logger.trace(logMessage);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn("an exception occurred formatting a WRITE trace message", e);
             }
         }
@@ -84,21 +83,12 @@ public final class TransportLogger {
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
 
-                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
-                } else {
-                    streamInput = decompressingStream(status, streamInput);
-                    assert InboundHandler.assertRemoteVersion(streamInput, version);
-                }
+                sb.append(", header size: ").append(streamInput.readInt()).append('B');
 
                 // read and discard headers
                 ThreadContext.readHeadersFromStream(streamInput);
 
                 if (isRequest) {
-                    if (version.before(TransportVersions.V_8_0_0)) {
-                        // discard features
-                        streamInput.readStringArray();
-                    }
                     sb.append(", action: ").append(streamInput.readString());
                 }
                 sb.append(']');
@@ -115,55 +105,32 @@ public final class TransportLogger {
         return sb.toString();
     }
 
-    private static String format(TcpChannel channel, InboundMessage message, String event) throws IOException {
+    private static String format(TcpChannel channel, InboundMessage message, String event) {
         final StringBuilder sb = new StringBuilder();
         sb.append(channel);
 
         if (message.isPing()) {
             sb.append(" [ping]").append(' ').append(event).append(": ").append(6).append('B');
         } else {
-            boolean success = false;
             Header header = message.getHeader();
             int networkMessageSize = header.getNetworkMessageSize();
             int messageLengthWithHeader = HEADER_SIZE + networkMessageSize;
-            StreamInput streamInput = message.openOrGetStreamInput();
-            try {
-                final long requestId = header.getRequestId();
-                final boolean isRequest = header.isRequest();
-                final String type = isRequest ? "request" : "response";
-                final String version = header.getVersion().toString();
-                sb.append(" [length: ").append(messageLengthWithHeader);
-                sb.append(", request id: ").append(requestId);
-                sb.append(", type: ").append(type);
-                sb.append(", version: ").append(version);
+            final long requestId = header.getRequestId();
+            final boolean isRequest = header.isRequest();
+            final String type = isRequest ? "request" : "response";
+            final String version = header.getVersion().toString();
+            sb.append(" [length: ").append(messageLengthWithHeader);
+            sb.append(", request id: ").append(requestId);
+            sb.append(", type: ").append(type);
+            sb.append(", version: ").append(version);
 
-                // TODO: Maybe Fix for BWC
-                if (header.needsToReadVariableHeader() == false && isRequest) {
-                    sb.append(", action: ").append(header.getActionName());
-                }
-                sb.append(']');
-                sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
-                success = true;
-            } finally {
-                if (success) {
-                    IOUtils.close(streamInput);
-                } else {
-                    IOUtils.closeWhileHandlingException(streamInput);
-                }
+            // TODO: Maybe Fix for BWC
+            if (header.needsToReadVariableHeader() == false && isRequest) {
+                sb.append(", action: ").append(header.getActionName());
             }
+            sb.append(']');
+            sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
         }
         return sb.toString();
-    }
-
-    private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
-        if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
-            try {
-                return CompressorFactory.COMPRESSOR.threadLocalStreamInput(streamInput);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
-            }
-        } else {
-            return streamInput;
-        }
     }
 }

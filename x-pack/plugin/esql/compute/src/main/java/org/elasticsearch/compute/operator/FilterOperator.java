@@ -7,17 +7,16 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
 public class FilterOperator extends AbstractPageMappingOperator {
 
-    private final EvalOperator.ExpressionEvaluator evaluator;
+    private final ExpressionEvaluator evaluator;
 
     public record FilterOperatorFactory(ExpressionEvaluator.Factory evaluatorSupplier) implements OperatorFactory {
 
@@ -28,11 +27,11 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "FilterOperator[evaluator=" + evaluatorSupplier.get(new ThrowingDriverContext()) + "]";
+            return "FilterOperator[evaluator=" + evaluatorSupplier + "]";
         }
     }
 
-    public FilterOperator(EvalOperator.ExpressionEvaluator evaluator) {
+    public FilterOperator(ExpressionEvaluator evaluator) {
         this.evaluator = evaluator;
     }
 
@@ -44,7 +43,6 @@ public class FilterOperator extends AbstractPageMappingOperator {
         try (BooleanBlock test = (BooleanBlock) evaluator.eval(page)) {
             if (test.areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
-                page.releaseBlocks();
                 return null;
             }
             // TODO we can detect constant true or false from the type
@@ -61,28 +59,16 @@ public class FilterOperator extends AbstractPageMappingOperator {
             }
 
             if (rowCount == 0) {
-                page.releaseBlocks();
                 return null;
             }
             if (rowCount == page.getPositionCount()) {
-                return page;
+                return page.shallowCopy();
             }
             positions = Arrays.copyOf(positions, rowCount);
 
-            Block[] filteredBlocks = new Block[page.getBlockCount()];
-            boolean success = false;
-            try {
-                for (int i = 0; i < page.getBlockCount(); i++) {
-                    filteredBlocks[i] = page.getBlock(i).filter(positions);
-                }
-                success = true;
-            } finally {
-                page.releaseBlocks();
-                if (success == false) {
-                    Releasables.closeExpectNoException(filteredBlocks);
-                }
-            }
-            return new Page(filteredBlocks);
+            return page.filter(false, positions);
+        } finally {
+            page.releaseBlocks();
         }
     }
 

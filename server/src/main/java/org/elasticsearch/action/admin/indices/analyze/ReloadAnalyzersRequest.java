@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,8 +23,6 @@ import java.util.Objects;
 public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequest> {
     private final String resource;
     private final boolean preview;
-
-    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     /**
      * Constructs a request for reloading index search analyzers
@@ -43,16 +40,14 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     public ReloadAnalyzersRequest(StreamInput in) throws IOException {
         super(in);
         this.resource = in.readOptionalString();
-        this.preview = in.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION) && in.readBoolean();
+        this.preview = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resource);
-        if (out.getTransportVersion().onOrAfter(PREVIEW_OPTION_TRANSPORT_VERSION)) {
-            out.writeBoolean(preview);
-        }
+        out.writeBoolean(preview);
     }
 
     public String resource() {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,9 +40,12 @@ public class ToBoolean extends AbstractConvertFunction {
         "ToBoolean",
         ToBoolean::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBoolean.class)
+        .unary(ToBoolean::new)
+        .name("to_boolean", "to_bool");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(BOOLEAN, (field, source) -> field),
+        Map.entry(BOOLEAN, (source, field) -> field),
         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
@@ -54,9 +58,9 @@ public class ToBoolean extends AbstractConvertFunction {
         returnType = "boolean",
         description = """
             Converts an input value to a boolean value.
-            A string value of *true* will be case-insensitive converted to the Boolean *true*.
-            For anything else, including the empty string, the function will return *false*.
-            The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.""",
+            A string value of `true` will be case-insensitive converted to the Boolean `true`.
+            For anything else, including the empty string, the function will return `false`.
+            The numerical value of `0` will be converted to `false`, anything else will be converted to `true`.""",
         examples = @Example(file = "boolean", tag = "to_boolean")
     )
     public ToBoolean(

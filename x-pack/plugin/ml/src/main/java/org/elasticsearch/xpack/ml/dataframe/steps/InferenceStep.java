@@ -115,7 +115,7 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             ML_ORIGIN,
             TransportSearchAction.TYPE,
             searchRequest,
-            listener.delegateFailureAndWrap((l, searchResponse) -> l.onResponse(searchResponse.getHits().getTotalHits().value > 0))
+            listener.delegateFailureAndWrap((l, searchResponse) -> l.onResponse(searchResponse.getHits().getTotalHits().value() > 0))
         );
     }
 

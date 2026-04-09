@@ -11,7 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -23,6 +24,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.action.ConnectorCreateActionResponse;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorApiKeyIdAction;
@@ -56,6 +58,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.MANAGED_CONNECTOR_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
@@ -101,7 +105,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
     }
 
-    public void testDeleteConnector() throws Exception {
+    public void testDeleteConnector_expectSoftDeletionSingle() throws Exception {
         int numConnectors = 5;
         List<String> connectorIds = new ArrayList<>();
         for (int i = 0; i < numConnectors; i++) {
@@ -111,11 +115,99 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false, false));
+    }
 
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
+    public void testDeleteConnector_expectSoftDeletion() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        List<Connector> connectors = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+            connectors.add(connector);
+        }
+
+        String connectorIdToDelete = connectorIds.get(0);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false, false));
+        Connector softDeletedConnector = awaitGetConnectorIncludeDeleted(connectorIdToDelete);
+        assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorIdToDelete));
+        assertThat(softDeletedConnector.getServiceType(), equalTo(connectors.get(0).getServiceType()));
+    }
+
+    public void testDeleteConnector_expectSoftDeletionMultipleConnectors() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorIdToDelete = connectorIds.get(i);
+            DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
+            assertThat(resp.status(), equalTo(RestStatus.OK));
+        }
+
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorId = connectorIds.get(i);
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorId));
+        }
+
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorId = connectorIds.get(i);
+            Connector softDeletedConnector = awaitGetConnectorIncludeDeleted(connectorId);
+            assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorId));
+        }
+    }
+
+    public void testDeleteConnector_expectHardDeletionSingle() throws Exception {
+        int numConnectors = 3;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        String connectorIdToDelete = connectorIds.get(0);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, true, false);
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorIncludeDeleted(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, true, false));
+    }
+
+    public void testDeleteConnector_expectHardDeletionMultipleConnectors() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorIdToDelete = connectorIds.get(i);
+            DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, true, false);
+            assertThat(resp.status(), equalTo(RestStatus.OK));
+        }
+
+        for (String connectorId : connectorIds) {
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorId));
+        }
+
+        for (String connectorId : connectorIds) {
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorIncludeDeleted(connectorId));
+        }
     }
 
     public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
@@ -137,22 +229,18 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         // More comprehensive tests are defined in yamlRestTest.
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        indexConnectorConfiguration(connectorId, connector.getConfiguration());
+
         Map<String, Object> connectorNewConfiguration = connector.getConfiguration()
             .entrySet()
             .stream()
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    entry -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
-                )
-            );
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> randomAlphaOfLengthBetween(3, 10)));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
@@ -172,24 +260,20 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate_SelectedKeys() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        indexConnectorConfiguration(connectorId, connector.getConfiguration());
+
         Set<String> configKeys = connector.getConfiguration().keySet();
 
         Set<String> keysToUpdate = new HashSet<>(randomSubsetOf(configKeys));
 
         Map<String, Object> connectorNewConfigurationPartialValuesUpdate = keysToUpdate.stream()
-            .collect(
-                Collectors.toMap(
-                    key -> key,
-                    key -> Map.of(ConnectorConfiguration.VALUE_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10))
-                )
-            );
+            .collect(Collectors.toMap(key -> key, key -> randomAlphaOfLengthBetween(3, 10)));
 
         UpdateConnectorConfigurationAction.Request updateConfigurationRequest = new UpdateConnectorConfigurationAction.Request(
             connectorId,
@@ -648,8 +732,8 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(initialScheduling.getIncremental(), equalTo(indexedConnector.getScheduling().getIncremental()));
     }
 
-    public void testUpdateConnectorIndexName() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+    public void testUpdateConnectorIndexName_ForSelfManagedConnector() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -669,8 +753,8 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newIndexName, equalTo(indexedConnector.getIndexName()));
     }
 
-    public void testUpdateConnectorIndexName_WithTheSameIndexName() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+    public void testUpdateConnectorIndexName_ForSelfManagedConnector_WithTheSameIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomSelfManagedConnector();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -683,6 +767,42 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
         assertThat(updateResponse.getResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testUpdateConnectorIndexName_ForManagedConnector_WithIllegalIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomElasticManagedConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
+            connectorId,
+            "wrong-prefix-" + randomAlphaOfLengthBetween(3, 10)
+        );
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorIndexName(updateIndexNameRequest));
+    }
+
+    public void testUpdateConnectorIndexName_ForManagedConnector_WithPrefixedIndexName() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomElasticManagedConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        String newIndexName = MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLengthBetween(3, 10);
+
+        UpdateConnectorIndexNameAction.Request updateIndexNameRequest = new UpdateConnectorIndexNameAction.Request(
+            connectorId,
+            newIndexName
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newIndexName, equalTo(indexedConnector.getIndexName()));
     }
 
     public void testUpdateConnectorServiceType() throws Exception {
@@ -756,7 +876,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateConnectorNative() throws Exception {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithDetachedIndex();
         String connectorId = randomUUID();
 
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
@@ -766,6 +886,39 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
 
+        DocWriteResponse updateResponse = awaitUpdateConnectorNative(updateNativeRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(isNative, equalTo(indexedConnector.isNative()));
+    }
+
+    public void testUpdateConnectorNativeTrue_WhenIllegalIndexPrefix() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithAttachedIndex("wrong-prefix-" + randomAlphaOfLength(10));
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        boolean isNative = true;
+
+        UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitUpdateConnectorNative(updateNativeRequest));
+    }
+
+    public void testUpdateConnectorNativeTrue_WithCorrectIndexPrefix() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnectorWithAttachedIndex(
+            MANAGED_CONNECTOR_INDEX_PREFIX + randomAlphaOfLength(10)
+        );
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        boolean isNative = true;
+
+        UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
         DocWriteResponse updateResponse = awaitUpdateConnectorNative(updateNativeRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
@@ -827,13 +980,14 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private DeleteResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
+    private DocWriteResponse awaitDeleteConnector(String connectorId, boolean hardDelete, boolean deleteConnectorSyncJobs)
+        throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
+        connectorIndexService.deleteConnector(connectorId, hardDelete, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
-            public void onResponse(DeleteResponse deleteResponse) {
+            public void onResponse(DocWriteResponse deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }
@@ -886,11 +1040,19 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private Connector awaitGetConnectorIncludeDeleted(String connectorId) throws Exception {
+        return awaitGetConnector(connectorId, true);
+    }
+
     private Connector awaitGetConnector(String connectorId) throws Exception {
+        return awaitGetConnector(connectorId, false);
+    }
+
+    private Connector awaitGetConnector(String connectorId, Boolean isDeleted) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Connector> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.getConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.getConnector(connectorId, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorSearchResult connectorResult) {
                 // Serialize the sourceRef to Connector class for unit tests
@@ -925,10 +1087,22 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         List<String> serviceTypes,
         String searchQuery
     ) throws Exception {
+        return awaitListConnector(from, size, indexNames, names, serviceTypes, searchQuery, false);
+    }
+
+    private ConnectorIndexService.ConnectorResult awaitListConnector(
+        int from,
+        int size,
+        List<String> indexNames,
+        List<String> names,
+        List<String> serviceTypes,
+        String searchQuery,
+        Boolean isDeleted
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, new ActionListener<>() {
+        connectorIndexService.listConnectors(from, size, indexNames, names, serviceTypes, searchQuery, isDeleted, new ActionListener<>() {
             @Override
             public void onResponse(ConnectorIndexService.ConnectorResult result) {
                 resp.set(result);
@@ -1365,6 +1539,36 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
         assertNotNull("Received null response from update error request", resp.get());
         return resp.get();
+    }
+
+    private void indexConnectorConfiguration(String connectorId, Map<String, ConnectorConfiguration> configuration) throws Exception {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.xContentValuesMap(Connector.CONFIGURATION_FIELD.getPreferredName(), configuration);
+        builder.endObject();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        client().update(
+            new UpdateRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId).doc(builder)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    exc.set(e);
+                    latch.countDown();
+                }
+            }
+        );
+        assertTrue("Timeout waiting for index configuration", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
     }
 
     private UpdateResponse awaitUpdateConnectorApiKeyIdOrApiKeySecretId(

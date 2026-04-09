@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -65,7 +66,8 @@ public abstract class PeerFinder {
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
     // We do not log connection failures immediately: some failures are expected, especially if the hosts list isn't perfectly up-to-date
@@ -80,7 +82,6 @@ public abstract class PeerFinder {
     );
 
     private final TimeValue findPeersInterval;
-    private final TimeValue requestPeersTimeout;
     private final TimeValue verbosityIncreaseTimeout;
 
     private final Object mutex = new Object();
@@ -105,7 +106,6 @@ public abstract class PeerFinder {
         ConfiguredHostsResolver configuredHostsResolver
     ) {
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
-        requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
@@ -395,6 +395,8 @@ public abstract class PeerFinder {
                 if (transportService.nodeConnected(discoveryNode)) {
                     if (peersRequestInFlight == false) {
                         requestPeers();
+                    } else {
+                        logger.trace("{} probe already in flight, skipping", this);
                     }
                 } else {
                     logger.trace("{} no longer connected", this);
@@ -496,6 +498,11 @@ public abstract class PeerFinder {
                             } // else this Peer has been superseded by a different instance which should be left in place
                         }
                     }
+
+                    @Override
+                    public String toString() {
+                        return "Peer#establishConnection[" + transportAddress + "]";
+                    }
                 })
             );
         }
@@ -565,7 +572,7 @@ public abstract class PeerFinder {
                 discoveryNode,
                 REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),
-                TransportRequestOptions.timeout(requestPeersTimeout),
+                TransportRequestOptions.EMPTY,
                 peersResponseHandler
             );
         }
@@ -584,6 +591,7 @@ public abstract class PeerFinder {
                 + Optional.ofNullable(probeConnectionResult.get())
                     .map(result -> result.getDiscoveryNode().descriptionWithoutAttributes())
                     .orElse("unknown")
+                + "]"
                 + (peersRequestInFlight ? " [request in flight]" : "");
         }
     }

@@ -15,11 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
-
-import static org.elasticsearch.xpack.shutdown.ShutdownPlugin.serializesWithParentTaskAndTimeouts;
 
 public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
@@ -39,32 +36,14 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.nodeId = nodeId;
         }
 
-        @UpdateForV9 // inline when bwc no longer needed
-        public static Request readFrom(StreamInput in) throws IOException {
-            if (serializesWithParentTaskAndTimeouts(in.getTransportVersion())) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
-            }
-        }
-
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion());
             this.nodeId = in.readString();
-        }
-
-        @UpdateForV9 // remove when bwc no longer needed
-        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
-            this(masterNodeTimeout, ackTimeout, in.readString());
-            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion()) == false;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (serializesWithParentTaskAndTimeouts(out.getTransportVersion())) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeString(this.nodeId);
         }
 

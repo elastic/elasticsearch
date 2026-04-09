@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateMetricDoubleFieldData;
 
 import java.util.Locale;
 import java.util.function.LongSupplier;
@@ -43,7 +43,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if ((indexFieldData instanceof IndexAggregateDoubleMetricFieldData) == false) {
+            if ((indexFieldData instanceof IndexAggregateMetricDoubleFieldData) == false) {
                 throw new IllegalArgumentException(
                     "Expected aggregate_metric_double type on field ["
                         + fieldContext.field()
@@ -52,7 +52,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
                         + "]"
                 );
             }
-            return new AggregateMetricsValuesSource.AggregateDoubleMetric.Fielddata((IndexAggregateDoubleMetricFieldData) indexFieldData);
+            return new AggregateMetricsValuesSource.AggregateMetricDouble.Fielddata((IndexAggregateMetricDoubleFieldData) indexFieldData);
         }
 
         @Override

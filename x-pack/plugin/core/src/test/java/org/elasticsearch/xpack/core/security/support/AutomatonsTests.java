@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
@@ -115,12 +114,12 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         assertFalse(runAutomaton.run(text));
     }
 
@@ -217,6 +216,32 @@ public class AutomatonsTests extends ESTestCase {
         final String pattern = randomAlphaOfLengthBetween(5, 10);
         final Automaton automaton = Automatons.pattern(pattern);
         assertThat(Automatons.pattern(pattern), not(sameInstance(automaton)));
+    }
+
+    public void testIsLiteralPattern() {
+        // Plain strings are literal
+        assertTrue(Automatons.isLiteralPattern("foo"));
+        assertTrue(Automatons.isLiteralPattern("ec:/organizations:123/deployment:abc"));
+        assertTrue(Automatons.isLiteralPattern("space:space42"));
+        assertTrue(Automatons.isLiteralPattern("a/b/c"));
+        assertTrue(Automatons.isLiteralPattern(""));
+
+        // Wildcards are not literal
+        assertFalse(Automatons.isLiteralPattern("*"));
+        assertFalse(Automatons.isLiteralPattern("foo*"));
+        assertFalse(Automatons.isLiteralPattern("*foo"));
+        assertFalse(Automatons.isLiteralPattern("fo*o"));
+        assertFalse(Automatons.isLiteralPattern("foo?"));
+        assertFalse(Automatons.isLiteralPattern("f?o"));
+
+        // Escape sequences are not literal
+        assertFalse(Automatons.isLiteralPattern("foo\\*"));
+        assertFalse(Automatons.isLiteralPattern("\\foo"));
+
+        // Leading slash (Lucene regex) is not literal
+        assertFalse(Automatons.isLiteralPattern("/foo/"));
+        assertFalse(Automatons.isLiteralPattern("/foo.*/"));
+        assertFalse(Automatons.isLiteralPattern("/"));
     }
 
     // This isn't use directly in the code, but it's sometimes needed when debugging failing tests

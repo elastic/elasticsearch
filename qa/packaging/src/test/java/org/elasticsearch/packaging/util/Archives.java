@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -193,6 +194,13 @@ public class Archives {
 
         Stream.of("NOTICE.txt", "LICENSE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file(File, owner, owner, p644)));
+
+        // Linux distributions (x86 and aarch64) include a native server-launcher binary; ensure it exists
+        // so we do not silently fall back to Java when the native image build was skipped or broken
+        if (distribution.platform == Distribution.Platform.LINUX) {
+            Path nativeLauncher = es.lib.resolve("tools").resolve("server-launcher").resolve("server-launcher");
+            assertThat("native server-launcher must exist on Linux distribution", nativeLauncher, file(File, owner, owner, p755));
+        }
     }
 
     private static void verifyDefaultInstallation(Installation es, Distribution distribution, String owner) {

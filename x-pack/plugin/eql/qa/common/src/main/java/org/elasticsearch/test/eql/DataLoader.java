@@ -52,6 +52,7 @@ import static org.junit.Assert.assertThat;
  */
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
+    public static final String TEST_SHARD_FAILURES_INDEX = "endgame-shard-failures";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
     public static final String TEST_SAMPLE = "sample1,sample2,sample3";
@@ -75,34 +76,60 @@ public class DataLoader {
     public static void main(String[] args) throws IOException {
         main = true;
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadDatasetIntoEs(client, DataLoader::createParser);
+            loadDatasetIntoEsWithIndexCreator(client, DataLoader::createParser, (restClient, indexName, indexMapping) -> {
+                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                StringBuilder jsonBody = new StringBuilder("{");
+                jsonBody.append("\"settings\":{\"number_of_shards\":1},");
+                jsonBody.append("\"mappings\":");
+                jsonBody.append(indexMapping);
+                jsonBody.append("}");
+
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity(jsonBody.toString());
+                restClient.performRequest(request);
+            });
         }
     }
 
     public static void loadDatasetIntoEs(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
         throws IOException {
+        loadDatasetIntoEsWithIndexCreator(client, p, (restClient, indexName, indexMapping) -> {
+            ESRestTestCase.createIndex(restClient, indexName, Settings.builder().put("number_of_shards", 1).build(), indexMapping, null);
+        });
+    }
+
+    private static void loadDatasetIntoEsWithIndexCreator(
+        RestClient client,
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
+        IndexCreator indexCreator
+    ) throws IOException {
 
         //
         // Main Index
         //
-        load(client, TEST_INDEX, null, DataLoader::timestampToUnixMillis, p);
+        load(client, TEST_INDEX, null, DataLoader::timestampToUnixMillis, p, indexCreator);
         //
         // Aux Index
         //
-        load(client, TEST_EXTRA_INDEX, null, null, p);
+        load(client, TEST_EXTRA_INDEX, null, null, p, indexCreator);
         //
         // Date_Nanos index
         //
         // The data for this index is loaded from the same endgame-140.data sample, only having the mapping for @timestamp changed: the
         // chosen Windows filetime timestamps (2017+) can coincidentally also be readily used as nano-resolution unix timestamps (1973+).
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
-        load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
-        load(client, TEST_SAMPLE, null, null, p);
+        load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p, indexCreator);
+        load(client, TEST_SAMPLE, null, null, p, indexCreator);
         //
         // missing_events index
         //
-        load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
-        load(client, TEST_SAMPLE_MULTI, null, null, p);
+        load(client, TEST_MISSING_EVENTS_INDEX, null, null, p, indexCreator);
+        load(client, TEST_SAMPLE_MULTI, null, null, p, indexCreator);
+        //
+        // index with a runtime field ("broken", type long) that causes shard failures.
+        // the rest of the mapping is the same as TEST_INDEX
+        //
+        load(client, TEST_SHARD_FAILURES_INDEX, null, DataLoader::timestampToUnixMillis, p, indexCreator);
     }
 
     private static void load(
@@ -110,7 +137,8 @@ public class DataLoader {
         String indexNames,
         String dataName,
         Consumer<Map<String, Object>> datasetTransform,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
+        IndexCreator indexCreator
     ) throws IOException {
         String[] splitNames = indexNames.split(",");
         for (String indexName : splitNames) {
@@ -124,13 +152,9 @@ public class DataLoader {
             if (data == null) {
                 throw new IllegalArgumentException("Cannot find resource " + name);
             }
-            createTestIndex(client, indexName, readMapping(mapping));
+            indexCreator.createIndex(client, indexName, readMapping(mapping));
             loadData(client, indexName, datasetTransform, data, p);
         }
-    }
-
-    private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(client, indexName, Settings.builder().put("number_of_shards", 1).build(), mapping, null);
     }
 
     /**
@@ -229,5 +253,9 @@ public class DataLoader {
     private static XContentParser createParser(XContent xContent, InputStream data) throws IOException {
         NamedXContentRegistry contentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
         return xContent.createParser(contentRegistry, LoggingDeprecationHandler.INSTANCE, data);
+    }
+
+    private interface IndexCreator {
+        void createIndex(RestClient client, String indexName, String mapping) throws IOException;
     }
 }

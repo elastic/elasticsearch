@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.query;
@@ -25,6 +26,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -50,6 +53,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
@@ -63,6 +67,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -127,7 +132,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(2L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(2L));
 
                 assertThat(innerHits.getAt(0).getId(), equalTo("c1"));
                 assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
@@ -147,7 +152,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(3L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(3L));
 
                 assertThat(innerHits.getAt(0).getId(), equalTo("c4"));
                 assertThat(innerHits.getAt(1).getId(), equalTo("c5"));
@@ -279,7 +284,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                 assertThat(searchHit.getShard(), notNullValue());
 
                 SearchHits inner = searchHit.getInnerHits().get("a");
-                assertThat(inner.getTotalHits().value, equalTo((long) child1InnerObjects[parent]));
+                assertThat(inner.getTotalHits().value(), equalTo((long) child1InnerObjects[parent]));
                 for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
                     SearchHit innerHit = inner.getAt(child);
                     String childId = String.format(Locale.ENGLISH, "c1_%04d", offset1 + child);
@@ -289,7 +294,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                 offset1 += child1InnerObjects[parent];
 
                 inner = searchHit.getInnerHits().get("b");
-                assertThat(inner.getTotalHits().value, equalTo((long) child2InnerObjects[parent]));
+                assertThat(inner.getTotalHits().value(), equalTo((long) child2InnerObjects[parent]));
                 for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
                     SearchHit innerHit = inner.getAt(child);
                     String childId = String.format(Locale.ENGLISH, "c2_%04d", offset2 + child);
@@ -346,12 +351,12 @@ public class InnerHitsIT extends ParentChildTestCase {
 
                 SearchHit searchHit = response.getHits().getAt(0);
                 assertThat(searchHit.getId(), equalTo("3"));
-                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value(), equalTo(1L));
                 assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("1"));
 
                 searchHit = response.getHits().getAt(1);
                 assertThat(searchHit.getId(), equalTo("4"));
-                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value, equalTo(1L));
+                assertThat(searchHit.getInnerHits().get("question").getTotalHits().value(), equalTo(1L));
                 assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
             }
         );
@@ -393,11 +398,11 @@ public class InnerHitsIT extends ParentChildTestCase {
 
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("3"));
 
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("5"));
             }
         );
@@ -416,11 +421,11 @@ public class InnerHitsIT extends ParentChildTestCase {
 
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("4"));
 
                 innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("6"));
             }
         );
@@ -481,34 +486,34 @@ public class InnerHitsIT extends ParentChildTestCase {
                 assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
 
                 SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("earls");
-                assertThat(innerHits.getTotalHits().value, equalTo(4L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(4L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("earl1"));
                 assertThat(innerHits.getAt(1).getId(), equalTo("earl2"));
                 assertThat(innerHits.getAt(2).getId(), equalTo("earl3"));
                 assertThat(innerHits.getAt(3).getId(), equalTo("earl4"));
 
                 SearchHits innerInnerHits = innerHits.getAt(0).getInnerHits().get("barons");
-                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron1"));
 
                 innerInnerHits = innerHits.getAt(1).getInnerHits().get("barons");
-                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron2"));
 
                 innerInnerHits = innerHits.getAt(2).getInnerHits().get("barons");
-                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron3"));
 
                 innerInnerHits = innerHits.getAt(3).getInnerHits().get("barons");
-                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerInnerHits.getAt(0).getId(), equalTo("baron4"));
 
                 innerHits = response.getHits().getAt(0).getInnerHits().get("princes");
-                assertThat(innerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerHits.getAt(0).getId(), equalTo("prince"));
 
                 innerInnerHits = innerHits.getAt(0).getInnerHits().get("kings");
-                assertThat(innerInnerHits.getTotalHits().value, equalTo(1L));
+                assertThat(innerInnerHits.getTotalHits().value(), equalTo(1L));
                 assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
             }
         );
@@ -531,12 +536,12 @@ public class InnerHitsIT extends ParentChildTestCase {
             response -> {
                 assertHitCount(response, 2);
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-                assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
 
                 assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-                assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getAt(1).getInnerHits().get("child").getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
                 assertThat(response.getHits().getAt(1).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name1"));
             }
@@ -548,7 +553,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertResponse(prepareSearch("index").setQuery(query).addSort("id", SortOrder.ASC), response -> {
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
             assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
         });
@@ -696,5 +701,69 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
             )
         );
+    }
+
+    public void testTopHitsOnParentChild() throws Exception {
+        assertAcked(
+            prepareCreate("idx").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
+                    .field("parent", new String[] { "child1", "child2" })
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen("idx");
+
+        List<IndexRequestBuilder> requestBuilders = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(10, 100);
+        int child1 = 0;
+        int child2 = 0;
+        int[] child1InnerObjects = new int[numDocs];
+        int[] child2InnerObjects = new int[numDocs];
+        for (int parent = 0; parent < numDocs; parent++) {
+            String parentId = String.format(Locale.ENGLISH, "p_%03d", parent);
+            requestBuilders.add(createIndexRequest("idx", "parent", parentId, null));
+
+            int numChildDocs = child1InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
+            int limit = child1 + numChildDocs;
+            for (; child1 < limit; child1++) {
+                requestBuilders.add(createIndexRequest("idx", "child1", String.format(Locale.ENGLISH, "c1_%04d", child1), parentId));
+            }
+            numChildDocs = child2InnerObjects[parent] = scaledRandomIntBetween(1, numDocs);
+            limit = child2 + numChildDocs;
+            for (; child2 < limit; child2++) {
+                requestBuilders.add(createIndexRequest("idx", "child2", String.format(Locale.ENGLISH, "c2_%04d", child2), parentId));
+            }
+        }
+
+        indexRandom(true, requestBuilders);
+        ensureSearchable();
+
+        QueryBuilder hasChildQuery = hasChildQuery("child2", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder().setSize(2));
+        AggregationBuilder topHitsAgg = topHits("top-children").size(3);
+
+        assertNoFailuresAndResponse(prepareSearch("idx").setQuery(hasChildQuery).addAggregation(topHitsAgg), response -> {
+            assertHitCount(response, numDocs);
+
+            TopHits topHits = response.getAggregations().get("top-children");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(3));
+
+            for (SearchHit hit : hits) {
+                SearchHits innerHits = hit.getInnerHits().get("child2");
+                assertThat(innerHits.getHits().length, lessThanOrEqualTo(2));
+            }
+        });
     }
 }

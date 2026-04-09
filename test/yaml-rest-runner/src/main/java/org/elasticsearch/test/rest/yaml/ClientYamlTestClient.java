@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -81,6 +82,7 @@ public class ClientYamlTestClient implements Closeable {
      */
     public ClientYamlTestResponse callApi(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
@@ -160,7 +162,15 @@ public class ClientYamlTestClient implements Closeable {
 
         List<String> supportedMethods = Arrays.asList(path.methods());
         String requestMethod;
-        if (entity != null) {
+        if (method != null) {
+            // Method override specified - validate it's supported
+            if (supportedMethods.contains(method) == false) {
+                throw new IllegalArgumentException(
+                    "method [" + method + "] is not supported by path [" + path.path() + "]. Supported methods: " + supportedMethods
+                );
+            }
+            requestMethod = method;
+        } else if (entity != null) {
             if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }

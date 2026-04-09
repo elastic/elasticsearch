@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+
 public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     public NotEqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -115,7 +117,6 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsLongsEvaluator",
@@ -129,6 +130,50 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+        // Datenanos
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        // nanoseconds to milliseconds. NB: these have different evaluator names depending on the direction
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> false == l.equals(r),
@@ -189,12 +234,55 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                AbstractScalarFunctionTestCase::errorMessageStringForBinaryOperators
-            )
+
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "NotEqualsLongsEvaluator",
+                    "lhs",
+                    "rhs",
+                    (l, r) -> false == l.equals(r),
+                    DataType.BOOLEAN,
+                    TestCaseSupplier.geoGridCases(gridType),
+                    TestCaseSupplier.geoGridCases(gridType),
+                    List.of(),
+                    false
+                )
+            );
+        }
+
+        // Dense vector cases
+        suppliers.add(new TestCaseSupplier("<dense_vector>, <dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> vector = randomDenseVector(dimensions);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(vector, DataType.DENSE_VECTOR, "lhs"),
+                    new TestCaseSupplier.TypedData(vector, DataType.DENSE_VECTOR, "rhs")
+                ),
+                "NotEqualsDenseVectorEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(false)
+            );
+        }));
+        suppliers.add(
+            new TestCaseSupplier("<dense_vector>, <different dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+                int dimensions = between(64, 128);
+                List<Float> left = randomDenseVector(dimensions);
+                List<Float> right = randomValueOtherThan(left, () -> randomDenseVector(dimensions));
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(left, DataType.DENSE_VECTOR, "lhs"),
+                        new TestCaseSupplier.TypedData(right, DataType.DENSE_VECTOR, "rhs")
+                    ),
+                    "NotEqualsDenseVectorEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    org.hamcrest.Matchers.equalTo(true)
+                );
+            })
         );
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

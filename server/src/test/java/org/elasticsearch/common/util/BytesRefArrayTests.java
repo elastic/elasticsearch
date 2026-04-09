@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
 
@@ -63,17 +65,20 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
-    public void testTakeOwnership() {
+    public void testOwnership() {
         BytesRefArray array = randomArray();
         long size = array.size();
-        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
-
-        assertNotEquals(array, newOwnerOfArray);
-        assertEquals(0, array.size());
-        assertEquals(size, newOwnerOfArray.size());
-
+        array.incRef();
+        assertThat(array.refCount(), equalTo(2));
         array.close();
-        newOwnerOfArray.close();
+        // still accessible
+        BytesRef sparse = new BytesRef();
+        for (long l = 0; l < size; l++) {
+            var v = array.get(l, sparse);
+            assertThat(v.length, greaterThan(1));
+        }
+        assertThat(array.refCount(), equalTo(1));
+        array.close();
     }
 
     public void testLookup() throws IOException {
@@ -190,7 +195,7 @@ public class BytesRefArrayTests extends ESTestCase {
         for (int i = 0; i < original.size(); ++i) {
             original.get(i, scratch);
             copy.get(i, scratch2);
-            assertEquals(scratch, scratch2);
+            assertEquals(Integer.toString(i), scratch, scratch2);
         }
     }
 }

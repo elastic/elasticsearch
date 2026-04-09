@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -164,11 +166,40 @@ class JavaDateFormatter implements DateFormatter {
             input,
             printer,
             roundUpParsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
-            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new)
+            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
+            false
         );
     }
 
-    private JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
+    JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
+        this(
+            format,
+            printer,
+            Arrays.copyOf(roundupParsers, roundupParsers.length, DateTimeParser[].class),
+            Arrays.copyOf(parsers, parsers.length, DateTimeParser[].class),
+            true
+        );
+    }
+
+    private JavaDateFormatter(
+        String format,
+        DateTimePrinter printer,
+        DateTimeParser[] roundupParsers,
+        DateTimeParser[] parsers,
+        boolean doValidate
+    ) {
+        if (doValidate) {
+            if (format.contains("||")) {
+                throw new IllegalArgumentException("This class cannot handle multiple format specifiers");
+            }
+            if (printer == null) {
+                throw new IllegalArgumentException("printer may not be null");
+            }
+            if (parsers.length == 0) {
+                throw new IllegalArgumentException("parsers need to be specified");
+            }
+            verifyPrinterParsers(printer, parsers);
+        }
         this.format = format;
         this.printer = printer;
         this.roundupParsers = roundupParsers;
@@ -198,6 +229,21 @@ class JavaDateFormatter implements DateFormatter {
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
+    }
+
+    @Override
+    @Nullable
+    public TemporalAccessor tryParse(String input) {
+        if (Strings.isNullOrEmpty(input)) {
+            return null;
+        }
+        for (DateTimeParser parser : this.parsers) {
+            var result = parser.tryParse(input).result();
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
     }
 
     /**
@@ -246,7 +292,8 @@ class JavaDateFormatter implements DateFormatter {
             format,
             printerMapping.apply(printer),
             mapParsers(parserMapping, this.roundupParsers),
-            mapParsers(parserMapping, this.parsers)
+            mapParsers(parserMapping, this.parsers),
+            false
         );
     }
 

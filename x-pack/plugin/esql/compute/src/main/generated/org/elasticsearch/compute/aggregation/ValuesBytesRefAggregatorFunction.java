@@ -11,6 +11,7 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link ValuesBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class ValuesBytesRefAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -31,16 +32,10 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
 
   private final List<Integer> channels;
 
-  public ValuesBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesBytesRefAggregator.SingleState state) {
+  ValuesBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesBytesRefAggregatorFunction(driverContext, channels, ValuesBytesRefAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesBytesRefAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -53,33 +48,110 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
   }
 
   @Override
-  public void addRawInput(Page page) {
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      ValuesBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(BytesRefVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(BytesRefVector vVector, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        ValuesBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock vBlock) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        ValuesBytesRefAggregator.combine(state, vValue);
+      }
+    }
+  }
+
+  private void addRawBlock(BytesRefBlock vBlock, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        ValuesBytesRefAggregator.combine(state, vValue);
       }
     }
   }
@@ -90,11 +162,20 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block valuesUncast = page.getBlock(channels.get(0));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
     assert values.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef valuesScratch = new BytesRef();
     ValuesBytesRefAggregator.combineIntermediate(state, values);
   }
 

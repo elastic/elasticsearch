@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -24,10 +24,6 @@ public class ActionTransportException extends TransportException {
 
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_1_0)) {
-            in.readOptionalWriteable(TransportAddress::new);
-            in.readOptionalString();
-        }
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
@@ -45,10 +41,6 @@ public class ActionTransportException extends TransportException {
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
-        if (out.getTransportVersion().before(TransportVersions.V_8_1_0)) {
-            out.writeMissingWriteable(TransportAddress.class);
-            out.writeMissingString(); // action
-        }
     }
 
     private static String buildMessage(String name, InetSocketAddress address, String action, String msg) {

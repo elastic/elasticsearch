@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -44,9 +45,9 @@ public class FetchContext {
     /**
      * Create a FetchContext based on a SearchContext
      */
-    public FetchContext(SearchContext searchContext) {
+    public FetchContext(SearchContext searchContext, SourceLoader sourceLoader) {
         this.searchContext = searchContext;
-        this.sourceLoader = searchContext.newSourceLoader();
+        this.sourceLoader = sourceLoader;
         this.storedFieldsContext = buildStoredFieldsContext(searchContext);
         this.fetchSourceContext = buildFetchSourceContext(searchContext);
     }
@@ -67,7 +68,9 @@ public class FetchContext {
         if (sfc != null && sfc.fetchFields()) {
             for (String field : sfc.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field)) {
-                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                    fsc = fsc == null
+                        ? FetchSourceContext.of(true)
+                        : FetchSourceContext.of(true, fsc.excludeVectors(), fsc.includes(), fsc.excludes());
                 }
             }
         }

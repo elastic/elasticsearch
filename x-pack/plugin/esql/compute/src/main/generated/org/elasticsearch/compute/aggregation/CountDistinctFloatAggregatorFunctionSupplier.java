@@ -12,27 +12,35 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class CountDistinctFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int precision;
 
-  public CountDistinctFloatAggregatorFunctionSupplier(List<Integer> channels, int precision) {
-    this.channels = channels;
+  public CountDistinctFloatAggregatorFunctionSupplier(int precision) {
     this.precision = precision;
   }
 
   @Override
-  public CountDistinctFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctFloatAggregatorFunction.create(driverContext, channels, precision);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public CountDistinctFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new CountDistinctFloatAggregatorFunction(driverContext, channels, precision);
   }
 
   @Override
   public CountDistinctFloatGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return CountDistinctFloatGroupingAggregatorFunction.create(channels, driverContext, precision);
+      DriverContext driverContext, List<Integer> channels) {
+    return new CountDistinctFloatGroupingAggregatorFunction(channels, driverContext, precision);
   }
 
   @Override

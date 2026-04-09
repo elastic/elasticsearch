@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -36,12 +36,18 @@ public class PutAnalyticsCollectionResponseBWCSerializingTests extends AbstractB
 
     @Override
     protected PutAnalyticsCollectionAction.Response mutateInstance(PutAnalyticsCollectionAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        boolean isAcknowledged = instance.isAcknowledged();
+        String instanceName = instance.getName();
+        switch (between(0, 1)) {
+            case 0 -> isAcknowledged = isAcknowledged == false;
+            case 1 -> instanceName = randomValueOtherThan(instanceName, () -> randomIdentifier());
+        }
+        return new PutAnalyticsCollectionAction.Response(isAcknowledged, instanceName);
     }
 
     @Override
     protected PutAnalyticsCollectionAction.Response doParseInstance(XContentParser parser) throws IOException {
-        return new PutAnalyticsCollectionAction.Response(AcknowledgedResponse.fromXContent(parser).isAcknowledged(), this.name);
+        return new PutAnalyticsCollectionAction.Response(TestResponseParsers.parseAcknowledgedResponse(parser).isAcknowledged(), this.name);
     }
 
     @Override

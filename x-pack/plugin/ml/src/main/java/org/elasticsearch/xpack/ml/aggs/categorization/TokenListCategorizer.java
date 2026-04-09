@@ -14,9 +14,12 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +43,25 @@ import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
  */
 public class TokenListCategorizer implements Accountable {
 
+    /**
+     * TokenListCategorizer that takes ownership of the CategorizationBytesRefHash and releases it when closed.
+     */
+    public static class CloseableTokenListCategorizer extends TokenListCategorizer implements Releasable {
+
+        public CloseableTokenListCategorizer(
+            CategorizationBytesRefHash bytesRefHash,
+            CategorizationPartOfSpeechDictionary partOfSpeechDictionary,
+            float threshold
+        ) {
+            super(bytesRefHash, partOfSpeechDictionary, threshold);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super.bytesRefHash);
+        }
+    }
+
     public static final int MAX_TOKENS = 100;
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategorizer.class);
     private static final long SHALLOW_SIZE_OF_ARRAY_LIST = shallowSizeOfInstance(ArrayList.class);
@@ -61,6 +83,8 @@ public class TokenListCategorizer implements Accountable {
     private final CategorizationBytesRefHash bytesRefHash;
     @Nullable
     private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
+
+    private final List<TokenListCategory> categoriesById;
 
     /**
      * Categories stored in such a way that the most common are accessed first.
@@ -87,9 +111,20 @@ public class TokenListCategorizer implements Accountable {
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
+        this.categoriesById = new ArrayList<>();
         cacheRamUsage(0);
     }
 
+    @Nullable
+    public TokenListCategory computeCategory(String s, CategorizationAnalyzer analyzer) {
+        try (TokenStream ts = analyzer.tokenStream("text", s)) {
+            return computeCategory(ts, s.length(), 1);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
         assert partOfSpeechDictionary != null
             : "This version of computeCategory should only be used when a part-of-speech dictionary is available";
@@ -280,6 +315,7 @@ public class TokenListCategorizer implements Accountable {
             maxUnfilteredStringLen,
             numDocs
         );
+        categoriesById.add(newCategory);
         categoriesByNumMatches.add(newCategory);
         cacheRamUsage(newCategory.ramBytesUsed());
         return repositionCategory(newCategory, newIndex);
@@ -389,6 +425,17 @@ public class TokenListCategorizer implements Accountable {
         } else {
             return 1.0f;
         }
+    }
+
+    public List<SerializableTokenListCategory> toCategories(int size) {
+        return categoriesByNumMatches.stream()
+            .limit(size)
+            .map(category -> new SerializableTokenListCategory(category, bytesRefHash))
+            .toList();
+    }
+
+    public List<SerializableTokenListCategory> toCategoriesById() {
+        return categoriesById.stream().map(category -> new SerializableTokenListCategory(category, bytesRefHash)).toList();
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {

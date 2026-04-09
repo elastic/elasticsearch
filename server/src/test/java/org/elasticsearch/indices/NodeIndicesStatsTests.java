@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -26,7 +27,13 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class NodeIndicesStatsTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), Collections.emptyMap(), randomBoolean());
+        final NodeIndicesStats stats = new NodeIndicesStats(
+            null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            randomBoolean()
+        );
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContentChunked(params));
@@ -41,9 +48,9 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final Map<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
         final List<IndexShardStats> emptyList = List.of();
         statsByShards.put(index, emptyList);
-        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, true);
+        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, Collections.emptyMap(), true);
         assertThat(stats.getShardStats(index), sameInstance(emptyList));
-        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, false);
+        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, Collections.emptyMap(), false);
         assertThat(stats.getShardStats(index), nullValue());
     }
 

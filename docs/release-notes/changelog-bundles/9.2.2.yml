@@ -1,0 +1,227 @@
+version: 9.2.2
+released: true
+generated: 2025-12-02T16:11:31.092527168Z
+changelogs:
+  - pr: 108875
+    summary: Break on `FieldData` when building global ordinals
+    area: Aggregations
+    type: bug
+    issues:
+      - 97075
+  - pr: 135873
+    summary: Convert `BytesTransportResponse` when proxying response from/to local node
+    area: Network
+    type: bug
+    issues: []
+  - pr: 136886
+    summary: Fix ML calendar event update scalability issues
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 137126
+    summary: Use IVF_PQ for GPU index build for large datasets
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 137230
+    summary: Principal Extraction from Certificate RDN Attribute Value in PKI Realm
+    area: Security
+    type: bug
+    issues: []
+  - pr: 137430
+    summary: ES|QL - Full text functions accept null as field parameter
+    area: ES|QL
+    type: bug
+    issues:
+      - 136608
+  - pr: 137585
+    summary: "Restore API: Fix file settings handling"
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 122429
+  - pr: 137637
+    summary: Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1)
+    area: Search
+    type: bug
+    issues: []
+  - pr: 137638
+    summary: "ILM Explain: valid JSON on truncated step info"
+    area: ILM+SLM
+    type: bug
+    issues:
+      - 135458
+  - pr: 137652
+    summary: Fix default value for some settings when filtered
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 136333
+  - pr: 137660
+    summary: Improve concurrency design of `GeoIpDownloader`
+    area: Ingest Node
+    type: bug
+    issues:
+      - 135158
+      - 130681
+      - 135132
+      - 133597
+  - pr: 137671
+    summary: "[LTR] Fix feature display order when using explain"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 137702
+    summary: Handle index deletion while querying in ES|QL
+    area: ES|QL
+    type: bug
+    issues:
+      - 135863
+  - pr: 137718
+    summary: "OTLP: return correct response type for partial successes"
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 137721
+    summary: Do not calculate query plan diff when not needed
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137850
+    summary: Serverless filtering create from
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 137852
+    summary: Fixing get data stream API when data stream index mode has been changed to `time_series`
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 137859
+    summary: Add length validation for `rename_replacement` parameter in snapshot restore request
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 137862
+    summary: "[Vector Search] Fix  wrong vector docvalue_fields"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 137926
+    summary: Fix parsing of Google Model Garden Anthropic `message_start` event during `chat_completion` operation
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 137964
+    summary: Fix for GET /_migration/deprecations doesn't report node deprecations if low watermark exceeded and GET /_migration/deprecations doesn't report node-level failures properly
+    area: Infra/Core
+    type: bug
+    issues:
+      - 137010
+      - 137004
+  - pr: 137976
+    summary: Fix for GET /_migration/deprecations doesn't check deprecated affix settings correctly
+    area: Infra/Core
+    type: bug
+    issues:
+      - 137008
+  - pr: 137992
+    summary: Prevent passing a pipeline to a logs stream bulk index request body
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 138053
+    summary: Upgrade UnboundID LDAP SDK to 7.0.3
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 138084
+    summary: Handle Query Timeouts During Collector Initialization in `QueryPhase`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 138094
+    summary: "[IRONSCALES] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 138093
+  - pr: 138097
+    summary: Bump anomalies index template version to install latest
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138122
+    summary: Add validation for updating `num_threads`
+    area: Machine Learning
+    type: bug
+    issues:
+      - 137129
+  - pr: 138132
+    summary: Fix integer overflow in block memory estimation
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138138
+    summary: Fixing sorted indices for GPU built indices
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 138140
+    summary: Fix semantic highlighting when using a `knn` query with minimum `similarity` and when using `bbq_disk`
+    area: Relevance
+    type: bug
+    issues: []
+  - pr: 138228
+    summary: "Fix: Downsample returns appropriate error when target index gets deleted unexpectedly."
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 138230
+    summary: Update to Lucene 10.3.2
+    area: Vector Search
+    type: bug
+    issues:
+      - 135718
+  - pr: 138265
+    summary: Fix `index.mapping.pattern_text.disable_templating` not registered issue
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 138308
+    summary: Reject mappings that (eventually) set dimension and metric in the same field
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 138363
+    summary: Fix StringIndexOutOfBoundsException in COMPLETION command when options are omitted.
+    area: ES|QL
+    type: bug
+    issues:
+      - 138361
+  - pr: 138438
+    summary: Change `DatabaseNodeService` error logs to warnings
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 138539
+    summary: Handle serialization of null blocks in `AggregateMetricDoubleBlock`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138589
+    summary: Upgrading commons-lang3 version for repository-hdfs plugin
+    area: Snapshot/Restore
+    type: upgrade
+    issues: []
+  - pr: 138624
+    summary: Handle individual doc parsing failure in bulk request with pipeline
+    area: Ingest Node
+    type: bug
+    issues:
+      - 138445
+  - pr: 138644
+    summary: "Fix: add missing `vector_similarity_support` in InferenceFeatures"
+    area: Search
+    type: bug
+    issues: []

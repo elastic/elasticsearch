@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -64,6 +65,15 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         delegate.readBytes(b, offset, len);
         digest.update(b, offset, len);
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        int read = delegate.read(b, off, len);
+        if (read > 0) {
+            digest.update(b, off, read);
+        }
+        return read;
     }
 
     private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8]);

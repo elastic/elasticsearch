@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -76,13 +76,6 @@ public record UnassignedInfo(
     @Nullable String lastAllocatedNodeId
 ) implements ToXContentFragment, Writeable {
 
-    /**
-     * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
-     * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
-     */
-    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersions.V_7_15_0;
-    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
-
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting(
@@ -95,6 +88,8 @@ public record UnassignedInfo(
         Property.IndexScope
     );
 
+    private static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = TransportVersion.fromName("unassignedinfo_reshard_added");
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>
@@ -105,76 +100,98 @@ public record UnassignedInfo(
         /**
          * Unassigned as a result of an API creation of an index.
          */
-        INDEX_CREATED,
+        INDEX_CREATED(true),
         /**
          * Unassigned as a result of a full cluster recovery.
          */
-        CLUSTER_RECOVERED,
+        CLUSTER_RECOVERED(false),
         /**
          * Unassigned as a result of opening a closed index.
          */
-        INDEX_REOPENED,
+        INDEX_REOPENED(true),
         /**
          * Unassigned as a result of importing a dangling index.
          */
-        DANGLING_INDEX_IMPORTED,
+        DANGLING_INDEX_IMPORTED(true),
         /**
          * Unassigned as a result of restoring into a new index.
          */
-        NEW_INDEX_RESTORED,
+        NEW_INDEX_RESTORED(true),
         /**
          * Unassigned as a result of restoring into a closed index.
          */
-        EXISTING_INDEX_RESTORED,
+        EXISTING_INDEX_RESTORED(true),
         /**
          * Unassigned as a result of explicit addition of a replica.
          */
-        REPLICA_ADDED,
+        REPLICA_ADDED(true),
         /**
          * Unassigned as a result of a failed allocation of the shard.
          */
-        ALLOCATION_FAILED,
+        ALLOCATION_FAILED(false),
         /**
          * Unassigned as a result of the node hosting it leaving the cluster.
          */
-        NODE_LEFT,
+        NODE_LEFT(false),
         /**
          * Unassigned as a result of explicit cancel reroute command.
          */
-        REROUTE_CANCELLED,
+        REROUTE_CANCELLED(true),
         /**
-         * When a shard moves from started back to initializing.
+         * A replica shard which restarted initialization either because the primary changed or because it was previously a relocation
+         * target whose relocation source has failed; the "source" of a replica relocation isn't the source of its data, that's the primary,
+         * but we represent the movement of a STARTED replica shard as if it was.
          */
-        REINITIALIZED,
+        REINITIALIZED(false),
         /**
          * A better replica location is identified and causes the existing replica allocation to be cancelled.
          */
-        REALLOCATED_REPLICA,
+        REALLOCATED_REPLICA(false),
         /**
          * Unassigned as a result of a failed primary while the replica was initializing.
          */
-        PRIMARY_FAILED,
+        PRIMARY_FAILED(false),
         /**
          * Unassigned after forcing an empty primary
          */
-        FORCED_EMPTY_PRIMARY,
+        FORCED_EMPTY_PRIMARY(true),
         /**
          * Forced manually to allocate
          */
-        MANUAL_ALLOCATION,
+        MANUAL_ALLOCATION(true),
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED,
+        INDEX_CLOSED(true),
         /**
          * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
          * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
-        NODE_RESTARTING,
+        NODE_RESTARTING(false),
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA
+        UNPROMOTABLE_REPLICA(false),
+        /**
+         * New shard added as part of index re-sharding operation
+         */
+        RESHARD_ADDED(true);
+
+        private final boolean isExpectedTransient;
+
+        Reason(boolean isExpectedTransient) {
+            this.isExpectedTransient = isExpectedTransient;
+        }
+
+        /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation,
+        /// replica addition) where the shard is anticipated to be assigned shortly and brief unassignment is
+        /// not a sign of a problem.
+        ///
+        /// Returns `false` for reasons that indicate something went wrong (e.g. allocation failure,
+        /// node loss), where the unassignment should be reported as unhealthy without delay.
+        public boolean isExpectedTransient() {
+            return isExpectedTransient;
+        }
     }
 
     /**
@@ -310,11 +327,7 @@ public record UnassignedInfo(
         var lastAllocationStatus = AllocationStatus.readFrom(in);
         var failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         String lastAllocatedNodeId;
-        if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            lastAllocatedNodeId = in.readOptionalString();
-        } else {
-            lastAllocatedNodeId = null;
-        }
+        lastAllocatedNodeId = in.readOptionalString();
         return new UnassignedInfo(
             reason,
             message,
@@ -330,10 +343,10 @@ public record UnassignedInfo(
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (reason.equals(Reason.NODE_RESTARTING) && out.getTransportVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            out.writeByte((byte) Reason.NODE_LEFT.ordinal());
-        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
-            out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
+        if (reason.equals(Reason.RESHARD_ADDED) && out.getTransportVersion().supports(UNASSIGENEDINFO_RESHARD_ADDED) == false) {
+            // We should have protection to ensure we do not reshard in mixed clusters
+            assert false;
+            out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }
@@ -345,9 +358,7 @@ public record UnassignedInfo(
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
         out.writeStringCollection(failedNodeIds);
-        if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
-            out.writeOptionalString(lastAllocatedNodeId);
-        }
+        out.writeOptionalString(lastAllocatedNodeId);
     }
 
     /**
@@ -406,7 +417,7 @@ public record UnassignedInfo(
         for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.delayed()) {
-                Settings indexSettings = metadata.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.indexMetadata(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                     currentNanoTime,

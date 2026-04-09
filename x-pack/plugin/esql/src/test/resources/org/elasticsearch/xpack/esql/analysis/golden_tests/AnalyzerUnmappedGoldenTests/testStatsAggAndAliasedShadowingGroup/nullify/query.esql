@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) BY language_code = does_not_exist, language_name

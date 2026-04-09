@@ -204,7 +204,7 @@ public class ProfileIT extends ESRestTestCase {
                 expectWarnings(
                     "this request accesses system indices: [.security-profile-8], but in a future major version, "
                         + "direct access to system indices will be prevented by default"
-                )
+                ).toBuilder().addHeader("X-elastic-product-origin", "elastic")
             );
             assertOK(adminClient().performRequest(indexRequest));
         }
@@ -515,7 +515,7 @@ public class ProfileIT extends ESRestTestCase {
             expectWarnings(
                 "this request accesses system indices: [.security-profile-8], but in a future major version, "
                     + "direct access to system indices will be prevented by default"
-            )
+            ).toBuilder().addHeader("X-elastic-product-origin", "elastic")
         );
         assertOK(adminClient().performRequest(indexRequest));
 

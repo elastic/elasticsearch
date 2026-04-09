@@ -1,27 +1,34 @@
 {
-  "security.get_settings":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-settings.html",
-      "description":"Retrieve settings for the security system indices"
+  "security.get_settings": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-settings",
+      "description": "Get security index settings"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/settings",
-          "methods":["GET"]
+          "path": "/_security/settings",
+          "methods": [
+            "GET"
+          ]
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for connection to master"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for connection to master"
       }
     }
   }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -42,6 +44,20 @@ public class DeleteResponse extends DocWriteResponse {
     private static Result assertDeletedOrNotFound(Result result) {
         assert result == Result.DELETED || result == Result.NOT_FOUND;
         return result;
+    }
+
+    @Override
+    public DeleteResponse withoutSequenceNumber() {
+        DeleteResponse copy = new DeleteResponse(
+            getShardId(),
+            getId(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            getVersion(),
+            result
+        );
+        copyMutableFieldsTo(copy);
+        return copy;
     }
 
     @Override

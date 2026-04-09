@@ -4,6 +4,7 @@ _meta:
   managed: true
 template:
   mappings:
+    date_detection: false
     dynamic: true
     dynamic_templates:
     - numeric_labels:
@@ -16,3 +17,7 @@ template:
         type: constant_keyword
       data_stream.namespace:
         type: constant_keyword
+      timestamp:
+        properties:
+          us:
+            type: long

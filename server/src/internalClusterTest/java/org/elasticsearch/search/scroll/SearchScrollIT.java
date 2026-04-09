@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +59,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -70,9 +74,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -88,7 +92,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -97,7 +101,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -106,7 +110,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -119,9 +123,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             String routing = "0";
@@ -144,7 +148,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(3));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -154,7 +158,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(3));
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -165,7 +169,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -175,7 +179,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             searchResponse.decRef();
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -189,7 +193,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testScrollAndUpdateIndex() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
             prepareIndex("test").setId(Integer.toString(i))
@@ -205,11 +209,17 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
+        assertHitCount(
+            500,
+            prepareSearch().setSize(0).setQuery(matchAllQuery()),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+        );
+        assertHitCount(
+            0,
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+        );
 
         SearchResponse searchResponse = prepareSearch().setQuery(queryStringQuery("user:kimchy"))
             .setSize(35)
@@ -228,11 +238,17 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             indicesAdmin().prepareRefresh().get();
-            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
+            assertHitCount(
+                500,
+                prepareSearch().setSize(0).setQuery(matchAllQuery()),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+            );
+            assertHitCount(
+                0,
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+            );
         } finally {
             clearScroll(searchResponse.getScrollId());
             searchResponse.decRef();
@@ -241,9 +257,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -261,7 +277,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -277,7 +293,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -288,7 +304,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -299,7 +315,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -360,9 +376,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
         indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
@@ -380,7 +396,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -396,7 +412,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -407,7 +423,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse1 = client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse1.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
@@ -418,7 +434,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         try {
-            assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse2.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -534,7 +550,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             prepareSearch().setQuery(matchAllQuery()).setSize(35).setScroll(TimeValue.timeValueMinutes(2)).addSort("field", SortOrder.ASC),
             searchResponse -> {
                 long counter = 0;
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(35));
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -553,7 +569,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollInvalidDefaultKeepAlive() throws IOException {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
@@ -564,7 +580,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
@@ -572,7 +589,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
         );
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
@@ -598,7 +616,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         assertResponse(prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)), searchResponse -> {
             assertNotNull(searchResponse.getScrollId());
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             Exception ex = expectThrows(
                 Exception.class,
@@ -688,14 +706,238 @@ public class SearchScrollIT extends ESIntegTestCase {
         } finally {
             respFromProdIndex.decRef();
         }
-        SearchPhaseExecutionException error = expectThrows(
-            SearchPhaseExecutionException.class,
-            client().prepareSearchScroll(respFromDemoIndexScrollId)
+        SearchScrollRequestBuilder searchScrollRequestBuilder = client().prepareSearchScroll(respFromDemoIndexScrollId);
+        SearchPhaseExecutionException error = expectThrows(SearchPhaseExecutionException.class, searchScrollRequestBuilder);
+        assertEquals(1, error.shardFailures().length);
+        ParsedScrollId parsedScrollId = searchScrollRequestBuilder.request().parseScrollId();
+        ShardSearchContextId shardSearchContextId = parsedScrollId.getContext()[0].getSearchContextId();
+        assertThat(
+            error.shardFailures()[0].getCause().getMessage(),
+            containsString("No search context found for id [" + shardSearchContextId + "]")
         );
-        for (ShardSearchFailure shardSearchFailure : error.shardFailures()) {
-            assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
-        }
         client().prepareSearchScroll(respFromProdIndexScrollId).get().decRef();
+    }
+
+    /**
+     * Verifies that a sorted scroll across multiple indices with non-overlapping
+     * time ranges returns results in non-decreasing timestamp order. The primary
+     * field sort on @timestamp causes CanMatch to sort shards by their min/max
+     * values on the initial search request; this test exercises the interaction
+     * between that shard ordering and the scroll's cross-shard merge-sort.
+     */
+    public void testSortedScrollAcrossMultipleIndicesWithCanMatch() throws Exception {
+        int numIndices = randomIntBetween(3, 5);
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+
+        long totalDocs = 0;
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-data-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = now - (long) (numIndices - idx) * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            totalDocs += numDocs;
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-data-*").get();
+
+        int scrollSize = randomIntBetween(10, 50);
+        SearchResponse searchResponse = prepareSearch("ts-data-*").setQuery(matchAllQuery())
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("@timestamp", SortOrder.ASC)
+            .setAllowPartialSearchResults(false)
+            .get();
+        String lastScrollId = searchResponse.getScrollId();
+        try {
+            long retrieved = 0;
+            long previousTimestamp = -1;
+            while (searchResponse.getHits().getHits().length > 0) {
+                assertNoFailures(searchResponse);
+                for (SearchHit hit : searchResponse.getHits()) {
+                    long ts = ((Number) hit.getSortValues()[0]).longValue();
+                    if (retrieved > 0) {
+                        assertThat(
+                            "Result at position " + retrieved + " has timestamp " + ts + " before previous " + previousTimestamp,
+                            ts,
+                            greaterThanOrEqualTo(previousTimestamp)
+                        );
+                    }
+                    previousTimestamp = ts;
+                    retrieved++;
+                }
+                lastScrollId = searchResponse.getScrollId();
+                searchResponse.decRef();
+                searchResponse = null;
+                searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                lastScrollId = searchResponse.getScrollId();
+            }
+            assertThat(retrieved, equalTo(totalDocs));
+        } finally {
+            clearScroll(lastScrollId);
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
+    }
+
+    /**
+     * Variant of the above that adds a range query covering the full data span.
+     * The range query makes the search rewritable to match-none for shards
+     * outside the range, giving CanMatch the opportunity to skip shards even
+     * when the pre-filter shard-size threshold is above 1.
+     */
+    public void testSortedScrollWithTimeRangeAcrossMultipleIndices() throws Exception {
+        int numIndices = 5;
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+        long totalStart = now - (long) numIndices * intervalMs;
+
+        long totalDocs = 0;
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-range-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = totalStart + (long) idx * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            totalDocs += numDocs;
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-range-*").get();
+
+        int scrollSize = randomIntBetween(10, 50);
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery("@timestamp").gte(totalStart).lt(now);
+        SearchResponse searchResponse = prepareSearch("ts-range-*").setQuery(rangeQuery)
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("@timestamp", SortOrder.ASC)
+            .setAllowPartialSearchResults(false)
+            .get();
+        String lastScrollId = searchResponse.getScrollId();
+        try {
+            long retrieved = 0;
+            long previousTimestamp = -1;
+            while (searchResponse.getHits().getHits().length > 0) {
+                assertNoFailures(searchResponse);
+                for (SearchHit hit : searchResponse.getHits()) {
+                    long ts = ((Number) hit.getSortValues()[0]).longValue();
+                    if (retrieved > 0) {
+                        assertThat(
+                            "Result at position " + retrieved + " has timestamp " + ts + " before previous " + previousTimestamp,
+                            ts,
+                            greaterThanOrEqualTo(previousTimestamp)
+                        );
+                    }
+                    previousTimestamp = ts;
+                    retrieved++;
+                }
+                lastScrollId = searchResponse.getScrollId();
+                searchResponse.decRef();
+                searchResponse = null;
+                searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                lastScrollId = searchResponse.getScrollId();
+            }
+            assertThat(retrieved, equalTo(totalDocs));
+        } finally {
+            clearScroll(lastScrollId);
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
+    }
+
+    /**
+     * Simulates the ML datafeed pattern: performs multiple sequential sorted scroll
+     * searches across multiple indices, each covering a different time chunk.
+     * Verifies that timestamps across all chunks are non-decreasing, catching
+     * issues where CanMatch shard skipping might affect within-chunk or
+     * cross-chunk ordering.
+     */
+    public void testChunkedSortedScrollsAcrossMultipleIndices() throws Exception {
+        int numIndices = 5;
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+        long totalStart = now - (long) numIndices * intervalMs;
+
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-chunk-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = totalStart + (long) idx * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-chunk-*").get();
+
+        long previousTimestamp = -1;
+        boolean first = true;
+        long chunkSpan = intervalMs / 2;
+        for (long chunkStart = totalStart; chunkStart < now; chunkStart += chunkSpan) {
+            long chunkEnd = Math.min(chunkStart + chunkSpan, now);
+            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery("@timestamp").gte(chunkStart).lt(chunkEnd);
+
+            SearchResponse searchResponse = prepareSearch("ts-chunk-*").setQuery(rangeQuery)
+                .setSize(100)
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .addSort("@timestamp", SortOrder.ASC)
+                .setAllowPartialSearchResults(false)
+                .get();
+            String lastScrollId = searchResponse.getScrollId();
+            try {
+                while (searchResponse.getHits().getHits().length > 0) {
+                    assertNoFailures(searchResponse);
+                    for (SearchHit hit : searchResponse.getHits()) {
+                        long ts = ((Number) hit.getSortValues()[0]).longValue();
+                        if (first == false) {
+                            assertThat(
+                                "Timestamp "
+                                    + ts
+                                    + " before previous "
+                                    + previousTimestamp
+                                    + " in chunk ["
+                                    + chunkStart
+                                    + ","
+                                    + chunkEnd
+                                    + ")",
+                                ts,
+                                greaterThanOrEqualTo(previousTimestamp)
+                            );
+                        }
+                        first = false;
+                        previousTimestamp = ts;
+                    }
+                    lastScrollId = searchResponse.getScrollId();
+                    searchResponse.decRef();
+                    searchResponse = null;
+                    searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                    lastScrollId = searchResponse.getScrollId();
+                }
+            } finally {
+                clearScroll(lastScrollId);
+                if (searchResponse != null) {
+                    searchResponse.decRef();
+                }
+            }
+        }
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

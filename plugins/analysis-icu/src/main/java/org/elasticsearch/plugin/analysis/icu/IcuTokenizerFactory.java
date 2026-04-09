@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -38,7 +39,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     private static final String RULE_FILES = "rule_files";
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         config = getIcuConfig(environment, settings);
     }
 
@@ -98,7 +99,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     // parse a single RBBi rule file
     private static BreakIterator parseRules(String filename, Environment env) throws IOException {
 
-        final Path path = env.configFile().resolve(filename);
+        final Path path = env.configDir().resolve(filename);
         String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
 
         return new RuleBasedBreakIterator(rules.toString());

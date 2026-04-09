@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -181,38 +182,6 @@ public class DesiredNodeTests extends ESTestCase {
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1024)));
             assertThat(desiredNode.maxProcessors().count(), is(equalTo(1024.0)));
             assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(1024)));
-        }
-    }
-
-    public void testDesiredNodeHasRangeFloatProcessors() {
-        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
-
-        {
-            final var desiredNode = new DesiredNode(
-                settings,
-                new DesiredNode.ProcessorsRange(0.4, 1.2),
-                ByteSizeValue.ofGb(1),
-                ByteSizeValue.ofGb(1)
-            );
-            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
-            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(false));
-        }
-
-        {
-            final var desiredNode = new DesiredNode(
-                settings,
-                randomIntBetween(0, 10) + randomDoubleBetween(0.00001, 0.99999, true),
-                ByteSizeValue.ofGb(1),
-                ByteSizeValue.ofGb(1)
-            );
-            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
-            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(false));
-        }
-
-        {
-            final var desiredNode = new DesiredNode(settings, 2.0f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1));
-            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
-            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(true));
         }
     }
 

@@ -21,8 +21,6 @@ import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.CalendarDateDuration;
 import org.ojalgo.type.CalendarDateUnit;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -81,7 +79,7 @@ class LinearProgrammingPlanSolver {
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
         this.deployments = deployments.stream()
             // Filter out models that are not already assigned and do not fit on any node
-            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
+            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.minimumMemoryRequiredBytes() <= maxNodeMemory)
             // Also filter out models whose threads per allocation are more than the max node cores
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
@@ -279,24 +277,24 @@ class LinearProgrammingPlanSolver {
 
         Map<Tuple<Deployment, Node>, Variable> allocationVars = new HashMap<>();
 
-        for (AssignmentPlan.Deployment m : deployments) {
+        for (AssignmentPlan.Deployment d : deployments) {
             for (Node n : nodes) {
-                Variable allocationVar = model.addVariable("allocations_of_model_" + m.id() + "_on_node_" + n.id())
+                Variable allocationVar = model.addVariable("allocations_of_model_" + d.deploymentId() + "_on_node_" + n.id())
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
                                     // infeasible solutions
                     .lower(0.0) // It is important not to set an upper bound here as it impacts memory negatively
-                    .weight(weightForAllocationVar(m, n, weights));
-                allocationVars.put(Tuple.tuple(m, n), allocationVar);
+                    .weight(weightForAllocationVar(d, n, weights));
+                allocationVars.put(Tuple.tuple(d, n), allocationVar);
             }
         }
 
-        for (Deployment m : deployments) {
+        for (Deployment d : deployments) {
             // Each model should not get more allocations than is required.
             // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
-            model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
-                .lower(m.getCurrentAssignedAllocations())
-                .upper(m.allocations())
-                .setLinearFactorsSimple(varsForModel(m, allocationVars));
+            model.addExpression("allocations_of_model_" + d.deploymentId() + "_not_more_than_required")
+                .lower(d.getCurrentAssignedAllocations())
+                .upper(d.allocations())
+                .setLinearFactorsSimple(varsForModel(d, allocationVars));
         }
 
         double[] threadsPerAllocationPerModel = deployments.stream().mapToDouble(m -> m.threadsPerAllocation()).toArray();
@@ -325,7 +323,7 @@ class LinearProgrammingPlanSolver {
                 .setLinearFactors(allocations, Access1D.wrap(modelMemories));
         }
 
-        Optimisation.Result result = privilegedModelMaximise(model);
+        Optimisation.Result result = model.maximise();
 
         if (result.getState().isFeasible() == false) {
             logger.debug("Linear programming solution state [{}] is not feasible", result.getState());
@@ -345,11 +343,6 @@ class LinearProgrammingPlanSolver {
         }
         logger.debug(() -> "LP solver result =\n" + prettyPrintSolverResult(assignmentValues, allocationValues));
         return true;
-    }
-
-    @SuppressWarnings("removal")
-    private static Optimisation.Result privilegedModelMaximise(ExpressionsBasedModel model) {
-        return AccessController.doPrivileged((PrivilegedAction<Optimisation.Result>) () -> model.maximise());
     }
 
     private int memoryComplexity() {
@@ -374,18 +367,18 @@ class LinearProgrammingPlanSolver {
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             msg.append(n + " ->");
-            for (Deployment m : deployments) {
-                if (threadValues.get(Tuple.tuple(m, n)) > 0) {
+            for (Deployment d : deployments) {
+                if (threadValues.get(Tuple.tuple(d, n)) > 0) {
                     msg.append(" ");
-                    msg.append(m.id());
+                    msg.append(d.deploymentId());
                     msg.append(" (mem = ");
-                    msg.append(ByteSizeValue.ofBytes(m.memoryBytes()));
+                    msg.append(ByteSizeValue.ofBytes(d.memoryBytes()));
                     msg.append(") (allocations = ");
-                    msg.append(threadValues.get(Tuple.tuple(m, n)));
+                    msg.append(threadValues.get(Tuple.tuple(d, n)));
                     msg.append("/");
-                    msg.append(m.allocations());
+                    msg.append(d.allocations());
                     msg.append(") (y = ");
-                    msg.append(assignmentValues.get(Tuple.tuple(m, n)));
+                    msg.append(assignmentValues.get(Tuple.tuple(d, n)));
                     msg.append(")");
                 }
             }

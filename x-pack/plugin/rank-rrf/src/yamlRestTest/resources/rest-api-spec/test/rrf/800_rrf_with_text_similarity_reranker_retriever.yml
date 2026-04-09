@@ -1,0 +1,469 @@
+setup:
+  - skip:
+      features:
+        - close_to
+        - contains
+
+  - requires:
+      test_runner_features: "close_to"
+
+  - do:
+      inference.put:
+        task_type: rerank
+        inference_id: my-rerank-model
+        body: >
+          {
+            "service": "test_reranking_service",
+            "service_settings": {
+              "model_id": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+              integer:
+                type: integer
+              inference_text_field:
+                type: text
+
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
+          topic: [ "science" ]
+          subtopic: [ "astronomy" ]
+          integer: 2
+          inference_text_field: "0"
+
+  - do:
+      index:
+        index: test-index
+        id: doc_3
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
+          integer: 3
+          inference_text_field: "1"
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: [ "geography" ]
+          integer: 1
+          inference_text_field: "-1"
+
+  - do:
+      indices.refresh: {}
+
+---
+"rrf retriever with a nested text similarity reranker":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            rrf: {
+              retrievers:
+                [
+                  {
+                    # this one retrieves docs 1 and 2
+                    standard: {
+                      query: {
+                        bool: {
+                          should:
+                            [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 1
+                                    }
+                                  },
+                                  boost: 10
+                                }
+                              },
+                              {
+                                constant_score:
+                                  {
+                                    filter:
+                                      {
+                                        term:
+                                          {
+                                            integer: 2
+                                          }
+                                      },
+                                    boost: 1
+                                  }
+                              }
+                            ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    # this one retrieves doc 2
+                    text_similarity_reranker: {
+                      retriever:
+                        {
+                          standard: {
+                            query: {
+                              term: {
+                                subtopic: "astronomy"
+                              }
+                            }
+                          }
+                        },
+                      rank_window_size: 10,
+                      inference_id: my-rerank-model,
+                      inference_text: "How often does the moon hide the sun?",
+                      field: inference_text_field
+                    }
+                  }
+                ],
+              rank_window_size: 10,
+              rank_constant: 1
+            }
+          size: 10
+          from: 1
+          aggs:
+            topics:
+              terms:
+                field: topic
+                size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+
+  - contains:  { aggregations.topics.buckets: { key: "geography", doc_count: 1 } }
+  - contains:  { aggregations.topics.buckets: { key: "science", doc_count: 1 } }
+
+---
+"Text similarity reranker on top of an RRF retriever":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            {
+              text_similarity_reranker: {
+                retriever:
+                  {
+                    # this one retrieves docs 1 and 3 so final ranking should be 3 and 1 based on reranking service
+                    rrf: {
+                      retrievers:
+                        [
+                          {
+                            # this one retrieves docs 1 and 3
+                            standard: {
+                              query: {
+                                bool: {
+                                  should:
+                                    [
+                                      {
+                                        constant_score: {
+                                          filter: {
+                                            term: {
+                                              integer: 1
+                                            }
+                                          },
+                                          boost: 10
+                                        }
+                                      },
+                                      {
+                                        constant_score:
+                                          {
+                                            filter:
+                                              {
+                                                term:
+                                                  {
+                                                    integer: 3
+                                                  }
+                                              },
+                                            boost: 1
+                                          }
+                                      }
+                                    ]
+                                }
+                              }
+                            }
+                          },
+                          {
+                            # this one retrieves doc 1
+                            standard: {
+                              query: {
+                                term: {
+                                  topic: "geography"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                      rank_window_size: 10,
+                      rank_constant: 1
+                    }
+                  },
+                rank_window_size: 10,
+                inference_id: my-rerank-model,
+                inference_text: "How often does the moon hide the sun?",
+                field: inference_text_field
+              }
+            }
+          size: 10
+          aggs:
+            topics:
+              terms:
+                field: topic
+                size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_3" }
+  - match: { hits.hits.1._id: "doc_1" }
+
+  - match: { aggregations.topics.buckets.0.key: "geography" }
+  - match: { aggregations.topics.buckets.0.doc_count: 1 }
+  - match: { aggregations.topics.buckets.1.key: "science" }
+  - match: { aggregations.topics.buckets.1.doc_count: 1 }
+
+
+---
+"explain using rrf retriever and text-similarity":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            rrf: {
+              retrievers:
+                [
+                  {
+                    # this one retrieves docs 1 and 2
+                    standard: {
+                      query: {
+                        bool: {
+                          should:
+                            [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 1
+                                    }
+                                  },
+                                  boost: 10
+                                }
+                              },
+                              {
+                                constant_score:
+                                  {
+                                    filter:
+                                      {
+                                        term:
+                                          {
+                                            integer: 2
+                                          }
+                                      },
+                                    boost: 1
+                                  }
+                              }
+                            ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    # this one retrieves doc 2
+                    text_similarity_reranker: {
+                      retriever:
+                        {
+                          standard: {
+                            query: {
+                              term: {
+                                subtopic: "astronomy"
+                              }
+                            }
+                          }
+                        },
+                      rank_window_size: 10,
+                      inference_id: my-rerank-model,
+                      inference_text: "How often does the moon hide the sun?",
+                      field: inference_text_field
+                    }
+                  }
+                ],
+              rank_window_size: 10,
+              rank_constant: 1
+            }
+          size: 10
+          explain: true
+
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
+
+  - close_to: { hits.hits.0._explanation.value: { value: 0.833333, error: 0.0001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.value: 2}
+  - match: {hits.hits.0._explanation.details.0.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.description: "/ConstantScore.*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/weight.*astronomy.*/" }
+
+---
+"rrf retriever with failed text similarity reranker":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            rrf: {
+              retrievers:
+                [
+                  {
+                    standard: {
+                      query: {
+                        bool: {
+                          should:
+                            [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 1
+                                    }
+                                  },
+                                  boost: 10
+                                }
+                              },
+                              {
+                                constant_score:
+                                  {
+                                    filter:
+                                      {
+                                        term:
+                                          {
+                                            integer: 2
+                                          }
+                                      },
+                                    boost: 1
+                                  }
+                              }
+                            ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    text_similarity_reranker: {
+                      retriever:
+                        {
+                          standard: {
+                            query: {
+                              bool: {
+                                should:
+                                  [
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 1
+                                          }
+                                        },
+                                        boost: 3
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 2
+                                          }
+                                        },
+                                        boost: 2
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 3
+                                          }
+                                        },
+                                        boost: 1
+                                      }
+                                    }
+                                  ]
+                              }
+                            }
+                          }
+                        },
+                      rank_window_size: 10,
+                      inference_id: failure-rerank-model,
+                      inference_text: "How often does the moon hide the sun?",
+                      field: text,
+                      allow_rerank_failures: true
+                    }
+                  }
+                ],
+              rank_window_size: 10,
+              rank_constant: 1
+            }
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+  - match: { hits.hits.2._id: "doc_3" }

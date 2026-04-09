@@ -7,41 +7,44 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.regex.PatternSyntaxException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link Replace}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class ReplaceEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReplaceEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator regex;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator newStr;
+  private final ExpressionEvaluator regex;
+
+  private final ExpressionEvaluator newStr;
 
   private final DriverContext driverContext;
 
-  public ReplaceEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator regex, EvalOperator.ExpressionEvaluator newStr,
-      DriverContext driverContext) {
+  private Warnings warnings;
+
+  public ReplaceEvaluator(Source source, ExpressionEvaluator str, ExpressionEvaluator regex,
+      ExpressionEvaluator newStr, DriverContext driverContext) {
+    this.source = source;
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,6 +70,15 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += str.baseRamBytesUsed();
+    baseRamBytesUsed += regex.baseRamBytesUsed();
+    baseRamBytesUsed += newStr.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
       BytesRefBlock newStrBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
@@ -74,43 +86,46 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (regexBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (regexBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (newStrBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (regexBlock.getValueCount(p) != 1) {
-          if (regexBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (newStrBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (newStrBlock.getValueCount(p) != 1) {
-          if (newStrBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef regex = regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch);
+        BytesRef newStr = newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
-        } catch (PatternSyntaxException e) {
-          warnings.registerException(e);
+          result.appendBytesRef(Replace.process(str, regex, newStr));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -125,10 +140,13 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef regex = regexVector.getBytesRef(p, regexScratch);
+        BytesRef newStr = newStrVector.getBytesRef(p, newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
-        } catch (PatternSyntaxException e) {
-          warnings.registerException(e);
+          result.appendBytesRef(Replace.process(str, regex, newStr));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -146,18 +164,24 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     Releasables.closeExpectNoException(str, regex, newStr);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory regex;
+    private final ExpressionEvaluator.Factory regex;
 
-    private final EvalOperator.ExpressionEvaluator.Factory newStr;
+    private final ExpressionEvaluator.Factory newStr;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory regex,
-        EvalOperator.ExpressionEvaluator.Factory newStr) {
+    public Factory(Source source, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory regex, ExpressionEvaluator.Factory newStr) {
       this.source = source;
       this.str = str;
       this.regex = regex;

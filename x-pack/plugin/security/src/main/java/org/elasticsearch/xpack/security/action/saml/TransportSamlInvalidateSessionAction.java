@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -120,7 +120,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
     }
 
     private void findAndInvalidateTokens(SamlRealm realm, SamlLogoutRequestHandler.Result result, ActionListener<Integer> listener) {
-        final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession());
+        final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession(), null);
         if (Strings.isNullOrEmpty((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE))) {
             // If we don't have a valid name-id to match against, don't do anything
             LOGGER.debug("Logout request [{}] has no NameID value, so cannot invalidate any sessions", result);

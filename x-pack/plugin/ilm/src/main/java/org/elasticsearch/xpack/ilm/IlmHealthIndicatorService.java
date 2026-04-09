@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -41,7 +45,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -211,16 +214,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        final var currentState = clusterService.state();
-        var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        final var currentMode = currentILMMode(currentState);
+        final var projectMetadata = getDefaultILMProject(clusterService.state());
+        var ilmMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        final var currentMode = currentILMMode(projectMetadata);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Index Lifecycle Management policies configured",
                 createDetails(verbose, ilmMetadata, currentMode),
-                Collections.emptyList(),
-                Collections.emptyList()
+                List.of(),
+                List.of()
             );
         } else if (currentMode != OperationMode.RUNNING) {
             return createIndicator(
@@ -238,8 +241,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     GREEN,
                     "Index Lifecycle Management is running",
                     createDetails(verbose, ilmMetadata, currentMode),
-                    Collections.emptyList(),
-                    Collections.emptyList()
+                    List.of(),
+                    List.of()
                 );
             } else {
                 return createIndicator(
@@ -342,13 +345,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
          * @return A list containing the ILM managed indices that are stagnated in any ILM action/step.
          */
         public List<IndexMetadata> find() {
-            var metadata = clusterService.state().metadata();
+            final var project = getDefaultILMProject(clusterService.state());
             var now = nowSupplier.getAsLong();
 
-            return metadata.indices()
+            return project.indices()
                 .values()
                 .stream()
-                .filter(metadata::isIndexManagedByILM)
+                .filter(project::isIndexManagedByILM)
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }
@@ -495,5 +498,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     && maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
                     || (maxRetries != null && failedStepRetryCount != null && failedStepRetryCount > maxRetries));
         }
+    }
+
+    /**
+     * This method solely exists because we are not making ILM properly project-aware and it's not worth the investment of altering this
+     * health indicator to be project-aware.
+     */
+    @NotMultiProjectCapable
+    private static ProjectMetadata getDefaultILMProject(ClusterState state) {
+        return state.metadata().getProject(ProjectId.DEFAULT);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -45,6 +46,8 @@ import java.util.function.BiFunction;
 /** Enum defining the type of range */
 public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
+        private static final MatchNoDocsQuery NO_DOCS_IN_RANGE = new MatchNoDocsQuery("float range didn't intersect anything");
+
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
             return new InetAddressRange(name, (InetAddress) r.from, (InetAddress) r.to);
@@ -53,14 +56,14 @@ public enum RangeType {
         @Override
         public InetAddress parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            InetAddress address = InetAddresses.forString(parser.text());
+            InetAddress address = InetAddresses.forString(parser.optimizedText().bytes());
             return included ? address : nextUp(address);
         }
 
         @Override
         public InetAddress parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            InetAddress address = InetAddresses.forString(parser.text());
+            InetAddress address = InetAddresses.forString(parser.optimizedText().bytes());
             return included ? address : nextDown(address);
         }
 
@@ -176,11 +179,10 @@ public enum RangeType {
             }
             InetAddress correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
             InetAddress correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);
-            ;
             lowerBytes = InetAddressPoint.encode(correctedFrom);
             upperBytes = InetAddressPoint.encode(correctedTo);
             if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
-                return new MatchNoDocsQuery("float range didn't intersect anything");
+                return NO_DOCS_IN_RANGE;
             } else {
                 return querySupplier.apply(correctedFrom, correctedTo);
             }
@@ -195,14 +197,20 @@ public enum RangeType {
         @Override
         public Number parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included == false, null).toEpochMilli();
             return included ? value : nextUp(value);
         }
 
         @Override
         public Number parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included, null).toEpochMilli();
             return included ? value : nextDown(value);
         }
 
@@ -294,6 +302,7 @@ public enum RangeType {
                     roundUp,
                     zone
                 ).toEpochMilli();
+
             roundUp = includeUpper; // using "lte" should round upper bound up
             Long high = upperTerm == null
                 ? maxValue()
@@ -741,6 +750,7 @@ public enum RangeType {
         }
     };
 
+    private static final MatchNoDocsQuery NO_RANGE_MATCH = new MatchNoDocsQuery("range didn't intersect anything");
     public final String name;
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;
@@ -787,7 +797,7 @@ public enum RangeType {
         @SuppressWarnings("unchecked")
         T correctedTo = includeTo ? to : (T) rangeType.nextDown(to);
         if (correctedFrom.compareTo(correctedTo) > 0) {
-            return new MatchNoDocsQuery("range didn't intersect anything");
+            return NO_RANGE_MATCH;
         } else {
             return querySupplier.apply(correctedFrom, correctedTo);
         }

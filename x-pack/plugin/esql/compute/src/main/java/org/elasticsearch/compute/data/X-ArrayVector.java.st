@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,25 +18,16 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.ReleasableIterator;
-
-import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-$endif$
+// end generated imports
 
 /**
  * Vector implementation that stores an array of $type$ values.
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
@@ -143,6 +134,11 @@ $else$
     public $type$ get$Type$(int position) {
         return values[position];
     }
+
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
 $endif$
 
     @Override
@@ -156,7 +152,7 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$
@@ -173,12 +169,82 @@ $endif$
     }
 
     @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(get$Type$(p$if(BytesRef)$, scratch$endif$));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
+$if(BytesRef)$
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * average value length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
+     * {@link BytesRefArray} when loading large text fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
+        long valuesSize = RamUsageEstimator.sizeOf(values);
+        if (values.size() > 0 && valuesSize / values.size() > overestimateThreshold) {
+            valuesSize = Math.round(valuesSize * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valuesSize;
+    }
+
+$else$
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+$endif$
+    @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+$if(BytesRef)$
+        var scratch = new BytesRef();
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
+$else$
+        try ($Type$Vector.FixedBuilder builder = blockFactory().new$Type$VectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.append$Type$(get$Type$(i));
+            }
+            return builder.build();
+        }
+$endif$
     }
 
 $if(int)$
@@ -211,11 +277,42 @@ $if(int)$
         }
         return max;
     }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i] == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 $endif$
 
     @Override
     public long ramBytesUsed() {
+$if(BytesRef)$
+        return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
+$else$
         return ramBytesEstimated(values);
+$endif$
     }
 
     @Override

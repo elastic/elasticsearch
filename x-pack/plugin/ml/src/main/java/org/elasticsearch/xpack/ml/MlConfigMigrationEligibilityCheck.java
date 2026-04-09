@@ -59,12 +59,12 @@ public class MlConfigMigrationEligibilityCheck {
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        IndexAbstraction configIndexOrAlias = clusterState.metadata().getIndicesLookup().get(MlConfigIndex.indexName());
+        IndexAbstraction configIndexOrAlias = clusterState.metadata().getProject().getIndicesLookup().get(MlConfigIndex.indexName());
         if (configIndexOrAlias == null) {
             return false;
         }
 
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(configIndexOrAlias.getWriteIndex());
-        return routingTable != null && routingTable.allPrimaryShardsActive() && routingTable.readyForSearch(clusterState);
+        return routingTable != null && routingTable.allPrimaryShardsActive() && routingTable.readyForSearch();
     }
 }

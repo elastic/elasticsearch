@@ -200,7 +200,7 @@ public class RemoteClusterSecurityMlIT extends AbstractRemoteClusterSecurityTest
             """);
         final ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteMlUser(putDataframeAnalytics));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("remote source indices are not supported"));
+        assertThat(e.getMessage(), containsString("remote source and cross-project indices are not supported"));
     }
 
     private Response performRequestWithRemoteMlUser(final Request request) throws IOException {

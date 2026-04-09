@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -79,6 +80,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (createdOnOrAfterV8) {
@@ -101,10 +107,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
-        c -> new Builder(c.indexVersionCreated())
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.indexVersionCreated()));
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
@@ -119,7 +122,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         private FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(Defaults.NAME, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -134,7 +137,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -186,10 +189,5 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

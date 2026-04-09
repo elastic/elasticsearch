@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 
-import java.util.List;
-
 /**
  * Expressions that have a mapping to an {@link AggregatorFunctionSupplier}.
  */
 public interface ToAggregator {
-    AggregatorFunctionSupplier supplier(List<Integer> inputChannels);
+    AggregatorFunctionSupplier supplier();
 }

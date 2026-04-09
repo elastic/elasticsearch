@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -23,27 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.is;
-
 public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<CoordinatedInferenceAction.Request> {
-    public void testSerializesPrefixType_WhenTransportVersionIs_InputTypeAdded() throws IOException {
-        var instance = createTestInstance();
-        instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_13_0);
-        assertOnBWCObject(copy, instance, TransportVersions.V_8_13_0);
-        assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.INGEST));
-    }
-
-    public void testSerializesPrefixType_DoesNotSerialize_WhenTransportVersion_IsPriorToInputTypeAdded() throws IOException {
-        var instance = createTestInstance();
-        instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_12_1);
-
-        assertNotSame(copy, instance);
-        assertNotEquals(copy, instance);
-        assertNotEquals(copy.hashCode(), instance.hashCode());
-        assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.NONE));
-    }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -116,11 +95,8 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
         CoordinatedInferenceAction.Request instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.V_8_13_0)) {
-            instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
-        }
 
-        return new CoordinatedInferenceAction.Request(
+        var newInstance = new CoordinatedInferenceAction.Request(
             instance.getModelId(),
             instance.getInputs(),
             instance.getTaskSettings(),
@@ -131,5 +107,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
             instance.getHighPriority(),
             instance.getRequestModelType()
         );
+        newInstance.setPrefixType(instance.getPrefixType());
+        return newInstance;
     }
 }

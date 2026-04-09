@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -103,9 +103,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         static class Response extends ActionResponse {
             Response() {}
 
-            Response(StreamInput in) throws IOException {
-                super(in);
-            }
+            Response(StreamInput in) {}
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {}
@@ -132,7 +130,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 threadPool,
                 actionFilters,
                 UpdateInternalOrPrivateAction.Request::new,
-                indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -149,9 +146,11 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
-                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(currentState.metadata().index(request.index));
+                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(
+                        currentState.metadata().getProject().index(request.index)
+                    );
                     final Settings.Builder settingsBuilder = Settings.builder()
-                        .put(currentState.metadata().index(request.index).getSettings())
+                        .put(currentState.metadata().getProject().index(request.index).getSettings())
                         .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
                     imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
@@ -180,9 +179,9 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Collections.singletonList(
-            new ActionHandler<>(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
+            new ActionHandler(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
         );
     }
 

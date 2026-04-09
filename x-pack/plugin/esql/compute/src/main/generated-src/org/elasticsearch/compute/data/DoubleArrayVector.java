@@ -7,19 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
@@ -73,6 +78,11 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }
@@ -83,10 +93,36 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendDouble(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new DoubleVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new DoubleVectorBlock(this);
+            }
+            return (DoubleBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendDouble(getDouble(p));
+                } else {
+                    builder.appendNull();
+                }
             }
             return builder.build();
         }
@@ -99,6 +135,20 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     public static long ramBytesEstimated(double[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleVector.FixedBuilder builder = blockFactory().newDoubleVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendDouble(getDouble(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override

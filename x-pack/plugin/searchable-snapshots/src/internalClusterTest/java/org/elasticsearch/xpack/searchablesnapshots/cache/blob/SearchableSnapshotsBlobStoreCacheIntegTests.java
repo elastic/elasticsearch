@@ -15,8 +15,12 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -64,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -74,7 +79,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = pageAligned(new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
+        blobCacheMaxLength = pageAligned(ByteSizeValue.of(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
 
         final Settings.Builder builder = Settings.builder();
         // Align ranges to match the blob cache max length
@@ -153,7 +158,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
-            () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
+            () -> systemClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
         final Storage storage1 = randomFrom(Storage.values());
@@ -199,7 +204,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertThat(
             systemClient().admin()
                 .indices()
-                .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, SNAPSHOT_BLOB_CACHE_INDEX)
                 .get()
                 .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTier.TIER_PREFERENCE),
             equalTo("data_content,data_hot")
@@ -395,17 +400,24 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-                    final IndexMetadata indexMetadata = allocation.metadata().index(shardRouting.index());
+                    final Metadata metadata = allocation.metadata();
+                    assertThat(metadata.projects(), aMapWithSize(1));
+                    var entry = metadata.projects().entrySet().iterator().next();
+                    final ProjectMetadata projectMetadata = entry.getValue();
+                    final ProjectId projectId = entry.getKey();
+
+                    final IndexMetadata indexMetadata = projectMetadata.index(shardRouting.index());
                     if (indexMetadata.isSearchableSnapshot() == false) {
                         return allocation.decision(Decision.YES, name, "index is not a searchable snapshot shard - can allocate");
                     }
-                    if (allocation.metadata().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
+                    if (projectMetadata.hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
                         return allocation.decision(Decision.YES, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not created yet");
                     }
-                    if (allocation.routingTable().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
+                    final RoutingTable routingTable = allocation.routingTable(projectId);
+                    if (routingTable.hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {
                         return allocation.decision(Decision.THROTTLE, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not active yet");
                     }
-                    final IndexRoutingTable indexRoutingTable = allocation.routingTable().index(SNAPSHOT_BLOB_CACHE_INDEX);
+                    final IndexRoutingTable indexRoutingTable = routingTable.index(SNAPSHOT_BLOB_CACHE_INDEX);
                     if (indexRoutingTable.allPrimaryShardsActive() == false) {
                         return allocation.decision(Decision.THROTTLE, name, SNAPSHOT_BLOB_CACHE_INDEX + " is not active yet");
                     }

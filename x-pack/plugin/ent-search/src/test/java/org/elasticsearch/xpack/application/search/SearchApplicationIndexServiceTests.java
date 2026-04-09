@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.application.search;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +39,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.search.SearchApplicationIndexService.SEARCH_APPLICATION_CONCRETE_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 
 public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     private static final int NUM_INDICES = 10;
@@ -115,10 +119,14 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     private void checkAliases(SearchApplication searchApp) {
+        @NotMultiProjectCapable
+        final ProjectId projectId = ProjectId.DEFAULT;
         Metadata metadata = clusterService.state().metadata();
+        assertThat("Test assumes [" + projectId + "] project only", metadata.projects().keySet(), contains(projectId));
         final String aliasName = searchApp.name();
-        assertTrue(metadata.hasAlias(aliasName));
-        final Set<String> aliasedIndices = metadata.aliasedIndices(aliasName)
+        assertTrue(metadata.getProject(projectId).hasAlias(aliasName));
+        final Set<String> aliasedIndices = metadata.getProject(projectId)
+            .aliasedIndices(aliasName)
             .stream()
             .map(index -> index.getName())
             .collect(Collectors.toSet());
@@ -246,7 +254,10 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteSearchApplication("my_search_app_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetSearchApplication("my_search_app_4"));
-        GetAliasesResponse response = searchAppService.getAlias("my_search_app_4");
+        GetAliasesResponse response = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "my_search_app_4"))
+            .actionGet();
         assertTrue(response.getAliases().isEmpty());
 
         {

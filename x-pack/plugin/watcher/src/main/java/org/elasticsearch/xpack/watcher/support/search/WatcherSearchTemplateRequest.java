@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
@@ -173,7 +172,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         BytesReference searchSource = null;
         Script template = null;
-        // TODO this is to retain BWC compatibility in 7.0 and can be removed for 8.0
         boolean totalHitsAsInt = true;
 
         XContentParser.Token token;
@@ -196,17 +194,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                             );
                         }
                     }
-                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // Tolerate an empty types array, because some watches created internally in 6.x have
-                    // an empty types array in their search, and it's clearly equivalent to typeless.
-                    if (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        throw new ElasticsearchParseException(
-                            "could not read search request. unsupported non-empty array field [" + currentFieldName + "]"
-                        );
-                    }
-                    // Empty types arrays still generate the same deprecation warning they did in 7.x.
-                    // Ideally they should be removed from the definition.
-                    deprecationLogger.critical(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read search request. unexpected array field [" + currentFieldName + "]"
@@ -289,7 +276,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     }
 
     private static final ParseField INDICES_FIELD = new ParseField("indices");
-    private static final ParseField TYPES_FIELD = new ParseField("types");
     private static final ParseField BODY_FIELD = new ParseField("body");
     private static final ParseField SEARCH_TYPE_FIELD = new ParseField("search_type");
     private static final ParseField INDICES_OPTIONS_FIELD = new ParseField("indices_options");

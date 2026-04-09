@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Objects;
 
@@ -72,7 +74,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_SNAPSHOTTED;
         }
 
-        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
+        @FixForMultiProject(description = "replace with entriesByRepo(ProjectId), see also ES-12195")
+        final var entriesByRepoIterable = snapshotsInProgress.entriesByRepo();
+        for (final var entriesByRepo : entriesByRepoIterable) {
             for (final var entry : entriesByRepo) {
                 if (entry.isClone()) {
                     // clones do not run on data nodes

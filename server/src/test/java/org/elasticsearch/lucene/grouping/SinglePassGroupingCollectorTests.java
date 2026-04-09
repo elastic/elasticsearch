@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -19,7 +20,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -35,6 +35,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -48,11 +49,11 @@ import java.util.Set;
 
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         SegmentSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -61,7 +62,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 
@@ -133,16 +134,16 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         }
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, Integer.MAX_VALUE);
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         searcher.search(query, collapsingCollector);
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
         assertEquals(totalHits, topDocs.scoreDocs.length);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Set<Object> seen = new HashSet<>();
         // collapse field is the last sort
@@ -192,7 +193,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         }
 
         final TopFieldGroups[] shardHits = new TopFieldGroups[subSearchers.length];
-        final Weight weight = searcher.createWeight(searcher.rewrite(new MatchAllDocsQuery()), ScoreMode.COMPLETE, 1f);
+        final Weight weight = searcher.createWeight(searcher.rewrite(Queries.ALL_DOCS_INSTANCE), ScoreMode.COMPLETE, 1f);
         for (int shardIDX = 0; shardIDX < subSearchers.length; shardIDX++) {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final SinglePassGroupingCollector<?> c;
@@ -390,7 +391,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -435,7 +436,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);

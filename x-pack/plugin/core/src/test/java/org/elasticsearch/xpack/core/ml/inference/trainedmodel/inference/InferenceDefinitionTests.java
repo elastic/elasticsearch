@@ -13,6 +13,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -25,17 +27,26 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilderTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests.ENSEMBLE_MODEL;
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests.TREE_MODEL;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -174,6 +185,35 @@ public class InferenceDefinitionTests extends ESTestCase {
                 assertThat(classImportance.getImportance(), closeTo(-0.199, 0.001));
             }
         }
+    }
+
+    public void testWithLearningToRankConfiguration() throws IOException {
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), -2.0);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.2);
+        builder.addLeaf(leftChildNode.getRightChild(), 1.5);
+
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = builder.setFeatureNames(featureNames).build();
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        BoundedWindowInferenceModel testModel = new BoundedWindowInferenceModel(tree);
+
+        InferenceDefinition definition = new InferenceDefinition(testModel, null);
+        LearningToRankConfig config = new LearningToRankConfig(
+            randomBoolean() ? null : randomIntBetween(0, 10),
+            randomBoolean()
+                ? null
+                : Stream.generate(QueryExtractorBuilderTests::randomInstance).limit(randomInt(5)).collect(Collectors.toList()),
+            randomBoolean() ? null : randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomIdentifier()))
+        );
+
+        InferenceResults results = definition.infer(Map.of("foo", 1.0, "bar", 0.0), config);
+
+        assertThat(results.predictedValue(), equalTo(2.0));
     }
 
     public static String getClassificationDefinition(boolean customPreprocessor) {

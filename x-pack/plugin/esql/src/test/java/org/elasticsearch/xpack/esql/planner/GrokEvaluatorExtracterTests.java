@@ -16,10 +16,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
@@ -234,11 +234,15 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
             blockFactory.newBooleanBlockBuilder(estimatedSize) };
     }
 
-    private GrokEvaluatorExtracter buildExtracter(String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types) {
+    private GrokEvaluatorExtracter buildExtracter(
+        String pattern,
+        final Map<String, Integer> keyToBlock,
+        final Map<String, ElementType> types
+    ) {
         var builtinPatterns = GrokBuiltinPatterns.get(true);
         Grok grok = new Grok(builtinPatterns, pattern, logger::warn);
-        GrokEvaluatorExtracter extracter = new GrokEvaluatorExtracter(grok, pattern, keyToBlock, types);
-        return extracter;
+        GrokEvaluatorExtracter.Factory factory = new GrokEvaluatorExtracter.Factory(grok, pattern, keyToBlock, types);
+        return factory.create(null);
     }
 
 }

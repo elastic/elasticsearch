@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
@@ -26,9 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesFloatGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+    private final boolean withNulls = randomBoolean();
+
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesFloatAggregatorFunctionSupplier();
     }
 
     @Override
@@ -40,7 +42,8 @@ public class ValuesFloatGroupingAggregatorFunctionTests extends GroupingAggregat
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongFloatTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomFloat()))
+            LongStream.range(0, size)
+                .mapToObj(l -> Tuple.tuple(randomLongBetween(0, 100), withNulls && randomBoolean() ? null : randomFloat()))
         );
     }
 

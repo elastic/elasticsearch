@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -38,6 +39,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -55,7 +57,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         context.stash().stashValue("c", "bar1");
 
         assertNull(headersRef.get());
-        context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         assertNotNull(headersRef.get());
         assertNotEquals(headers, headersRef.get());
 
@@ -76,6 +78,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -88,7 +91,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         headers.put("Accept", "application/json");
         headers.put("Authorization", "Basic password==");
         try {
-            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+            context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         } catch (Exception e) {
             // do nothing...behavior we are testing is the finally block of the production code
         }

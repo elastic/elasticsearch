@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.RescoreDocIds;
@@ -23,6 +24,8 @@ import org.elasticsearch.search.rank.RankDocShardInfo;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -35,6 +38,8 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
     private final RankDocShardInfo rankDocs;
+    private DiscoveryNode coordinatingNode;
+    private long coordinatingTaskId;
 
     public ShardFetchSearchRequest(
         OriginalIndices originalIndices,
@@ -60,10 +65,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
-            this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
-        } else {
-            this.rankDocs = null;
+        this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
+
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+            coordinatingTaskId = in.readLong();
         }
     }
 
@@ -74,8 +80,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         out.writeOptionalWriteable(shardSearchRequest);
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
-            out.writeOptionalWriteable(rankDocs);
+        out.writeOptionalWriteable(rankDocs);
+
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+            out.writeLong(coordinatingTaskId);
         }
     }
 
@@ -113,5 +122,30 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     @Override
     public RankDocShardInfo getRankDocks() {
         return this.rankDocs;
+    }
+
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
+
+    public long getCoordinatingTaskId() {
+        return coordinatingTaskId;
+    }
+
+    public void setCoordinatingNode(DiscoveryNode coordinatingNode) {
+        this.coordinatingNode = coordinatingNode;
+    }
+
+    public void setCoordinatingTaskId(long coordinatingTaskId) {
+        this.coordinatingTaskId = coordinatingTaskId;
+    }
+
+    @Override
+    public String getDescription() {
+        StringBuilder sb = new StringBuilder(super.getDescription());
+        if (shardSearchRequest != null) {
+            sb.append(", shardId[").append(shardSearchRequest.shardId()).append(']');
+        }
+        return sb.toString();
     }
 }

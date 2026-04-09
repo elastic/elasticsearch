@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -45,6 +46,7 @@ public class SearchLookup implements SourceProvider {
     private final Set<String> fieldChain;
     private final SourceProvider sourceProvider;
     private final Function<String, MappedFieldType> fieldTypeLookup;
+    private final Function<String, Boolean> onlyMappedAsRuntimeField;
     private final TriFunction<
         MappedFieldType,
         Supplier<SearchLookup>,
@@ -63,7 +65,7 @@ public class SearchLookup implements SourceProvider {
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider
     ) {
-        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+        this(fieldTypeLookup, fieldName -> false, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
     }
 
     /**
@@ -75,11 +77,13 @@ public class SearchLookup implements SourceProvider {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
+        Function<String, Boolean> onlyMappedAsRuntimeField,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
+        this.onlyMappedAsRuntimeField = onlyMappedAsRuntimeField;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
@@ -97,6 +101,16 @@ public class SearchLookup implements SourceProvider {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
         this.sourceProvider = searchLookup.sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
+        this.onlyMappedAsRuntimeField = searchLookup.onlyMappedAsRuntimeField;
+        this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
+    }
+
+    private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
+        this.fieldChain = searchLookup.fieldChain;
+        this.sourceProvider = sourceProvider;
+        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
+        this.onlyMappedAsRuntimeField = searchLookup.onlyMappedAsRuntimeField;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
@@ -135,6 +149,13 @@ public class SearchLookup implements SourceProvider {
         return fieldTypeLookup.apply(fieldName);
     }
 
+    /**
+     * @return whether a field is only mapped as runtime field. A runtime and normal field can share the same name.
+     */
+    public boolean onlyMappedAsRuntimeField(String fieldName) {
+        return onlyMappedAsRuntimeField.apply(fieldName);
+    }
+
     public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
     }
@@ -142,5 +163,10 @@ public class SearchLookup implements SourceProvider {
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         return sourceProvider.getSource(ctx, doc);
+    }
+
+    public SearchLookup optimizedSourceProvider(SourceFilter sourceFilter) {
+        SourceProvider copy = sourceProvider.optimizedSourceProvider(sourceFilter);
+        return new SearchLookup(this, copy);
     }
 }

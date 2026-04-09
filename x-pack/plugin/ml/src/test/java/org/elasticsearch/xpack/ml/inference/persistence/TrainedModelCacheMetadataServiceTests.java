@@ -74,6 +74,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.clusterRecovered()).thenReturn(true);
         when(clusterState.nodes()).thenReturn(clusterNodes);
+        when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
         modelCacheMetadataService.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
 

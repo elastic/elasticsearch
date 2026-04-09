@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -57,10 +58,11 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals(fieldname, dynamicMappers.get(0).fullPath());
-        assertEquals(expectedType, dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(MapperBuilderContext.root(false, false));
+        assertEquals(fieldname, built.fullPath());
+        assertEquals(expectedType, built.typeName());
     }
 
     public void testCreateDynamicStringFieldAsKeywordForDimension() throws IOException {
@@ -68,13 +70,16 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
 
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
             new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
-        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+        DocumentParserContext ctx = new TestDocumentParserContext(
+            MappingLookup.fromMapping(mapping, randomFrom(IndexMode.values())),
+            sourceToParse
+        ) {
             @Override
             public XContentParser parser() {
                 return parser;
@@ -88,9 +93,10 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals("labels.f1", dynamicMappers.get(0).fullPath());
-        assertEquals("keyword", dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(ctx.createDynamicMapperBuilderContext());
+        assertEquals("labels.f1", built.fullPath());
+        assertEquals("keyword", built.typeName());
     }
 }

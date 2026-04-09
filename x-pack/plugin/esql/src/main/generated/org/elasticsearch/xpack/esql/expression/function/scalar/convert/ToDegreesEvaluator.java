@@ -7,27 +7,33 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDegrees}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link ToDegrees}.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDegreesEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDegreesEvaluator.class);
+
+  private final ExpressionEvaluator deg;
+
+  public ToDegreesEvaluator(Source source, ExpressionEvaluator deg, DriverContext driverContext) {
+    super(driverContext, source);
+    this.deg = deg;
   }
 
   @Override
-  public String name() {
-    return "ToDegrees";
+  public ExpressionEvaluator next() {
+    return deg;
   }
 
   @Override
@@ -55,7 +61,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     }
   }
 
-  private static double evalValue(DoubleVector container, int index) {
+  private double evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToDegrees.process(value);
   }
@@ -94,29 +100,46 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     }
   }
 
-  private static double evalValue(DoubleBlock container, int index) {
+  private double evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToDegrees.process(value);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToDegreesEvaluator[" + "deg=" + deg + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(deg);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += deg.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory deg;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, ExpressionEvaluator.Factory deg) {
       this.source = source;
+      this.deg = deg;
     }
 
     @Override
     public ToDegreesEvaluator get(DriverContext context) {
-      return new ToDegreesEvaluator(field.get(context), source, context);
+      return new ToDegreesEvaluator(source, deg.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDegreesEvaluator[field=" + field + "]";
+      return "ToDegreesEvaluator[" + "deg=" + deg + "]";
     }
   }
 }

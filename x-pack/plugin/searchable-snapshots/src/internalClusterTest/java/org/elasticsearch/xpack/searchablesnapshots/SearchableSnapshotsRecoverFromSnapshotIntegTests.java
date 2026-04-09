@@ -79,7 +79,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
             ensureGreen(restoredIndexName);
 
-            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
+            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value());
 
             mockLog.assertAllExpectationsMatched();
         }

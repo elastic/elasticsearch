@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -13,17 +14,21 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -54,7 +59,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
-        this.searchHits = searchHits.asUnpooled();
+        this.searchHits = searchHits;
     }
 
     /**
@@ -65,7 +70,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        searchHits = SearchHits.readFrom(in, false);
+        searchHits = SearchHits.readFrom(in, true);
     }
 
     @Override
@@ -128,20 +133,35 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
                     shardDocs = new TopFieldDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
-                    reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
+                    Sort sort = SortFieldValidation.validateAndMaybeRewrite(Arrays.asList(shardDocs), topFieldDocs.fields);
+                    try {
+                        reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+                    } catch (ClassCastException e) {
+                        // This can happen when sort field types are incompatible across shards even after validation,
+                        // e.g. during upgrades or when aggregating across indices with different field mappings.
+                        throw new IllegalArgumentException(
+                            "Failed to merge top_hits aggregation results from different shards due to incompatible "
+                                + "sort field types. This can occur during upgrades or when aggregating across indices "
+                                + "whose field mappings differ. Original error: "
+                                + e.getMessage(),
+                            e
+                        );
+                    }
                 } else {
                     shardDocs = new TopDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
                     reducedTopDocs = TopDocs.merge(from, size, shardDocs);
                 }
-                assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+                assert reducedTopDocs.totalHits.relation() == Relation.EQUAL_TO;
 
+                SearchHits mergedHits = extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore);
+                reduceContext.transferTopHitsForRelease(mergedHits);
                 return new InternalTopHits(
                     getName(),
                     getFrom(),
                     getSize(),
                     new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-                    extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
+                    mergedHits,
                     getMetadata()
                 );
             }
@@ -165,10 +185,42 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             do {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
-            hits[i] = aggregations.get(shardIndex).searchHits.getAt(position);
-            assert hits[i].isPooled() == false;
+            SearchHit hit = aggregations.get(shardIndex).searchHits.getAt(position);
+            if (scoreDoc instanceof FieldDoc fieldDoc && fieldDoc.fields != null && fieldDoc.fields.length > 0) {
+                Object[] existingFormatted = hit.getSortValues();
+                boolean hasBytesRef = Arrays.stream(fieldDoc.fields).anyMatch(f -> f instanceof BytesRef);
+                if (hasBytesRef && existingFormatted != null && existingFormatted.length == fieldDoc.fields.length) {
+                    // Preserve the shard's formatted values for BytesRef fields (e.g. version, keyword)
+                    // so we don't format them with RAW, which assumes UTF-8 and fails on version encoding.
+                    hit.sortValues(
+                        SearchSortValues.fromFormattedAndRaw(buildFormattedSortValues(fieldDoc.fields, existingFormatted), fieldDoc.fields)
+                    );
+                } else {
+                    DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];
+                    Arrays.fill(formats, DocValueFormat.RAW);
+                    hit.sortValues(fieldDoc.fields, formats);
+                }
+            }
+            hit.incRef();
+            hits[i] = hit;
         }
-        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
+    }
+
+    /**
+     * Build formatted sort values: use existing formatted value for BytesRef (e.g. version) fields
+     * to avoid re-formatting with RAW (UTF-8), and use RAW for numeric types.
+     */
+    private static Object[] buildFormattedSortValues(Object[] rawValues, Object[] existingFormatted) {
+        Object[] formatted = new Object[rawValues.length];
+        for (int i = 0; i < rawValues.length; i++) {
+            if (rawValues[i] instanceof BytesRef && existingFormatted != null && i < existingFormatted.length) {
+                formatted[i] = existingFormatted[i];
+            } else {
+                formatted[i] = DocValueFormat.RAW.formatSortValue(rawValues[i]);
+            }
+        }
+        return formatted;
     }
 
     private static float reduceAndFindMaxScore(List<InternalTopHits> aggregations, TopDocs[] shardDocs) {
@@ -234,6 +286,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         } else if (tokens[0].equals(SCORE)) {
             return topHit.getScore();
         } else if (tokens[0].equals(SOURCE)) {
+            // Caching the map might help here but memory usage is a concern for this class
+            // This is dead code, pipeline aggregations do not support _source.field.
             Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
             if (sourceAsMap != null) {
                 Object property = sourceAsMap.get(tokens[1]);
@@ -261,8 +315,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
         if (size != other.size) return false;
-        if (topDocs.topDocs.totalHits.value != other.topDocs.topDocs.totalHits.value) return false;
-        if (topDocs.topDocs.totalHits.relation != other.topDocs.topDocs.totalHits.relation) return false;
+        if (topDocs.topDocs.totalHits.value() != other.topDocs.topDocs.totalHits.value()) return false;
+        if (topDocs.topDocs.totalHits.relation() != other.topDocs.topDocs.totalHits.relation()) return false;
         if (topDocs.topDocs.scoreDocs.length != other.topDocs.topDocs.scoreDocs.length) return false;
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
             ScoreDoc thisDoc = topDocs.topDocs.scoreDocs[d];
@@ -286,8 +340,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         int hashCode = super.hashCode();
         hashCode = 31 * hashCode + Integer.hashCode(from);
         hashCode = 31 * hashCode + Integer.hashCode(size);
-        hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value);
-        hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation.hashCode();
+        hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value());
+        hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation().hashCode();
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;

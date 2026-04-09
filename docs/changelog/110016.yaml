@@ -1,5 +1,0 @@
-pr: 110016
-summary: Opt in keyword field into fallback synthetic source if needed
-area: Mapping
-type: enhancement
-issues: []

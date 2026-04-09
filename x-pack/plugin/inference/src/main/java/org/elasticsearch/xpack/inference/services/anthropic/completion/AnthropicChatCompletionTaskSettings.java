@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,9 +45,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
         var commonFields = fromMap(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
     }
@@ -57,6 +54,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         var commonFields = fromMap(map, new ValidationException());
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        return fromRequestMap(newSettings);
     }
 
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
@@ -127,6 +129,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return false; // maxTokens is non-optional
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
@@ -156,7 +163,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

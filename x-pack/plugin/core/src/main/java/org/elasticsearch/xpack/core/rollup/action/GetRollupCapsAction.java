@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +37,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentFragment {
+    public static class Request extends LegacyActionRequest implements ToXContentFragment {
         private String indexPattern;
 
         public Request(String indexPattern) {

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 141788
+summary: "[Inference API] Handle preconfigured endpoints with embedding task type"
+type: enhancement

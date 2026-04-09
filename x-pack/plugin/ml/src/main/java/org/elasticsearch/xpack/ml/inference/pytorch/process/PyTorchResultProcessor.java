@@ -40,6 +40,7 @@ public class PyTorchResultProcessor {
         LongSummaryStatistics timingStats,
         LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
+        LongSummaryStatistics inferenceProcessMemoryRssBytesStats,
         long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
@@ -57,6 +58,7 @@ public class PyTorchResultProcessor {
     private final LongSummaryStatistics timingStats;
     private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
+    private final LongSummaryStatistics inferenceProcessMemoryRssBytesStats;
     private long cacheHitCount;
     private long peakThroughput;
 
@@ -78,6 +80,7 @@ public class PyTorchResultProcessor {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
+        this.inferenceProcessMemoryRssBytesStats = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -130,11 +133,12 @@ public class PyTorchResultProcessor {
             var errorResult = new ErrorResult(
                 isStopping
                     ? "inference canceled as process is stopping"
-                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]"
+                    : "inference native process died unexpectedly with failure [" + e.getMessage() + "]",
+                isStopping
             );
             notifyAndClearPendingResults(errorResult);
         } finally {
-            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
+            notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping", true));
             processorCompletionLatch.countDown();
         }
         logger.debug(() -> "[" + modelId + "] Results processing finished");
@@ -145,7 +149,7 @@ public class PyTorchResultProcessor {
             logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
         }
         pendingResults.forEach(
-            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, null, errorResult))
         );
         pendingResults.clear();
     }
@@ -153,18 +157,12 @@ public class PyTorchResultProcessor {
     void processInferenceResult(PyTorchResult result) {
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
-        Long timeMs = result.timeMs();
-        if (timeMs == null) {
-            assert false : "time_ms should be set for an inference result";
-            timeMs = 0L;
-        }
 
         logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", modelId, result.requestId()));
         } else {
-            updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
             pendingResult.listener.onResponse(result);
         }
     }
@@ -222,7 +220,7 @@ public class PyTorchResultProcessor {
                 String msg = format("[%s] pending result listener cannot handle unknown result type [%s]", modelId, result);
                 logger.error(msg);
                 var errorResult = new ErrorResult(msg);
-                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, errorResult));
+                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, null, errorResult));
             }
         } else {
             // Cannot look up the listener without a request id
@@ -261,6 +259,7 @@ public class PyTorchResultProcessor {
             cloneSummaryStats(timingStats),
             cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
+            cloneSummaryStats(inferenceProcessMemoryRssBytesStats),
             cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
@@ -273,8 +272,18 @@ public class PyTorchResultProcessor {
         return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
     }
 
-    private synchronized void updateStats(long timeMs, boolean isCacheHit) {
+    public synchronized void updateStats(PyTorchResult result) {
+        Long timeMs = result.timeMs();
+        if (timeMs == null) {
+            assert false : "time_ms should be set for an inference result";
+            timeMs = 0L;
+        }
+        boolean isCacheHit = Boolean.TRUE.equals(result.isCacheHit());
         timingStats.accept(timeMs);
+
+        if (result.processStats() != null) {
+            this.inferenceProcessMemoryRssBytesStats.accept(result.processStats().memoryRss());
+        }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {
@@ -312,7 +321,7 @@ public class PyTorchResultProcessor {
         }
     }
 
-    public void stop() {
+    public void signalIntentToStop() {
         isStopping = true;
     }
 

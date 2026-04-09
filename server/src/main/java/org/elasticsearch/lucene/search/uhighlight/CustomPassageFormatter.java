@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -62,18 +63,16 @@ public class CustomPassageFormatter extends PassageFormatter {
             }
             // its possible a "term" from the analyzer could span a sentence boundary.
             append(sb, content, pos, Math.max(pos, passage.getEndOffset()));
-            // we remove the paragraph separator if present at the end of the snippet (we used it as separator between values)
-            if (sb.charAt(sb.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
-                sb.deleteCharAt(sb.length() - 1);
-            } else if (sb.charAt(sb.length() - 1) == HighlightUtils.NULL_SEPARATOR) {
-                sb.deleteCharAt(sb.length() - 1);
+            // Replace the null separator (used to join multi-value fields) with a space,
+            // and remove the paragraph separator if present at the end of the snippet.
+            String snippetText = sb.toString().replace(HighlightUtils.NULL_SEPARATOR, ' ');
+            if (snippetText.charAt(snippetText.length() - 1) == HighlightUtils.PARAGRAPH_SEPARATOR) {
+                snippetText = snippetText.substring(0, snippetText.length() - 1);
             }
-            // and we trim the snippets too, if the number of fragments > 0
-            if (numberOfFragments == 0) {
-                snippets[j] = new Snippet(sb.toString(), passage.getScore(), passage.getNumMatches() > 0);
-            } else {
-                snippets[j] = new Snippet(sb.toString().trim(), passage.getScore(), passage.getNumMatches() > 0);
+            if (numberOfFragments > 0) {
+                snippetText = snippetText.trim();
             }
+            snippets[j] = new Snippet(snippetText, passage.getScore(), passage.getNumMatches() > 0);
         }
         return snippets;
     }

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -27,6 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -51,7 +53,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -64,8 +65,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -85,14 +84,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
@@ -134,19 +131,21 @@ public class NativeRolesStoreTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    private NativeRolesStore createRoleStoreForTest() {
-        return createRoleStoreForTest(Settings.builder().build());
+    private NativeRolesStore createRoleStoreForTest(ProjectId projectId) {
+        return createRoleStoreForTest(projectId, Settings.builder().build());
     }
 
-    private NativeRolesStore createRoleStoreForTest(Settings settings) {
+    private NativeRolesStore createRoleStoreForTest(ProjectId projectId, Settings settings) {
         new ReservedRolesStore(Set.of("superuser"));
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
-        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
+        securityIndex.clusterChanged(
+            new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState())
+        );
 
         return new NativeRolesStore(
             settings,
@@ -154,7 +153,6 @@ public class NativeRolesStoreTests extends ESTestCase {
             TestUtils.newTestLicenseState(),
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             new ReservedRoleNameChecker.Default(),
             mock(NamedXContentRegistry.class)
         );
@@ -394,13 +392,14 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
+        final ProjectId projectId = randomProjectIdOrDefault();
         final Client client = mock(Client.class);
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final FeatureService featureService = mock(FeatureService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Init for validation
         new ReservedRolesStore(Set.of("superuser"));
@@ -410,14 +409,13 @@ public class NativeRolesStoreTests extends ESTestCase {
             licenseState,
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             mock(ReservedRoleNameChecker.class),
             mock(NamedXContentRegistry.class)
         );
 
         // setup the roles store so the security index exists
         securityIndex.clusterChanged(
-            new ClusterChangedEvent("fls_dls_license", getClusterStateWithSecurityIndex(), getEmptyClusterState())
+            new ClusterChangedEvent("fls_dls_license", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState())
         );
 
         RoleDescriptor flsRole = new RoleDescriptor(
@@ -464,104 +462,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field and document level security"));
     }
 
-    public void testPutRoleWithRemotePrivsUnsupportedMinNodeVersion() throws IOException {
-        // Init for validation
-        new ReservedRolesStore(Set.of("superuser"));
-        enum TEST_MODE {
-            REMOTE_INDICES_PRIVS,
-            REMOTE_CLUSTER_PRIVS,
-            REMOTE_INDICES_AND_CLUSTER_PRIVS
-        }
-        for (TEST_MODE testMode : TEST_MODE.values()) {
-            // default to both remote indices and cluster privileges and use the switch below to remove one or the other
-            TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-                TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-            );
-            RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() };
-            RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
-                new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                    new String[] { "remote" }
-                )
-            );
-            switch (testMode) {
-                case REMOTE_CLUSTER_PRIVS -> {
-                    transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-                        TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
-                    );
-                    remoteIndicesPrivileges = null;
-                }
-                case REMOTE_INDICES_PRIVS -> remoteClusterPermissions = null;
-            }
-            final Client client = mock(Client.class);
-
-            final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
-                transportVersionBeforeAdvancedRemoteClusterSecurity
-            );
-            final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
-
-            final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-            final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-            final FeatureService featureService = mock(FeatureService.class);
-            systemIndices.init(client, featureService, clusterService);
-            final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
-
-            final NativeRolesStore rolesStore = new NativeRolesStore(
-                Settings.EMPTY,
-                client,
-                licenseState,
-                securityIndex,
-                clusterService,
-                mock(FeatureService.class),
-                mock(ReservedRoleNameChecker.class),
-                mock(NamedXContentRegistry.class)
-            );
-            // setup the roles store so the security index exists
-            securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
-
-            RoleDescriptor remoteIndicesRole = new RoleDescriptor(
-                "remote",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                remoteIndicesPrivileges,
-                remoteClusterPermissions,
-                null,
-                null
-            );
-            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-            putRole(rolesStore, remoteIndicesRole, future);
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                String.format(Locale.ROOT, "expected IllegalStateException, but not thrown for mode [%s]", testMode),
-                future::actionGet
-            );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "all nodes must have version ["
-                        + (TEST_MODE.REMOTE_CLUSTER_PRIVS.equals(testMode)
-                            ? TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
-                            : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion())
-                        + "] or higher to support remote "
-                        + (remoteIndicesPrivileges != null ? "indices" : "cluster")
-                        + " privileges"
-                )
-            );
-        }
-    }
-
     public void testGetRoleWhenDisabled() throws Exception {
         final Settings settings = Settings.builder().put(NativeRolesStore.NATIVE_ROLES_ENABLED, "false").build();
-        NativeRolesStore store = createRoleStoreForTest(settings);
+        NativeRolesStore store = createRoleStoreForTest(randomProjectIdOrDefault(), settings);
 
         final PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
         store.getRoleDescriptors(Set.of(randomAlphaOfLengthBetween(4, 12)), future);
@@ -573,7 +476,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testReservedRole() {
-        final NativeRolesStore store = createRoleStoreForTest();
+        final NativeRolesStore store = createRoleStoreForTest(randomProjectIdOrDefault());
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
 
         RoleDescriptor roleDescriptor = new RoleDescriptor(
@@ -609,7 +512,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     private void testValidRole(String roleName) throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         RoleDescriptor roleDescriptor = new RoleDescriptor(
             roleName,
@@ -648,7 +551,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testCreationOfRoleWithMalformedQueryJsonFails() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         String[] malformedQueryJson = new String[] {
             "{ \"match_all\": { \"unknown_field\": \"\" } }",
@@ -699,7 +602,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testCreationOfRoleWithUnsupportedQueryFails() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         String hasChildQuery = "{ \"has_child\": { \"type\": \"child\", \"query\": { \"match_all\": {} } } }";
         String hasParentQuery = "{ \"has_parent\": { \"parent_type\": \"parent\", \"query\": { \"match_all\": {} } } }";
@@ -746,7 +649,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testManyValidRoles() throws IOException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
         List<String> roleNames = List.of("test", "admin", "123");
 
         List<RoleDescriptor> roleDescriptors = roleNames.stream()
@@ -777,7 +680,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testBulkDeleteRoles() {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -791,7 +694,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     }
 
     public void testBulkDeleteReservedRole() {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
 
         AtomicReference<BulkRolesResponse> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -814,7 +717,7 @@ public class NativeRolesStoreTests extends ESTestCase {
      * call to the roles API
      */
     public void testAllTopFieldsHaveEmptyDefaultsForUpsert() throws IOException, IllegalAccessException {
-        final NativeRolesStore rolesStore = createRoleStoreForTest();
+        final NativeRolesStore rolesStore = createRoleStoreForTest(randomProjectIdOrDefault());
         RoleDescriptor allNullDescriptor = new RoleDescriptor(
             "all-null-descriptor",
             null,
@@ -872,7 +775,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         return clusterService;
     }
 
-    private ClusterState getClusterStateWithSecurityIndex() {
+    private ClusterState getClusterStateWithSecurityIndex(ProjectId projectId) {
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
@@ -882,15 +785,16 @@ public class NativeRolesStoreTests extends ESTestCase {
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("_meta", Map.of(VERSION_META_KEY, 1)));
         when(mappingMetadata.getSha256()).thenReturn("test");
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
+            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder).build(), true)
             .build();
 
         if (withAlias) {
-            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
+            projectMetadata = SecurityTestUtils.addAliasToMetadata(projectMetadata, securityIndexName);
         }
 
-        Index index = metadata.index(securityIndexName).getIndex();
+        Index index = projectMetadata.index(securityIndexName).getIndex();
+        Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
@@ -915,7 +819,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .putRoutingTable(projectMetadata.id(), routingTable)
             .putCompatibilityVersions(
                 "test",
                 new CompatibilityVersions(

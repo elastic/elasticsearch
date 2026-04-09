@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -30,10 +30,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.Custom} implementation that
+ * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.ProjectCustom} implementation that
  * stores a map of ids to {@link ComposableIndexTemplate} templates.
  */
-public class ComposableIndexTemplateMetadata implements Metadata.Custom {
+public class ComposableIndexTemplateMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
@@ -78,11 +78,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ComposableIndexTemplateMetadataDiff((ComposableIndexTemplateMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ComposableIndexTemplateMetadataDiff(in);
     }
 
@@ -93,7 +93,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -103,7 +103,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
+        return ChunkedToXContentHelper.xContentObjectFields(INDEX_TEMPLATE.getPreferredName(), indexTemplates);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
@@ -150,7 +150,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ComposableIndexTemplateMetadata(indexTemplateDiff.apply(((ComposableIndexTemplateMetadata) part).indexTemplates));
         }
 
@@ -166,7 +166,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersion.zero();
         }
     }
 }

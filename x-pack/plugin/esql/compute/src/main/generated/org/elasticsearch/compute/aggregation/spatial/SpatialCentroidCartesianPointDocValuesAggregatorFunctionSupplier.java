@@ -9,29 +9,42 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
+  private final CoordinateEncoder encoder;
 
-  public SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(
+      CoordinateEncoder encoder) {
+    this.encoder = encoder;
+  }
+
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialCentroidCartesianPointDocValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public SpatialCentroidCartesianPointDocValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
-    return SpatialCentroidCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, encoder);
   }
 
   @Override
   public SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(channels, driverContext, encoder);
   }
 
   @Override

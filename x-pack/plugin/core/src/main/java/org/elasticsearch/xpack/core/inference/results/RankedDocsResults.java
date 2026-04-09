@@ -10,29 +10,28 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT;
-import static org.elasticsearch.TransportVersions.ML_RERANK_DOC_OPTIONAL;
-
 public class RankedDocsResults implements InferenceServiceResults {
     public static final String NAME = "rerank_service_results";
-    public static final String RERANK = TaskType.RERANK.toString();
+    public static final String RERANK = "rerank";
 
     List<RankedDoc> rankedDocs;
 
@@ -111,34 +110,22 @@ public class RankedDocsResults implements InferenceServiceResults {
         }
 
         public static RankedDoc of(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(ML_RERANK_DOC_OPTIONAL)) {
-                return new RankedDoc(in.readInt(), in.readFloat(), in.readOptionalString());
-            } else if (in.getTransportVersion().onOrAfter(ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT)) {
-                return new RankedDoc(in.readInt(), in.readFloat(), in.readString());
-            } else {
-                return new RankedDoc(Integer.parseInt(in.readString()), Float.parseFloat(in.readString()), in.readString());
-            }
+            return new RankedDoc(in.readInt(), in.readFloat(), in.readOptionalString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(ML_RERANK_DOC_OPTIONAL)) {
-                out.writeInt(index);
-                out.writeFloat(relevanceScore);
-                out.writeOptionalString(text);
-            } else if (out.getTransportVersion().onOrAfter(ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT)) {
-                out.writeInt(index);
-                out.writeFloat(relevanceScore);
-                out.writeString(text == null ? "" : text);
-            } else {
-                out.writeString(Integer.toString(index));
-                out.writeString(Float.toString(relevanceScore));
-                out.writeString(text == null ? "" : text);
-            }
+            out.writeInt(index);
+            out.writeFloat(relevanceScore);
+            out.writeOptionalString(text);
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            if (text != null) {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            } else {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore));
+            }
         }
 
         @Override
@@ -172,13 +159,8 @@ public class RankedDocsResults implements InferenceServiceResults {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(RERANK);
-        for (RankedDoc rankedDoc : rankedDocs) {
-            rankedDoc.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.array(RERANK, rankedDocs.iterator());
     }
 
     @Override
@@ -194,11 +176,6 @@ public class RankedDocsResults implements InferenceServiceResults {
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         throw new UnsupportedOperationException("Coordination format not supported by " + NAME);
-    }
-
-    @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("Legacy format not supported by " + NAME);
     }
 
     @Override

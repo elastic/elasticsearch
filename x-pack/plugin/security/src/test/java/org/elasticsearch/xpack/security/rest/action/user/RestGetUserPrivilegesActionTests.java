@@ -55,7 +55,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             licenseState
         );
         final FakeRestRequest request = new FakeRestRequest();
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);
             action.handleRequest(request, channel, nodeClient);
@@ -213,7 +213,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             ,"remote_cluster":[
                     {
                        "privileges":[
-                          "monitor_enrich"
+                          "monitor_enrich", "monitor_stats"
                        ],
                        "clusters":[
                           "remote-1"
@@ -221,7 +221,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                     },
                     {
                        "privileges":[
-                          "monitor_enrich"
+                          "monitor_enrich", "monitor_stats"
                        ],
                        "clusters":[
                           "remote-2",

@@ -505,6 +505,15 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
             {"time":4400,"my_value":4.0,"doc_count":7}"""));
     }
 
+    public void testProcessGivenEmptyPercentiles() throws IOException {
+        var histogramBuckets = List.of(createHistogramBucket(1000L, 4, List.of(createMax("time", 1000), createPercentiles("my_field"))));
+
+        var json = aggToString(Sets.newHashSet("my_field"), histogramBuckets);
+
+        assertThat(json, equalTo("""
+            {"time":1000,"doc_count":4}"""));
+    }
+
     public void testProcessGivenSinglePercentilesPerHistogram() throws IOException {
         List<InternalHistogram.Bucket> histogramBuckets = Arrays.asList(
             createHistogramBucket(1000L, 4, Arrays.asList(createMax("time", 1000), createPercentiles("my_field", 1.0))),
@@ -692,7 +701,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         processor.process(aggregations);
         processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
-        return outputStream.toString(StandardCharsets.UTF_8.name());
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 
     private String aggToStringComposite(Set<String> fields, List<InternalComposite.InternalBucket> buckets) throws IOException {

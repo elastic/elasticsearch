@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -84,7 +85,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+        when(transportService.newNetworkBytesStream(any())).then(
+            invocation -> new RecyclerBytesStreamOutput(recycler, invocation.getArgument(0))
+        );
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
@@ -144,7 +147,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             StreamInput in = null;
             try {
                 in = request.bytes().streamInput();
-                final Compressor compressor = CompressorFactory.compressor(request.bytes());
+                final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
                 if (compressor != null) {
                     in = compressor.threadLocalStreamInput(in);
                 }
@@ -206,8 +209,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 }
 
                 @Override
-                public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                    return new RecyclerBytesStreamOutput(recycler);
+                public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+                    return new RecyclerBytesStreamOutput(recycler, circuitBreaker);
                 }
             };
 
@@ -227,16 +230,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             while (allNodes.size() < 10) {
                 var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
                     .version(
-                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                        VersionUtils.randomCompatibleVersion(Version.CURRENT),
                         IndexVersions.MINIMUM_COMPATIBLE,
-                        IndexVersionUtils.randomCompatibleVersion(random())
+                        IndexVersionUtils.randomCompatibleVersion()
                     )
                     .build();
                 allNodes.add(node);
-                nodeTransports.put(
-                    node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
-                );
+                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion());
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -362,9 +362,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var localNode = DiscoveryNodeUtils.create("localNode");
         final var otherNode = DiscoveryNodeUtils.builder("otherNode")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         for (final var discoveryNode : List.of(localNode, otherNode)) {

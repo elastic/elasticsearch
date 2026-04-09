@@ -38,9 +38,4 @@ public abstract class AbstractBinarySpatialFunctionSerializationTestCase<T exten
         }
         return build(source, left, right);
     }
-
-    @Override
-    protected final boolean alwaysEmptySource() {
-        return true;
-    }
 }

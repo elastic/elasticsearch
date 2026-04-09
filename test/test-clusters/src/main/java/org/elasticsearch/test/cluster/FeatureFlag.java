@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster;
@@ -16,12 +17,19 @@ import org.elasticsearch.test.cluster.util.Version;
  */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
-    FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null),
-    INFERENCE_ADAPTIVE_ALLOCATIONS_ENABLED(
-        "es.inference_adaptive_allocations_feature_flag_enabled=true",
-        Version.fromString("8.16.0"),
+    LOGS_STREAM("es.logs_stream_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
+    SYNTHETIC_VECTORS("es.mapping_synthetic_vectors=true", Version.fromString("9.2.0"), null),
+    INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG(
+        "es.index_dimensions_tsid_optimization_feature_flag_enabled=true",
+        Version.fromString("9.2.0"),
         null
-    );
+    ),
+
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    ESQL_EXTERNAL_DATASOURCES("es.esql_external_datasources_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    EXTENDED_DOC_VALUES_PARAMS("es.extended_doc_values_options_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    IGNORED_SOURCE_AS_DOC_VALUES_FF("es.ignored_source_as_doc_values_feature_flag_enabled=true", Version.fromString("9.4.0"), null);
 
     public final String systemProperty;
     public final Version from;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -38,6 +39,9 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         if (randomBoolean()) {
             original.setMaxDocs(between(0, Integer.MAX_VALUE));
         }
+        if (randomBoolean()) {
+            original.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
+        }
 
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
@@ -68,6 +72,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
             forSliced.getMaxDocs()
         );
         assertEquals(slicingTask, forSliced.getParentTask());
+        assertArrayEquals(
+            "sourceIndicesForDescription should be copied to slice",
+            original.getSourceIndicesForDescription(),
+            forSliced.getSourceIndicesForDescription()
+        );
 
         extraForSliceAssertions(original, forSliced);
     }

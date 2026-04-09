@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -82,7 +85,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             baseSettings,
             Collections.singletonMap(engine.getType(), engine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
@@ -151,7 +155,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext).build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
+            sortFieldAssertions(sortBuilder, sortField.field(), sortField.format());
         }
     }
 
@@ -180,14 +184,22 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext() {
-        return createMockSearchExecutionContext(null);
+        return createMockSearchExecutionContext(null, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexVersion indexVersion) {
+        return createMockSearchExecutionContext(null, indexVersion);
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
+        return createMockSearchExecutionContext(searcher, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher, IndexVersion indexVersion) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
@@ -196,7 +208,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
         NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }).build(MapperBuilderContext.root(false, false))));
+        }, null).build(MapperBuilderContext.root(false, false))));
         return new SearchExecutionContext(
             0,
             0,
@@ -217,7 +229,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
 
             @Override

@@ -1,5 +1,0 @@
-pr: 109167
-summary: Fixes cluster state-based role mappings not recovered from disk
-area: Authorization
-type: bug
-issues: []

@@ -8,11 +8,11 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
@@ -61,18 +62,35 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHash bytesRefHash;
+    final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
-    private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+        this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
+    }
+
+    /*
+     * This constructor is also used by {@code PackedValuesBlockHashCircuitBreakerTests} to provide different circuit breakers
+     *  to bytesRefHash and bytes. Production code should use the primary constructor above and provide same breaker for both.
+     */
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, CircuitBreaker circuitBreaker, int emitBatchSize) {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
         this.nullTrackingBytes = (specs.size() + 7) / 8;
-        bytes.grow(nullTrackingBytes);
+        boolean success = false;
+        try {
+            this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
+            this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
+            success = true;
+        } finally {
+            // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -117,7 +135,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    class AddWork extends AbstractAddBlock {
+    class AddWork extends AddPage {
         final Group[] groups;
         final int positionCount;
         int position;
@@ -142,28 +160,22 @@ final class PackedValuesBlockHash extends BlockHash {
                     addMultipleEntries();
                 }
             }
-            emitOrds();
+            flushRemaining();
         }
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-            addedValue(position);
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addMultipleEntries() {
-            ords.beginPositionEntry();
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-
-                // emit ords
-                ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-                addedValueInMultivaluePosition(position);
-
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
-            ords.endPositionEntry();
+            finishMv();
             for (Group group : groups) {
                 group.valueOffset += group.valueCount;
             }
@@ -222,7 +234,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups);
-            long found = bytesRefHash.find(bytes.get());
+            long found = bytesRefHash.find(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -239,7 +251,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 fillBytesMv(groups, g);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.get());
+                long found = bytesRefHash.find(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -253,7 +265,7 @@ final class PackedValuesBlockHash extends BlockHash {
                         ords.appendInt(Math.toIntExact(found));
                         count++;
                         if (count > Block.MAX_LOOKUP) {
-                            // TODO replace this with a warning and break
+                            // TODO replace this with a warning and break and remove the accepted error from GenerativeRestTest
                             throw new IllegalArgumentException("Found a single entry with " + count + " entries");
                         }
                     }
@@ -351,27 +363,29 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        int size = Math.toIntExact(bytesRefHash.size());
+    public Block[] getKeys(IntVector selected) {
+        int positions = selected.getPositionCount();
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
         try {
             for (int g = 0; g < builders.length; g++) {
                 ElementType elementType = specs.get(g).elementType();
                 decoders[g] = BatchEncoder.decoder(elementType);
-                builders[g] = elementType.newBlockBuilder(size, blockFactory);
+                builders[g] = elementType.newBlockBuilder(positions, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
-            BytesRef[] nulls = new BytesRef[values.length];
-            for (int offset = 0; offset < values.length; offset++) {
-                values[offset] = new BytesRef();
-                nulls[offset] = new BytesRef();
-                nulls[offset].length = nullTrackingBytes;
+            int batchSize = Math.min(100, positions);
+            BytesRef[] values = new BytesRef[batchSize];
+            BytesRef[] nulls = new BytesRef[batchSize];
+            for (int b = 0; b < batchSize; b++) {
+                values[b] = new BytesRef();
+                nulls[b] = new BytesRef();
+                nulls[b].length = nullTrackingBytes;
             }
             int offset = 0;
-            for (int i = 0; i < bytesRefHash.size(); i++) {
-                values[offset] = bytesRefHash.get(i, values[offset]);
+            for (int i = 0; i < positions; i++) {
+                int groupId = selected.getInt(i);
+                values[offset] = bytesRefHash.get(groupId, values[offset]);
 
                 // Reference the null bytes in the nulls array and values in the values
                 nulls[offset].bytes = values[offset].bytes;
@@ -380,7 +394,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 values[offset].length -= nullTrackingBytes;
 
                 offset++;
-                if (offset == values.length) {
+                if (offset == batchSize) {
                     readKeys(decoders, builders, nulls, values, offset);
                     offset = 0;
                 }
@@ -409,7 +423,12 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(bytesRefHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(bytesRefHash.size());
     }
 
     @Override
@@ -419,7 +438,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        bytesRefHash.close();
+        Releasables.close(bytesRefHash, bytes);
     }
 
     @Override

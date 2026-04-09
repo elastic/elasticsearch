@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -46,6 +47,7 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
     @Override
     public ClientYamlTestResponse callApi(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
@@ -56,9 +58,9 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         if ("raw".equals(apiName)) {
             // Raw requests don't use the rest spec at all and are configured entirely by their parameters
             Map<String, String> queryStringParams = new HashMap<>(params);
-            String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
-            String path = "/" + Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
-            Request request = new Request(method, path);
+            String rawMethod = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
+            String rawPath = "/" + Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
+            Request request = new Request(rawMethod, rawPath);
             // All other parameters are url parameters
             for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
                 request.addParameter(param.getKey(), param.getValue());
@@ -72,6 +74,6 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+        return super.callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
     }
 }

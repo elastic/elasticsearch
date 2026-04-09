@@ -1,0 +1,10 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Fallback to ILM policy for metrics-apm.service_summary.10m if data stream lifecycle not defined
+  managed: true
+template:
+  settings:
+    index:
+      lifecycle:
+        name: metrics-apm.service_summary_10m_metrics-default_policy

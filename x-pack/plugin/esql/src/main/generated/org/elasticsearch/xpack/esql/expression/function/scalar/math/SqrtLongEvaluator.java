@@ -8,33 +8,37 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sqrt}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link Sqrt}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class SqrtLongEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SqrtLongEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final Source source;
+
+  private final ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
-  public SqrtLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
+  private Warnings warnings;
+
+  public SqrtLongEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -48,24 +52,32 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Sqrt.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Sqrt.process(val));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -76,10 +88,11 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, LongVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long val = valVector.getLong(p);
         try {
-          result.appendDouble(Sqrt.process(valVector.getLong(p)));
+          result.appendDouble(Sqrt.process(val));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -97,12 +110,19 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
     Releasables.closeExpectNoException(val);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    public Factory(Source source, ExpressionEvaluator.Factory val) {
       this.source = source;
       this.val = val;
     }

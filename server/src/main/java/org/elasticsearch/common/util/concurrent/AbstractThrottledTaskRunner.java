@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -44,6 +45,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.tasks = taskQueue;
+    }
+
+    public String getTaskRunnerName() {
+        return taskRunnerName;
     }
 
     /**
@@ -91,8 +96,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 if (tasks.peek() == null) break;
             } else {
                 final boolean isForceExecution = isForceExecution(task);
-                executor.execute(new AbstractRunnable() {
+                var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
+                    volatile boolean callerLoopProceeded;
 
                     private final Releasable releasable = Releasables.releaseOnce(() -> {
                         // To avoid missing to run tasks that are enqueued and waiting, we check the queue again once running
@@ -100,7 +106,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         int decremented = runningTasks.decrementAndGet();
                         assert decremented >= 0;
 
-                        if (rejected == false) {
+                        if (rejected == false && callerLoopProceeded) {
                             pollAndSpawn();
                         }
                     });
@@ -139,7 +145,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     public String toString() {
                         return task.toString();
                     }
-                });
+                };
+                executor.execute(runnable);
+                runnable.callerLoopProceeded = true;
             }
         }
     }
@@ -154,6 +162,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     // exposed for testing
     int runningTasks() {
         return runningTasks.get();
+    }
+
+    // exposed for testing
+    int queuedTasks() {
+        return tasks.size();
     }
 
     /**

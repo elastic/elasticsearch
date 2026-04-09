@@ -99,8 +99,16 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
-        this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        this.keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
 
+        validateKeytab(this.keytabPath);
+
+        this.enableKerberosDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
+        this.removeRealmName = config.getSetting(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME);
+        this.delegatedRealms = null;
+    }
+
+    private static void validateKeytab(Path keytabPath) {
         if (Files.exists(keytabPath) == false) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
         }
@@ -110,10 +118,6 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         if (Files.isReadable(keytabPath) == false) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
         }
-
-        this.enableKerberosDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
-        this.removeRealmName = config.getSetting(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME);
-        this.delegatedRealms = null;
     }
 
     @Override

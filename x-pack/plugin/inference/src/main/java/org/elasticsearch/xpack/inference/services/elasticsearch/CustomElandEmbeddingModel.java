@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-
-import java.util.Map;
 
 public class CustomElandEmbeddingModel extends CustomElandModel {
 
@@ -19,22 +17,14 @@ public class CustomElandEmbeddingModel extends CustomElandModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        Map<String, Object> serviceSettings,
-        ConfigurationParseContext context
+        CustomElandInternalTextEmbeddingServiceSettings serviceSettings,
+        ChunkingSettings chunkingSettings
     ) {
-        this(inferenceEntityId, taskType, service, CustomElandInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context));
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings));
     }
 
-    public CustomElandEmbeddingModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        CustomElandInternalTextEmbeddingServiceSettings serviceSettings
-    ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
-            serviceSettings.getElasticsearchInternalServiceSettings()
-        );
+    public CustomElandEmbeddingModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
     }
 
     @Override

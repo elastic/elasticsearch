@@ -1,5 +1,23 @@
 #!/bin/bash
 
-CLI_NAME=server
-CLI_LIBS=lib/tools/server-cli
-source "`dirname "$0"`"/elasticsearch-cli
+source "`dirname "$0"`"/elasticsearch-env
+
+# use a small heap size for the CLI tools, and thus the serial collector to
+# avoid stealing many CPU cycles; a user can override by setting CLI_JAVA_OPTS
+CLI_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${CLI_JAVA_OPTS}"
+
+export JAVA ES_HOME ES_PATH_CONF ES_DISTRIBUTION_TYPE JAVA_TYPE CLI_JAVA_OPTS
+
+NATIVE_LAUNCHER="$ES_HOME/lib/tools/server-launcher/server-launcher"
+LAUNCHER_LIBS=$ES_HOME/lib/tools/server-launcher/*
+
+if [ -x "$NATIVE_LAUNCHER" ]; then
+  exec "$NATIVE_LAUNCHER" "$@"
+else
+  exec \
+    "$JAVA" \
+    $CLI_JAVA_OPTS \
+    -cp "$LAUNCHER_LIBS" \
+    org.elasticsearch.server.launcher.ServerLauncher \
+    "$@"
+fi

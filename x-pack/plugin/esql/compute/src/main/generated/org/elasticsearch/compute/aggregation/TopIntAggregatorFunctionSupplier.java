@@ -12,29 +12,37 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link TopIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class TopIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int limit;
 
   private final boolean ascending;
 
-  public TopIntAggregatorFunctionSupplier(List<Integer> channels, int limit, boolean ascending) {
-    this.channels = channels;
+  public TopIntAggregatorFunctionSupplier(int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopIntAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public TopIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return TopIntGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public TopIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    return new TopIntAggregatorFunction(driverContext, channels, limit, ascending);
+  }
+
+  @Override
+  public TopIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new TopIntGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

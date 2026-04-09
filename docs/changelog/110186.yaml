@@ -1,6 +1,0 @@
-pr: 110186
-summary: Don't sample calls to `ReduceContext#consumeBucketsAndMaybeBreak` ins `InternalDateHistogram`
-  and `InternalHistogram` during reduction
-area: Aggregations
-type: bug
-issues: []

@@ -1,24 +1,25 @@
 {
-  "license.get_basic_status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-basic-status.html",
-      "description":"Retrieves information about the status of the basic license."
+  "license.get_basic_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-get-basic-status",
+      "description": "Get the basic license status"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_license/basic_status",
-          "methods":[
+          "path": "/_license/basic_status",
+          "methods": [
             "GET"
           ]
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

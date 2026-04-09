@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
@@ -68,6 +70,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         this(client, null, null);
     }
 
+    @SuppressWarnings("this-escape")
     public UpdateRequestBuilder(ElasticsearchClient client, String index, String id) {
         super(client, TransportUpdateAction.TYPE);
         setIndex(index);
@@ -291,7 +294,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * is a field and value pairs.
      */
     public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
-        return setDoc(IndexRequest.getXContentBuilder(xContentType, source));
+        return setDoc(IndexSource.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -370,7 +373,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * includes field and value pairs.
      */
     public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
-        return setUpsert(IndexRequest.getXContentBuilder(xContentType, source));
+        return setUpsert(IndexSource.getXContentBuilder(xContentType, source));
     }
 
     /**

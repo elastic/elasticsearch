@@ -31,7 +31,10 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.FST;
 import java.io.IOException;
 import java.util.Arrays;
 
-// TODO: can we share this with the frame in STE?
+/**
+ * This is a copy of the class with same name shipped with Lucene, which is though package protected hence not accessible.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
+ */
 final class IntersectTermsEnumFrame {
     final int ord;
     long fp;

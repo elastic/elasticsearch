@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
@@ -15,6 +16,11 @@ public abstract class LeafPlan extends LogicalPlan {
 
     protected LeafPlan(Source source) {
         super(source, Collections.emptyList());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return AttributeSet.EMPTY;
     }
 
     @Override

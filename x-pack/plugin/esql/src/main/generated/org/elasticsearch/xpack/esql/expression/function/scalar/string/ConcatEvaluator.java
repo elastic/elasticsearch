@@ -10,37 +10,42 @@ import java.lang.String;
 import java.util.Arrays;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link Concat}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class ConcatEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConcatEvaluator.class);
+
+  private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator[] values;
+  private final ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public ConcatEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext) {
+      ExpressionEvaluator[] values, DriverContext driverContext) {
+    this.source = source;
     this.scratch = scratch;
     this.values = values;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -61,6 +66,15 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    for (ExpressionEvaluator e : values) {
+      baseRamBytesUsed += e.baseRamBytesUsed();
+    }
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
@@ -70,16 +84,16 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       }
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
-          if (valuesBlocks[i].isNull(p)) {
-            result.appendNull();
-            continue position;
-          }
-          if (valuesBlocks[i].getValueCount(p) != 1) {
-            if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-            }
-            result.appendNull();
-            continue position;
+          switch (valuesBlocks[i].getValueCount(p)) {
+            case 0:
+                result.appendNull();
+                continue position;
+            case 1:
+                break;
+            default:
+                warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                result.appendNull();
+                continue position;
           }
         }
         // unpack valuesBlocks into valuesValues
@@ -87,7 +101,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }
@@ -105,7 +119,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(scratch, valuesValues));
+        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
       }
       return result.build();
     }
@@ -121,15 +135,22 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+    private final ExpressionEvaluator.Factory[] values;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory[] values) {
+        ExpressionEvaluator.Factory[] values) {
       this.source = source;
       this.scratch = scratch;
       this.values = values;
@@ -137,7 +158,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public ConcatEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
       return new ConcatEvaluator(source, scratch.apply(context), values, context);
     }
 

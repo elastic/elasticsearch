@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,14 +50,13 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         new Watcher(settings);  // makes sure WatcherMetadata is registered in Custom Metadata
         boolean manuallyStopped = randomBoolean();
         WatcherMetadata watcherMetadata = new WatcherMetadata(manuallyStopped);
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
-        RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(Collections.singletonList(repositoryMetadata));
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(Map.of());
         final Metadata.Builder metadataBuilder = Metadata.builder();
         if (randomBoolean()) { // random order of insertion
             metadataBuilder.putCustom(watcherMetadata.getWriteableName(), watcherMetadata);
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
         } else {
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
             metadataBuilder.putCustom(watcherMetadata.getWriteableName(), watcherMetadata);
         }
         // serialize metadata
@@ -68,9 +69,11 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
+        @FixForMultiProject(description = "watcher is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         // check that custom metadata still present
-        assertThat(metadata.custom(watcherMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.getProject(projectId).custom(watcherMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.custom(nodesShutdownMetadata.getWriteableName()), notNullValue());
     }
 
     private static WatcherMetadata getWatcherMetadataFromXContent(XContentParser parser) throws Exception {

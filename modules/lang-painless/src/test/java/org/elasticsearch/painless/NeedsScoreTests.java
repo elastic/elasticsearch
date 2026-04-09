@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -31,13 +32,13 @@ import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 public class NeedsScoreTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+        IndexService index = createIndex("test", Settings.EMPTY, "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
         NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());

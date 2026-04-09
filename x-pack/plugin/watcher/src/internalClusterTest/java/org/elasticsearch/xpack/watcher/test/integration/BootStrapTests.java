@@ -296,8 +296,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             AtomicLong successfulWatchExecutions = new AtomicLong();
             refresh();
             assertResponse(prepareSearch("output"), searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
-                successfulWatchExecutions.set(searchResponse.getHits().getTotalHits().value);
+                assertThat(searchResponse.getHits().getTotalHits().value(), is(greaterThanOrEqualTo(numberOfWatches)));
+                successfulWatchExecutions.set(searchResponse.getHits().getTotalHits().value());
             });
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
@@ -378,7 +378,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // the actual documents are in the output index
             refresh();
             assertResponse(prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords), searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
+                assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo((long) numRecords));
                 for (int i = 0; i < numRecords; i++) {
                     assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"), is(ExecutionState.EXECUTED.id()));
                 }

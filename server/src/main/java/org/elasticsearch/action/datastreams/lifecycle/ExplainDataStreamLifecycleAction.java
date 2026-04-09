@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -49,12 +51,12 @@ public class ExplainDataStreamLifecycleAction {
         private boolean includeDefaults;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-        public Request(String[] names) {
-            this(names, false);
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            this(masterNodeTimeout, names, false);
         }
 
-        public Request(String[] names, boolean includeDefaults) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
@@ -141,29 +143,43 @@ public class ExplainDataStreamLifecycleAction {
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");
+        private static final TransportVersion INTRODUCE_FAILURES_DEFAULT_RETENTION = TransportVersion.fromName(
+            "" + "introduce_failures_default_retention"
+        );
+
         private final List<ExplainIndexDataStreamLifecycle> indices;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable
-        private final DataStreamGlobalRetention globalRetention;
+        private final DataStreamGlobalRetention dataGlobalRetention;
+        @Nullable
+        private final DataStreamGlobalRetention failureGlobalRetention;
 
         public Response(
             List<ExplainIndexDataStreamLifecycle> indices,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention dataGlobalRetention,
+            @Nullable DataStreamGlobalRetention failureGlobalRetention
         ) {
             this.indices = indices;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
+            this.dataGlobalRetention = dataGlobalRetention;
+            this.failureGlobalRetention = failureGlobalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
-                ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                : null;
+            if (in.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
+                var defaultRetention = in.readOptionalTimeValue();
+                var maxRetention = in.readOptionalTimeValue();
+                var defaultFailuresRetention = in.readOptionalTimeValue();
+                dataGlobalRetention = DataStreamGlobalRetention.create(defaultRetention, maxRetention);
+                failureGlobalRetention = DataStreamGlobalRetention.create(defaultFailuresRetention, maxRetention);
+            } else {
+                dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+                failureGlobalRetention = dataGlobalRetention;
+            }
         }
 
         public List<ExplainIndexDataStreamLifecycle> getIndices() {
@@ -174,16 +190,31 @@ public class ExplainDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+        public DataStreamGlobalRetention getDataGlobalRetention() {
+            return dataGlobalRetention;
+        }
+
+        public DataStreamGlobalRetention getFailuresGlobalRetention() {
+            return failureGlobalRetention;
+        }
+
+        private DataStreamGlobalRetention getGlobalRetentionForLifecycle(DataStreamLifecycle lifecycle) {
+            if (lifecycle == null) {
+                return null;
+            }
+            return lifecycle.targetsFailureStore() ? failureGlobalRetention : dataGlobalRetention;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
-                out.writeOptionalWriteable(globalRetention);
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION)) {
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
+                out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
+            } else {
+                out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }
 
@@ -198,12 +229,13 @@ public class ExplainDataStreamLifecycleAction {
             Response response = (Response) o;
             return Objects.equals(indices, response.indices)
                 && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
-                && Objects.equals(globalRetention, response.globalRetention);
+                && Objects.equals(dataGlobalRetention, response.dataGlobalRetention)
+                && Objects.equals(failureGlobalRetention, response.failureGlobalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, rolloverConfiguration, globalRetention);
+            return Objects.hash(indices, rolloverConfiguration, dataGlobalRetention, failureGlobalRetention);
         }
 
         @Override
@@ -216,9 +248,9 @@ public class ExplainDataStreamLifecycleAction {
                 builder.field(explainIndexDataLifecycle.getIndex());
                 explainIndexDataLifecycle.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(outerParams),
+                    DataStreamLifecycle.addEffectiveRetentionParams(outerParams),
                     rolloverConfiguration,
-                    globalRetention
+                    getGlobalRetentionForLifecycle(explainIndexDataLifecycle.getLifecycle())
                 );
                 return builder;
             }), Iterators.single((builder, params) -> {

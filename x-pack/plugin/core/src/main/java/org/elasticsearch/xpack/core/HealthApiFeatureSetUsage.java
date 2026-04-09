@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
@@ -64,14 +63,14 @@ import java.util.stream.Collectors;
  *     }
  *   }
  * }
-
+ *
  * Note: If the minimum version of the cluster is not after 8.7.0 then the response will look like this:
  * {
  *   "available": false,
  *   "enabled": true
  * }
  */
-public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
+public class HealthApiFeatureSetUsage extends XPackFeatureUsage {
 
     private final Map<String, Object> usageStats;
 
@@ -122,7 +121,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public Map<String, Object> stats() {

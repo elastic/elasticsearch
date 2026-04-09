@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
@@ -25,8 +27,16 @@ public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
-    public CaseInsensitiveWildcardQuery(Term term, int determinizeWorkLimit, boolean isBinary, RewriteMethod rewriteMethod) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term), determinizeWorkLimit, isBinary, rewriteMethod);
+    public CaseInsensitiveWildcardQuery(Term term, CircuitBreaker circuitBreaker) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker));
+    }
+
+    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
+    }
+
+    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod, CircuitBreaker circuitBreaker) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker), isBinary, rewriteMethod);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -11,11 +12,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -45,7 +45,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
 
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -53,7 +53,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -62,7 +62,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> aggregation.field(LONG_FIELD), agg -> {
             assertEquals(9, agg.getBuckets().size());
@@ -95,7 +95,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchNoDocsQuery(),
+                Queries.NO_DOCS_INSTANCE,
                 dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"),
@@ -114,7 +114,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchNoDocsQuery(),
+                Queries.NO_DOCS_INSTANCE,
                 dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"),

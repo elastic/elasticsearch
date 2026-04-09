@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -12,7 +13,6 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,16 +33,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_explain/{id}"),
-            new Route(POST, "/{index}/_explain/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_explain/{id}"), new Route(POST, "/{index}/_explain/{id}"));
     }
 
     @Override
@@ -52,11 +46,7 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
         ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
-
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,11 +18,14 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of BytesRef values.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
@@ -83,7 +87,7 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         final var scratch = new BytesRef();
         try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
             for (int pos : positions) {
@@ -94,17 +98,69 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BytesRefVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BytesRefVectorBlock(this);
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendBytesRef(getBytesRef(p, scratch));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
-    public static long ramBytesEstimated(BytesRefArray values) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * average value length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
+     * {@link BytesRefArray} when loading large text fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
+        long valuesSize = RamUsageEstimator.sizeOf(values);
+        if (values.size() > 0 && valuesSize / values.size() > overestimateThreshold) {
+            valuesSize = Math.round(valuesSize * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valuesSize;
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values);
+        return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
     @Override

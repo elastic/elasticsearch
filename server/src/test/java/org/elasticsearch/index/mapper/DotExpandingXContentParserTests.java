@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -448,5 +449,83 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(2, list.size());
         assertEquals("one", list.get(0));
         assertEquals("two", list.get(1));
+    }
+
+    public void testGetCurrentLocation() throws IOException {
+        // Mirrors testGetTokenLocation structure. getCurrentLocation() tracks the parser cursor,
+        // not the token start. For synthetic tokens (expanded dots), it returns the cached location
+        // (same as getTokenLocation). For original content tokens, it delegates to the underlying parser.
+        String jsonInput = """
+            {"first.dot":{"second.dot":"value",
+            "value":null}}\
+            """;
+        XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, jsonInput),
+            new ContentPath()
+        );
+
+        assertNotNull(dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - original content
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "first" - synthetic, getCurrentLocation == getTokenLocation (cached)
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("first", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - synthetic
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "dot" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - original content
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "second" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("second", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - synthetic
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "dot" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // VALUE_STRING "value" - original content
+        assertEquals(XContentParser.Token.VALUE_STRING, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_STRING, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - synthetic
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "value" - original content
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("value", dotExpandedParser.currentName());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // VALUE_NULL - original content
+        assertEquals(XContentParser.Token.VALUE_NULL, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_NULL, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - original content (inner `}`)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - synthetic (closing "first.dot" expansion)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - original content (outer `}`)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        assertNull(dotExpandedParser.nextToken());
+        assertNull(expectedParser.nextToken());
     }
 }

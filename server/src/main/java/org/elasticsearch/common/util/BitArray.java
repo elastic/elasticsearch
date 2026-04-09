@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -181,8 +182,9 @@ public final class BitArray implements Accountable, Releasable, Writeable {
             // There's no need to grow the array just to clear bits.
             toIndex = Math.min(toIndex, currentSize);
         }
-        if (fromIndex == toIndex) {
-            return; // Empty range
+        if (fromIndex >= toIndex) {
+            // Empty range or false values after the end of the array.
+            return;
         }
 
         if (toIndex > currentSize) {

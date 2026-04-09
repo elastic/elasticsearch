@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public SumFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SumFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public SumFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return SumFloatAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SumFloatAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SumFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return SumFloatGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SumFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SumFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumFloatAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public SumFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

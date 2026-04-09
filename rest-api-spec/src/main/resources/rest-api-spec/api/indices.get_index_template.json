@@ -1,52 +1,62 @@
 {
-  "indices.get_index_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-template.html",
-      "description":"Returns an index template."
+  "indices.get_index_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-index-template",
+      "description": "Get index templates"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_index_template",
-          "methods":[
+          "path": "/_index_template",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_index_template/{name}",
-          "methods":[
+          "path": "/_index_template/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"A pattern that returned template names must match"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "A pattern that returned template names must match"
             }
           }
         }
       ]
     },
-    "params":{
-      "flat_settings":{
-        "type":"boolean",
-        "description":"Return settings in flat format (default: false)"
+    "params": {
+      "flat_settings": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return settings in flat format (default: false)"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "local": {
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter has no effect, is now deprecated, and will be removed in a future version."
+        },
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "include_defaults":{
-        "type":"boolean",
-        "description":"Return all relevant default configurations for the index template (default: false)"
+      "include_defaults": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return all relevant default configurations for the index template (default: false)"
       }
     }
   }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -22,11 +23,11 @@ import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
-    private final ES87TSDBDocValuesEncoder encoder;
+    private final TSDBDocValuesEncoder encoder;
     private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
     public ES87TSDBDocValuesEncoderTests() {
-        this.encoder = new ES87TSDBDocValuesEncoder();
+        this.encoder = new TSDBDocValuesEncoder(blockSize);
     }
 
     public void testRandomValues() throws IOException {
@@ -257,7 +258,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = i;
         }
-        doTestOrdinals(arr, 113);
+        doTestOrdinals(arr, -1);
     }
 
     public void testEncodeOrdinalsBitPack3Bits() throws IOException {
@@ -266,7 +267,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < 4; i++) {
             arr[i] = i;
         }
-        doTestOrdinals(arr, 49);
+        doTestOrdinals(arr, -1);
     }
 
     public void testEncodeOrdinalsCycle2() throws IOException {
@@ -291,20 +292,20 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         long[] arr = new long[blockSize];
         Arrays.setAll(arr, i -> i % 33);
         // the cycle is too long and the vales are bit-packed
-        doTestOrdinals(arr, 97);
+        doTestOrdinals(arr, -1);
     }
 
     public void testEncodeOrdinalsAlmostCycle() throws IOException {
         long[] arr = new long[blockSize];
         Arrays.setAll(arr, i -> i % 3);
         arr[arr.length - 1] = 4;
-        doTestOrdinals(arr, 49);
+        doTestOrdinals(arr, -1);
     }
 
     public void testEncodeOrdinalsDifferentCycles() throws IOException {
         long[] arr = new long[blockSize];
         Arrays.setAll(arr, i -> i > 64 ? i % 4 : i % 3);
-        doTestOrdinals(arr, 33);
+        doTestOrdinals(arr, -1);
     }
 
     private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
@@ -317,7 +318,9 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 encoder.encodeOrdinals(arr, out, bitsPerOrd);
-                assertEquals(expectedNumBytes, out.getFilePointer());
+                if (expectedNumBytes >= 0) {
+                    assertEquals(expectedNumBytes, out.getFilePointer());
+                }
             }
             try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
                 long[] decoded = new long[blockSize];

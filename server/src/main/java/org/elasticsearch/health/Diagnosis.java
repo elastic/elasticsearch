@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -142,31 +143,34 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
     }
 
+    private boolean hasResources() {
+        return affectedResources != null && affectedResources.isEmpty() == false;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> resourcesIterator;
-        if (affectedResources == null) {
-            resourcesIterator = Collections.emptyIterator();
-        } else {
-            resourcesIterator = Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startObject();
             builder.field("id", definition.getUniqueId());
             builder.field("cause", definition.cause);
             builder.field("action", definition.action);
             builder.field("help_url", definition.helpURL);
 
-            if (affectedResources != null && affectedResources.size() > 0) {
+            if (hasResources()) {
+                // don't want to have a new chunk & nested iterator for this, so we start the object here
                 builder.startObject("affected_resources");
             }
             return builder;
-        }), resourcesIterator, Iterators.single((builder, params) -> {
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        }),
+            hasResources()
+                ? Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams))
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (hasResources()) {
+                    b.endObject();
+                }
+                return b.endObject();
+            })
+        );
     }
 }

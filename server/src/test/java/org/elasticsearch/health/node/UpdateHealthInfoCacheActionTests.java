@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -126,17 +127,22 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
         var dslHealthInfo = request.getDslHealthInfo();
         var repoHealthInfo = request.getRepositoriesHealthInfo();
-        switch (randomInt(3)) {
+        var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
+        switch (randomInt(4)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
             case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
+            case 4 -> fileSettingsHealthInfo = HealthInfoTests.mutateFileSettingsHealthInfo(
+                (fileSettingsHealthInfo == null) ? FileSettingsHealthInfo.INDETERMINATE : fileSettingsHealthInfo
+            );
             default -> throw new IllegalStateException();
         }
         return new Request.Builder().nodeId(nodeId)
             .diskHealthInfo(diskHealthInfo)
             .dslHealthInfo(dslHealthInfo)
             .repositoriesHealthInfo(repoHealthInfo)
+            .fileSettingsHealthInfo(fileSettingsHealthInfo)
             .build();
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,9 +31,7 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioEmbeddingsTaskSettings(user);
     }
@@ -70,13 +67,18 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return user == null || user.isEmpty();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -105,5 +107,11 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hashCode(user);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(newSettings);
+        return AzureAiStudioEmbeddingsTaskSettings.of(this, requestSettings);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -23,9 +24,9 @@ import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -33,10 +34,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
@@ -92,28 +91,6 @@ public class BulkItemResponseTests extends ESTestCase {
         } else if (token == XContentParser.Token.START_ARRAY) {
             parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
-    }
-
-    public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
-        BulkItemResponse bulkItemResponse = BulkItemResponse.success(
-            randomInt(),
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(
-                new ShardId(randomAlphaOfLength(8), UUID.randomUUID().toString(), randomInt()),
-                randomAlphaOfLength(4),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                true
-            )
-        );
-        XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
-            XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),
-            ToXContent.EMPTY_PARAMS
-        );
-
-        String json = BytesReference.bytes(xContentBuilder).utf8ToString();
-        assertThat(json, containsString("\"_type\":\"_doc\""));
     }
 
     public void testFailureToString() {
@@ -289,5 +266,58 @@ public class BulkItemResponseTests extends ESTestCase {
             bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
         }
         return bulkItemResponse;
+    }
+
+    public void testStatusDelegatesToResponseOnSuccess() {
+        IndexResponse response = IndexResponseTests.randomIndexResponse().v1();
+        BulkItemResponse item = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, response);
+        assertEquals(response.status(), item.status());
+    }
+
+    public void testGetFailureStoreStatusDelegatesToResponse() {
+        IndexResponse response = IndexResponseTests.randomIndexResponse().v1();
+        response.setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
+        BulkItemResponse item = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, response);
+        assertEquals(IndexDocFailureStoreStatus.FAILED, item.getFailureStoreStatus());
+    }
+
+    public void testGetVersionReturnsMinusOneOnFailure() {
+        Failure failure = new Failure("index", "id", new RuntimeException("Exception"));
+        BulkItemResponse item = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
+        assertEquals(-1L, item.getVersion());
+    }
+
+    public void testFailureSeqNoAndPrimaryTerm() {
+        long seqNo = randomNonNegativeLong();
+        long term = randomNonNegativeLong();
+
+        Failure failure = new Failure("index", "id", new IllegalStateException("Exception"), seqNo, term);
+
+        assertEquals(seqNo, failure.getSeqNo());
+        assertEquals(term, failure.getTerm());
+    }
+
+    public void testFailureUnassignedSeqNoAndTermDefaults() {
+        Failure failure = new Failure("index", "id", new RuntimeException("Exception"));
+
+        assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, failure.getSeqNo());
+        assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, failure.getTerm());
+    }
+
+    public void testFailureAbortedFlag() {
+        Failure abortedFailure = new Failure("index", "id", new RuntimeException("Exception"), true);
+
+        assertTrue(abortedFailure.isAborted());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, abortedFailure.getStatus());
+    }
+
+    public void testFailureStoreStatus() {
+        Failure failure = new Failure("index", "id", new RuntimeException("boom"));
+
+        assertEquals(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN, failure.getFailureStoreStatus());
+
+        failure.setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
+
+        assertEquals(IndexDocFailureStoreStatus.FAILED, failure.getFailureStoreStatus());
     }
 }

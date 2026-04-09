@@ -1,0 +1,5 @@
+* [Binary operators](../../functions-operators/operators.md#esql-binary-operators)
+* [Unary operators](../../functions-operators/operators.md#esql-unary-operators)
+* [Logical operators](../../functions-operators/operators.md#esql-logical-operators)
+* [suffix operators](../../functions-operators/operators.md#esql-suffix-operators)
+* [infix operators](../../functions-operators/operators.md#esql-infix-operators)

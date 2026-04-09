@@ -1,0 +1,153 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "ingest.append.ignore_empty_values" ]
+      reason: "The ignore_empty_values option of the append processor is new"
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "append": {
+                  "field": "dest",
+                  "copy_from": "src",
+                  "ignore_empty_values": true
+                }
+              },
+              {
+                "remove": {
+                  "field": "src",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: "test-some-index"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-some-index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "test-pipeline-1"
+        ignore: 404
+
+---
+"A missing copy_from value is ignored":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1] }
+
+---
+"A null copy_from value is ignored":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": null,
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1] }
+
+---
+"An empty string copy_from value is ignored":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": "",
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1] }
+
+---
+"An empty array copy_from value is ignored":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [],
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1] }
+
+---
+"A non-null value is copied":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": 2,
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1, 2] }
+
+---
+"Empty strings and nulls are ignored in an array":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": ["", 2, null, 3],
+            "dest": [1]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [1, 2, 3] }

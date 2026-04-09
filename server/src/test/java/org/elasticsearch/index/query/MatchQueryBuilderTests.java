@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -17,11 +18,13 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
@@ -38,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MatchQueryParser.Type;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -162,7 +166,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
                 for (BooleanClause c : bq.clauses()) {
-                    if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+                    if (c.occur() == BooleanClause.Occur.SHOULD) {
                         optionalClauses++;
                     }
                 }
@@ -373,7 +377,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "message1" : ["term1", "term2"]
               }
             }""";
-        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+        expectThrows(IllegalArgumentException.class, () -> parseQuery(json2));
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
@@ -416,7 +420,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testLenientPhraseQuery() throws Exception {
         SearchExecutionContext context = createSearchExecutionContext();
-        MatchQueryParser b = new MatchQueryParser(context);
+        MatchQueryParser b = new MatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         b.setLenient(true);
         Query query = b.parse(Type.PHRASE, "string_no_pos", "foo bar");
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
@@ -424,7 +428,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testAutoGenerateSynonymsPhraseQuery() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
 
         {
@@ -487,7 +491,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMultiWordSynonymsPhrase() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "guinea pig dogs");
         Query expected = SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
@@ -514,7 +518,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testAliasWithSynonyms() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_ALIAS_FIELD_NAME, "dogs");
         Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME).addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
@@ -524,11 +528,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMaxBooleanClause() {
-        MatchQueryParser query = new MatchQueryParser(createSearchExecutionContext());
+        MatchQueryParser query = new MatchQueryParser(
+            createSearchExecutionContext(),
+            new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount())
+        );
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
     }
 
     private static class MockGraphAnalyzer extends Analyzer {
@@ -566,7 +573,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     /**
-     * Creates a graph token stream with {@link BooleanQuery#getMaxClauseCount()}
+     * Creates a graph token stream with {@link IndexSearcher#getMaxClauseCount()}
      * expansions at the last position.
      **/
     private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
@@ -577,7 +584,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
-        for (int i = 0; i < BooleanQuery.getMaxClauseCount(); i++) {
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount(); i++) {
             tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
         }
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);

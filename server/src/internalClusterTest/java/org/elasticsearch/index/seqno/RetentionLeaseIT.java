@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -52,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -228,7 +230,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     .getShardOrNull(new ShardId(resolveIndex("index"), 0));
                 assertThat(
                     RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(replica.getRetentionLeases()).values(),
-                    anyOf(empty(), contains(currentRetentionLease))
+                    anyOf(emptyIterable(), contains(currentRetentionLease))
                 );
             }
 
@@ -335,7 +337,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(1, 8);
         final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>();
-        logger.info("adding retention [{}}] leases", length);
+        logger.info("adding retention [{}] leases", length);
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -558,7 +560,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .build();
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureYellowAndNoInitializingShards("index");
-        assertFalse(clusterAdmin().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
 
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();

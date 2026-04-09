@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -24,12 +25,12 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DateFieldScript.LeafFactory leafFactory;
-        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
         public Builder(
             String name,
             DateFieldScript.LeafFactory leafFactory,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.leafFactory = leafFactory;
@@ -44,12 +45,12 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     private final String fieldName;
     private final DateFieldScript.LeafFactory leafFactory;
-    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
     private DateScriptFieldData(
         String fieldName,
         DateFieldScript.LeafFactory leafFactory,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
@@ -91,17 +92,17 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    protected boolean isIndexed() {
-        return false;
+    protected IndexType indexType() {
+        return IndexType.NONE;
     }
 
     public static class DateScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
-        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
         DateScriptLeafFieldData(
             LongScriptDocValues longScriptDocValues,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
         ) {
             super(0);
             this.longScriptDocValues = longScriptDocValues;
@@ -109,7 +110,7 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public SortedNumericDocValues getLongValues() {
+        public SortedNumericLongValues getLongValues() {
             return longScriptDocValues;
         }
 

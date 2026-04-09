@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 @FunctionName("to_base64")
 public class ToBase64Tests extends AbstractScalarFunctionTestCase {
@@ -35,25 +36,11 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD), () -> {
-            BytesRef input = (BytesRef) randomLiteral(DataType.KEYWORD).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataType.KEYWORD, "string")),
-                "ToBase64Evaluator[field=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(Base64.getEncoder().encode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT), () -> {
-            BytesRef input = (BytesRef) randomLiteral(DataType.TEXT).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataType.TEXT, "string")),
-                "ToBase64Evaluator[field=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(Base64.getEncoder().encode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-            );
-        }));
+        UnaryTestCaseHelper base = unary().expectedOutputType(DataType.KEYWORD).evaluatorToString("ToBase64Evaluator[field=%0]");
+        base.strings()
+            .expectedFromString(s -> new BytesRef(Base64.getEncoder().encode(s.getBytes(StandardCharsets.UTF_8))))
+            .build(suppliers);
+        base.tsid().expectedBytesRef(b -> new BytesRef(base64Encode(b).getBytes(StandardCharsets.UTF_8))).build(suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -61,5 +48,11 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new ToBase64(source, args.get(0));
+    }
+
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Base64.getEncoder().encodeToString(bytes);
     }
 }

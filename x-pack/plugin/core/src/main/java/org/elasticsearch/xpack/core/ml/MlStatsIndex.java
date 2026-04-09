@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -66,6 +67,15 @@ public class MlStatsIndex {
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
-        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, state, resolver, TEMPLATE_NAME, writeAlias(), masterNodeTimeout, listener);
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client,
+            state,
+            resolver,
+            TEMPLATE_NAME,
+            writeAlias(),
+            masterNodeTimeout,
+            ActiveShardCount.ALL,
+            listener
+        );
     }
 }

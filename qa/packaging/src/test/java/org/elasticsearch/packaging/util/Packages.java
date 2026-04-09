@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util;
@@ -231,6 +232,8 @@ public class Packages {
             ).forEach(confFile -> assertThat(confFile, file(File, "root", "root", p644)));
 
             final String sysctlExecutable = (distribution.packaging == Distribution.Packaging.RPM) ? "/usr/sbin/sysctl" : "/sbin/sysctl";
+            // Restarting sysctl so changes to conf get applied
+            sh.run(sysctlExecutable + " --system");
             assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout(), containsString("vm.max_map_count = 262144"));
         }
     }

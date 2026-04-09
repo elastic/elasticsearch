@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MaxFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MaxFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public MaxFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public MaxFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MaxFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return MaxFloatAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MaxFloatAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public MaxFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MaxFloatGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MaxFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MaxFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MaxFloatAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public MaxFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MaxFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

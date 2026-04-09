@@ -23,8 +23,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.repositories.IndexId;
@@ -63,9 +66,11 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
@@ -179,7 +184,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                             )
                             .setSize(0),
                         res -> {
-                            final long remainingEntriesInCache = res.getHits().getTotalHits().value;
+                            final long remainingEntriesInCache = res.getHits().getTotalHits().value();
                             if (indicesToDelete.contains(mountedIndex)) {
                                 assertThat(remainingEntriesInCache, equalTo(0L));
                             } else if (snapshotId.equals(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))) {
@@ -194,7 +199,6 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 }
             });
         }
-
         logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertBusy(() -> {
@@ -311,6 +315,46 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         }
     }
 
+    public void testCleanUpMigratedSystemIndexAfterIndicesAreDeleted() throws Exception {
+        final String repositoryName = "repository";
+        createRepository(repositoryName, FsRepository.TYPE);
+
+        final Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache(repositoryName, 3, 10);
+        ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
+        refreshSystemIndex(true);
+
+        final long numberOfEntriesInCache = numberOfEntriesInCache();
+        logger.info("--> found [{}] entries in snapshot blob cache", numberOfEntriesInCache);
+        assertThat(numberOfEntriesInCache, equalTo(mountedIndices.values().stream().mapToLong(Tuple::v2).sum()));
+
+        migrateTheSystemIndex();
+
+        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
+        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
+        assertBusy(() -> {
+            refreshSystemIndex(true);
+            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0), 0L);
+        });
+    }
+
+    /**
+     *  Mimics migration of the {@link SearchableSnapshots#SNAPSHOT_BLOB_CACHE_INDEX} as done in
+     *  org.elasticsearch.upgrades.SystemIndexMigrator, where the index is re-indexed, and replaced by an alias.
+     */
+    private void migrateTheSystemIndex() {
+        final var migratedSnapshotBlobCache = SNAPSHOT_BLOB_CACHE_INDEX + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        logger.info("--> migrating {} system index to {}", SNAPSHOT_BLOB_CACHE_INDEX, migratedSnapshotBlobCache);
+        var reindexRequest = new ReindexRequest().setSourceIndices(SNAPSHOT_BLOB_CACHE_INDEX)
+            .setDestIndex(migratedSnapshotBlobCache)
+            .setRefresh(true);
+        var resp = safeGet(client().execute(ReindexAction.INSTANCE, reindexRequest));
+        assertThat(resp.getBulkFailures(), is(empty()));
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .removeIndex(SNAPSHOT_BLOB_CACHE_INDEX)
+            .addAlias(migratedSnapshotBlobCache, SNAPSHOT_BLOB_CACHE_INDEX)
+            .get();
+    }
+
     /**
      * @return a {@link Client} that can be used to query the blob store cache system index
      */
@@ -342,7 +386,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
     }
 
     private Settings getIndexSettings(String indexName) {
-        return indicesAdmin().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
+        return indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get().getIndexToSettings().get(indexName);
     }
 
     private Map<String, Tuple<Settings, Long>> mountRandomIndicesWithCache(String repositoryName, int min, int max) throws Exception {

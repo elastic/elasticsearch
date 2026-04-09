@@ -70,7 +70,7 @@ public class Latest extends AbstractCompositeAggFunction {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        return new LatestChangeCollector(synchronizationField);
+        return new LatestChangeCollector(synchronizationField, config.getUniqueKey());
     }
 
     private static Map<String, Object> convertBucketToDocument(
@@ -90,6 +90,7 @@ public class Latest extends AbstractCompositeAggFunction {
                 topHits.getHits().getHits().length
             );
         }
+
         Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
         // generator to create unique but deterministic document ids, so we

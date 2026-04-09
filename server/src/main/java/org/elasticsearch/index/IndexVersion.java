@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -122,8 +123,13 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         return CurrentHolder.CURRENT;
     }
 
+    /**
+     * Returns whether this index version is supported by this node version out-of-the-box.
+     * This is used to distinguish between ordinary indices and archive indices that may be
+     * imported into the cluster in read-only mode, and with limited functionality.
+     */
     public boolean isLegacyIndexVersion() {
-        return before(IndexVersions.MINIMUM_COMPATIBLE);
+        return before(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
 
     public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {

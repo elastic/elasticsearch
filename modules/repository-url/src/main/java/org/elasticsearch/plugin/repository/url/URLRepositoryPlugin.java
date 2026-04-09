@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.repository.url;
@@ -19,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.url.URLRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -48,18 +50,21 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(
             URLRepository.TYPE,
-            metadata -> new URLRepository(
+            (projectId, metadata) -> new URLRepository(
+                projectId,
                 metadata,
                 env,
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
+                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory),
+                snapshotMetrics
             )
         );
     }

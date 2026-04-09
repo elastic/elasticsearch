@@ -9,45 +9,49 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IpPrefix}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link IpPrefix}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class IpPrefixEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IpPrefixEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator ip;
+  private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator prefixLengthV4;
+  private final ExpressionEvaluator ip;
 
-  private final EvalOperator.ExpressionEvaluator prefixLengthV6;
+  private final ExpressionEvaluator prefixLengthV4;
+
+  private final ExpressionEvaluator prefixLengthV6;
 
   private final BytesRef scratch;
 
   private final DriverContext driverContext;
 
-  public IpPrefixEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator prefixLengthV4,
-      EvalOperator.ExpressionEvaluator prefixLengthV6, BytesRef scratch,
+  private Warnings warnings;
+
+  public IpPrefixEvaluator(Source source, ExpressionEvaluator ip,
+      ExpressionEvaluator prefixLengthV4, ExpressionEvaluator prefixLengthV6, BytesRef scratch,
       DriverContext driverContext) {
+    this.source = source;
     this.ip = ip;
     this.prefixLengthV4 = prefixLengthV4;
     this.prefixLengthV6 = prefixLengthV6;
     this.scratch = scratch;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -73,48 +77,60 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += ip.baseRamBytesUsed();
+    baseRamBytesUsed += prefixLengthV4.baseRamBytesUsed();
+    baseRamBytesUsed += prefixLengthV6.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock ipBlock, IntBlock prefixLengthV4Block,
       IntBlock prefixLengthV6Block) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (ipBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (ipBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (ipBlock.getValueCount(p) != 1) {
-          if (ipBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV4Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixLengthV4Block.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV6Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixLengthV4Block.getValueCount(p) != 1) {
-          if (prefixLengthV4Block.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.getValueCount(p) != 1) {
-          if (prefixLengthV6Block.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
+        int prefixLengthV4 = prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p));
+        int prefixLengthV6 = prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -127,10 +143,13 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef ip = ipVector.getBytesRef(p, ipScratch);
+        int prefixLengthV4 = prefixLengthV4Vector.getInt(p);
+        int prefixLengthV6 = prefixLengthV6Vector.getInt(p);
         try {
-          result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -148,20 +167,26 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     Releasables.closeExpectNoException(ip, prefixLengthV4, prefixLengthV6);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory ip;
+    private final ExpressionEvaluator.Factory ip;
 
-    private final EvalOperator.ExpressionEvaluator.Factory prefixLengthV4;
+    private final ExpressionEvaluator.Factory prefixLengthV4;
 
-    private final EvalOperator.ExpressionEvaluator.Factory prefixLengthV6;
+    private final ExpressionEvaluator.Factory prefixLengthV6;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip,
-        EvalOperator.ExpressionEvaluator.Factory prefixLengthV4,
-        EvalOperator.ExpressionEvaluator.Factory prefixLengthV6,
+    public Factory(Source source, ExpressionEvaluator.Factory ip,
+        ExpressionEvaluator.Factory prefixLengthV4, ExpressionEvaluator.Factory prefixLengthV6,
         Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.ip = ip;

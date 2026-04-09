@@ -7,38 +7,51 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
+import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link DateParse}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateParseConstantEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class DateParseConstantEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateParseConstantEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final Source source;
+
+  private final ExpressionEvaluator val;
 
   private final DateFormatter formatter;
 
+  private final ZoneId zoneId;
+
+  private final Locale locale;
+
   private final DriverContext driverContext;
 
-  public DateParseConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DateFormatter formatter, DriverContext driverContext) {
+  private Warnings warnings;
+
+  public DateParseConstantEvaluator(Source source, ExpressionEvaluator val, DateFormatter formatter,
+      ZoneId zoneId, Locale locale, DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.formatter = formatter;
+    this.zoneId = zoneId;
+    this.locale = locale;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -52,25 +65,33 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
+          result.appendLong(DateParse.process(val, this.formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -82,10 +103,11 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef val = valVector.getBytesRef(p, valScratch);
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
+          result.appendLong(DateParse.process(val, this.formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -95,7 +117,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
   @Override
   public String toString() {
-    return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
   }
 
   @Override
@@ -103,28 +125,41 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     Releasables.closeExpectNoException(val);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final DateFormatter formatter;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        DateFormatter formatter) {
+    private final ZoneId zoneId;
+
+    private final Locale locale;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, DateFormatter formatter,
+        ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.formatter = formatter;
+      this.zoneId = zoneId;
+      this.locale = locale;
     }
 
     @Override
     public DateParseConstantEvaluator get(DriverContext context) {
-      return new DateParseConstantEvaluator(source, val.get(context), formatter, context);
+      return new DateParseConstantEvaluator(source, val.get(context), formatter, zoneId, locale, context);
     }
 
     @Override
     public String toString() {
-      return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+      return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
     }
   }
 }

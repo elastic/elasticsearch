@@ -223,6 +223,17 @@ public final class TestUtils {
         }
 
         @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            throw unsupportedException();
+        }
+
+        @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
@@ -255,6 +266,11 @@ public final class TestUtils {
             BytesReference updated,
             ActionListener<OptionalBytesReference> listener
         ) {
+            listener.onFailure(unsupportedException());
+        }
+
+        @Override
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
             listener.onFailure(unsupportedException());
         }
 

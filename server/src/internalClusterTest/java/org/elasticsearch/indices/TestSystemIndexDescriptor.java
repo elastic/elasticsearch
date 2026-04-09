@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -50,7 +50,6 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             INDEX_NAME,
             0,
-            "version",
             "stack",
             null,
             Type.INTERNAL_MANAGED,
@@ -71,9 +70,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             name,
             0,
-            "version",
             "stack",
-            Version.fromString(Build.current().minWireCompatVersion()),
+            null,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),
@@ -99,6 +97,10 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     public static String getOldMappings() {
+        return getOldMappings(false);
+    }
+
+    public static String getOldMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -114,6 +116,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.startObject("foo");
                     builder.field("type", "text");
                     builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
+                    builder.endObject();
                 }
                 builder.endObject();
             }
@@ -126,6 +140,10 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     public static String getNewMappings() {
+        return getNewMappings(false);
+    }
+
+    public static String getNewMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -143,6 +161,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.endObject();
                     builder.startObject("foo");
                     builder.field("type", "text");
+                    builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
                     builder.endObject();
                 }
                 builder.endObject();

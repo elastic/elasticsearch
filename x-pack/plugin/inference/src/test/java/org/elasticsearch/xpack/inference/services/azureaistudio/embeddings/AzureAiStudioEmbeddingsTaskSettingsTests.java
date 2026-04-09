@@ -26,6 +26,28 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioEmbeddingsTaskSettings> {
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.user() != null) {
+            newSettingsMap.put(AzureAiStudioConstants.USER_FIELD, newSettings.user());
+        }
+        AzureAiStudioEmbeddingsTaskSettings updatedSettings = (AzureAiStudioEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            newSettingsMap
+        );
+        if (newSettings.user() == null) {
+            assertEquals(initialSettings.user(), updatedSettings.user());
+        } else {
+            assertEquals(newSettings.user(), updatedSettings.user());
+        }
+    }
 
     public void testFromMap_WithUser() {
         assertEquals(
@@ -113,7 +135,8 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
 
     @Override
     protected AzureAiStudioEmbeddingsTaskSettings mutateInstance(AzureAiStudioEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsTaskSettingsTests::createRandom);
+        String newUser = randomValueOtherThan(instance.user(), () -> randomAlphaOfLengthOrNull(15));
+        return new AzureAiStudioEmbeddingsTaskSettings(newUser);
     }
 
     @Override
@@ -125,6 +148,6 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     private static AzureAiStudioEmbeddingsTaskSettings createRandom() {
-        return new AzureAiStudioEmbeddingsTaskSettings(randomFrom(new String[] { null, randomAlphaOfLength(15) }));
+        return new AzureAiStudioEmbeddingsTaskSettings(randomAlphaOfLengthOrNull(15));
     }
 }

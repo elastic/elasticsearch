@@ -7,15 +7,16 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
@@ -53,10 +54,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_monitoring/bulk").replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_monitoring/bulk").replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override
@@ -97,13 +95,14 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
-        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
-        return channel -> requestBuilder.execute(getRestBuilderListener(channel));
+        var content = request.content();
+        requestBuilder.add(system, content, request.getXContentType(), timestamp, intervalMillis);
+        return channel -> requestBuilder.execute(ActionListener.withRef(getRestBuilderListener(channel), content));
     }
 
     @Override
-    public boolean supportsContentStream() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 
     /**

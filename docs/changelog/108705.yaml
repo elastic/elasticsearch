@@ -1,6 +1,0 @@
-pr: 108705
-summary: Associate restore snapshot task to parent mount task
-area: Distributed
-type: bug
-issues:
- - 105830

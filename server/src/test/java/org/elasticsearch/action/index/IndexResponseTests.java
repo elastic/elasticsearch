@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
@@ -51,7 +52,7 @@ public class IndexResponseTests extends ESTestCase {
                 }"""), output);
         }
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(indexResponse);
@@ -66,7 +67,9 @@ public class IndexResponseTests extends ESTestCase {
                     "total": 10,
                     "successful": 5,
                     "failed": 0
-                  }
+                  },
+                  "_seq_no": -2,
+                  "_primary_term" : 0
                 }"""), output);
         }
     }

@@ -1,9 +1,0 @@
-["appendix",role="exclude",id="redirects"]
-= Deleted pages
-
-The following pages have moved or been deleted.
-
-[role="exclude",id="painless-examples"]
-=== Painless examples
-
-See <<painless-walkthrough, Painless walkthrough>>.

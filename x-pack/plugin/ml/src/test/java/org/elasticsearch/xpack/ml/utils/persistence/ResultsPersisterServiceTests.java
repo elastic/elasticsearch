@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,31 +80,10 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.emptyWithTotalHits(
-        null,
-        1,
-        1,
-        0,
-        1L,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
-    public static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
-        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-        null,
-        null,
-        false,
-        null,
-        null,
-        1,
-        null,
-        1,
-        0,
-        0,
-        1L,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
+    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = SearchResponseUtils.response(SearchHits.EMPTY_WITHOUT_TOTAL_HITS)
+        .shards(1, 0, 0)
+        .build();
 
     // Constants for bulkIndexWithRetry tests
     private static final IndexRequest INDEX_REQUEST_SUCCESS = new IndexRequest("my-index").id("success")
@@ -121,10 +102,18 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             true
         )
     );
+    /**
+     * Recoverable bulk failure (SearchPhaseExecutionException) used by tests that expect retry.
+     * Plain Exception would be irrecoverable per MlRecoverableErrorClassifier.
+     */
     private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE = BulkItemResponse.failure(
         2,
         DocWriteRequest.OpType.INDEX,
-        new BulkItemResponse.Failure("my-index", "fail", new Exception("boom"))
+        new BulkItemResponse.Failure(
+            "my-index",
+            "fail",
+            new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)
+        )
     );
 
     private Client client;
@@ -246,6 +235,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("bad search request"));
 
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+    }
+
+    public void testSearchWithRetries_TaskCancelledException_isIrrecoverable() {
+        // TaskCancelledException should not be retried (classified irrecoverable by MlRecoverableErrorClassifier)
+        resultsPersisterService.setMaxFailureRetries(5);
+
+        doAnswer(withFailure(new org.elasticsearch.tasks.TaskCancelledException("task was cancelled"))).when(client)
+            .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {})
+        );
+        assertThat(e.getMessage(), containsString("task was cancelled"));
+
+        // No retry: only one call to client.execute
         verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
@@ -428,6 +434,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(
@@ -438,7 +445,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                     ClusterService.USER_DEFINED_METADATA,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );

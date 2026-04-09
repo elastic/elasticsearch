@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializingTestCase<AbstractPageMappingOperator.Status> {
     public static AbstractPageMappingOperator.Status simple() {
-        return new AbstractPageMappingOperator.Status(200012, 123);
+        return new AbstractPageMappingOperator.Status(200012, 123, 111, 222);
     }
 
     public static String simpleToJson() {
@@ -24,7 +24,9 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
             {
               "process_nanos" : 200012,
               "process_time" : "200micros",
-              "pages_processed" : 123
+              "pages_processed" : 123,
+              "rows_received" : 111,
+              "rows_emitted" : 222
             }""";
     }
 
@@ -39,18 +41,27 @@ public class AbstractPageMappingOperatorStatusTests extends AbstractWireSerializ
 
     @Override
     public AbstractPageMappingOperator.Status createTestInstance() {
-        return new AbstractPageMappingOperator.Status(randomNonNegativeLong(), randomNonNegativeInt());
+        return new AbstractPageMappingOperator.Status(
+            randomNonNegativeLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     @Override
     protected AbstractPageMappingOperator.Status mutateInstance(AbstractPageMappingOperator.Status instance) {
         long processNanos = instance.processNanos();
         int pagesProcessed = instance.pagesProcessed();
-        switch (between(0, 1)) {
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
+        switch (between(0, 3)) {
             case 0 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
+            case 2 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 3 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed);
+        return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 }

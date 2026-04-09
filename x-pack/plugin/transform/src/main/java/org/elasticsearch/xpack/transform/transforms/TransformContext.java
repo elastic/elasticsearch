@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
@@ -49,23 +50,44 @@ public class TransformContext {
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
+    /**
+     * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
+     * {@link TransformFailureHandler} will silence the error so the Transform automatically retries.
+     * Every time the Transform runs, it will check if the index is unblocked and reset this to false.
+     * Users can override this via the `_schedule_now` API.
+     */
+    private volatile boolean isWaitingForIndexToUnblock = false;
+
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
     private final Instant from;
+    private final ProjectId projectId;
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this(taskState, stateReason, currentCheckpoint, null, taskListener);
     }
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Instant from, Listener taskListener) {
+        this(taskState, stateReason, currentCheckpoint, from, taskListener, ProjectId.DEFAULT);
+    }
+
+    public TransformContext(
+        TransformTaskState taskState,
+        String stateReason,
+        long currentCheckpoint,
+        Instant from,
+        Listener taskListener,
+        ProjectId projectId
+    ) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.from = from;
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
+        this.projectId = projectId;
     }
 
     TransformTaskState getTaskState() {
@@ -114,6 +136,10 @@ public class TransformContext {
 
     Instant from() {
         return from;
+    }
+
+    ProjectId projectId() {
+        return projectId;
     }
 
     long incrementAndGetCheckpoint() {
@@ -181,6 +207,14 @@ public class TransformContext {
 
     public void setShouldRecreateDestinationIndex(boolean shouldRecreateDestinationIndex) {
         this.shouldRecreateDestinationIndex = shouldRecreateDestinationIndex;
+    }
+
+    public boolean isWaitingForIndexToUnblock() {
+        return isWaitingForIndexToUnblock;
+    }
+
+    public void setIsWaitingForIndexToUnblock(boolean isWaitingForIndexToUnblock) {
+        this.isWaitingForIndexToUnblock = isWaitingForIndexToUnblock;
     }
 
     public AuthorizationState getAuthState() {

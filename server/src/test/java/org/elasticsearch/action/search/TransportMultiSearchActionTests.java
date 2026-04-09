@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -19,6 +20,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -28,6 +31,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -54,7 +58,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         try {
             TransportService transportService = new TransportService(
                 Settings.EMPTY,
@@ -79,7 +83,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
             AtomicInteger counter = new AtomicInteger(0);
             Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, Collections.emptyMap());
-            NodeClient client = new NodeClient(settings, threadPool) {
+            NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @Override
                 public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                     assertEquals(task.getId(), request.getParentTask().getId());
@@ -99,13 +103,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 }
             };
             TransportMultiSearchAction action = new TransportMultiSearchAction(
-                threadPool,
                 actionFilters,
                 transportService,
                 clusterService,
                 10,
                 System::nanoTime,
-                client
+                client,
+                DefaultProjectResolver.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
@@ -122,7 +126,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -149,7 +153,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final Executor commonExecutor = executorServices.get(0);
         final Executor rarelyExecutor = executorServices.get(1);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
-        NodeClient client = new NodeClient(settings, threadPool) {
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);
@@ -192,13 +196,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action = new TransportMultiSearchAction(
-            threadPool,
             actionFilters,
             transportService,
             clusterService,
             10,
             System::nanoTime,
-            client
+            client,
+            DefaultProjectResolver.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:

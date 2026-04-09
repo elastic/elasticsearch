@@ -13,13 +13,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -43,6 +43,13 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
         "Substring",
         Substring::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Substring.class)
+        .ternary(Substring::new)
+        .capabilities(
+            // Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+            "empty_null"
+        )
+        .name("substring");
 
     private final Expression str, start, length;
 
@@ -53,7 +60,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
             @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
             @Example(file = "docs", tag = "substringEnd", description = """
                 A negative start position is interpreted as being relative to the end of the string.
-                This example returns the last three characters of of every last name:"""),
+                This example returns the last three characters of every last name:"""),
             @Example(file = "docs", tag = "substringRemainder", description = """
                 If length is omitted, substring returns the remainder of the string.
                 This example returns all characters except for the first:""") }
@@ -180,7 +187,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var strFactory = toEvaluator.apply(str);
         var startFactory = toEvaluator.apply(start);
         if (length == null) {

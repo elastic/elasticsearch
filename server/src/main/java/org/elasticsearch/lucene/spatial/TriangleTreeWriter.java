@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.spatial;
@@ -196,7 +197,7 @@ public class TriangleTreeWriter {
                 long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
                 countingBuffer.reset();
                 countingBuffer.writeVLong(rightSize);
-                size += countingBuffer.size(); // jump size
+                size += countingBuffer.position(); // jump size
                 size += rightSize;
             }
             if (includeBox) {
@@ -205,7 +206,7 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) parentMaxX - maxX);
                 countingBuffer.writeVLong((long) parentMaxY - maxY);
                 countingBuffer.writeVLong(jumpSize);
-                size += countingBuffer.size(); // box size
+                size += countingBuffer.position(); // box size
             }
             return size;
         }
@@ -228,7 +229,7 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) maxX - component.cX);
                 countingBuffer.writeVLong((long) maxY - component.cY);
             }
-            return countingBuffer.size();
+            return countingBuffer.position();
         }
     }
 }

@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link LongArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
 
@@ -64,6 +64,20 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongVector.FixedBuilder builder = blockFactory().newLongVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendLong(getLong(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }
@@ -79,13 +93,39 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
         return new LongBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(getLong(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

@@ -128,7 +128,7 @@ public final class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     public SslConfiguration load(Environment env) {
-        return load(env.configFile());
+        return load(env.configDir());
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {

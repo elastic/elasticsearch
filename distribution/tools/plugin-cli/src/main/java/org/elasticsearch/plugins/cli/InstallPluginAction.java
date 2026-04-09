@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -11,20 +12,7 @@ package org.elasticsearch.plugins.cli;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
-import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSignature;
-import org.bouncycastle.openpgp.PGPSignatureList;
-import org.bouncycastle.openpgp.PGPUtil;
-import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
-import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.bootstrap.PluginPolicyInfo;
-import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -35,6 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugin.scanner.ClassReaders;
@@ -42,6 +31,7 @@ import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsUtils;
+import org.elasticsearch.plugins.cli.bc.PgpSignatureVerifier;
 import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;
@@ -63,6 +53,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -248,8 +239,8 @@ public class InstallPluginAction implements Closeable {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(plugin, env.tmpFile());
-                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
+                final Path pluginZip = download(plugin, env.tmpDir());
+                final Path extractedZip = unzip(pluginZip, env.pluginsDir());
                 deleteOnFailure.add(extractedZip);
                 final PluginDescriptor pluginDescriptor = installPlugin(plugin, extractedZip, deleteOnFailure);
                 terminal.println(logPrefix + "Installed " + pluginDescriptor.getName());
@@ -329,8 +320,29 @@ public class InstallPluginAction implements Closeable {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
+
+        verifyLocationNotInPluginsDirectory(pluginLocation);
+
         terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
+    }
+
+    @SuppressForbidden(reason = "Need to use Paths#get")
+    private void verifyLocationNotInPluginsDirectory(String pluginLocation) throws URISyntaxException, IOException, UserException {
+        if (pluginLocation == null) {
+            return;
+        }
+        URI uri = new URI(pluginLocation);
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            Path pluginRealPath = Paths.get(uri).toRealPath();
+            Path pluginsDirectory = env.pluginsDir().toRealPath();
+            if (pluginRealPath.startsWith(pluginsDirectory)) {
+                throw new UserException(
+                    ExitCodes.USAGE,
+                    "Installation of plugin in location [" + pluginLocation + "] from inside the plugins directory is not permitted."
+                );
+            }
+        }
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")
@@ -462,9 +474,9 @@ public class InstallPluginAction implements Closeable {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    Path downloadZip(String urlString, Path tmpDir) throws IOException, URISyntaxException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
-        URL url = new URL(urlString);
+        URL url = new URI(urlString).toURL();
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = this.proxy == null ? url.openConnection() : url.openConnection(this.proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
@@ -546,11 +558,11 @@ public class InstallPluginAction implements Closeable {
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
      * @throws IOException   if an I/O exception occurs download or reading files and resources
-     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
+     * @throws URISyntaxException is the url is invalid
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PGPException, UserException {
+        UserException, URISyntaxException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -644,41 +656,10 @@ public class InstallPluginAction implements Closeable {
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloaded plugin ZIP
-     * @throws IOException  if an I/O exception occurs reading from various input streams
-     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     * @throws IOException  if an I/O exception occurs reading from various input streams or
+     * if the PGP implementation throws an internal exception during verification
      */
-    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
-        final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
-        try (
-            // fin is a file stream over the downloaded plugin zip whose signature to verify
-            InputStream fin = pluginZipInputStream(zip);
-            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-            InputStream sin = urlOpenStream(ascUrl);
-            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
-            InputStream ain = new ArmoredInputStream(getPublicKey())
-        ) {
-            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
-            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
-
-            // validate the signature has key ID matching our public key ID
-            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
-            if (getPublicKeyId().equals(keyId) == false) {
-                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
-            }
-
-            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
-            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
-
-            // finally we verify the signature of the downloaded plugin zip matches the expected signature
-            if (signature.verify() == false) {
-                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
-            }
-        }
-    }
-
-    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
-        IOException {
+    void verifySignature(final Path zip, final String urlString) throws IOException {
         final Timer timer = new Timer();
 
         try {
@@ -689,22 +670,16 @@ public class InstallPluginAction implements Closeable {
                 }
             }, acceptableSignatureVerificationDelay());
 
-            computeSignatureForDownloadedPlugin(fin, ain, signature);
+            doVerifySignature(zip, urlString);
         } finally {
             timer.cancel();
         }
     }
 
-    // package private for testing
-    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
-        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-        signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-        final byte[] buffer = new byte[1024];
-        int read;
-        while ((read = fin.read(buffer)) != -1) {
-            signature.update(buffer, 0, read);
-        }
+    void doVerifySignature(final Path zip, final String urlString) throws IOException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        PgpSignatureVerifier.verifySignature(getPublicKeyId(), urlString, pluginZipInputStream(zip), urlOpenStream(ascUrl), getPublicKey());
     }
 
     // package private for testing
@@ -867,14 +842,14 @@ public class InstallPluginAction implements Closeable {
         PluginsUtils.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName());
+        verifyPluginName(env.pluginsDir(), info.getName());
 
-        PluginsUtils.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsUtils.checkForFailedPluginRemovals(env.pluginsDir());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
+        jarHellCheck(info, pluginRoot, env.pluginsDir(), env.modulesDir());
 
         if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
             generateNameComponentFile(pluginRoot);
@@ -921,11 +896,21 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
-        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
-        if (pluginPolicy != null) {
-            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
-            PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+
+        Path legacyPolicyFile = tmpRoot.resolve("plugin-security.policy");
+        if (Files.exists(legacyPolicyFile)) {
+            terminal.errorPrintln(
+                "WARNING: this plugin contains a legacy Security Policy file. Starting with version 8.18, "
+                    + "Entitlements replace SecurityManager as the security mechanism. Plugins must migrate their policy files to the new "
+                    + "format. For more information, please refer to "
+                    + PluginSecurity.ENTITLEMENTS_DESCRIPTION_URL
+            );
         }
+
+        var pluginPolicy = PolicyUtils.parsePolicyIfExists(info.getName(), tmpRoot, true);
+
+        Set<String> entitlements = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        PluginSecurity.confirmPolicyExceptions(terminal, entitlements, batch);
 
         // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The
         // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or
@@ -937,14 +922,14 @@ public class InstallPluginAction implements Closeable {
             );
         }
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        final Path destination = env.pluginsDir().resolve(info.getName());
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binDir().resolve(info.getName()),
+            env.configDir().resolve(info.getName()),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

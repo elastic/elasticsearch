@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
@@ -49,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -116,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));
@@ -252,7 +255,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
             assertThat(fetchedFields.size(), equalTo(5));
@@ -270,7 +274,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             FieldNamesFieldMapper.NAME,
             NestedPathFieldMapper.name(IndexVersion.current())
         )) {
-            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+            expectThrows(IllegalArgumentException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }
 
@@ -1538,7 +1542,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            Source source = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source source = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics()
+            ).getSource(readerContext, 0);
             Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("runtime_field");
@@ -1579,9 +1587,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testStoredFieldsSpec() throws IOException {
+        var mapperService = createMapperService();
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        assertEquals(
+            StoredFieldsSpec.withSourcePaths(mapperService.getIndexSettings().getIgnoredSourceFormat(), Set.of("field")),
+            fieldFetcher.storedFieldsSpec()
+        );
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -1688,7 +1700,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

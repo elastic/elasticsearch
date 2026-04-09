@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
@@ -65,7 +66,6 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
         for (var v : versions.entrySet()) {
             Path recordFile = switch (v.getKey()) {
-                case TRANSPORT_VERSION_TYPE -> rootDir.resolve(TRANSPORT_VERSIONS_RECORD);
                 case INDEX_VERSION_TYPE -> rootDir.resolve(INDEX_VERSIONS_RECORD);
                 default -> throw new IllegalArgumentException("Unknown version type " + v.getKey());
             };
@@ -94,7 +94,7 @@ public class TagVersionsTask extends AbstractVersionsTask {
         Integer v7Version = tagVersions.get("Version");
         if (v7Version == null) return tagVersions;
 
-        return Map.of(TRANSPORT_VERSION_TYPE, v7Version, INDEX_VERSION_TYPE, v7Version);
+        return Map.of(INDEX_VERSION_TYPE, v7Version);
     }
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");

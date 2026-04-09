@@ -14,13 +14,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -29,8 +30,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -41,13 +42,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
  */
 public class Left extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Left", Left::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Left.class).binary(Left::new).name("left");
 
     private final Expression str;
     private final Expression length;
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the substring that extracts 'length' chars from 'string' starting from the left.",
+        description = "Returns the substring that extracts *length* chars from *string* starting from the left.",
         examples = { @Example(file = "string", tag = "left") }
     )
     public Left(
@@ -78,8 +80,8 @@ public class Left extends EsqlScalarFunction {
 
     @Evaluator
     static BytesRef process(
-        @Fixed(includeInToString = false, build = true) BytesRef out,
-        @Fixed(includeInToString = false, build = true) UnicodeUtil.UTF8CodePoint cp,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef out,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) UnicodeUtil.UTF8CodePoint cp,
         BytesRef str,
         int length
     ) {
@@ -95,7 +97,7 @@ public class Left extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LeftEvaluator.Factory(
             source(),
             context -> new BytesRef(),

@@ -1,23 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -45,12 +52,18 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -88,7 +101,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(ShardRoutingRoleIT.class);
 
-    public static class TestPlugin extends Plugin implements ClusterPlugin, EnginePlugin {
+    public static class TestPlugin extends Plugin implements ClusterPlugin, EnginePlugin, ActionPlugin {
 
         volatile int numIndexingCopies = 1;
         static final String NODE_ATTR_UNPROMOTABLE_ONLY = "unpromotableonly";
@@ -107,6 +120,61 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     return copyIndex < numIndexingCopies ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
                 }
             };
+        }
+
+        // This is implemented in stateless, but for the tests we need to provide a simple implementation
+        public static class TransportTestUnpromotableRelocationAction extends TransportAction<
+            StatelessUnpromotableRelocationAction.Request,
+            ActionResponse.Empty> {
+
+            private final IndicesService indicesService;
+            private final PeerRecoveryTargetService peerRecoveryTargetService;
+
+            @Inject
+            public TransportTestUnpromotableRelocationAction(
+                ActionFilters actionFilters,
+                IndicesService indicesService,
+                PeerRecoveryTargetService peerRecoveryTargetService,
+                TransportService transportService
+            ) {
+                super(
+                    StatelessUnpromotableRelocationAction.TYPE.name(),
+                    actionFilters,
+                    transportService.getTaskManager(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
+                this.indicesService = indicesService;
+                this.peerRecoveryTargetService = peerRecoveryTargetService;
+            }
+
+            @Override
+            protected void doExecute(
+                Task task,
+                StatelessUnpromotableRelocationAction.Request request,
+                ActionListener<ActionResponse.Empty> listener
+            ) {
+                try (var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.getRecoveryId(), request.getShardId())) {
+                    final var indexService = indicesService.indexServiceSafe(request.getShardId().getIndex());
+                    final var indexShard = indexService.getShard(request.getShardId().id());
+                    final var recoveryTarget = recoveryRef.target();
+                    final var recoveryState = recoveryTarget.state();
+
+                    ActionListener.completeWith(listener, () -> {
+                        indexShard.prepareForIndexRecovery();
+                        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+                        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+                        indexShard.openEngineAndSkipTranslogRecovery();
+                        recoveryState.getIndex().setFileDetailsComplete();
+                        recoveryState.setStage(RecoveryState.Stage.FINALIZE);
+                        return ActionResponse.Empty.INSTANCE;
+                    });
+                }
+            }
+        }
+
+        @Override
+        public Collection<ActionHandler> getActions() {
+            return List.of(new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportTestUnpromotableRelocationAction.class));
         }
 
         @Override
@@ -294,7 +362,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
-            final var clusterState = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState();
+            final var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setRoutingTable(true).get().getState();
 
             // verify non-DEFAULT roles reported in cluster state XContent
             assertRolesInRoutingTableXContent(clusterState);
@@ -438,7 +506,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
     @Nullable
     public AllocationCommand getCancelPrimaryCommand() {
-        final var indexRoutingTable = clusterAdmin().prepareState()
+        final var indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -486,7 +554,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             assertEngineTypes();
 
             final var searchShardProfileKeys = new HashSet<String>();
-            final var indexRoutingTable = clusterAdmin().prepareState()
+            final var indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setRoutingTable(true)
                 .get()
@@ -548,15 +616,15 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             }
             // search-shards API
             for (int i = 0; i < 10; i++) {
-                final var search = clusterAdmin().prepareSearchShards(INDEX_NAME);
+                final var search = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX_NAME);
                 switch (randomIntBetween(0, 2)) {
-                    case 0 -> search.setRouting(randomAlphaOfLength(10));
-                    case 1 -> search.setRouting(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
+                    case 0 -> search.routing(randomAlphaOfLength(10));
+                    case 1 -> search.routing(randomSearchPreference(routingTableWatcher.numShards, internalCluster().getNodeNames()));
                     default -> {
                         // do nothing
                     }
                 }
-                ClusterSearchShardsGroup[] groups = search.get().getGroups();
+                ClusterSearchShardsGroup[] groups = safeExecute(client(), TransportClusterSearchShardsAction.TYPE, search).getGroups();
                 for (ClusterSearchShardsGroup group : groups) {
                     for (ShardRouting shr : group.getShards()) {
                         String profileKey = "[" + shr.currentNodeId() + "][" + INDEX_NAME + "][" + shr.id() + "]";

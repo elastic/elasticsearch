@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
@@ -125,8 +125,7 @@ public class SamlAuthnRequestValidator {
 
     private ParsedQueryString parseQueryString(String queryString) throws ElasticsearchSecurityException {
 
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(queryString, 0, parameters);
+        final var parameters = RequestParams.fromQueryString(queryString);
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }
@@ -250,7 +249,7 @@ public class SamlAuthnRequestValidator {
     }
 
     private boolean validateSignature(ParsedQueryString queryString, Collection<X509Credential> credentials) {
-        final String javaSigAlgorithm = SamlFactory.getJavaAlorithmNameFromUri(queryString.sigAlg);
+        final String javaSigAlgorithm = SamlFactory.getJavaAlgorithmNameFromUri(queryString.sigAlg);
         final byte[] contentBytes = queryString.reconstructQueryParameters().getBytes(StandardCharsets.UTF_8);
         final byte[] signatureBytes = Base64.getDecoder().decode(queryString.signature);
         return credentials.stream().anyMatch(credential -> {

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -34,7 +36,7 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
             prepareIndex("bigindex").setSource("foo", "bar").get();
         }
 
-        Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState().get().getState().nodes().getDataNodes();
+        Map<String, DiscoveryNode> dataNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getDataNodes();
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
@@ -46,7 +48,8 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
         // wait for green and then shrink
         ensureGreen();
-        assertAcked(indicesAdmin().prepareResizeIndex("bigindex", "shrunk_bigindex").setSettings(indexSettings(1, 0).build()));
+
+        assertAcked(ResizeIndexTestUtils.executeResize(ResizeType.SHRINK, "bigindex", "shrunk_bigindex", indexSettings(1, 0)));
 
         // verify all docs
         ensureGreen();

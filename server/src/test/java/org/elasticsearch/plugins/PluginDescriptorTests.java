@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -106,7 +107,7 @@ public class PluginDescriptorTests extends ESTestCase {
         assertions.accept(PluginDescriptorTests::mockStableDescriptor);
     }
 
-    public void testReadInternalDescriptor() throws Exception {
+    public void testReadInternalDescriptorFromStream() throws Exception {
         PluginDescriptor info = mockInternalDescriptor();
         assertEquals("my_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
@@ -211,6 +212,28 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
+    public void testReadDeploymentTarget() throws Exception {
+        assertThat(mockInternalDescriptor().getDeploymentTarget(), is(PluginDescriptor.DeploymentTarget.ALL));
+        assertThat(
+            mockInternalDescriptor("deployment.target", "STATEFUL_ONLY").getDeploymentTarget(),
+            is(PluginDescriptor.DeploymentTarget.STATEFUL_ONLY)
+        );
+        assertThat(
+            mockInternalDescriptor("deployment.target", "STATELESS_ONLY").getDeploymentTarget(),
+            is(PluginDescriptor.DeploymentTarget.STATELESS_ONLY)
+        );
+        assertThat(mockInternalDescriptor("deployment.target", "ALL").getDeploymentTarget(), is(PluginDescriptor.DeploymentTarget.ALL));
+    }
+
+    public void testReadDeploymentTargetInvalid() throws Exception {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mockInternalDescriptor("deployment.target", "INVALID")
+        );
+        assertThat(e.getMessage(), containsString("invalid deployment.target [INVALID]"));
+        assertThat(e.getMessage(), containsString("expected one of [STATEFUL_ONLY, STATELESS_ONLY, ALL]"));
+    }
+
     public void testIsModular() throws Exception {
         PluginDescriptor info = mockStableDescriptor("modular", "false");
         assertThat(info.isModular(), is(false));
@@ -229,7 +252,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -252,7 +276,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -285,7 +310,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
     }
 
@@ -311,7 +337,7 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     /**
-     * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
+     * This is important because {@link PluginsUtils#getPluginBundles(Path, java.util.function.Predicate)} will
      * use the hashcode to catch duplicate names
      */
     public void testPluginEqualityAndHash() {
@@ -329,7 +355,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            isStable
+            isStable,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         // everything but name is different from descriptor1
         PluginDescriptor descriptor2 = new PluginDescriptor(
@@ -346,7 +373,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.hasNativeController() == false,
             descriptor1.isLicensed() == false,
             descriptor1.isModular() == false,
-            descriptor1.isStable() == false
+            descriptor1.isStable() == false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -361,7 +389,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.hasNativeController(),
             descriptor1.isLicensed(),
             descriptor1.isModular(),
-            descriptor1.isStable()
+            descriptor1.isStable(),
+            PluginDescriptor.DeploymentTarget.ALL
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

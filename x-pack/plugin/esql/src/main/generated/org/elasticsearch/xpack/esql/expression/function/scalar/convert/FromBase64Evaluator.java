@@ -10,35 +10,40 @@ import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link FromBase64}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link FromBase64}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+public final class FromBase64Evaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FromBase64Evaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final Source source;
+
+  private final ExpressionEvaluator field;
 
   private final BytesRefBuilder oScratch;
 
   private final DriverContext driverContext;
 
-  public FromBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      BytesRefBuilder oScratch, DriverContext driverContext) {
+  private Warnings warnings;
+
+  public FromBase64Evaluator(Source source, ExpressionEvaluator field, BytesRefBuilder oScratch,
+      DriverContext driverContext) {
+    this.source = source;
     this.field = field;
     this.oScratch = oScratch;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -52,22 +57,30 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(FromBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
+        BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
+        result.appendBytesRef(FromBase64.process(field, this.oScratch));
       }
       return result.build();
     }
@@ -77,7 +90,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(FromBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+        BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
+        result.appendBytesRef(FromBase64.process(field, this.oScratch));
       }
       return result.build();
     }
@@ -93,14 +107,21 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     Releasables.closeExpectNoException(field);
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final Function<DriverContext, BytesRefBuilder> oScratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
+    public Factory(Source source, ExpressionEvaluator.Factory field,
         Function<DriverContext, BytesRefBuilder> oScratch) {
       this.source = source;
       this.field = field;

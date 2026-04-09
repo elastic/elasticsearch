@@ -95,7 +95,7 @@ split:
       reason: tsdb indexing changed in 8.2.0
 
   - do:
-      catch: /index-split is not supported because the destination index \[test\] is in time series mode/
+      catch: /index-split is not supported because the destination index \[test\] is in time.series mode/
       indices.split:
         index: test
         target: test_split

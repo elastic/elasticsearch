@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +47,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     static final String RELOCATING_SHARDS = "relocating_shards";
     static final String INITIALIZING_SHARDS = "initializing_shards";
     static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    static final String UNASSIGNED_PRIMARY_SHARDS = "unassigned_primary_shards";
     static final String INDICES = "indices";
 
     private String clusterName;
@@ -59,7 +62,6 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     public ClusterHealthResponse() {}
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = in.readString();
         clusterHealthStatus = ClusterHealthStatus.readFrom(in);
         clusterStateHealth = new ClusterStateHealth(in);
@@ -72,13 +74,23 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
+        this(
+            clusterName,
+            concreteIndices,
+            clusterState,
+            clusterState.metadata().getProject().id(),
+            -1,
+            -1,
+            -1,
+            TimeValue.timeValueHours(0)
+        );
     }
 
     public ClusterHealthResponse(
         String clusterName,
         String[] concreteIndices,
         ClusterState clusterState,
+        ProjectId projectId,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
@@ -89,7 +101,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
@@ -142,6 +154,10 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
 
     public int getUnassignedShards() {
         return clusterStateHealth.getUnassignedShards();
+    }
+
+    public int getUnassignedPrimaryShards() {
+        return clusterStateHealth.getUnassignedPrimaryShards();
     }
 
     public int getNumberOfNodes() {
@@ -253,6 +269,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(UNASSIGNED_PRIMARY_SHARDS, getUnassignedPrimaryShards());
         builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());

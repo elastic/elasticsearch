@@ -1,6 +1,0 @@
-pr: 109386
-summary: "ESQL: `top_list` aggregation"
-area: ES|QL
-type: feature
-issues:
- - 109213

@@ -29,7 +29,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -114,6 +116,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             throw new ElasticsearchException(failure);
         }
     };
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @Before
     public void init() {
@@ -143,7 +147,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
@@ -173,8 +177,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         assertThat(TriggeredWatchStore.validate(cs), is(false));
@@ -184,7 +188,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
         final Index index = metadataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
@@ -196,8 +200,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         );
         indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         doAnswer(invocation -> {
@@ -240,22 +244,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
-                    new SearchResponse(
-                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
-                    )
+                    SearchResponseUtils.response(
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+                    ).scrollId("_scrollId1").build()
                 );
             } else if (request.scrollId().equals("_scrollId1")) {
                 ActionListener.respondAndRelease(listener, SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null));
@@ -311,7 +302,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(
             IndexMetadata.builder("triggered-watches-alias")
                 .settings(indexSettings)
@@ -327,8 +318,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         );
         indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
@@ -339,7 +330,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testLoadingFailsWithTwoAliases() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         metadataBuilder.put(
             IndexMetadata.builder("triggered-watches-alias")
@@ -368,8 +359,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             )
         );
 
-        csBuilder.metadata(metadataBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        csBuilder.putProjectMetadata(metadataBuilder);
+        csBuilder.putRoutingTable(projectId, routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
@@ -380,11 +371,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     public void testTriggeredWatchesIndexIsClosed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings).state(IndexMetadata.State.CLOSE)
         );
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         assertThat(TriggeredWatchStore.validate(csBuilder.build()), is(false));
     }
@@ -400,9 +391,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
     public void testIndexNotFoundButInMetadata() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata.Builder metadataBuilder = Metadata.builder()
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         ClusterState cs = csBuilder.build();
         Watch watch = mock(Watch.class);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,12 +13,12 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -36,13 +37,13 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
-public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
+public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
-    public static boolean DEFAULT_IN_ORDER = true;
+    public static final boolean DEFAULT_IN_ORDER = true;
     /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
-    public static int DEFAULT_SLOP = 0;
+    public static final int DEFAULT_SLOP = 0;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
@@ -276,7 +277,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**
@@ -341,6 +342,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
+        public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String queryName() {
             throw new UnsupportedOperationException();
         }
@@ -372,7 +378,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -32,10 +33,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,19 +48,21 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -82,9 +85,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
+    // Represents the maximum memory overhead factor for an operation when processed for indexing.
+    // This accounts for potential increases in memory usage due to document expansion, including:
+    // 1. If the document source is not stored in a contiguous byte array, it will be copied to ensure contiguity.
+    // 2. If the document contains strings, Jackson uses char arrays (2 bytes per character) to parse string fields, doubling memory usage.
+    // 3. Parsed string fields create new copies of their data, further increasing memory consumption.
+    private static final int MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR = 4;
+
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final Consumer<Runnable> postWriteAction;
+    private final boolean batchIndexingEnabled;
 
     private final DocumentParsingProvider documentParsingProvider;
 
@@ -101,6 +112,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         DocumentParsingProvider documentParsingProvider
     ) {
         super(
@@ -115,13 +127,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkShardRequest::new,
             BulkShardRequest::new,
             ExecutorSelector.getWriteExecutorForShard(threadPool),
-            false,
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            projectResolver,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.postWriteAction = WriteAckDelay.create(settings, threadPool);
+        this.batchIndexingEnabled = ShardBatchIndexer.BATCH_INDEXING.get(settings);
         this.documentParsingProvider = documentParsingProvider;
     }
 
@@ -141,12 +156,87 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void dispatchedShardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)), true);
+    }
+
+    @Override
+    protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request, ProjectMetadata project) {
+        return ShardBulkSplitHelper.splitRequests(request, project);
+    }
+
+    @Override
+    protected Tuple<BulkShardResponse, Exception> combineSplitResponses(
+        BulkShardRequest originalRequest,
+        Map<ShardId, BulkShardRequest> splitRequests,
+        Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
+    ) {
+        return ShardBulkSplitHelper.combineResponses(originalRequest, splitRequests, responses);
+    }
+
+    @Override
+    protected void dispatchedShardOperationOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
+    ) {
+        var listener = ActionListener.releaseBefore(
+            indexingPressure.trackPrimaryOperationExpansion(
+                primaryOperationCount(request),
+                getMaxOperationMemoryOverhead(request),
+                force(request)
+            ),
+            outerListener
+        );
+        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+        long startBatchTime = System.nanoTime();
+        if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
+            ShardBatchIndexer.performBatchIndexOnPrimary(
+                request,
+                documentParsingProvider,
+                context,
+                listener.delegateFailure((delegate, ctx) -> {
+                    if (context.hasMoreOperationsToExecute() == false) {
+                        primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBatchTime);
+                        delegate.onResponse(
+                            new WritePrimaryResult<>(
+                                request,
+                                context.buildShardResponse(),
+                                context.getLocationToSync(),
+                                primary,
+                                logger,
+                                postWriteRefresh,
+                                postWriteAction
+                            )
+                        );
+                    } else {
+                        // Fall through to serial path for remaining items
+                        performSequentialOnPrimary(request, delegate, context, startBatchTime);
+                    }
+                })
+            );
+        } else {
+            performSequentialOnPrimary(request, listener, context, startBatchTime);
+        }
+    }
+
+    private void performSequentialOnPrimary(
+        final BulkShardRequest request,
+        final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        final BulkPrimaryExecutionContext batchContext,
+        long startBatchTime
+    ) {
+        final IndexShard primary = batchContext.getPrimary();
+        final ClusterStateObserver observer = new ClusterStateObserver(
+            clusterService,
+            request.timeout(),
+            logger,
+            threadPool.getThreadContext()
+        );
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
@@ -167,9 +257,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
         }, clusterState -> {
-            var indexMetadata = clusterState.metadata().index(primary.shardId().getIndex());
+            var index = primary.shardId().getIndex();
+            var indexMetadata = clusterState.metadata().lookupProject(index).map(p -> p.index(index)).orElse(null);
             return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
-        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
+        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider, batchContext, startBatchTime);
     }
 
     @Override
@@ -180,6 +271,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected int primaryOperationCount(BulkShardRequest request) {
         return request.items().length;
+    }
+
+    @Override
+    protected long primaryLargestOperationSize(BulkShardRequest request) {
+        return request.largestOperationSize();
+    }
+
+    @Override
+    protected boolean primaryAllowsOperationsBeyondSizeLimit(BulkShardRequest request) {
+        return false;
     }
 
     public static void performOnPrimary(
@@ -220,11 +321,39 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         @Nullable Consumer<Runnable> postWriteAction,
         DocumentParsingProvider documentParsingProvider
     ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            executor,
+            postWriteRefresh,
+            postWriteAction,
+            documentParsingProvider,
+            new BulkPrimaryExecutionContext(request, primary),
+            System.nanoTime()
+        );
+    }
+
+    private static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        Executor executor,
+        @Nullable PostWriteRefresh postWriteRefresh,
+        @Nullable Consumer<Runnable> postWriteAction,
+        DocumentParsingProvider documentParsingProvider,
+        BulkPrimaryExecutionContext context,
+        long startBulkTime
+    ) {
         new ActionRunnable<>(listener) {
-
-            private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-
-            final long startBulkTime = System.nanoTime();
 
             private final ActionListener<Void> onMappingUpdateDone = ActionListener.wrap(v -> executor.execute(this), this::onRejection);
 
@@ -323,7 +452,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+                updateResult = updateHelper.prepare(
+                    updateRequest,
+                    context.getPrimary(),
+                    nowInMillisSupplier,
+                    // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
+                    FetchSourceContext.FETCH_ALL_SOURCE
+                );
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -363,16 +498,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
 
-            DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
-
-            context.setDocumentSizeObserver(documentSizeObserver);
+            XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
                 request.source(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentSizeObserver
+                request.getDynamicTemplateParams(),
+                request.getIncludeSourceOnError(),
+                meteringParserDecorator,
+                request.tsid()
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -413,13 +549,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final var mapperService = primary.mapperService();
         final long initialMappingVersion = mapperService.mappingVersion();
         try {
-            CompressedXContent mergedSource = mapperService.merge(
-                MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(result.getRequiredMappingUpdate()),
-                MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
-            ).mappingSource();
-            final DocumentMapper existingDocumentMapper = mapperService.documentMapper();
-            if (existingDocumentMapper != null && mergedSource.equals(existingDocumentMapper.mappingSource())) {
+            if (mapperService.isNoOpUpdate(result.getRequiredMappingUpdate())) {
                 context.resetForNoopMappingUpdateRetry(mapperService.mappingVersion());
                 return true;
             }
@@ -480,7 +610,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         final BulkItemResponse response;
         if (isUpdate) {
-            response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
+            assert context.getPrimary().mapperService() != null;
+            final MappingLookup mappingLookup = context.getPrimary().mapperService().mappingLookup();
+            assert mappingLookup != null;
+
+            response = processUpdateResponse(
+                (UpdateRequest) docWriteRequest,
+                context.getConcreteIndex(),
+                mappingLookup,
+                executionResult,
+                updateResult
+            );
         } else {
             if (isFailed) {
                 final Exception failure = executionResult.getFailure().getCause();
@@ -518,6 +658,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static BulkItemResponse processUpdateResponse(
         final UpdateRequest updateRequest,
         final String concreteIndex,
+        final MappingLookup mappingLookup,
         BulkItemResponse operationResponse,
         final UpdateHelper.Result translate
     ) {
@@ -555,6 +696,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         UpdateHelper.extractGetResult(
                             updateRequest,
                             concreteIndex,
+                            mappingLookup,
                             indexResponse.getSeqNo(),
                             indexResponse.getPrimaryTerm(),
                             indexResponse.getVersion(),
@@ -579,6 +721,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final GetResult getResult = UpdateHelper.extractGetResult(
                     updateRequest,
                     concreteIndex,
+                    mappingLookup,
                     deleteResponse.getSeqNo(),
                     deleteResponse.getPrimaryTerm(),
                     deleteResponse.getVersion(),
@@ -597,13 +740,35 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+    protected void dispatchedShardOperationOnReplica(
+        BulkShardRequest request,
+        IndexShard replica,
+        ActionListener<ReplicaResult> outerListener
+    ) {
+        var listener = ActionListener.releaseBefore(
+            indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
+            outerListener
+        );
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
-            final Translog.Location location = performOnReplica(request, replica);
+            final Translog.Location location;
+            if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
+                ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(request, replica);
+                if (batchResult.processedItems() < request.items().length) {
+                    location = performOnReplica(request, replica, batchResult.processedItems(), batchResult.location());
+                } else {
+                    location = batchResult.location();
+                }
+            } else {
+                location = performOnReplica(request, replica);
+            }
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger, postWriteAction);
         });
+    }
+
+    private static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
+        return request.maxOperationSizeInBytes() * MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR;
     }
 
     @Override
@@ -617,8 +782,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-        Translog.Location location = null;
-        for (int i = 0; i < request.items().length; i++) {
+        return performOnReplica(request, replica, 0, null);
+    }
+
+    static Translog.Location performOnReplica(
+        BulkShardRequest request,
+        IndexShard replica,
+        int startIndex,
+        @Nullable Translog.Location existingLocation
+    ) throws Exception {
+        Translog.Location location = existingLocation;
+        for (int i = startIndex; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
@@ -661,12 +835,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         switch (docWriteRequest.opType()) {
             case CREATE, INDEX -> {
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final SourceToParse sourceToParse = new SourceToParse(
-                    indexRequest.id(),
-                    indexRequest.source(),
-                    indexRequest.getContentType(),
-                    indexRequest.routing()
-                );
+                final SourceToParse sourceToParse = replicaSourceToParse(indexRequest);
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
@@ -705,5 +874,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         }
         return result;
+    }
+
+    static SourceToParse replicaSourceToParse(IndexRequest indexRequest) {
+        return new SourceToParse(
+            indexRequest.id(),
+            indexRequest.source(),
+            indexRequest.getContentType(),
+            indexRequest.routing(),
+            Map.of(),
+            Map.of(),
+            true,
+            XContentMeteringParserDecorator.NOOP,
+            indexRequest.tsid()
+        );
     }
 }

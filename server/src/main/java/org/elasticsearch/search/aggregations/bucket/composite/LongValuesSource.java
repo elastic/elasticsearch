@@ -1,24 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -42,7 +42,7 @@ import java.util.function.ToLongFunction;
  */
 class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final BigArrays bigArrays;
-    private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
+    private final CheckedFunction<LeafReaderContext, SortedNumericLongValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
 
     private final BitArray bits;
@@ -53,7 +53,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     LongValuesSource(
         BigArrays bigArrays,
         MappedFieldType fieldType,
-        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        CheckedFunction<LeafReaderContext, SortedNumericLongValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,
@@ -171,12 +171,12 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        final SortedNumericDocValues dvs = docValuesFunc.apply(context);
-        final NumericDocValues singleton = DocValues.unwrapSingleton(dvs);
+        final SortedNumericLongValues dvs = docValuesFunc.apply(context);
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(dvs);
         return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedNumericDocValues dvs, LeafBucketCollector next) {
+    private LeafBucketCollector getLeafCollector(SortedNumericLongValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -199,7 +199,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         };
     }
 
-    private LeafBucketCollector getLeafCollector(NumericDocValues dvs, LeafBucketCollector next) {
+    private LeafBucketCollector getLeafCollector(LongValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {

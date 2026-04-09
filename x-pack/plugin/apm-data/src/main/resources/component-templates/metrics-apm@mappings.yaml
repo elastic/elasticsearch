@@ -5,9 +5,9 @@ _meta:
   managed: true
 template:
   mappings:
-    _source:
-      mode: synthetic
     properties:
+      system.process.cpu.start_time:
+        type: date
       processor.event:
         type: constant_keyword
         value: metric

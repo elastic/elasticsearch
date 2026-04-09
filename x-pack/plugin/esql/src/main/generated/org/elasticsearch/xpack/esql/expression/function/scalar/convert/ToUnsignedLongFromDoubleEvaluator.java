@@ -6,29 +6,36 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
- * This class is generated. Do not edit it.
+ * {@link ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToUnsignedLongFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToUnsignedLongFromDoubleEvaluator.class);
+
+  private final ExpressionEvaluator dbl;
+
+  public ToUnsignedLongFromDoubleEvaluator(Source source, ExpressionEvaluator dbl,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.dbl = dbl;
   }
 
   @Override
-  public String name() {
-    return "ToUnsignedLongFromDouble";
+  public ExpressionEvaluator next() {
+    return dbl;
   }
 
   @Override
@@ -56,7 +63,7 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     }
   }
 
-  private static long evalValue(DoubleVector container, int index) {
+  private long evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToUnsignedLong.fromDouble(value);
   }
@@ -95,29 +102,46 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     }
   }
 
-  private static long evalValue(DoubleBlock container, int index) {
+  private long evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToUnsignedLong.fromDouble(value);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToUnsignedLongFromDoubleEvaluator[" + "dbl=" + dbl + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(dbl);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += dbl.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory dbl;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, ExpressionEvaluator.Factory dbl) {
       this.source = source;
+      this.dbl = dbl;
     }
 
     @Override
     public ToUnsignedLongFromDoubleEvaluator get(DriverContext context) {
-      return new ToUnsignedLongFromDoubleEvaluator(field.get(context), source, context);
+      return new ToUnsignedLongFromDoubleEvaluator(source, dbl.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToUnsignedLongFromDoubleEvaluator[field=" + field + "]";
+      return "ToUnsignedLongFromDoubleEvaluator[" + "dbl=" + dbl + "]";
     }
   }
 }

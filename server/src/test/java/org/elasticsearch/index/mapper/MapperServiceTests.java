@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,6 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -25,6 +29,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -42,7 +47,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,
@@ -302,17 +310,57 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testIsMetadataField() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
 
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
-        assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+        CheckedFunction<IndexMode, MapperService, IOException> initMapperService = (indexMode) -> {
+            Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .put(IndexSettings.MODE.getKey(), indexMode);
 
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersions.V_8_0_0)) {
-                continue;   // Nested field does not exist in the 7x line
+            if (indexMode == IndexMode.TIME_SERIES) {
+                settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
             }
-            assertTrue("Expected " + builtIn + " to be a metadata field for version " + version, mapperService.isMetadataField(builtIn));
+
+            return createMapperService(settingsBuilder.build(), mapping(b -> {}));
+        };
+
+        Consumer<MapperService> assertMapperService = (mapperService) -> {
+            assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+
+            for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+                if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersions.V_8_0_0)) {
+                    continue;  // Nested field does not exist in the 7x line
+                }
+                boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
+                boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+
+                if (isTimeSeriesField && isTimeSeriesMode == false) {
+                    assertFalse(
+                        "Expected "
+                            + builtIn
+                            + " to not be a metadata field for version "
+                            + version
+                            + " and index mode "
+                            + mapperService.getIndexSettings().getMode(),
+                        mapperService.isMetadataField(builtIn)
+                    );
+                } else {
+                    assertTrue(
+                        "Expected "
+                            + builtIn
+                            + " to be a metadata field for version "
+                            + version
+                            + " and index mode "
+                            + mapperService.getIndexSettings().getMode(),
+                        mapperService.isMetadataField(builtIn)
+                    );
+                }
+            }
+        };
+
+        for (IndexMode indexMode : IndexMode.values()) {
+            MapperService mapperService = initMapperService.apply(indexMode);
+            assertMapperService.accept(mapperService);
         }
     }
 
@@ -560,6 +608,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper subobjectsFirst = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
         DocumentMapper subobjectsLast = mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
         assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
+    }
+
+    public void testBulkMergeSubobjectsFalseWithDottedNotation() throws IOException {
+        // Simulates template composition where one component template defines host.os.name via
+        // dotted notation (creating an intermediate host object), and another defines host as
+        // an explicit object with subobjects: false. Uses a fresh mapper service (no existing
+        // mapper) to exercise the applyFieldsBudget path.
+        final MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
+        CompressedXContent dottedMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host.os.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""");
+        CompressedXContent objectMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host": {
+                    "type": "object",
+                    "subobjects": false,
+                    "properties": {
+                      "ip": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+        DocumentMapper merged = mapperService.merge("_doc", List.of(dottedMapping, objectMapping), MergeReason.INDEX_TEMPLATE);
+        assertNotNull(merged.mappers().objectMappers().get("host"));
+        assertEquals(ObjectMapper.Subobjects.DISABLED, merged.mappers().objectMappers().get("host").subobjects());
     }
 
     public void testMergeMultipleRoots() throws IOException {
@@ -1711,7 +1796,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (FALSE) is not compatible "
                     + "with the value from its parent context (TRUE)"
             )
@@ -1752,7 +1837,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (TRUE) is not compatible "
                     + "with the value from its parent context (FALSE)"
             )

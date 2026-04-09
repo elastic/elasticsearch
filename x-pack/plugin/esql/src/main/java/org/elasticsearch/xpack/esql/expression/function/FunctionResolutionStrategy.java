@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Strategy indicating the type of resolution to apply for resolving the actual function definition in a pluggable way.
@@ -18,14 +18,13 @@ public interface FunctionResolutionStrategy {
     /**
      * Default behavior of standard function calls like {@code ABS(col)}.
      */
-    FunctionResolutionStrategy DEFAULT = new FunctionResolutionStrategy() {
-    };
+    FunctionResolutionStrategy DEFAULT = new FunctionResolutionStrategy() {};
 
     /**
      * Build the real function from this one and resolution metadata.
      */
     default Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-        return def.builder().build(uf, cfg);
+        return def.build(uf, cfg);
     }
 
     /**

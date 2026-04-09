@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -24,12 +26,13 @@ import java.util.List;
  */
 public class Tau extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tau", Tau::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Tau.class).noArgs(Tau::new).name("tau");
 
     public static final double TAU = Math.PI * 2;
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.",
+        description = "Returns the [ratio](https://tauday.com/tau-manifesto) of a circle’s circumference to its radius.",
         examples = @Example(file = "math", tag = "tau")
     )
     public Tau(Source source) {
@@ -51,7 +54,7 @@ public class Tau extends DoubleConstantFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return TAU;
     }
 

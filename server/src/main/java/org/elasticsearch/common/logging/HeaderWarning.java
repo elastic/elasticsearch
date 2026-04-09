@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -53,8 +54,8 @@ public class HeaderWarning {
     static Pattern getPatternWithSemanticVersion() {
         return Pattern.compile("299 " + // log level code
             "Elasticsearch-" + // warn agent
-            semanticVersionPattern + "-" + // warn agent: semantic version
-            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            "(?:" + semanticVersionPattern + "-)?" + // warn agent: optional semantic version
+            "(?:[a-f0-9]{7,40}|unknown) " + // warn agent: hash
             // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
             "\"(?<quotedStringValue>.*)\"( " +
             // quoted RFC 1123 date format

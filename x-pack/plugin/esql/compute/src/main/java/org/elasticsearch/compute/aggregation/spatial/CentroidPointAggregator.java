@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.aggregation.AggregatorState;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.nio.ByteOrder;
@@ -32,13 +34,16 @@ import java.nio.ByteOrder;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
+    public static CentroidState initSingle(CoordinateEncoder encoder) {
+        return new CentroidState(encoder);
+    }
+
+    public static GroupingCentroidState initGrouping(BigArrays bigArrays, CoordinateEncoder encoder) {
+        return new GroupingCentroidState(bigArrays, encoder);
+    }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
         current.add(xVal, xDel, yVal, yDel, count);
-    }
-
-    public static void combineStates(CentroidState current, CentroidState state) {
-        current.add(state);
     }
 
     public static void combineIntermediate(CentroidState state, double xIn, double dx, double yIn, double dy, long count) {
@@ -58,20 +63,7 @@ abstract class CentroidPointAggregator {
     }
 
     public static Block evaluateFinal(CentroidState state, DriverContext driverContext) {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(state.encodeCentroidResult(), 1);
-    }
-
-    public static void combineStates(GroupingCentroidState current, int groupId, GroupingCentroidState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(
-                state.xValues.get(statePosition),
-                state.xDeltas.get(statePosition),
-                state.yValues.get(statePosition),
-                state.yDeltas.get(statePosition),
-                state.counts.get(statePosition),
-                groupId
-            );
-        }
+        return state.toBlock(driverContext.blockFactory());
     }
 
     public static void combineIntermediate(
@@ -127,8 +119,8 @@ abstract class CentroidPointAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, DriverContext driverContext) {
-        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (BytesRefBlock.Builder builder = ctx.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.xValues.size()) {
@@ -150,6 +142,11 @@ abstract class CentroidPointAggregator {
         protected final CompensatedSum xSum = new CompensatedSum(0, 0);
         protected final CompensatedSum ySum = new CompensatedSum(0, 0);
         protected long count = 0;
+        final CoordinateEncoder encoder;
+
+        CentroidState(CoordinateEncoder encoder) {
+            this.encoder = encoder;
+        }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -161,12 +158,6 @@ abstract class CentroidPointAggregator {
 
         public void count(long count) {
             this.count = count;
-        }
-
-        public void add(CentroidState other) {
-            xSum.add(other.xSum.value(), other.xSum.delta());
-            ySum.add(other.ySum.value(), other.ySum.delta());
-            count += other.count;
         }
 
         public void add(double x, double y) {
@@ -181,15 +172,20 @@ abstract class CentroidPointAggregator {
             this.count += count;
         }
 
-        protected BytesRef encodeCentroidResult() {
-            double x = xSum.value() / count;
-            double y = ySum.value() / count;
-            return encode(x, y);
+        protected Block toBlock(BlockFactory blockFactory) {
+            if (count > 0) {
+                double x = xSum.value() / count;
+                double y = ySum.value() / count;
+                return blockFactory.newConstantBytesRefBlockWith(encode(x, y), 1);
+            } else {
+                return blockFactory.newConstantNullBlock(1);
+            }
         }
     }
 
     static class GroupingCentroidState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
+        final CoordinateEncoder encoder;
 
         DoubleArray xValues;
         DoubleArray xDeltas;
@@ -198,8 +194,9 @@ abstract class CentroidPointAggregator {
 
         LongArray counts;
 
-        GroupingCentroidState(BigArrays bigArrays) {
+        GroupingCentroidState(BigArrays bigArrays, CoordinateEncoder encoder) {
             this.bigArrays = bigArrays;
+            this.encoder = encoder;
             boolean success = false;
             try {
                 this.xValues = bigArrays.newDoubleArray(1);
@@ -249,7 +246,8 @@ abstract class CentroidPointAggregator {
         }
 
         /** Needed for generated code that does null tracking, which we do not need because we use count */
-        final void enableGroupIdTracking(SeenGroupIds ignore) {}
+        @Override
+        public final void enableGroupIdTracking(SeenGroupIds ignore) {}
 
         private void ensureCapacity(int groupId) {
             if (groupId >= xValues.size()) {
@@ -268,7 +266,6 @@ abstract class CentroidPointAggregator {
             return encode(x, y);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             CentroidPointAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }

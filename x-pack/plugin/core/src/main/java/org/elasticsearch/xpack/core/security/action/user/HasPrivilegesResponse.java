@@ -38,7 +38,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     }
 
     public HasPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         completeMatch = in.readBoolean();
         cluster = in.readMap(StreamInput::readBoolean);
         index = readResourcePrivileges(in);

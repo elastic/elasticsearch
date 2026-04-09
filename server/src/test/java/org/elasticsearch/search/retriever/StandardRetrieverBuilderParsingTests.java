@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.retriever;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -97,12 +99,9 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
 
     @Override
     protected StandardRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return StandardRetrieverBuilder.fromXContent(
+        return (StandardRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 
@@ -163,6 +162,35 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
             if (standardRetriever.sortBuilders != null) {
                 assertThat(source.sorts().size(), equalTo(standardRetriever.sortBuilders.size()));
             }
+        }
+    }
+
+    public void testIsCompound() {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        assertFalse(standardRetriever.isCompound());
+    }
+
+    public void testTopDocsQuery() throws IOException {
+        StandardRetrieverBuilder standardRetriever = createTestInstance();
+        final int preFilters = standardRetriever.preFilterQueryBuilders.size();
+        QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
+        assertNotNull(topDocsQuery);
+        if (preFilters > 0) {
+            assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
+            BoolQueryBuilder boolQuery = (BoolQueryBuilder) topDocsQuery;
+            assertThat(boolQuery.filter().size(), equalTo(1 + preFilters));
+            if (standardRetriever.queryBuilder != null) {
+                assertThat(boolQuery.filter().get(0), instanceOf(standardRetriever.queryBuilder.getClass()));
+            } else {
+                assertThat(boolQuery.filter().get(0), instanceOf(MatchAllQueryBuilder.class));
+            }
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(boolQuery.filter().get(i + 1), instanceOf(standardRetriever.preFilterQueryBuilders.get(i).getClass()));
+            }
+        } else if (standardRetriever.queryBuilder != null) {
+            assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
+        } else {
+            assertThat(topDocsQuery, instanceOf(MatchAllQueryBuilder.class));
         }
     }
 

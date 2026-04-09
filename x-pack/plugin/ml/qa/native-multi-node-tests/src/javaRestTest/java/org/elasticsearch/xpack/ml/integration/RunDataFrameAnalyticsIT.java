@@ -265,7 +265,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).get();
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
         getSettingsRequest.indices(sourceIndex);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
         getSettingsRequest.includeDefaults(true);
@@ -396,7 +396,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         assertResponse(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), searchResponse -> {
-            if (searchResponse.getHits().getTotalHits().value == docCount) {
+            if (searchResponse.getHits().getTotalHits().value() == docCount) {
                 long seenCount = SearchResponseUtils.getTotalHitsValue(
                     prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
                         .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
@@ -404,7 +404,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 logger.debug("We stopped during analysis: [{}] < [{}]", seenCount, docCount);
                 assertThat(seenCount, lessThan((long) docCount));
             } else {
-                logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
+                logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value(), docCount);
             }
         });
 

@@ -1,10 +1,10 @@
 {
   "search_application.put": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-search-application.html",
-      "description": "Creates or updates a search application."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-put",
+      "description": "Create or update a search application"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -33,6 +33,7 @@
     "params": {
       "create": {
         "type": "boolean",
+        "default": false,
         "description": "If true, requires that a search application with the specified resource_id does not already exist. (default: false)"
       }
     },

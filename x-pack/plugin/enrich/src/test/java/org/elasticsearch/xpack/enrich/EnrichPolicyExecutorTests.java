@@ -20,7 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -46,7 +46,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -385,8 +388,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testRunPolicyLocallyMissingPolicy() {
         EnrichPolicy enrichPolicy = EnrichPolicyTests.randomEnrichPolicy(XContentType.JSON);
+        final var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId).putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build()
+            )
             .build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -405,9 +411,59 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
         Exception e = expectThrows(
             ResourceNotFoundException.class,
-            () -> testExecutor.runPolicyLocally(task, "my-policy", ".enrich-my-policy-123456789", null)
+            () -> testExecutor.runPolicyLocally(projectId, task, "my-policy", ".enrich-my-policy-123456789", null)
         );
         assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
+    }
+
+    public void testWaitForTaskUsesEnrichOrigin() throws Exception {
+        String testPolicyName = "test_policy";
+        String testTaskId = randomAlphaOfLength(10) + ":" + randomIntBetween(100, 300);
+
+        AtomicReference<String> capturedOrigin = new AtomicReference<>();
+        CountDownLatch getTaskCalled = new CountDownLatch(1);
+
+        Client client = new NoOpClient(testThreadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                testThreadPool.generic().execute(() -> {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
+                        capturedOrigin.set(testThreadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME));
+                        getTaskCalled.countDown();
+                        listener.onResponse(null);
+                    } else if (InternalExecutePolicyAction.INSTANCE.equals(action)) {
+                        @SuppressWarnings("unchecked")
+                        Response response = (Response) new ExecuteEnrichPolicyAction.Response(new TaskId(testTaskId));
+                        listener.onResponse(response);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                });
+            }
+        };
+
+        final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
+            Settings.EMPTY,
+            null,
+            null,
+            client,
+            testThreadPool,
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
+            new EnrichPolicyLocks(),
+            ESTestCase::randomNonNegativeLong
+        );
+
+        testExecutor.coordinatePolicyExecution(
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName).setWaitForCompletion(false),
+            ActionListener.noop()
+        );
+
+        assertTrue("Expected GetTask to be called", getTaskCalled.await(3, TimeUnit.SECONDS));
+        assertThat(capturedOrigin.get(), equalTo(ENRICH_ORIGIN));
     }
 
     private Client getClient(CountDownLatch latch) {

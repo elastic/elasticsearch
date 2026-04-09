@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform.skip;
@@ -86,8 +87,14 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     @Override
     public void transformTest(ObjectNode parent) {
         if (testName.isBlank() == false) {
-            assert parent.get(testName) instanceof ArrayNode;
-            addSkip((ArrayNode) parent.get(testName));
+            JsonNode value = parent.get(testName);
+            // Only apply skip to test documents where the key is the test name and value is the steps array.
+            // Do not apply to nested keys with the same name (e.g. "do: get: { ... }" request body).
+            // This makes it possible to skip tests where the test name is an overloaded term such as
+            // task.skipTest("tsdb/25_id_generation/delete",...)
+            if (value instanceof ArrayNode) {
+                addSkip((ArrayNode) value);
+            }
         }
     }
 

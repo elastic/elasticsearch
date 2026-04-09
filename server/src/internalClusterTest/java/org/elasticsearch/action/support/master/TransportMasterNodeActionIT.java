@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -26,12 +26,12 @@ import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -79,7 +79,13 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
         try {
             final var newMaster = ensureSufficientMasterEligibleNodes();
-            final long originalTerm = internalCluster().masterClient().admin().cluster().prepareState().get().getState().term();
+            final long originalTerm = internalCluster().masterClient()
+                .admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .term();
             final var previousMasterKnowsNewMasterIsElectedLatch = configureElectionLatch(newMaster, cleanupTasks);
 
             final var newMasterReceivedReroutedMessageFuture = new PlainActionFuture<>();
@@ -207,7 +213,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
      */
     private static String ensureSufficientMasterEligibleNodes() {
         final var votingConfigSizeListener = ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getAnyMasterNodeInstance(ClusterService.class),
             cs -> 5 <= cs.coordinationMetadata().getLastCommittedConfiguration().getNodeIds().size()
         );
 
@@ -224,8 +229,8 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
 
     public static final class TestActionPlugin extends Plugin implements ActionPlugin {
         @Override
-        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TEST_ACTION_TYPE, TestTransportAction.class));
+        public Collection<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TEST_ACTION_TYPE, TestTransportAction.class));
         }
     }
 
@@ -260,7 +265,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 threadPool,
                 actionFilters,
                 TestRequest::new,
-                indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
                 threadPool.generic()
             );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -31,7 +32,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -118,7 +118,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
@@ -145,6 +145,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .build();
 
         var mapping = mapping(b -> {
@@ -165,11 +166,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
             b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
         ParsedDocument doc = mapper.parse(source);
 
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -228,16 +229,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "binary")
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [binary] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "binary").field("doc_values", false)
-                    )
-                );
+                return List.of();
             }
 
             private Tuple<String, byte[]> generateValue() {
@@ -271,5 +263,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

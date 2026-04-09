@@ -21,9 +21,4 @@ public class MvCountSerializationTests extends AbstractExpressionSerializationTe
     protected MvCount mutateInstance(MvCount instance) throws IOException {
         return new MvCount(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

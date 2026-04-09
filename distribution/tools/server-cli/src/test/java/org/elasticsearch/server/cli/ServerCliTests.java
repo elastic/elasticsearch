@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -33,8 +34,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,11 +45,8 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class ServerCliTests extends CommandTestCase {
@@ -145,17 +143,13 @@ public class ServerCliTests extends CommandTestCase {
         assertOk("-p", "pid");
     }
 
-    public void assertDaemonized(boolean daemonized, String... args) throws Exception {
-        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(daemonized));
-        assertOk(args);
-        assertThat(mockServer.detachCalled, is(daemonized));
-        assertThat(mockServer.waitForCalled, not(equalTo(daemonized)));
-    }
-
     public void testDaemonize() throws Exception {
-        assertDaemonized(true, "-d");
-        assertDaemonized(true, "--daemonize");
-        assertDaemonized(false);
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(true));
+        assertOk("-d");
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(true));
+        assertOk("--daemonize");
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(false));
+        assertOk();
     }
 
     public void testQuiet() throws Exception {
@@ -181,7 +175,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
-        assertUsage(containsString("setting [foo] already set, saw [bar] and [baz]"), "-E", "foo=bar", "-E", "foo=baz");
+        assertUsage(containsString("setting [foo] set twice via command line -E"), "-E", "foo=bar", "-E", "foo=baz");
     }
 
     public void testUnknownOption() throws Exception {
@@ -301,11 +295,12 @@ public class ServerCliTests extends CommandTestCase {
         assertKeystorePassword("a-dummy-password");
     }
 
-    public void testCloseStopsServer() throws Exception {
+    public void testCloseIsNoop() throws Exception {
+        // The preparer no longer manages the server process, so close() is a no-op
         Command command = newCommand();
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
-        assertThat(mockServer.stopCalled, is(true));
+        // No assertions about server stopping - that's the launcher's job now
     }
 
     public void testIgnoreNullExceptionOutput() throws Exception {
@@ -318,30 +313,11 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
-    public void testOptionsBuildingInterrupted() throws IOException {
-        Command command = new TestServerCli() {
-            @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
-                throw new InterruptedException("interrupted while get jvm options");
-            }
-        };
-
-        int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
-
-        String[] lines = terminal.getErrorOutput().split(System.lineSeparator());
-        assertThat(List.of(lines), hasSize(greaterThan(10))); // at least decent sized stacktrace
-        assertThat(lines[0], is("java.lang.InterruptedException: interrupted while get jvm options"));
-        assertThat(lines[1], matchesRegex("\\tat org.elasticsearch.server.cli.ServerCliTests.+startServer\\(ServerCliTests.java:\\d+\\)"));
-        assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
-
-        command.close();
-    }
-
-    public void testServerExitsNonZero() throws Exception {
-        mockServerExitCode = 140;
-        int exitCode = executeMain();
-        assertThat(exitCode, equalTo(140));
+    public void testPrepareLaunchCalled() throws Exception {
+        AtomicBoolean prepareLaunchCalled = new AtomicBoolean(false);
+        argsValidator = args -> prepareLaunchCalled.set(true);
+        assertOk();
+        assertThat(prepareLaunchCalled.get(), is(true));
     }
 
     public void testSecureSettingsLoaderChoice() throws Exception {
@@ -403,8 +379,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     Consumer<ServerArgs> argsValidator;
-    private final MockServerProcess mockServer = new MockServerProcess();
-    int mockServerExitCode = 0;
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
@@ -421,7 +395,6 @@ public class ServerCliTests extends CommandTestCase {
         argsValidator = null;
         autoConfigCallback = null;
         syncPluginsCallback = null;
-        mockServerExitCode = 0;
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
@@ -439,7 +412,6 @@ public class ServerCliTests extends CommandTestCase {
 
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-            // TODO: fake errors, check password from terminal, allow tests to make elasticsearch.yml change
             if (autoConfigCallback != null) {
                 autoConfigCallback.autoconfig(terminal, options, env, processInfo);
             }
@@ -464,49 +436,10 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    private class MockServerProcess extends ServerProcess {
-        boolean detachCalled = false;
-        boolean waitForCalled = false;
-        boolean stopCalled = false;
-
-        MockServerProcess() {
-            super(null, null);
-        }
-
-        @Override
-        public long pid() {
-            return 12345;
-        }
-
-        @Override
-        public void detach() {
-            assert detachCalled == false;
-            detachCalled = true;
-        }
-
-        @Override
-        public int waitFor() {
-            assert waitForCalled == false;
-            waitForCalled = true;
-            return mockServerExitCode;
-        }
-
-        @Override
-        public void stop() {
-            assert stopCalled == false;
-            stopCalled = true;
-        }
-
-        void reset() {
-            detachCalled = false;
-            waitForCalled = false;
-            stopCalled = false;
-        }
-    }
-
     private class TestServerCli extends ServerCli {
+
         @Override
-        protected Command loadTool(String toolname, String libs) {
+        protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
             if (toolname.equals("auto-configure-node")) {
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;
@@ -535,7 +468,6 @@ public class ServerCliTests extends CommandTestCase {
         void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
             if (mockSecureSettingsLoader != null && mockSecureSettingsLoader instanceof MockSecureSettingsLoader mock) {
                 mock.verifiedEnv = true;
-                // equals as a pointer, environment shouldn't be changed if autoconfigure is not supported
                 assertFalse(mockSecureSettingsLoader.supportsSecurityAutoConfiguration());
                 assertTrue(mock.environment == env);
             }
@@ -551,20 +483,18 @@ public class ServerCliTests extends CommandTestCase {
 
             return new KeystoreSecureSettingsLoader();
         }
+
+        @Override
+        protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
+            if (argsValidator != null) {
+                argsValidator.accept(args);
+            }
+        }
     }
 
     @Override
     protected Command newCommand() {
-        return new TestServerCli() {
-            @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
-                if (argsValidator != null) {
-                    argsValidator.accept(args);
-                }
-                mockServer.reset();
-                return mockServer;
-            }
-        };
+        return new TestServerCli();
     }
 
     static class MockSecureSettingsLoader implements SecureSettingsLoader {
@@ -578,8 +508,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettingsLoader.LoadedSecrets load(Environment environment, Terminal terminal) throws IOException {
             loaded = true;
-            // Stash the environment pointer, so we can compare it. Environment shouldn't be changed for
-            // loaders that don't autoconfigure.
             this.environment = environment;
 
             SecureString password = null;
@@ -631,7 +559,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
-            // make sure we don't fail in fips mode when we run with an empty password
             if (inFipsJvm() && (password == null || password.isEmpty())) {
                 return KeyStoreWrapper.create();
             }

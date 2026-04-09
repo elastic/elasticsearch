@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -77,7 +76,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (firstValueIndexes != null) {
             assert firstValueIndexes.length >= getPositionCount() + 1 : firstValueIndexes.length + " < " + positionCount;
             for (int i = 0; i < getPositionCount(); i++) {
-                assert firstValueIndexes[i + 1] >= firstValueIndexes[i] : firstValueIndexes[i + 1] + " < " + firstValueIndexes[i];
+                assert firstValueIndexes[i + 1] > firstValueIndexes[i] : firstValueIndexes[i + 1] + " <= " + firstValueIndexes[i];
             }
         }
         if (nullsMask != null) {
@@ -191,11 +190,6 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (nullsMask != null) {
             out.writeLongArray(nullsMask.toLongArray());
         }
-        if (out.getTransportVersion().before(TransportVersions.ESQL_MV_ORDERING_SORTED_ASCENDING)
-            && mvOrdering == MvOrdering.SORTED_ASCENDING) {
-            out.writeEnum(MvOrdering.UNORDERED);
-        } else {
-            out.writeEnum(mvOrdering);
-        }
+        out.writeEnum(mvOrdering);
     }
 }

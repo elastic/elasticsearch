@@ -9,13 +9,13 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -29,18 +29,27 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -65,10 +74,19 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
+
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
  */
-public class SharedBlobCacheService<KeyType> implements Releasable {
+public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBase> implements Releasable {
+
+    public interface KeyBase {
+        ShardId shardId();
+    }
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -96,6 +114,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "concurrent_evictions",
+        5,
+        1,
+        Setting.Property.NodeScope
+    );
+
     private static Setting.Validator<ByteSizeValue> getPageSizeAlignedByteSizeValueValidator(String settingName) {
         return value -> {
             if (value.getBytes() == -1) {
@@ -117,7 +142,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<>(
-        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
         (settings) -> {
             if (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings)) {
                 return "90%";
@@ -183,8 +208,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public static final Setting<ByteSizeValue> SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
-        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
-        (settings) -> {
+        SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom",
+        settings -> {
             if (SHARED_CACHE_SIZE_SETTING.exists(settings) == false
                 && (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings))) {
                 return "100GB";
@@ -240,6 +265,24 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> SHARED_CACHE_INITIAL_DECAYS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "initial_decays",
+        4,
+        0,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Fraction of the total number of regions. When the number of entries at frequency 0 falls below
+     * {@code max(1, numRegions * this ratio)}, a decay and new epoch is scheduled.
+     */
+    public static final Setting<Float> SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "decay.freq0_threshold_ratio",
+        0.05f,
+        0f,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> SHARED_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
@@ -282,6 +325,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
         int forceEvict(Predicate<K> cacheKeyPredicate);
+
+        void forceEvictAsync(Predicate<K> cacheKey);
+
+        int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
     }
 
     private abstract static class CacheEntry<T> {
@@ -310,14 +357,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final int numRegions;
     private final ConcurrentLinkedQueue<SharedBytes.IO> freeRegions = new ConcurrentLinkedQueue<>();
 
-    private final Cache<KeyType, CacheFileRegion> cache;
+    private final Cache<KeyType, CacheFileRegion<KeyType>> cache;
 
-    private final ConcurrentHashMap<SharedBytes.IO, CacheFileRegion> regionOwners; // to assert exclusive access of regions
+    private final ConcurrentHashMap<SharedBytes.IO, CacheFileRegion<KeyType>> regionOwners; // to assert exclusive access of regions
 
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder writeBytes = new LongAdder();
 
-    private final LongAdder readCount = new LongAdder();
     private final LongAdder readBytes = new LongAdder();
 
     private final LongAdder evictCount = new LongAdder();
@@ -327,12 +373,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final Runnable evictIncrementer;
 
     private final LongSupplier relativeTimeInNanosSupplier;
+    private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        String ioExecutor,
+        Executor ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
         this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
@@ -342,12 +389,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        String ioExecutor,
+        Executor ioExecutor,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInNanosSupplier
     ) {
         this.threadPool = threadPool;
-        this.ioExecutor = threadPool.executor(ioExecutor);
+        this.ioExecutor = ioExecutor;
         long totalFsSize;
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
@@ -387,12 +434,25 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.asyncEvictionsRunner = new ThrottledTaskRunner(
+            "shared_blob_cache_evictions",
+            SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
+            threadPool.generic()
+        );
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
         return SHARED_CACHE_SIZE_SETTING.get(settings)
             .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
+    }
+
+    public BlobCacheMetrics getBlobCacheMetrics() {
+        return blobCacheMetrics;
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     public int getRangeSize() {
@@ -466,77 +526,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return regionSize;
     }
 
-    CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
+    CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region) {
         return cache.get(cacheKey, fileLength, region).chunk;
-    }
-
-    /**
-     * Fetch and cache the full blob for the given cache entry from the remote repository if there
-     * are enough free pages in the cache to do so.
-     * <p>
-     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
-     * are run on the bulk executor.
-     * <p>
-     * If an exception is thrown from the writer then the cache entry being downloaded is freed
-     * and unlinked
-     *
-     * @param cacheKey      the key to fetch data for
-     * @param length        the length of the blob to fetch
-     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
-     * @param fetchExecutor an executor to use for reading from the blob store
-     * @param listener      listener that is called once all downloading has finished
-     * @return {@code true} if there were enough free pages to start downloading the full entry
-     */
-    public boolean maybeFetchFullEntry(
-        KeyType cacheKey,
-        long length,
-        RangeMissingHandler writer,
-        Executor fetchExecutor,
-        ActionListener<Void> listener
-    ) {
-        int finalRegion = getEndingRegion(length);
-        if (freeRegionCount() < finalRegion) {
-            // Not enough room to download a full file without evicting existing data, so abort
-            listener.onResponse(null);
-            return false;
-        }
-        long regionLength = regionSize;
-        try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
-            for (int region = 0; region <= finalRegion; region++) {
-                if (region == finalRegion) {
-                    regionLength = length - getRegionStart(region);
-                }
-                ByteRange rangeToWrite = ByteRange.of(0, regionLength);
-                if (rangeToWrite.isEmpty()) {
-                    return true;
-                }
-                final ActionListener<Integer> regionListener = refCountingListener.acquire(ignored -> {});
-                final CacheFileRegion entry;
-                try {
-                    entry = get(cacheKey, length, region);
-                } catch (AlreadyClosedException e) {
-                    // failed to grab a cache page because some other operation concurrently acquired some
-                    regionListener.onResponse(0);
-                    return false;
-                }
-                // set read range == write range so the listener completes only once all the bytes have been downloaded
-                entry.populateAndRead(
-                    rangeToWrite,
-                    rangeToWrite,
-                    (channel, pos, relativePos, len) -> Math.toIntExact(len),
-                    writer,
-                    fetchExecutor,
-                    regionListener.delegateResponse((l, e) -> {
-                        if (e instanceof AlreadyClosedException) {
-                            l.onResponse(0);
-                        } else {
-                            l.onFailure(e);
-                        }
-                    })
-                );
-            }
-        }
-        return true;
     }
 
     /**
@@ -566,7 +557,44 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, false, listener);
+    }
+
+    /**
+     * Fetch and write in cache a region of a blob.
+     * <p>
+     * If {@code force} is {@code true} and no free regions remain, an existing region will be evicted to make room.
+     * </p>
+     *
+     * <p>
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     * <p>
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param region        the region of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param force         flag indicating whether the cache should free an occupied region to accommodate the requested
+     *                      region when none are free.
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the region.
+     */
+    public void fetchRegion(
+        final KeyType cacheKey,
+        final int region,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final boolean force,
+        final ActionListener<Boolean> listener
+    ) {
+        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
             logger.info("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
@@ -578,7 +606,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion entry = get(cacheKey, blobLength, region);
+            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
             entry.populate(regionRange, writer, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -614,9 +642,47 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, listener);
+    }
+
+    /**
+     * Fetch and write in cache a range within a blob region.
+     * <p>
+     * If {@code force} is {@code true} and no free regions remain, an existing region will be evicted to make room.
+     * </p>
+     * <p>
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     * <p>
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param region        the region of the blob
+     * @param range         the range of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param force         flag indicating whether the cache should free an occupied region to accommodate the requested
+     *                      range when none are free.
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the range to write is already available in cache, if the range is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the range.
+     */
+    public void fetchRange(
+        final KeyType cacheKey,
+        final int region,
+        final ByteRange range,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final boolean force,
+        final ActionListener<Boolean> listener
+    ) {
+        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
-            logger.info("No free regions, skipping loading region [{}]", region);
+            logger.debug("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
             return;
         }
@@ -626,7 +692,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion entry = get(cacheKey, blobLength, region);
+            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
             entry.populate(
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
@@ -638,18 +704,53 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    /**
+     * Wraps the given {@link RangeMissingHandler} to adjust the position of the data read from the blob store
+     * (NB: the relativePos parameter in
+     * {@link RangeMissingHandler#fillCacheRange(SharedBytes.IO, int, SourceInputStreamFactory, int, int, IntConsumer, ActionListener)})
+     * relative to the beginning of the region we're reading from.
+     *
+     * This is useful so that we can read the input stream we open for reading from the blob store
+     * from the beginning (i.e. position 0 <b>in the input stream</b>).
+     *
+     * For example, if we want to read 2000 bytes the blob store starting at position 1000, the writer here will
+     * adjust the relative position we read to be 0, the offset being 1000, and the input stream we open to
+     * read from the blob store will start streaming from position 1000 (but we adjusted the relative read position
+     * to 0 so we consume the input stream from the beginning).
+     */
     private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, int writeOffset) {
         if (writeOffset == 0) {
             // no need to allocate a new capturing lambda if the offset isn't adjusted
             return writer;
         }
-        return (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
-            channel,
-            channelPos,
-            relativePos - writeOffset,
-            len,
-            progressUpdater
-        );
+
+        return new RangeMissingHandler() {
+            @Override
+            public void fillCacheRange(
+                SharedBytes.IO channel,
+                int channelPos,
+                SourceInputStreamFactory streamFactory,
+                int relativePos,
+                int length,
+                IntConsumer progressUpdater,
+                ActionListener<Void> completionListener
+            ) throws IOException {
+                writer.fillCacheRange(
+                    channel,
+                    channelPos,
+                    streamFactory,
+                    relativePos - writeOffset,
+                    length,
+                    progressUpdater,
+                    completionListener
+                );
+            }
+
+            @Override
+            public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                return writer.sharedInputStreamFactory(gaps);
+            }
+        };
     }
 
     // used by tests
@@ -664,7 +765,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         throw new AlreadyClosedException(message);
     }
 
-    // used by tests
+    /**
+     * NOTE: Method is package private mostly to allow checking the number of fee regions in tests.
+     */
     int freeRegionCount() {
         return freeRegions.size();
     }
@@ -677,13 +780,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             evictCount.sum(),
             writeCount.sum(),
             writeBytes.sum(),
-            readCount.sum(),
-            readBytes.sum()
+            blobCacheMetrics.readCount(),
+            readBytes.sum(),
+            blobCacheMetrics.missCount()
         );
     }
 
     public void removeFromCache(KeyType cacheKey) {
-        forceEvict(cacheKey::equals);
+        forceEvict(cacheKey.shardId(), cacheKey::equals);
     }
 
     /**
@@ -694,11 +798,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
+    }
 
+    public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+        return cache.forceEvict(shard, cacheKeyPredicate);
+    }
+
+    /**
+     * Evict entries from the cache that match the given predicate asynchronously
+     *
+     * @param cacheKeyPredicate
+     */
+    public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+        cache.forceEvictAsync(cacheKeyPredicate);
     }
 
     // used by tests
-    int getFreq(CacheFileRegion cacheFileRegion) {
+    int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.getFreq(cacheFileRegion);
         }
@@ -780,25 +896,45 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     /**
      * While this class has incRef and tryIncRef methods, incRefEnsureOpen and tryIncrefEnsureOpen should
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
-     * (see {@link LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
+     * (see {@link SharedBlobCacheService.LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
      */
-    class CacheFileRegion extends EvictableRefCounted {
+    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted {
+
+        private static final VarHandle VH_IO = findIOVarHandle();
+
+        private static VarHandle findIOVarHandle() {
+            try {
+                return MethodHandles.lookup().in(CacheFileRegion.class).findVarHandle(CacheFileRegion.class, "io", SharedBytes.IO.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        final SharedBlobCacheService<KeyType> blobCacheService;
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
         // io can be null when not init'ed or after evict/take
-        volatile SharedBytes.IO io = null;
+        // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
+        // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
+        // visible in that thread).
+        // We assume any IndexInput passing among threads is done with proper happens-before semantics (otherwise they'd themselves break).
+        // In general, assertions should use `nonVolatileIO` (when they can) to access this over `volatileIO` to avoid memory visibility
+        // side effects
+        private SharedBytes.IO io = null;
 
-        CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
+        CacheFileRegion(SharedBlobCacheService<KeyType> blobCacheService, RegionKey<KeyType> regionKey, int regionSize) {
+            this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space
             tracker = new SparseFileTracker("file", regionSize);
         }
 
-        public long physicalStartOffset() {
-            var ioRef = io;
-            return ioRef == null ? -1L : (long) regionKey.region * regionSize;
+        // only used for logging
+        private long physicalStartOffset() {
+            var ioRef = nonVolatileIO();
+            return ioRef == null ? -1L : (long) regionKey.region * blobCacheService.regionSize;
         }
 
         public boolean tryIncRefEnsureOpen() {
@@ -825,10 +961,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         // tries to evict this chunk if noone is holding onto its resources anymore
         // visible for tests.
         boolean tryEvict() {
-            assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
-                evictCount.increment();
+                blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 decRef();
                 return true;
             }
@@ -836,10 +973,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         boolean tryEvictNoDecRef() {
-            assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
-                evictCount.increment();
+                blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 return true;
             }
 
@@ -847,10 +985,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         public boolean forceEvict() {
-            assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when evicting";
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
-                evictCount.increment();
+                blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 decRef();
                 return true;
             }
@@ -861,9 +1000,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         protected void closeInternal() {
             // now actually free the region associated with this chunk
             // we held the "this" lock when this was evicted, hence if io is not filled in, chunk will never be registered.
+            SharedBytes.IO io = volatileIO();
             if (io != null) {
-                assert regionOwners.remove(io) == this;
-                freeRegions.add(io);
+                assert blobCacheService.regionOwners.remove(io) == this;
+                blobCacheService.freeRegions.add(io);
             }
             logger.trace("closed {} with channel offset {}", regionKey, physicalStartOffset());
         }
@@ -872,14 +1012,49 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throwAlreadyClosed("File chunk is evicted");
         }
 
+        private SharedBytes.IO volatileIO() {
+            return (SharedBytes.IO) VH_IO.getVolatile(this);
+        }
+
+        private void volatileIO(SharedBytes.IO io) {
+            VH_IO.setVolatile(this, io);
+        }
+
+        private SharedBytes.IO nonVolatileIO() {
+            return io;
+        }
+
+        // for use in tests *only*
+        SharedBytes.IO testOnlyNonVolatileIO() {
+            return io;
+        }
+
+        /**
+         * Optimistically try to load the data from the region into main memory using madvise system call.
+         * @return true if successful, i.e., not evicted and data available, false if evicted or mmap is not used underneath.
+         */
+        boolean tryPrefetch(long offset, long length) throws IOException {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null) {
+                ioRef.prefetch(blobCacheService.getRegionRelativePosition(offset), length);
+                if (isEvicted()) {
+                    return false;
+                }
+                return true;
+            } else {
+                // taken by someone else
+                return false;
+            }
+        }
+
         /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
-            SharedBytes.IO ioRef = this.io;
+            SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null) {
-                int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
+                int readBytes = ioRef.read(buf, blobCacheService.getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
                     return false;
@@ -889,6 +1064,28 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // taken by someone else
                 return false;
             }
+        }
+
+        /**
+         * If a direct byte buffer slice is available for the given range,
+         * passes it to {@code action} within a ref-counted scope (preventing
+         * eviction) and returns {@code true}. Returns {@code false} without
+         * invoking the action when not available (not mmap'd, evicted, etc.).
+         */
+        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null && tryIncRef()) {
+                try {
+                    ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                    if (slice != null && isEvicted() == false) {
+                        action.accept(slice);
+                        return true;
+                    }
+                } finally {
+                    decRef();
+                }
+            }
+            return false;
         }
 
         /**
@@ -915,18 +1112,55 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         rangeToWrite,
                         rangeToWrite,
                         Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert regionOwners.get(io) == this;
+                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
                         }), refs.acquire()) : refs.acquireListener()
                     );
                     if (gaps.isEmpty()) {
                         listener.onResponse(false);
                         return;
                     }
-                    try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            executor.execute(
-                                fillGapRunnable(gap, writer, ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire()))
-                            );
+                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                    logger.trace(
+                        () -> Strings.format(
+                            "fill gaps %s %s shared input stream factory",
+                            gaps,
+                            streamFactory == null ? "without" : "with"
+                        )
+                    );
+                    if (streamFactory == null) {
+                        try (var parallelGapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(
+                                    fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        null,
+                                        ActionListener.releaseAfter(parallelGapsListener.acquire(), refs.acquire())
+                                    )
+                                );
+                            }
+                        }
+                    } else {
+                        try (
+                            var sequentialGapsListener = new RefCountingListener(
+                                ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
+                            )
+                        ) {
+                            final List<Runnable> gapFillingTasks = gaps.stream()
+                                .map(
+                                    gap -> fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        streamFactory,
+                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
+                                    )
+                                )
+                                .toList();
+                            executor.execute(() -> {
+                                // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                                // gap will still be executed.
+                                gapFillingTasks.forEach(Runnable::run);
+                            });
                         }
                     }
                 }
@@ -950,8 +1184,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         rangeToWrite,
                         rangeToRead,
                         ActionListener.releaseAfter(listener, refs.acquire()).delegateFailureAndWrap((l, success) -> {
-                            var ioRef = io;
-                            assert regionOwners.get(ioRef) == this;
+                            var ioRef = nonVolatileIO();
+                            assert blobCacheService.regionOwners.get(ioRef) == this;
                             final int start = Math.toIntExact(rangeToRead.start());
                             final int read = reader.onRangeAvailable(ioRef, start, start, Math.toIntExact(rangeToRead.length()));
                             assert read == rangeToRead.length()
@@ -962,14 +1196,36 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            readCount.increment();
+                            blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
                     );
 
                     if (gaps.isEmpty() == false) {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            executor.execute(fillGapRunnable(gap, writer, refs.acquireListener()));
+                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                        logger.trace(
+                            () -> Strings.format(
+                                "fill gaps %s %s shared input stream factory",
+                                gaps,
+                                streamFactory == null ? "without" : "with"
+                            )
+                        );
+                        if (streamFactory == null) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                            }
+                        } else {
+                            var gapFillingListener = refs.acquireListener();
+                            try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
+                                final List<Runnable> gapFillingTasks = gaps.stream()
+                                    .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
+                                    .toList();
+                                executor.execute(() -> {
+                                    // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                                    // gap will still be executed.
+                                    gapFillingTasks.forEach(Runnable::run);
+                                });
+                            }
                         }
                     }
                 }
@@ -978,21 +1234,32 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private AbstractRunnable fillGapRunnable(SparseFileTracker.Gap gap, RangeMissingHandler writer, ActionListener<Void> listener) {
-            return ActionRunnable.run(listener.delegateResponse((l, e) -> failGapAndListener(gap, l, e)), () -> {
-                var ioRef = io;
-                assert regionOwners.get(ioRef) == CacheFileRegion.this;
+        private Runnable fillGapRunnable(
+            SparseFileTracker.Gap gap,
+            RangeMissingHandler writer,
+            @Nullable SourceInputStreamFactory streamFactory,
+            ActionListener<Void> listener
+        ) {
+            return () -> ActionListener.run(listener, l -> {
+                var ioRef = nonVolatileIO();
+                assert blobCacheService.regionOwners.get(ioRef) == CacheFileRegion.this;
                 assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
                 int start = Math.toIntExact(gap.start());
                 writer.fillCacheRange(
                     ioRef,
                     start,
+                    streamFactory,
                     start,
                     Math.toIntExact(gap.end() - start),
-                    progress -> gap.onProgress(start + progress)
+                    progress -> gap.onProgress(start + progress),
+                    l.<Void>map(unused -> {
+                        assert blobCacheService.regionOwners.get(ioRef) == CacheFileRegion.this;
+                        assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                        blobCacheService.writeCount.increment();
+                        gap.onCompletion();
+                        return null;
+                    }).delegateResponse((delegate, e) -> failGapAndListener(gap, delegate, e))
                 );
-                writeCount.increment();
-                gap.onCompletion();
             });
         }
 
@@ -1011,20 +1278,43 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    public interface CacheMissHandler {
+        CacheMissHandler NOOP = new CacheMissHandler() {
+            @Override
+            public Releasable record(long bytes) {
+                return Releasables.wrap();
+            }
+
+            @Override
+            public CacheMissHandler copy() {
+                return this;
+            }
+        };
+
+        /**
+         * @param bytes number of bytes needed
+         * @return Releasable that is invoked when data is available.
+         */
+        Releasable record(long bytes);
+
+        CacheMissHandler copy();
+    }
+
     public class CacheFile {
 
         private final KeyType cacheKey;
         private final long length;
+        private final CacheMissHandler cacheMissMetricHandler;
+        private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 
-        private CacheEntry<CacheFileRegion> lastAccessedRegion;
-
-        private CacheFile(KeyType cacheKey, long length) {
+        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler) {
             this.cacheKey = cacheKey;
             this.length = length;
+            this.cacheMissMetricHandler = cacheMissMetricHandler;
         }
 
         public CacheFile copy() {
-            return new CacheFile(cacheKey, length);
+            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy());
         }
 
         public long getLength() {
@@ -1033,6 +1323,36 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         public KeyType getCacheKey() {
             return cacheKey;
+        }
+
+        public boolean tryPrefetch(long offset, long length) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            final var rangeToRead = ByteRange.of(offset, offset + length);
+            for (int region = startRegion; region <= endRegion; region++) {
+                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                if (subRangeToRead.isEmpty()) {
+                    // nothing to read, skip
+                    continue;
+                }
+                var fileRegion = lastAccessedRegion;
+                try {
+                    fileRegion = cache.get(cacheKey, this.length, region);
+                } catch (AlreadyClosedException exc) {
+                    // consider missing
+                    continue;
+                }
+                final var chunk = fileRegion.chunk;
+                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                    continue;
+                }
+                if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
+                    length -= subRangeToRead.length();
+                }
+            }
+            return length == 0;
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
@@ -1044,12 +1364,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             var fileRegion = lastAccessedRegion;
+            boolean incrementReads = false;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
 
             } else {
                 fileRegion = cache.get(cacheKey, length, startRegion);
+                incrementReads = true;
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1057,14 +1379,120 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             boolean res = region.tryRead(buf, offset);
             lastAccessedRegion = res ? fileRegion : null;
+            if (res && incrementReads) {
+                blobCacheMetrics.recordRead();
+                // todo: should we add to readBytes? readBytes.add(end - offset);
+            }
             return res;
+        }
+
+        /**
+         * If a direct byte buffer view is available for the given range, passes it
+         * to {@code action} and returns {@code true}. Otherwise, returns
+         * {@code false} without invoking the action.
+         */
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            if (startRegion != endRegion) {
+                return false;
+            }
+            var fileRegion = lastAccessedRegion;
+            if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
+                fileRegion.touch();
+            } else {
+                fileRegion = cache.get(cacheKey, this.length, startRegion);
+            }
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
+                return false;
+            }
+            boolean result = region.withByteBufferSlice(offset, length, action);
+            if (result) {
+                lastAccessedRegion = fileRegion;
+            }
+            return result;
+        }
+
+        /**
+         * Bulk variant of {@link #withByteBufferSlice}. Resolves {@code count} byte ranges to
+         * direct byte buffers, holding ref-counts on all distinct regions to prevent eviction,
+         * then invokes the action. Each individual range must fit within a single region.
+         */
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+            throws IOException {
+            if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+                return false;
+            }
+            final CacheFileRegion<KeyType>[] held = new CacheFileRegion[count];
+            int heldCount = 0;
+            final ByteBuffer[] results = new ByteBuffer[count];
+            try {
+                for (int i = 0; i < count; i++) {
+                    final long offset = offsets[i];
+                    assert assertOffsetsWithinFileLength(offset, length, this.length);
+                    final int regionIdx = getRegion(offset);
+                    if (regionIdx != getEndingRegion(offset + length)) {
+                        return false;
+                    }
+
+                    final var entry = cache.get(cacheKey, this.length, regionIdx);
+                    final var region = entry.chunk;
+
+                    final long regionEnd = offset + length - getRegionStart(regionIdx);
+                    if (region.tracker.checkAvailable(regionEnd) == false) {
+                        return false;
+                    }
+
+                    SharedBytes.IO ioRef = region.nonVolatileIO();
+                    if (ioRef == null) {
+                        return false;
+                    }
+
+                    if (notAlreadyHeld(region, held, heldCount)) {
+                        if (region.tryIncRef() == false) {
+                            return false;
+                        }
+                        held[heldCount++] = region;
+                    }
+
+                    results[i] = ioRef.byteBufferSlice(getRegionRelativePosition(offset), length);
+                    if (results[i] == null) {
+                        return false;
+                    }
+                }
+                for (int i = 0; i < heldCount; i++) {
+                    if (held[i].isEvicted()) {
+                        return false;
+                    }
+                }
+                action.accept(results);
+                return true;
+            } finally {
+                for (int i = 0; i < heldCount; i++) {
+                    held[i].decRef();
+                }
+            }
+        }
+
+        private static boolean notAlreadyHeld(CacheFileRegion<?> region, CacheFileRegion<?>[] held, int heldCount) {
+            for (int i = 0; i < heldCount; i++) {
+                if (held[i] == region) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public int populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer
+            final RangeMissingHandler writer,
+            String resourceDescription
         ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
@@ -1072,16 +1500,43 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = relativeTimeInNanosSupplier.getAsLong();
-            RangeMissingHandler writerInstrumentationDecorator = (
-                SharedBytes.IO channel,
-                int channelPos,
-                int relativePos,
-                int length,
-                IntConsumer progressUpdater) -> {
-                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
+            RangeMissingHandler writerInstrumentationDecorator = new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public void fillCacheRange(
+                    SharedBytes.IO channel,
+                    int channelPos,
+                    SourceInputStreamFactory streamFactory,
+                    int relativePos,
+                    int length,
+                    IntConsumer progressUpdater,
+                    ActionListener<Void> completionListener
+                ) throws IOException {
+                    String blobFileExtension = getFileExtension(resourceDescription);
+                    String executorName = EsExecutors.executorName(Thread.currentThread());
+                    writer.fillCacheRange(
+                        channel,
+                        channelPos,
+                        streamFactory,
+                        relativePos,
+                        length,
+                        progressUpdater,
+                        completionListener.map(unused -> {
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                            blobCacheMetrics.getCacheMissCounter()
+                                .incrementBy(
+                                    1L,
+                                    Map.of(
+                                        LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
+                                        blobFileExtension,
+                                        ES_EXECUTOR_ATTRIBUTE_KEY,
+                                        executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
+                                    )
+                                );
+                            return null;
+                        })
+                    );
+                }
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
@@ -1102,19 +1557,24 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
-            final CacheFileRegion fileRegion = get(cacheKey, length, region);
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
+            ByteRange regionRangeToRead = mapSubRangeToRegion(rangeToRead, region);
             fileRegion.populateAndRead(
                 mapSubRangeToRegion(rangeToWrite, region),
-                mapSubRangeToRegion(rangeToRead, region),
+                regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
                 readFuture
             );
+            if (readFuture.isDone() == false) {
+                long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
+                if (bytes > 0) {
+                    return recordWait(bytes, readFuture);
+                }
+            }
             return readFuture.get();
         }
 
@@ -1126,10 +1586,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
-                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
-            );
+            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
+            List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
@@ -1139,13 +1598,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                     ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
-                        final CacheFileRegion fileRegion = get(cacheKey, length, region);
+                        final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+                        regions.add(fileRegion);
                         final long regionStart = getRegionStart(region);
                         fileRegion.populateAndRead(
                             mapSubRangeToRegion(rangeToWrite, region),
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                            writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                            metricRecordingWriter(
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                            ),
                             ioExecutor,
                             listener
                         );
@@ -1155,36 +1617,108 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                 }
             }
+            if (readsComplete.isDone() == false) {
+                long bytes = regions.stream()
+                    .mapToLong(
+                        fileRegion -> fileRegion.tracker.getAbsentBytesWithin(
+                            mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region())
+                        )
+                    )
+                    .sum();
+                if (bytes > 0) {
+                    recordWait(bytes, readsComplete);
+                }
+
+            }
             readsComplete.get();
             return bytesRead.get();
         }
 
-        private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion fileRegion, int writeOffset) {
+        /**
+         * Record a wait with the give number of bytes, with duration of the wait for the future given. This method will
+         * wait for the `future` to complete.
+         * @param bytes The bytes to record
+         * @param future the future to wait for.
+         * @return the result of the future.get()
+         */
+        public <T> T recordWait(long bytes, PlainActionFuture<T> future) throws InterruptedException, ExecutionException {
+            try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                return future.get();
+            }
+        }
+
+        private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion, int writeOffset) {
             final RangeMissingHandler adjustedWriter;
             if (writeOffset == 0) {
                 // no need to allocate a new capturing lambda if the offset isn't adjusted
                 adjustedWriter = writer;
             } else {
-                adjustedWriter = (channel, channelPos, relativePos, len, progressUpdater) -> writer.fillCacheRange(
-                    channel,
-                    channelPos,
-                    relativePos - writeOffset,
-                    len,
-                    progressUpdater
-                );
+                adjustedWriter = new DelegatingRangeMissingHandler(writer) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        SourceInputStreamFactory streamFactory,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater,
+                        ActionListener<Void> completionListener
+                    ) throws IOException {
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos - writeOffset,
+                            len,
+                            progressUpdater,
+                            completionListener
+                        );
+                    }
+                };
             }
             if (Assertions.ENABLED) {
-                return (channel, channelPos, relativePos, len, progressUpdater) -> {
-                    assert assertValidRegionAndLength(fileRegion, channelPos, len);
-                    adjustedWriter.fillCacheRange(channel, channelPos, relativePos, len, progressUpdater);
-                    assert regionOwners.get(fileRegion.io) == fileRegion
-                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                return new DelegatingRangeMissingHandler(adjustedWriter) {
+                    @Override
+                    public void fillCacheRange(
+                        SharedBytes.IO channel,
+                        int channelPos,
+                        SourceInputStreamFactory streamFactory,
+                        int relativePos,
+                        int len,
+                        IntConsumer progressUpdater,
+                        ActionListener<Void> completionListener
+                    ) throws IOException {
+                        assert assertValidRegionAndLength(fileRegion, channelPos, len);
+                        delegate.fillCacheRange(
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos,
+                            len,
+                            progressUpdater,
+                            Assertions.ENABLED ? ActionListener.runBefore(completionListener, () -> {
+                                assert regionOwners.get(fileRegion.nonVolatileIO()) == fileRegion
+                                    : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.nonVolatileIO() + "]";
+                            }) : completionListener
+                        );
+                    }
                 };
+
             }
             return adjustedWriter;
         }
 
-        private RangeAvailableHandler readerWithOffset(RangeAvailableHandler reader, CacheFileRegion fileRegion, int readOffset) {
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+            return new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                    blobCacheMetrics.recordMiss();
+                    return super.sharedInputStreamFactory(gaps);
+                }
+            };
+        }
+
+        private RangeAvailableHandler readerWithOffset(RangeAvailableHandler reader, CacheFileRegion<KeyType> fileRegion, int readOffset) {
             final RangeAvailableHandler adjustedReader = (channel, channelPos, relativePos, len) -> reader.onRangeAvailable(
                 channel,
                 channelPos,
@@ -1195,18 +1729,18 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return (channel, channelPos, relativePos, len) -> {
                     assert assertValidRegionAndLength(fileRegion, channelPos, len);
                     final int bytesRead = adjustedReader.onRangeAvailable(channel, channelPos, relativePos, len);
-                    assert regionOwners.get(fileRegion.io) == fileRegion
-                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.io + "]";
+                    assert regionOwners.get(fileRegion.nonVolatileIO()) == fileRegion
+                        : "File chunk [" + fileRegion.regionKey + "] no longer owns IO [" + fileRegion.nonVolatileIO() + "]";
                     return bytesRead;
                 };
             }
             return adjustedReader;
         }
 
-        private boolean assertValidRegionAndLength(CacheFileRegion fileRegion, int channelPos, int len) {
-            assert fileRegion.io != null;
+        private boolean assertValidRegionAndLength(CacheFileRegion<KeyType> fileRegion, int channelPos, int len) {
+            assert fileRegion.nonVolatileIO() != null;
             assert fileRegion.hasReferences();
-            assert regionOwners.get(fileRegion.io) == fileRegion;
+            assert regionOwners.get(fileRegion.nonVolatileIO()) == fileRegion;
             assert channelPos >= 0 && channelPos + len <= regionSize;
             return true;
         }
@@ -1217,8 +1751,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    public CacheFile getCacheFile(KeyType cacheKey, long length) {
-        return new CacheFile(cacheKey, length);
+    public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler) {
+        return new CacheFile(cacheKey, length, cacheMissHandler);
     }
 
     @FunctionalInterface
@@ -1241,17 +1775,81 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     @FunctionalInterface
     public interface RangeMissingHandler {
         /**
+         * Attempt to get a shared {@link SourceInputStreamFactory} for the given list of Gaps so that all of them
+         * can be filled from the input stream created from the factory. If a factory is returned, the gaps must be
+         * filled sequentially by calling {@link #fillCacheRange} in order with the factory. If {@code null} is returned,
+         * each invocation of {@link #fillCacheRange} creates its own input stream and can therefore be executed in parallel.
+         * @param gaps The list of gaps to be filled by fetching from source storage and writing into the cache.
+         * @return A factory object to be shared by all gaps filling process, or {@code null} if each gap filling should create
+         * its own input stream.
+         */
+        @Nullable
+        default SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return null;
+        }
+
+        /**
          * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
          *
          * @param channel is the cache region to write to
          * @param channelPos a position in the channel (cache file) to write to
+         * @param streamFactory factory to get the input stream positioned at the given value for the remote storage.
+         *                      This is useful for sharing the same stream across multiple calls to this method.
+         *                      If it is {@code null}, the method should open input stream on its own.
          * @param relativePos the relative position in the remote storage to read from
          * @param length of data to fetch
          * @param progressUpdater consumer to invoke with the number of copied bytes as they are written in cache.
          *                        This is used to notify waiting readers that data become available in cache.
+         * @param completionListener listener that has to be called when the callback method completes
          */
-        void fillCacheRange(SharedBytes.IO channel, int channelPos, int relativePos, int length, IntConsumer progressUpdater)
-            throws IOException;
+        void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            @Nullable SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException;
+    }
+
+    /**
+     * Factory to create the input stream for reading data from the remote storage as the source for filling local cache regions.
+     */
+    public interface SourceInputStreamFactory extends Releasable {
+
+        /**
+         * Create the input stream at the specified position.
+         * @param relativePos the relative position in the remote storage to read from.
+         * @param listener listener for the input stream ready to be read from.
+         */
+        void create(int relativePos, ActionListener<InputStream> listener) throws IOException;
+    }
+
+    private abstract static class DelegatingRangeMissingHandler implements RangeMissingHandler {
+        protected final RangeMissingHandler delegate;
+
+        protected DelegatingRangeMissingHandler(RangeMissingHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+            return delegate.sharedInputStreamFactory(gaps);
+        }
+
+        @Override
+        public void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) throws IOException {
+            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener);
+        }
     }
 
     public record Stats(
@@ -1262,20 +1860,30 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         long writeCount,
         long writeBytes,
         long readCount,
-        long readBytes
+        long readBytes,
+        // miss-count not exposed in REST API for now
+        long missCount
     ) {
-        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
     }
 
-    private class LFUCache implements Cache<KeyType, CacheFileRegion> {
+    private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {
 
-        class LFUCacheEntry extends CacheEntry<CacheFileRegion> {
+        /**
+         * Per-frequency level: holds the count of entries and the head of the doubly-linked list for that level.
+         */
+        private class FreqLevel {
+            int count;
+            LFUCacheEntry head;
+        }
+
+        class LFUCacheEntry extends CacheEntry<CacheFileRegion<KeyType>> {
             LFUCacheEntry prev;
             LFUCacheEntry next;
             int freq;
             volatile long lastAccessedEpoch;
 
-            LFUCacheEntry(CacheFileRegion chunk, long lastAccessed) {
+            LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed) {
                 super(chunk);
                 this.lastAccessedEpoch = lastAccessed;
                 // todo: consider whether freq=1 is still right for new entries.
@@ -1294,18 +1902,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private final ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> keyMapping = new ConcurrentHashMap<>();
-        private final LFUCacheEntry[] freqs;
+        private final KeyMapping<ShardId, RegionKey<KeyType>, LFUCacheEntry> keyMapping = new KeyMapping<>();
+        private final FreqLevel[] freqs;
         private final int maxFreq;
+        private final int freq0DecayScheduleThreshold;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
+        private final AtomicLong initialFreeRegions = new AtomicLong();
+        private final long initialDecayPollCount;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
-            freqs = (LFUCacheEntry[]) Array.newInstance(LFUCacheEntry.class, maxFreq);
-            decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            this.freqs = (FreqLevel[]) Array.newInstance(FreqLevel.class, maxFreq);
+            for (int i = 0; i < maxFreq; i++) {
+                freqs[i] = new FreqLevel();
+            }
+            float thresholdRatio = SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING.get(settings);
+            this.freq0DecayScheduleThreshold = Math.max(1, (int) (numRegions * thresholdRatio));
+            this.decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            int initialDecays = SHARED_CACHE_INITIAL_DECAYS_SETTING.get(settings);
+            if (initialDecays > 0) {
+                initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
+                initialFreeRegions.set(numRegions);
+            } else {
+                initialDecayPollCount = 0;
+            }
         }
 
         @Override
@@ -1313,8 +1936,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             decayAndNewEpochTask.close();
         }
 
-        int getFreq(CacheFileRegion cacheFileRegion) {
-            return keyMapping.get(cacheFileRegion.regionKey).freq;
+        // used by tests
+        int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
+            return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).freq;
         }
 
         @Override
@@ -1323,15 +1947,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
-            var entry = keyMapping.get(regionKey);
+            var entry = keyMapping.get(cacheKey.shardId(), regionKey);
             if (entry == null) {
                 final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
-                entry = keyMapping.computeIfAbsent(regionKey, key -> new LFUCacheEntry(new CacheFileRegion(key, effectiveRegionSize), now));
+                entry = keyMapping.computeIfAbsent(
+                    cacheKey.shardId(),
+                    regionKey,
+                    key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
+                );
             }
-            // io is volatile, double locking is fine, as long as we assign it last.
-            if (entry.chunk.io == null) {
+            // checks using volatile, double locking is fine, as long as we assign io last.
+            if (entry.chunk.volatileIO() == null) {
                 synchronized (entry.chunk) {
-                    if (entry.chunk.io == null && entry.chunk.isEvicted() == false) {
+                    if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
                         return initChunk(entry);
                     }
                 }
@@ -1361,9 +1989,65 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     for (LFUCacheEntry entry : matchingEntries) {
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
-                        if (evicted && entry.chunk.io != null) {
+                        if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey, entry);
+                            keyMapping.remove(entry.chunk.regionKey.file.shardId(), entry.chunk.regionKey, entry);
+                            evictedCount++;
+                            if (frequency > 0) {
+                                nonZeroFrequencyEvictedCount++;
+                            }
+                        }
+                    }
+                }
+            }
+            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
+            return evictedCount;
+        }
+
+        private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
+            return keyMapping.remove(entry.chunk.regionKey.file().shardId(), entry.chunk.regionKey, entry);
+        }
+
+        @Override
+        public void forceEvictAsync(Predicate<KeyType> cacheKeyPredicate) {
+            asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        forceEvict(cacheKeyPredicate);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // should be impossible, GENERIC pool doesn't reject anything
+                    final String message = "unexpected failure evicting from shared blob cache";
+                    logger.error(message, e);
+                    assert false : new AssertionError(message, e);
+                }
+            });
+        }
+
+        @Override
+        public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach(shard, (key, entry) -> {
+                if (cacheKeyPredicate.test(key.file)) {
+                    matchingEntries.add(entry);
+                }
+            });
+
+            var evictedCount = 0;
+            var nonZeroFrequencyEvictedCount = 0;
+            if (matchingEntries.isEmpty() == false) {
+                synchronized (SharedBlobCacheService.this) {
+                    for (LFUCacheEntry entry : matchingEntries) {
+                        int frequency = entry.freq;
+                        boolean evicted = entry.chunk.forceEvict();
+                        if (evicted && entry.chunk.volatileIO() != null) {
+                            unlink(entry);
+                            assert shard.equals(entry.chunk.regionKey.file.shardId());
+                            keyMapping.remove(shard, entry.chunk.regionKey, entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -1379,14 +2063,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
             assert Thread.holdsLock(entry.chunk);
             RegionKey<KeyType> regionKey = entry.chunk.regionKey;
-            if (keyMapping.get(regionKey) != entry) {
+            if (keyMapping.get(regionKey.file().shardId(), regionKey) != entry) {
                 throwAlreadyClosed("no free region found (contender)");
             }
             // new item
             assert entry.freq == 1;
             assert entry.prev == null;
             assert entry.next == null;
-            final SharedBytes.IO freeSlot = freeRegions.poll();
+            final SharedBytes.IO freeSlot = pollFreeRegionAndMaybeDecay();
             if (freeSlot != null) {
                 // no need to evict an item, just add
                 assignToSlot(entry, freeSlot);
@@ -1402,7 +2086,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (io != null) {
                     assignToSlot(entry, io);
                 } else {
-                    boolean removed = keyMapping.remove(regionKey, entry);
+                    boolean removed = removeKeyMappingForEntry(entry);
                     assert removed;
                     throwAlreadyClosed("no free region found");
                 }
@@ -1411,18 +2095,27 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return entry;
         }
 
+        private SharedBytes.IO pollFreeRegionAndMaybeDecay() {
+            if (initialFreeRegions.getOpaque() > 0) {
+                if (initialFreeRegions.decrementAndGet() % initialDecayPollCount == 0) {
+                    maybeScheduleDecayAndNewEpoch(epoch.get());
+                }
+            }
+            return freeRegions.poll();
+        }
+
         private void assignToSlot(LFUCacheEntry entry, SharedBytes.IO freeSlot) {
             assert regionOwners.put(freeSlot, entry.chunk) == null;
             synchronized (SharedBlobCacheService.this) {
                 if (entry.chunk.isEvicted()) {
                     assert regionOwners.remove(freeSlot) == entry.chunk;
                     freeRegions.add(freeSlot);
-                    keyMapping.remove(entry.chunk.regionKey, entry);
+                    removeKeyMappingForEntry(entry);
                     throwAlreadyClosed("evicted during free region allocation");
                 }
                 pushEntryToBack(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
-                entry.chunk.io = freeSlot;
+                entry.chunk.volatileIO(freeSlot);
             }
         }
 
@@ -1431,9 +2124,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert invariant(entry, false);
             assert entry.prev == null;
             assert entry.next == null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            assert level != null : entry.freq;
+            final LFUCacheEntry currFront = level.head;
             if (currFront == null) {
-                freqs[entry.freq] = entry;
+                level.head = entry;
                 entry.prev = entry;
                 entry.next = null;
             } else {
@@ -1444,8 +2139,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 entry.prev = last;
                 entry.next = null;
             }
-            assert freqs[entry.freq].prev == entry;
-            assert freqs[entry.freq].prev.next == null;
+            level.count++;
+            assert freqs[entry.freq].head.prev == entry;
+            assert freqs[entry.freq].head.prev.next == null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
             assert entry.next == null;
@@ -1455,10 +2151,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private synchronized boolean invariant(final LFUCacheEntry e, boolean present) {
             boolean found = false;
             for (int i = 0; i < maxFreq; i++) {
-                assert freqs[i] == null || freqs[i].prev != null;
-                assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
-                assert freqs[i] == null || freqs[i].prev.next == null;
-                for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+                FreqLevel level = freqs[i];
+                assert level.head == null || level.head.prev != null;
+                assert level.head == null || level.head.prev != level.head || level.head.next == null;
+                assert level.head == null || level.head.prev.next == null;
+                for (LFUCacheEntry entry = level.head; entry != null; entry = entry.next) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -1467,7 +2164,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         found = true;
                     }
                 }
-                for (LFUCacheEntry entry = freqs[i]; entry != null && entry.prev != freqs[i]; entry = entry.prev) {
+                for (LFUCacheEntry entry = level.head; entry != null && entry.prev != level.head; entry = entry.prev) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -1487,7 +2184,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 assert entry.prev != null || entry.chunk.isEvicted();
 
             }
-            SharedBytes.IO io = entry.chunk.io;
+            SharedBytes.IO io = entry.chunk.nonVolatileIO();
             assert io != null || entry.chunk.isEvicted();
             assert io == null || regionOwners.get(io) == entry.chunk || entry.chunk.isEvicted();
             return true;
@@ -1509,10 +2206,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, true);
             assert entry.prev != null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            final LFUCacheEntry currFront = level.head;
             assert currFront != null;
             if (currFront == entry) {
-                freqs[entry.freq] = entry.next;
+                level.head = entry.next;
                 if (entry.next != null) {
                     assert entry.prev != entry;
                     entry.next.prev = entry.prev;
@@ -1526,6 +2224,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     currFront.prev = entry.prev;
                 }
             }
+            level.count--;
+            assert level.count >= 0 && level.count <= numRegions;
             entry.next = null;
             entry.prev = null;
             assert invariant(entry, false);
@@ -1533,11 +2233,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private void appendLevel1ToLevel0() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            var front0 = freqs[0];
-            var front1 = freqs[1];
+            FreqLevel level0 = freqs[0];
+            FreqLevel level1 = freqs[1];
+            var front0 = level0.head;
+            var front1 = level1.head;
             if (front0 == null) {
-                freqs[0] = front1;
-                freqs[1] = null;
+                level0.head = front1;
+                level0.count = level1.count;
+                level1.head = null;
+                level1.count = 0;
                 decrementFreqList(front1);
                 assert front1 == null || invariant(front1, true);
             } else if (front1 != null) {
@@ -1555,7 +2259,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 front1.prev = back0;
                 assert back1.next == null;
 
-                freqs[1] = null;
+                level0.count += level1.count;
+                level1.head = null;
+                level1.count = 0;
 
                 assert invariant(front0, true);
                 assert invariant(front1, true);
@@ -1583,8 +2289,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
-            if (freqs[0] == null) {
-                // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
+            if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
+                // frequency 0 is running low and no free regions; schedule decay and new epoch ahead of time.
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (freq0 != null) {
@@ -1606,23 +2312,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(Runnable evictedNotification, int currentFreq) {
-            for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
+            for (LFUCacheEntry entry = freqs[currentFreq].head; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
                     try {
-                        SharedBytes.IO ioRef = entry.chunk.io;
+                        SharedBytes.IO ioRef = entry.chunk.volatileIO();
                         if (ioRef != null) {
                             try {
                                 if (entry.chunk.refCount() == 1) {
                                     // we own that one refcount (since we CAS'ed evicted to 1)
                                     // grab io, rely on incref'ers also checking evicted field.
-                                    entry.chunk.io = null;
+                                    entry.chunk.volatileIO(null);
                                     assert regionOwners.remove(ioRef) == entry.chunk;
                                     return ioRef;
                                 }
                             } finally {
                                 unlink(entry);
-                                keyMapping.remove(entry.chunk.regionKey, entry);
+                                removeKeyMappingForEntry(entry);
                             }
                         }
                     } finally {
@@ -1653,11 +2359,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         public boolean maybeEvictLeastUsed() {
             synchronized (SharedBlobCacheService.this) {
-                for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
+                for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     boolean evicted = entry.chunk.tryEvict();
-                    if (evicted && entry.chunk.io != null) {
+                    if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
-                        keyMapping.remove(entry.chunk.regionKey, entry);
+                        removeKeyMappingForEntry(entry);
                         return true;
                     }
                 }
@@ -1673,11 +2379,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 afterLock = threadPool.rawRelativeTimeInMillis();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
-                    assert freqs[i - 1] == null;
-                    freqs[i - 1] = freqs[i];
-                    freqs[i] = null;
-                    decrementFreqList(freqs[i - 1]);
-                    assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
+                    assert freqs[i - 1].head == null;
+                    freqs[i - 1].head = freqs[i].head;
+                    freqs[i - 1].count = freqs[i].count;
+                    freqs[i].head = null;
+                    freqs[i].count = 0;
+                    decrementFreqList(freqs[i - 1].head);
+                    assert freqs[i - 1].head == null || invariant(freqs[i - 1].head, true);
                 }
             }
             end = threadPool.rawRelativeTimeInMillis();
@@ -1710,6 +2418,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void onAfter() {
                 assert pendingEpoch.get() == epoch.get() + 1;
                 epoch.incrementAndGet();
+                blobCacheMetrics.recordEpochChange();
             }
 
             @Override
@@ -1733,6 +2442,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void close() {
                 this.isClosed = true;
             }
+        }
+    }
+
+    private static String getFileExtension(String resourceDescription) {
+        // TODO: consider introspecting resourceDescription for compound files
+        if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
+            return LuceneFilesExtensions.CFS.getExtension();
+        }
+        String extension = IndexFileNames.getExtension(resourceDescription);
+        if (LuceneFilesExtensions.isLuceneExtension(extension)) {
+            return extension;
+        } else {
+            return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.support;
@@ -88,9 +89,44 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return delegate.supportsConcurrentMultipartUploads();
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
+        // FsBlobContainer accesses internals of the sourceBlobContainer in copyBlob so it needs the delegate
+        assert sourceBlobContainer instanceof FilterBlobContainer;
+        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize);
     }
 
     @Override

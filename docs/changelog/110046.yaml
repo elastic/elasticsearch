@@ -1,6 +1,0 @@
-pr: 110046
-summary: "ESQL: make named params objects truly per request"
-area: ES|QL
-type: bug
-issues:
- - 110028

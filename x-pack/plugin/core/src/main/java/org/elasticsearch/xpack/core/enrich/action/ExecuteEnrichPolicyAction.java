@@ -109,7 +109,6 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             if (in.readBoolean()) {
                 this.status = new ExecuteEnrichPolicyStatus(in);
                 this.taskId = null;

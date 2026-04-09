@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -28,7 +29,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
-        createIndex("test", Settings.EMPTY, "test", "title", "type=text");
+        createIndex("test", Settings.EMPTY, "title", "type=text");
         prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
         prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
         prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
@@ -56,7 +57,7 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);
         assertResponse(client().prepareSearch("test").setSize(0).addAggregation(builder), response -> {
-            assertEquals(3, response.getHits().getTotalHits().value);
+            assertEquals(3, response.getHits().getTotalHits().value());
             InternalFilters filters = response.getAggregations().get("titles");
             assertEquals(1, filters.getBuckets().size());
             assertEquals(2, filters.getBuckets().get(0).getDocCount());

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +40,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         RandomSamplerAggregationBuilder.NAME,
         RandomSamplerAggregationBuilder::new
     );
+
     static {
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
         PARSER.declareInt(RandomSamplerAggregationBuilder::setShardSeed, SHARD_SEED);
@@ -79,9 +80,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
-            this.shardSeed = in.readOptionalInt();
-        }
+        this.shardSeed = in.readOptionalInt();
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -99,9 +98,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RANDOM_AGG_SHARD_SEED)) {
-            out.writeOptionalInt(shardSeed);
-        }
+        out.writeOptionalInt(shardSeed);
     }
 
     static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
@@ -175,7 +172,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_2_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

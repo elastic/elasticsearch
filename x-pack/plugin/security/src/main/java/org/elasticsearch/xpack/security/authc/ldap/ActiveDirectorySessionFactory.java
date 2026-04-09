@@ -161,7 +161,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     void getSessionWithoutPool(String username, SecureString password, ActionListener<LdapSession> listener) {
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             getADAuthenticator(username).authenticate(connection, username, password, ActionListener.wrap(listener::onResponse, e -> {
                 IOUtils.closeWhileHandlingException(connection);
                 listener.onFailure(e);
@@ -190,7 +190,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             return;
         }
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             LdapUtils.maybeForkThenBind(connection, getBindRequest(), true, threadPool, new AbstractRunnable() {
 
                 @Override
@@ -597,16 +597,14 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     if (ldapInterface instanceof LDAPConnection) {
                         ldapConnection = (LDAPConnection) ldapInterface;
                     } else {
-                        ldapConnection = LdapUtils.privilegedConnect(((LDAPConnectionPool) ldapInterface)::getConnection);
+                        ldapConnection = ((LDAPConnectionPool) ldapInterface).getConnection();
                     }
                     final LDAPConnection finalLdapConnection = ldapConnection;
-                    final LDAPConnection searchConnection = LdapUtils.privilegedConnect(
-                        () -> new LDAPConnection(
-                            finalLdapConnection.getSocketFactory(),
-                            connectionOptions(config, sslService, logger),
-                            finalLdapConnection.getConnectedAddress(),
-                            finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort
-                        )
+                    final LDAPConnection searchConnection = new LDAPConnection(
+                        finalLdapConnection.getSocketFactory(),
+                        connectionOptions(config, sslService, logger),
+                        finalLdapConnection.getConnectedAddress(),
+                        finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort
                     );
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                     final SimpleBindRequest bindRequest = bindRequestSupplier.get();
@@ -677,7 +675,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 LDAPConnectionPool pool = (LDAPConnectionPool) ldap;
                 LDAPConnection connection = null;
                 try {
-                    connection = LdapUtils.privilegedConnect(pool::getConnection);
+                    connection = pool.getConnection();
                     return usingGlobalCatalog(connection);
                 } finally {
                     if (connection != null) {
@@ -698,7 +696,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      */
     static class UpnADAuthenticator extends ADAuthenticator {
         static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
-        private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
         UpnADAuthenticator(
             RealmConfig config,
@@ -725,13 +722,17 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 bindRequestSupplier
             );
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SECURITY,
-                    "ldap_settings",
-                    "The use of the account name variable {0} in the setting ["
-                        + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
-                        + "] has been deprecated and will be removed in a future version!"
-                );
+                DeprecationLogger.getLogger(logger.getName())
+                    .warn(
+                        DeprecationCategory.SECURITY,
+                        "ldap_settings",
+                        "The use of the account name variable {0} in the setting ["
+                            + RealmSettings.getFullSettingKey(
+                                config,
+                                ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING
+                            )
+                            + "] has been deprecated and will be removed in a future version!"
+                    );
             }
         }
 

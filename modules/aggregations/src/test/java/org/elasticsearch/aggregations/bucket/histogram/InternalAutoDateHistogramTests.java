@@ -1,22 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -27,9 +23,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -37,7 +31,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,7 +102,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
         // will be larger than the estimate.
         roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone, 1000L, "s", 1000);
-        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTE_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone, 60 * 60 * 1000L, "h", 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
@@ -456,52 +449,5 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         assertThat(copy.getBucketInfo(), equalTo(orig.getBucketInfo()));
         assertThat(copy.getFormatter(), equalTo(orig.getFormatter()));
         assertThat(copy.getInterval(), equalTo(orig.getInterval()));
-    }
-
-    public void testSerializationPre830() throws IOException {
-        // we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
-        InternalAutoDateHistogram instance = createTestInstance(
-            randomAlphaOfLengthBetween(3, 7),
-            createTestMetadata(),
-            InternalAggregations.EMPTY
-        );
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_3_0)
-        );
-        InternalAutoDateHistogram deserialized = copyInstance(instance, version);
-        assertEquals(1, deserialized.getBucketInnerInterval());
-
-        InternalAutoDateHistogram modified = new InternalAutoDateHistogram(
-            deserialized.getName(),
-            deserialized.getBuckets(),
-            deserialized.getTargetBuckets(),
-            deserialized.getBucketInfo(),
-            deserialized.getFormatter(),
-            deserialized.getMetadata(),
-            instance.getBucketInnerInterval()
-        );
-        assertEqualInstances(instance, modified);
-    }
-
-    public void testReadFromPre830() throws IOException {
-        byte[] bytes = Base64.getDecoder()
-            .decode(
-                "BG5hbWUKAAYBCAFa6AcEAAAAAQAAAAUAAAAKAAAAHgFzBnNlY29uZAEHAVrg1AMEAAAAAQAAAAUAAAAKAAA"
-                    + "AHgFtBm1pbnV0ZQEGAVqA3dsBAwAAAAEAAAADAAAADAFoBGhvdXIBBQFagLiZKQIAAAABAAAABwFk"
-                    + "A2RheQEEAVqAkPvTCQIAAAABAAAAAwFNBW1vbnRoAQIBWoDYxL11BgAAAAEAAAAFAAAACgAAABQAA"
-                    + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-            );
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
-            in.setTransportVersion(TransportVersions.V_8_2_0);
-            InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);
-            assertEquals("name", deserialized.getName());
-            assertEquals(1, deserialized.getBucketInnerInterval());
-            assertEquals(1, deserialized.getBuckets().size());
-            InternalAutoDateHistogram.Bucket bucket = deserialized.getBuckets().iterator().next();
-            assertEquals(10, bucket.key);
-            assertEquals(100, bucket.getDocCount());
-        }
     }
 }

@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link ValuesDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesDoubleAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
-  public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return ValuesDoubleAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public ValuesDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return ValuesDoubleGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesDoubleAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public ValuesDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

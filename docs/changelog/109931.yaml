@@ -1,5 +1,0 @@
-pr: 109931
-summary: Apply FLS to the contents of `IgnoredSourceFieldMapper`
-area: Mapping
-type: enhancement
-issues: []

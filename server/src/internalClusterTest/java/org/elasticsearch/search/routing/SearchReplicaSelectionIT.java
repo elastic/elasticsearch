@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.routing;
@@ -23,6 +24,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -37,7 +39,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testNodeSelection() {
+    public void testNodeSelection() throws Exception {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
 
@@ -49,18 +51,14 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         // Before we've gathered stats for all nodes, we should try each node once.
         Set<String> nodeIds = new HashSet<>();
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertResponses(response -> {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
+        },
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery())
+        );
         assertEquals(3, nodeIds.size());
 
         // Now after more searches, we should select a node with the lowest ARS rank.
@@ -68,7 +66,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         Map<String, DiscoveryNode> coordinatingNodes = clusterStateResponse.getState().nodes().getCoordinatingOnlyNodes();
         assertEquals(1, coordinatingNodes.size());
 
@@ -78,14 +76,16 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         assertNotNull(nodeStats);
         assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
 
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
-            double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
+        assertBusy(() -> {
+            assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+                String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
+                double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
 
-            for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
-                double rank = entry.getValue();
-                assertThat(rank, greaterThanOrEqualTo(selectedRank));
-            }
+                for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
+                    double rank = entry.getValue();
+                    assertThat(rank, greaterThanOrEqualTo(selectedRank));
+                }
+            });
         });
     }
 }

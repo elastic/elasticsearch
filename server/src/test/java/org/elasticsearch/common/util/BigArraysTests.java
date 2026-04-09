@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -134,6 +135,7 @@ public class BigArraysTests extends ESTestCase {
             ref[i] = randomFrom(pool);
             array = bigArrays.grow(array, i + 1);
             array.set(i, ref[i]);
+            assertEquals(ref[i], array.getAndSet(i, ref[i]));
         }
         for (int i = 0; i < totalLen; ++i) {
             assertSame(ref[i], array.get(i));
@@ -525,49 +527,46 @@ public class BigArraysTests extends ESTestCase {
      */
     public void testPreallocate() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            List.of(),
+            clusterSettings
+        );
+        BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
+        long toPreallocate = randomLongBetween(4000, 10000);
+        CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
+        assertThat(realBreaker.getUsed(), equalTo(0L));
         try (
-            HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
-                List.of(),
-                clusterSettings
+            PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
+                realBreakers,
+                CircuitBreaker.REQUEST,
+                toPreallocate,
+                "test"
             )
         ) {
-            BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
-            long toPreallocate = randomLongBetween(4000, 10000);
-            CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
-            assertThat(realBreaker.getUsed(), equalTo(0L));
-            try (
-                PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
-                    realBreakers,
-                    CircuitBreaker.REQUEST,
-                    toPreallocate,
-                    "test"
-                )
-            ) {
+            assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+            BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
+
+            // We don't grab any bytes just making a new BigArrays
+            assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+
+            List<BigArray> arrays = new ArrayList<>();
+            for (int i = 0; i < 30; i++) {
+                // We're well under the preallocation so grabbing a little array doesn't allocate anything
+                arrays.add(preallocated.newLongArray(1));
                 assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-                BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
-
-                // We don't grab any bytes just making a new BigArrays
-                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-
-                List<BigArray> arrays = new ArrayList<>();
-                for (int i = 0; i < 30; i++) {
-                    // We're well under the preallocation so grabbing a little array doesn't allocate anything
-                    arrays.add(preallocated.newLongArray(1));
-                    assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-                }
-
-                // Allocating a large array *does* allocate some bytes
-                arrays.add(preallocated.newLongArray(1024));
-                long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
-                assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
-                // 64 should be enough room for each BigArray object
-                assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
-                Releasables.close(arrays);
             }
-            assertThat(realBreaker.getUsed(), equalTo(0L));
+
+            // Allocating a large array *does* allocate some bytes
+            arrays.add(preallocated.newLongArray(1024));
+            long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
+            assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
+            // 64 should be enough room for each BigArray object
+            assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
+            Releasables.close(arrays);
         }
+        assertThat(realBreaker.getUsed(), equalTo(0L));
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -93,6 +94,24 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
 
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
         assertHighlights(highlights, "field", "this is <em>some</em> text");
+    }
+
+    public void testHighlightPhraseSpanningMultipleValues() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field" : { "type" : "text", "position_increment_gap" : 0 }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field" : ["not to be true", "the person is"] }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhraseQuery("field", "true the person"))
+            .highlighter(new HighlightBuilder().field("field"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "field", "<em>true the person</em> is");
     }
 
 }

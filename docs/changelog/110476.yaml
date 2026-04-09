@@ -1,7 +1,0 @@
-pr: 110476
-summary: Fix bug in union-types with type-casting in grouping key of STATS
-area: ES|QL
-type: bug
-issues:
- - 109922
- - 110477

@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -77,6 +78,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
     private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(
@@ -89,7 +91,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataFrameAnalyticsConfigProvider configProvider,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             PutDataFrameAnalyticsAction.NAME,
@@ -98,7 +101,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             PutDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -119,11 +121,12 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutDataFrameAnalyticsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

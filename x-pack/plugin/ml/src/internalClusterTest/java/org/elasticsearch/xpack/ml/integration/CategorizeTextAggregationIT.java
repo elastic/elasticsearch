@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -27,13 +28,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notANumber;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3)
 public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
 
     private static final String DATA_INDEX = "categorization-agg-data";
 
     @Before
     public void setupCluster() {
-        internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
         createSourceData();
     }

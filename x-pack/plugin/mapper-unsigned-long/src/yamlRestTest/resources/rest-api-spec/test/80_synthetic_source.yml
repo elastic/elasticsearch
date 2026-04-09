@@ -1,0 +1,149 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
+synthetic source:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              ulong:
+                type: unsigned_long
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "name": "A", "ulong": "120" }
+          { "index": {"_id" : "2"} }
+          { "name": "B", "ulong": "hello" }
+          { "index": {"_id" : "3"} }
+          { "name": "C", "ulong": [6, 5, 4] }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        sort: name
+
+  - match: { "hits.total.value": 3 }
+  - match:
+      hits.hits.0._source.ulong: 120
+  - match:
+      hits.hits.1._source.ulong: "hello"
+  - match:
+      hits.hits.2._source.ulong: [4, 5, 6]
+
+---
+synthetic source with copy_to:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              ulong:
+                type: unsigned_long
+                ignore_malformed: true
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "name": "A", "ulong": "120" }
+          { "index": {"_id" : "2"} }
+          { "name": "B", "ulong": "hello" }
+          { "index": {"_id" : "3"} }
+          { "name": "C", "ulong": [6, 5, 4] }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        sort: name
+        body:
+          docvalue_fields: ["copy"]
+
+  - match: { "hits.total.value": 3 }
+
+  - match:
+      hits.hits.0._source.ulong: "120"
+  - match:
+      hits.hits.0.fields.copy.0: "120"
+
+  - match:
+      hits.hits.1._source.ulong: "hello"
+  - match:
+      hits.hits.1.fields.copy.0: "hello"
+
+  - match:
+      hits.hits.2._source.ulong: [6, 5, 4]
+  - match:
+      hits.hits.2.fields.copy: ["4", "5", "6"]
+
+---
+synthetic source with disabled doc_values:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              ulong:
+                type: unsigned_long
+                ignore_malformed: true
+                doc_values: false
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "name": "A", "ulong": "120" }
+          { "index": {"_id" : "2"} }
+          { "name": "B", "ulong": "hello" }
+          { "index": {"_id" : "3"} }
+          { "name": "C", "ulong": [6, 5, 4] }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        sort: name
+
+  - match: { "hits.total.value": 3 }
+
+  - match:
+      hits.hits.0._source.ulong: "120"
+
+  - match:
+      hits.hits.1._source.ulong: "hello"
+
+  - match:
+      hits.hits.2._source.ulong: [6, 5, 4]
+

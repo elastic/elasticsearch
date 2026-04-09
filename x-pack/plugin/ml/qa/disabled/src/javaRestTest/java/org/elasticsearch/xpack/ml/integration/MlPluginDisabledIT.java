@@ -75,8 +75,7 @@ public class MlPluginDisabledIT extends ESRestTestCase {
     }
 
     public void testMlFeatureReset() throws IOException {
-        Request request = new Request("POST", "/_features/_reset");
-        assertOK(client().performRequest(request));
+        performPostFeaturesReset(client());
     }
 
     @SuppressWarnings("unchecked")

@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -560,15 +561,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
             }
         }
-        {
-            // the deprecated deployment/_infer endpoint does not support multiple docs
-            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-            request.setJsonEntity(String.format(Locale.ROOT, """
-                {  "docs": [%s] }
-                """, docsBuilder));
-            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
-        }
     }
 
     public void testGetPytorchModelWithDefinition() throws IOException {
@@ -964,6 +956,34 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
     }
 
+    public void testStartDeployment_ModelTooBig() throws IOException {
+        String modelId = "test_start_deployment_too_big_model";
+        // Create a model with memory requirements that exceed available node native memory
+        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(100).getBytes();
+        long perAllocationMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        createPassThroughModel(modelId, perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
     @SuppressWarnings("unchecked")
     public void testStartDeployment_GivenNoProcessorsLeft_AndLazyStartEnabled() throws Exception {
         // We start 2 models. The first needs so many allocations it won't possibly
@@ -1118,6 +1138,44 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
             assertAllocationCount(modelId, 1);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeploymentThreadsIncludedInUsage() throws IOException {
+        String modelId = "deployment_threads_in_usage";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("GET", "/_xpack/usage");
+        var usage = entityAsMap(client().performRequest(request).getEntity());
+
+        var ml = (Map<String, Object>) usage.get("ml");
+        assertNotNull(usage.toString(), ml);
+        var inference = (Map<String, Object>) ml.get("inference");
+        var deployments = (Map<String, Object>) inference.get("deployments");
+        var deploymentStats = (List<Map<String, Object>>) deployments.get("stats_by_model");
+        for (var stat : deploymentStats) {
+            assertThat(stat.toString(), (Integer) stat.get("num_threads"), greaterThanOrEqualTo(1));
+            assertThat(stat.toString(), (Integer) stat.get("num_allocations"), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testInferEmptyInput() throws IOException {
+        String modelId = "empty_input";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity("""
+            {  "docs": [] }
+            """);
+
+        var inferenceResponse = client().performRequest(request);
+        assertThat(EntityUtils.toString(inferenceResponse.getEntity()), equalTo("{\"inference_results\":[]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {

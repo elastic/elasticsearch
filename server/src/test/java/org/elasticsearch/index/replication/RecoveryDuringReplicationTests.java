@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.replication;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -723,8 +723,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
             shards.refresh("test");
-            List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
-                .stream()
+            List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = getDocIdAndSeqNos(newPrimary, randomBoolean()).stream()
                 .filter(doc -> doc.seqNo() <= newPrimary.getLastKnownGlobalCheckpoint())
                 .toList();
             CountDownLatch latch = new CountDownLatch(1);
@@ -735,7 +734,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 latch.countDown();
                 while (done.get() == false) {
                     try {
-                        List<DocIdSeqNoAndSource> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
+                        List<DocIdSeqNoAndSource> exposedDocs = getDocIdAndSeqNos(randomFrom(replicas), randomBoolean());
                         assertThat(docsBelowGlobalCheckpoint, everyItem(is(in(exposedDocs))));
                         assertThat(randomFrom(replicas).getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                     } catch (AlreadyClosedException ignored) {

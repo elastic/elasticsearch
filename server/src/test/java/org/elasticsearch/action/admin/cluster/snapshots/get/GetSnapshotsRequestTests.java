@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
@@ -31,6 +32,11 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertNull(request.validate());
         }
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").offset(-1);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("offset must be non-negative"));
+        }
+        {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").verbose(false)
                 .size(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
@@ -56,7 +62,7 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").verbose(false)
-                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
+                .after(new After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
         }
@@ -68,14 +74,14 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").after(
-                new SnapshotSortKey.After("foo", "repo", "bar")
+                new After("foo", "repo", "bar")
             ).offset(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").fromSortValue("foo")
-                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
+                .after(new After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and from_sort_value simultaneously"));
         }

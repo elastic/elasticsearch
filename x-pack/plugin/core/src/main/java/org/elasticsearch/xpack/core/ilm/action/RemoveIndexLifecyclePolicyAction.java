@@ -51,7 +51,6 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
         private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             failedIndexes = in.readStringCollectionAsList();
         }
 

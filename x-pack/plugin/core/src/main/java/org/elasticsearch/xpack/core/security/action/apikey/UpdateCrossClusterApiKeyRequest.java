@@ -22,9 +22,10 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
         final String id,
         @Nullable CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable final Map<String, Object> metadata,
-        @Nullable TimeValue expiration
+        @Nullable TimeValue expiration,
+        @Nullable CertificateIdentity certificateIdentity
     ) {
-        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id);
+        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id, certificateIdentity);
     }
 
     @Override
@@ -35,9 +36,9 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (roleDescriptors == null && metadata == null) {
+        if (roleDescriptors == null && metadata == null && certificateIdentity == null) {
             validationException = addValidationError(
-                "must update either [access] or [metadata] for cross-cluster API keys",
+                "must update [access], [metadata], or [certificate_identity] for cross-cluster API keys",
                 validationException
             );
         }

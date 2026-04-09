@@ -16,10 +16,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
@@ -91,9 +91,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        @UpdateForV9 // condition will always be true from v8, can be removed
-        var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
-        assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
 
         String modelId = "trained-model-full-cluster-restart";
 
@@ -106,16 +103,13 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         } else {
             ensureHealth(".ml-inference-*,.ml-config*", (request -> {
                 request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "70s");
+                request.addParameter("timeout", "120s");
             }));
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
-                    assertNewInfer(modelId);
                 } catch (ResponseException e) {
-                    // assertBusy only loops on AssertionErrors, so we have
-                    // to convert failure status exceptions to these
                     throw new AssertionError("Inference failed", e);
                 }
             }, 90, TimeUnit.SECONDS);
@@ -126,7 +120,12 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response;
+            try {
+                response = getTrainedModelStats(modelId);
+            } catch (ResponseException e) {
+                throw new AssertionError("Model stats not available yet", e);
+            }
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -137,16 +136,11 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
-        }, 90, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
-    }
-
-    private void assertNewInfer(String modelId) throws IOException {
-        Response inference = newInfer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
@@ -195,14 +189,30 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (isRunningAgainstOldCluster()) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
@@ -223,18 +233,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
-
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }

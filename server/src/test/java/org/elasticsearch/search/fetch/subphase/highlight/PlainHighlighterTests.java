@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -13,6 +14,8 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -123,6 +126,32 @@ public class PlainHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlight(mapperService, doc, search), "text", "<em>some</em> text");
     }
 
+    public void testHighlightWithDateRangeAndIndexSort() throws Exception {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put("index.sort.field", "timestamp").build();
+
+        MapperService mapperService = createMapperService(settings, """
+            { "_doc" : { "properties" : {
+                "text" : { "type" : "text" },
+                "timestamp" : { "type" : "date" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "text": "some important text to highlight",
+              "timestamp": "2025-01-15T10:30:00Z"
+            }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.matchQuery("text", "important"))
+                .filter(QueryBuilders.rangeQuery("timestamp").gte("2025-01-01").lte("2025-12-31"))
+        ).highlighter(new HighlightBuilder().field("text").highlighterType("plain"));
+
+        assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text to highlight");
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
@@ -132,6 +161,11 @@ public class PlainHighlighterTests extends HighlighterTestCase {
                 @Override
                 public boolean needs_score() {
                     return true;
+                }
+
+                @Override
+                public boolean needs_termStats() {
+                    return false;
                 }
 
                 @Override

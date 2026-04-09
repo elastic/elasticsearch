@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: headers
+      features: ["allowed_warnings", "headers"]
   - do:
       indices.create:
         index: foo
@@ -46,6 +46,8 @@ setup:
                 my-id: { }
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -78,6 +80,8 @@ setup:
 "Verify one job caps":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_rollup_caps:
         id: "foo"
 
@@ -101,6 +105,8 @@ setup:
 "Verify two job caps":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -125,6 +131,8 @@ setup:
             ]
           }
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_rollup_caps:
         id: "foo"
 
@@ -160,6 +168,8 @@ setup:
 "Verify all caps":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -185,6 +195,8 @@ setup:
           }
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -210,6 +222,8 @@ setup:
           }
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_rollup_caps:
         id: "_all"
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -11,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -113,7 +115,7 @@ public class TestShardRouting {
                 primary,
                 state,
                 recoverySource != null ? recoverySource : buildRecoverySource(primary, state),
-                unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state),
+                unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state, relocatingNodeId != null),
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
                 expectedShardSize != null ? expectedShardSize : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -127,6 +129,26 @@ public class TestShardRouting {
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return newShardRouting(shardId, currentNodeId, primary, state, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        RecoverySource recoverySource
+    ) {
+        return newShardRouting(shardId, currentNodeId, primary, state, recoverySource, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        ShardRouting.Role role
+    ) {
         assertNotEquals(ShardRoutingState.RELOCATING, state);
         return new ShardRouting(
             shardId,
@@ -135,11 +157,35 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
-            buildUnassignedInfo(state),
+            buildUnassignedInfo(state, false),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            ShardRouting.Role.DEFAULT
+            role
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        RecoverySource recoverySource,
+        ShardRouting.Role role
+    ) {
+        assertNotEquals(ShardRoutingState.RELOCATING, state);
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            null,
+            primary,
+            state,
+            recoverySource,
+            buildUnassignedInfo(state, false),
+            buildRelocationFailureInfo(state),
+            buildAllocationId(state),
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            role
         );
     }
 
@@ -162,7 +208,7 @@ public class TestShardRouting {
 
     public static ShardRouting newShardRouting(
         ShardId shardId,
-        String currentNodeId,
+        @Nullable String currentNodeId,
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state
@@ -174,12 +220,20 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
-            buildUnassignedInfo(state),
+            buildUnassignedInfo(state, relocatingNodeId != null),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
             ShardRouting.Role.DEFAULT
         );
+    }
+
+    public static boolean randomHasRelocatingNodeId(ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED, STARTED -> false;
+            case INITIALIZING -> randomBoolean();
+            case RELOCATING -> true;
+        };
     }
 
     public static RecoverySource buildRecoverySource(boolean primary, ShardRoutingState state) {
@@ -199,9 +253,10 @@ public class TestShardRouting {
         };
     }
 
-    public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
+    public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state, boolean hasRelocatingNodeId) {
         return switch (state) {
-            case UNASSIGNED, INITIALIZING -> buildUnassignedInfo("auto generated for test");
+            case UNASSIGNED -> buildUnassignedInfo("auto generated for test");
+            case INITIALIZING -> hasRelocatingNodeId ? null : buildUnassignedInfo("auto generated for test");
             case STARTED, RELOCATING -> null;
         };
     }
@@ -264,7 +319,8 @@ public class TestShardRouting {
                 new Snapshot("repo", new SnapshotId(randomIdentifier(), randomUUID())),
                 IndexVersion.current(),
                 new IndexId("some_index", randomUUID())
-            )
+            ),
+            new RecoverySource.ReshardSplitRecoverySource(new ShardId("some_index", randomUUID(), randomIntBetween(0, 1000)))
         );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -15,14 +16,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,9 +38,11 @@ import java.util.Map;
 public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     FieldUsageStatsRequest,
     FieldUsageStatsResponse,
-    FieldUsageShardResponse> {
+    FieldUsageShardResponse,
+    Void> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportFieldUsageAction(
@@ -46,6 +50,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indexServices,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -58,6 +63,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indexServices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,6 +95,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         FieldUsageStatsRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<FieldUsageShardResponse> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -105,7 +112,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allActiveShards(concreteIndices);
     }
 
     @Override
@@ -115,6 +122,6 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

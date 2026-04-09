@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.action.index;
 
@@ -18,19 +19,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -96,7 +93,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         ) {
 
             @Override
-            protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+            protected void sendUpdateMapping(Index index, CompressedXContent mappingUpdate, ActionListener<Void> listener) {
                 inFlightListeners.add(listener);
             }
         };
@@ -144,12 +141,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         );
         mua.setClient(client);
 
-        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false, false)
-        );
-        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
-
-        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.noop());
+        mua.sendUpdateMapping(new Index("name", "uuid"), Mapping.emptyCompressed(), ActionListener.noop());
         verify(indicesAdminClient).execute(eq(TransportAutoPutMappingAction.TYPE), any(), any());
     }
 }

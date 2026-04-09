@@ -12,23 +12,32 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link ValuesBooleanAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesBooleanAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesBooleanAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesBooleanAggregatorFunctionSupplier() {
   }
 
   @Override
-  public ValuesBooleanAggregatorFunction aggregator(DriverContext driverContext) {
-    return ValuesBooleanAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesBooleanAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public ValuesBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return ValuesBooleanGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public ValuesBooleanAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesBooleanAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public ValuesBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new ValuesBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

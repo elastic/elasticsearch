@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -225,7 +226,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -246,7 +247,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -282,7 +283,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -435,7 +436,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         switch (distribution.packaging) {
             case TAR, ZIP -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
             case DEB, RPM -> assertThat(keystore, file(File, "root", "elasticsearch", p660));
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> assertThat(keystore, DockerFileMatcher.file(p660));
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> assertThat(keystore, DockerFileMatcher.file(p660));
             default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }

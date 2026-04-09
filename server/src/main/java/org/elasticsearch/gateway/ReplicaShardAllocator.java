@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -157,7 +158,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
         PerNodeAllocationResult result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
         Decision allocateDecision = result.decision();
-        if (allocateDecision.type() != Decision.Type.YES && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
+        if (allocateDecision.type().assignmentAllowed() == false && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
@@ -179,7 +180,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (primaryShard == null) {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
-                    + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
+                    + "exit early when canBeAllocatedToAtLeastOneNode returned a decision that doesn't allow assignment";
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
@@ -206,7 +207,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
-        if (allocateDecision.type() != Decision.Type.YES) {
+        if (allocateDecision.type().assignmentAllowed() == false) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.nodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
@@ -260,7 +261,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (explain) {
             UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
             Metadata metadata = allocation.metadata();
-            IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
+            IndexMetadata indexMetadata = metadata.indexMetadata(unassignedShard.index());
             totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
             long remainingDelayNanos = unassignedInfo.remainingDelay(
                 System.nanoTime(),
@@ -276,9 +277,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Determines if the shard can be allocated on at least one node based on the allocation deciders.
      *
      * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
-     * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
-     * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
-     * in the returned tuple.
+     * node decided YES, THROTTLE if at least one node decided THROTTLE, NOT_PREFERRED if at least one node
+     * decided NOT_PREFERRED, and NO if none of the nodes decided YES, THROTTLE, or NOT_PREFERRED).
+     * If in explain mode, also returns the node-level explanations as the second element in the returned tuple.
      */
     public static PerNodeAllocationResult canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
@@ -292,13 +293,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // if we can't allocate it on a node, ignore it, for example, this handles
             // cases for only allocating a replica after a primary
             Decision decision = allocation.deciders().canAllocateReplicaWhenThereIsRetentionLease(shard, node, allocation);
-            if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
-                if (explain) {
-                    madeDecision = decision;
-                } else {
+            if (decision.type().compareToBetweenNodes(madeDecision.type()) > 0) {
+                if (decision.type() == Decision.Type.YES && explain == false) {
                     return new PerNodeAllocationResult(decision, null);
                 }
-            } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
                 madeDecision = decision;
             }
             if (explain) {
@@ -438,14 +436,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore
-    ) {
-        String primarySyncId = primaryStore.syncId();
-        return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
-    }
-
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode,
         TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
@@ -454,8 +444,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     ) {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
-        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)
-            || hasMatchingSyncId(primaryStore, replicaStore);
+        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
     }
@@ -468,9 +457,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final NodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
         if (targetNodeStore == null || targetNodeStore.storeFilesMetadata().isEmpty()) {
             return false;
-        }
-        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetadata())) {
-            return true;
         }
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }

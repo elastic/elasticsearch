@@ -71,6 +71,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
             // we only want to know if there is at least 1 new document
             .trackTotalHitsUpTo(1)
+            .runtimeMappings(transformConfig.getSource().getRuntimeMappings())
             .query(queryBuilder);
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
@@ -84,7 +85,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
+            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)
         );
     }
 

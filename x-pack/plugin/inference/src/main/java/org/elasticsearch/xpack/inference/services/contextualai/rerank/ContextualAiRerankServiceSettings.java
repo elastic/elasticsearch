@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServiceSettings;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
 public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettings {
 
@@ -58,6 +60,20 @@ public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettin
 
     public ContextualAiRerankServiceSettings(StreamInput in) throws IOException {
         super(in);
+    }
+
+    /**
+     * For versions that still support the URL service setting, we need to write out a value to avoid serialization errors.
+     * This value will be set as URI to send ContextualAI rerank request to.
+     * @param out the output stream to write to
+     * @throws IOException if an I/O error occurs during writing
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
+            out.writeString(ContextualAiRerankModel.DEFAULT_RERANK_URI.toString());
+        }
+        super.writeTo(out);
     }
 
     @Override

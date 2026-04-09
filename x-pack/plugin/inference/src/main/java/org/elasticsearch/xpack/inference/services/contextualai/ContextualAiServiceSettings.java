@@ -24,6 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
 /**
  * Base class for ServiceSettings of Contextual AI inference services.
@@ -85,7 +86,23 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         }
 
         public CommonSettings(StreamInput in) throws IOException {
-            this(in.readString(), new RateLimitSettings(in));
+            this(readModelId(in), new RateLimitSettings(in));
+        }
+
+        /**
+         * Reads the model ID from the input stream, taking into account the transport version to maintain backward compatibility.
+         * The URI setting used to be required to be sent by older versions of the coordinating node, but is no longer needed.
+         * To maintain compatibility with mixed clusters, we need to continue reading it for older versions.
+         * It is intentionally discarded for BWC.
+         * @param in the input stream to read from
+         * @return model ID read from the input stream
+         * @throws IOException if there is an error reading from the input stream
+         */
+        private static String readModelId(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
+                in.readString();
+            }
+            return in.readString();
         }
     }
 

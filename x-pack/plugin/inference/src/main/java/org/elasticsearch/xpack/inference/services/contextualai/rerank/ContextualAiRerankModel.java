@@ -23,7 +23,7 @@ import java.net.URI;
 import java.util.Map;
 
 public class ContextualAiRerankModel extends ContextualAiModel {
-    private static final URI DEFAULT_RERANK_URI = ServiceUtils.createUri("https://api.contextual.ai/v1/rerank");
+    public static final URI DEFAULT_RERANK_URI = ServiceUtils.createUri("https://api.contextual.ai/v1/rerank");
 
     public static ContextualAiRerankModel of(ContextualAiRerankModel model, Map<String, Object> taskSettingsMap) {
         var originalSettings = model.getTaskSettings();

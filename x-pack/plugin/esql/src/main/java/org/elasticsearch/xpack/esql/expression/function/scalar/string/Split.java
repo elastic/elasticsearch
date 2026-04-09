@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  */
 public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Split", Split::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Split.class).binary(Split::new).name("split");
 
     @FunctionInfo(
         returnType = "keyword",

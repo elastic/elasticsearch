@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -21,7 +22,7 @@ import java.time.Instant;
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testNullStorageObjectThrowsException() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
         assertEquals("storageObject cannot be null", e.getMessage());
     }
 

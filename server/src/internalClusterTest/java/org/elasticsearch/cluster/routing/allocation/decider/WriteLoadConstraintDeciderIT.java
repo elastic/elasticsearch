@@ -700,32 +700,21 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         updateClusterSettings(Settings.builder().put(thresholdSettingKey, "51%"));
 
-        Consumer<String> testUnderFiftyRatio = (setting) -> {
-            expectThrows(
-                IllegalArgumentException.class,
-                equalTo(
-                    "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
-                        + "50% and 100%, or 0% to disable"
-                ),
-                () -> {
-                    updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting));
-                }
-            );
-        };
+        Consumer<String> testUnderFiftyRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(thresholdSettingKey + " may be between 50% and 100%, or 0% to disable"),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting))
+        );
 
         testUnderFiftyRatio.accept("1%");
         testUnderFiftyRatio.accept("50%");
         testUnderFiftyRatio.accept(randomIntBetween(1, 50) + "%");
 
-        Consumer<Integer> testAboveOneHundredRatio = (setting) -> {
-            expectThrows(
-                IllegalArgumentException.class,
-                equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
-                () -> {
-                    updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting + "%"));
-                }
-            );
-        };
+        Consumer<Integer> testAboveOneHundredRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting + "%"))
+        );
 
         testAboveOneHundredRatio.accept(101);
         testAboveOneHundredRatio.accept(randomIntBetween(101, 1000));

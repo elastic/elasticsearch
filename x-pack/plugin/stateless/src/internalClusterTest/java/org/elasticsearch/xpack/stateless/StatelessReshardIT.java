@@ -175,6 +175,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.indexMetadata;
+import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
+import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
@@ -229,9 +232,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final Index index = resolveIndex(indexName);
 
         // Create an IndexRouting object for 4 shards to find document IDs that would route to each shard
-        final var indexMetadataWith2Shards = indexMetadata(clusterService().state(), index);
-        final var indexMetadataWith4Shards = IndexMetadata.builder(indexMetadataWith2Shards).reshardAddShards(4).build();
-        final var indexRoutingWith4Shards = IndexRouting.fromIndexMetadata(indexMetadataWith4Shards);
+        final var indexRoutingWith4Shards = postSplitRouting(clusterService().state(), index, 4);
 
         // Find 4 document IDs that would route to each of the 4 shards if the index had 4 shards
         final var doc0Id = makeIdThatRoutesToShard(indexRoutingWith4Shards, 0);
@@ -1494,10 +1495,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
-        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
-
-        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // We'll set up two gets before resharding, so that they route as if there is only 1 shard.
         // this document should be found by get after resharding, on the original shard
@@ -1579,10 +1577,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
-        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
-
-        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // this document should be found by multiget after resharding, on the original shard
         final var shard0docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 0);
@@ -1675,10 +1670,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
-        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
-
-        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // prep realtime get but block until after resharding reaches split so that
         // it routes to the old shard
@@ -1762,10 +1754,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
-        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
-
-        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // prep realtime multiget but block until after resharding reaches split so that
         // it routes to the old shard
@@ -3893,9 +3882,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         checkNumberOfShardsSetting(masterNode, indexName, 1);
 
         final Index index = resolveIndex(indexName);
-        final IndexMetadata indexMetadata = indexMetadata(clusterService().state(), index);
-        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
-        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // Use the document that will be routed to the new shard after the split
         // to test the retry logic for stale requests.
@@ -4043,16 +4030,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    private String makeIdThatRoutesToShard(IndexRouting indexRouting, int shardId) {
-        while (true) {
-            String documentId = randomAlphaOfLength(5);
-            int routedShard = indexRouting.indexShard(new IndexRequest().id(documentId).routing(null));
-            if (routedShard == shardId) {
-                return documentId;
-            }
-        }
-    }
-
     private static void assertShardDocCountEquals(ShardId shard, long expectedCount) {
         assertShardDocCountEquals(
             client().admin().indices().prepareStats(shard.getIndexName()).execute().actionGet(),
@@ -4076,10 +4053,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .getReshardingMetadata();
 
         return reshardingMetadata != null ? reshardingMetadata.getSplit() : null;
-    }
-
-    private static IndexMetadata indexMetadata(ClusterState state, Index index) {
-        return state.metadata().indexMetadata(index);
     }
 
     private static SearchRequestBuilder prepareSearchAll(String indexName) {

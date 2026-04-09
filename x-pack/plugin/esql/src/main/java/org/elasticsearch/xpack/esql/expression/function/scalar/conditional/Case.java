@@ -256,25 +256,18 @@ public final class Case extends EsqlScalarFunction {
     @Override
     public boolean foldable() {
         for (Condition condition : conditions) {
-            if (condition.condition.foldable() == false) {
-                return false;
+            if (condition.condition instanceof Literal literal) {
+                if (Boolean.TRUE.equals(literal.value())) {
+                    // The condition is literally TRUE, so only the matching value needs to be foldable.
+                    return condition.value.foldable();
+                }
+                // The condition is literally FALSE or NULL — this branch is never taken, skip it.
+                continue;
             }
-            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.small() /* TODO remove me - use literal true?*/))) {
-                /*
-                 * `fold` can make four things here:
-                 * 1. `TRUE`
-                 * 2. `FALSE`
-                 * 3. null
-                 * 4. A list with more than one `TRUE` or `FALSE` in it.
-                 *
-                 * In the first case, we're foldable if the condition is foldable.
-                 * The multivalued field will make a warning, but eventually
-                 * become null. And null will become false. So cases 2-4 are
-                 * the same. In those cases we are foldable only if the *rest*
-                 * of the condition is foldable.
-                 */
-                return condition.value.foldable();
-            }
+            // The condition is not a literal. Rather than folding here to check the value (which can produce spurious
+            // warnings as a side-effect), we bail out. ConstantFolding will turn foldable conditions into literals on
+            // the next optimizer pass, and then the literal checks above will handle them.
+            return false;
         }
         return elseValue.foldable();
     }

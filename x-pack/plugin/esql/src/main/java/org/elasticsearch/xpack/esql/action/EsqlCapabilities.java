@@ -2460,6 +2460,13 @@ public class EsqlCapabilities {
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
 
+        /**
+         * Fix for CASE on multi-valued grouping keys producing spurious warnings during
+         * foldability checks.
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_CASE_FOLDABLE_MV_WARNING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

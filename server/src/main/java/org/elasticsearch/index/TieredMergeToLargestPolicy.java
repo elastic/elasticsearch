@@ -430,14 +430,17 @@ public class TieredMergeToLargestPolicy extends MergePolicy {
         Map<SegmentCommitInfo, Boolean> segmentsToMerge,
         MergeContext mergeContext
     ) throws IOException {
-        // For force merge, favor merging small segments into large ones
-        List<SegmentSizeAndDocs> eligible = new ArrayList<>();
+        // For force merge, include all eligible segments in a single merge.
+        // This ensures the BBQ codec can detect the dominant segment and use INSERTION.
+        // The previous implementation cascaded small merges without the largest segment,
+        // causing repeated re-clustering and 2x slower forced merges.
+        List<SegmentCommitInfo> eligible = new ArrayList<>();
         final Set<SegmentCommitInfo> merging = mergeContext.getMergingSegments();
 
         for (SegmentCommitInfo info : infos) {
             Boolean isOriginal = segmentsToMerge.get(info);
             if (isOriginal != null && merging.contains(info) == false) {
-                eligible.add(new SegmentSizeAndDocs(info, size(info, mergeContext), mergeContext.numDeletesToMerge(info)));
+                eligible.add(info);
             }
         }
 
@@ -445,36 +448,9 @@ public class TieredMergeToLargestPolicy extends MergePolicy {
             return null;
         }
 
-        // Sort by size descending
-        eligible.sort((a, b) -> Long.compare(b.sizeInBytes, a.sizeInBytes));
-
         MergeSpecification spec = new MergeSpecification();
-
-        // Merge from smallest upward, favoring merging small into large
-        int idx = eligible.size() - 1;
-        while (eligible.size() > maxSegmentCount && idx > 0) {
-            List<SegmentCommitInfo> toMerge = new ArrayList<>();
-            long mergeSize = 0;
-
-            // Take smallest segments up to maxMergeAtOnce
-            while (idx >= 0 && toMerge.size() < maxMergeAtOnce && mergeSize < maxMergedSegmentBytes) {
-                SegmentSizeAndDocs seg = eligible.get(idx);
-                if (mergeSize + seg.sizeInBytes <= maxMergedSegmentBytes || toMerge.isEmpty()) {
-                    toMerge.add(seg.info);
-                    mergeSize += seg.sizeInBytes;
-                    eligible.remove(idx);
-                    idx--;
-                } else {
-                    break;
-                }
-            }
-
-            if (toMerge.size() >= 2) {
-                spec.add(new OneMerge(toMerge));
-            }
-        }
-
-        return spec.merges.isEmpty() ? null : spec;
+        spec.add(new OneMerge(eligible));
+        return spec;
     }
 
     @Override

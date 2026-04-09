@@ -86,7 +86,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1188,13 +1187,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-
-        Field refField = AbstractAsyncBulkByScrollAction.class.getDeclaredField("currentScrollResponse");
-        refField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        AtomicReference<AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse> currentScrollResponse = (AtomicReference<
-            AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse>) refField.get(action);
-        currentScrollResponse.set(consumable);
+        action.setCurrentScrollResponseForTests(consumable);
 
         Future<?> prepareFuture = threadPool.generic().submit(() -> action.prepareBulkRequest(System.nanoTime(), consumable));
         assertTrue(firstConsumeReturnedFromSuper.await(30, TimeUnit.SECONDS));

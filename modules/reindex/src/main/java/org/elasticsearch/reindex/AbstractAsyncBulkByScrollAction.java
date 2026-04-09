@@ -834,6 +834,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
+    /**
+     * Seeds {@link #currentScrollResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
+     * / terminal-finish scenarios). Exists entirely for testing.
+     */
+    void setCurrentScrollResponseForTests(ScrollConsumableHitsResponse response) {
+        currentScrollResponse.set(response);
+    }
+
     private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
         for (PaginatedHitSource.Hit hit : hits) {
             hit.release();

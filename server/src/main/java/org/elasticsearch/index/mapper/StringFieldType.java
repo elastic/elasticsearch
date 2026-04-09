@@ -21,13 +21,17 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
 import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
@@ -176,11 +180,28 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }
+
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
         AutomatonQuery query;
-        if (caseInsensitive) {
-            query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
+        if (circuitBreaker != null) {
+            if (caseInsensitive) {
+                query = method == null
+                    ? new CaseInsensitiveWildcardQuery(term, circuitBreaker)
+                    : new CaseInsensitiveWildcardQuery(term, false, method, circuitBreaker);
+            } else {
+                Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
+                query = method == null
+                    ? new AutomatonQueryWithDescription(term, dfa, term.text())
+                    : new AutomatonQuery(term, dfa, false, method);
+            }
         } else {
-            query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+            if (caseInsensitive) {
+                query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
+            } else {
+                query = method == null
+                    ? new WildcardQuery(term)
+                    : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+            }
         }
         context.addCircuitBreakerMemory(query.ramBytesUsed(), "wildcard:" + name());
         return query;
@@ -201,16 +222,20 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        AutomatonQuery query = method == null
-            ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
-            : new RegexpQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                syntaxFlags,
-                matchFlags,
-                RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates,
-                method
-            );
+
+        AutomatonQuery query;
+        Term term = new Term(name(), indexedValueForSearch(value));
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+        if (circuitBreaker != null) {
+            Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
+            query = method == null
+                ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
+                : new AutomatonQuery(term, dfa, false, method);
+        } else {
+            query = method == null
+                ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
+                : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
+        }
         context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + name());
         return query;
     }

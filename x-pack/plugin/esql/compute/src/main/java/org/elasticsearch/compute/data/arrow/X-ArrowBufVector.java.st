@@ -24,45 +24,46 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed $Type$Vector.
+ * Implementation of $Type$Vector backed by an Arrow buffer holding $arrowDesc$.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
-public final class $Type$ArrowBufVector extends AbstractArrowBufVector<$Type$Vector, $Type$Block> implements $Type$Vector {
+public final class $Name$ArrowBufVector extends AbstractArrowBufVector<$Type$Vector, $Type$Block> implements $Type$Vector {
 
     /**
      *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public $Type$ArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
+    public $Name$ArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
     }
 
-    private $Type$ArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+    private $Name$ArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static $Type$ArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
-        return new $Type$ArrowBufVector(arrowVector, blockFactory);
+    public static $Name$ArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new $Name$ArrowBufVector(arrowVector, blockFactory);
     }
 
     @Override
     protected ArrowBufVectorConstructor<$Type$Vector> vectorConstructor() {
-        return $Type$ArrowBufVector::new;
+        return $Name$ArrowBufVector::new;
     }
 
     @Override
     protected ArrowBufBlockConstructor<$Type$Block> blockConstructor() {
-        return $Type$ArrowBufBlock::new;
+        return $Name$ArrowBufBlock::new;
     }
 
     @Override
-    public $type$ get$Type$(int position) {
-        return valueBuffer.get$Type$((long) position * $BYTES$);
+    public $type$ get$Type$(int valueIndex) {
+        return $valueRead$;
     }
 
     @Override
     protected int byteSize() {
-        return $BYTES$;
+        return $byteSize$;
     }
 
     @Override

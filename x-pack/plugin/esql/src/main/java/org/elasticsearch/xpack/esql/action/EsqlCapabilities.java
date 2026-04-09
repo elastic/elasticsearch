@@ -1218,6 +1218,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
 
         /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -1686,6 +1692,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -2288,11 +2298,6 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
-
-        /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Dense_vector SUM aggregation function

@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -31,6 +30,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorScoringUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -238,17 +238,7 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
             DenseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer scorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return scorer.score(iterator.index());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-            };
+            return VectorScoringUtils.denseVectorScorer(scorer, iterator);
         }
 
         @Override
@@ -333,17 +323,7 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
             SparseOffHeapVectorValues copy = copy();
             DocIndexIterator iterator = copy.iterator();
             RandomVectorScorer scorer = vectorsScorer.getRandomVectorScorer(similarityFunction, copy, target);
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return scorer.score(iterator.index());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return iterator;
-                }
-            };
+            return VectorScoringUtils.sparseVectorScorer(scorer, iterator);
         }
     }
 

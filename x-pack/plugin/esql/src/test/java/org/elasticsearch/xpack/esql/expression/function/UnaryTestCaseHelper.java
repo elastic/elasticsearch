@@ -31,7 +31,7 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *     Instances are immutable. Methods returns a new instance. Use it
  *     via chaining, finishing by calling {@link #build}:
  * </p>
- * <pre>{@code
+ * {@snippet lang="java" :
  * List<TestCaseSupplier> suppliers = new ArrayList<>();
  * unary()
  *     .expectedOutputType(DataType.DOUBLE)
@@ -39,12 +39,12 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *     .expectedFromInt(whatever)
  *     .evaluatorToString("TheEvaluator[val=%0]")
  *     .build(suppliers);
- * }</pre>
+ * }
  * <p>
  *     All the methods that make inputs <strong>add</strong> to the list of
  *     test cases. So you can call them many times before calling {@link #build}.
  * </p>
- * <pre>{@code
+ * {@snippet lang="java" :
  * unary()
  *     .expectedOutputType(DataType.INTEGER)
  *     .evaluatorToString("LengthEvaluator[val=%0]")
@@ -52,9 +52,9 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *     .strings("empty string", () -> "").expectedFromString(s -> 0);
  *     .strings("single ascii character", () -> "a").expectedFromString(s -> 1)
  *     .build(cases);
- * }</pre>
+ * }
  * <h2>Share behavior with a static method</h2>
- * <pre>{@code
+ * {@snippet lang="java" :
  * intHelper().ints(1, Integer.MAX_VALUE).expectedFromInt(whatever).build(suppliers);
  * intHelper().ints(Integer.MIN_VALUE, 0).expectNullAndWarnings(
  *     o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number")
@@ -64,9 +64,9 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *     return unary().expectedOutputType(DataType.DOUBLE)
  *         .evaluatorToString("TheIntEvaluator[val=%0]");
  * }
- * }</pre>
+ * }
  * <h2>Share behavior by forking the helper</h2>
- * <pre>{@code
+ * {@snippet lang="java" :
  * UnaryTestCaseHelper valid = unary().expectedOutputType(DataType.DOUBLE);
  * valid.ints(1, Integer.MAX_VALUE)
  *      .expectedFromInt(whatever)
@@ -76,11 +76,11 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  *      .expectedFromLong(whatever)
  *      .evaluatorToString("TheLongEvaluator[val=%0]")
  *      .build(suppliers);
- * }</pre>
+ * }
  * <p>
  *     You can also fork that into handling cases that produce warnings as well:
  * </p>
- * <pre>{@code
+ * {@snippet lang="java" :
  * UnaryTestCaseHelper invalid = valid.expectNullAndWarnings(
  *      o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number")
  * );
@@ -90,7 +90,7 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  * invalid.longs(Long.MIN_VALUE, 0)
  *      .evaluatorToString("TheLongEvaluator[val=%0]")
  *      .build(suppliers);
- * }</pre>
+ * }
  */
 public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHelper> {
     UnaryTestCaseHelper() {

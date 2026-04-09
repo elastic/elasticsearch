@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -205,6 +209,50 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
     }
 
+    /**
+     * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
+     * async I/O operations (e.g., transport actions) without blocking the caller thread.
+     * <p>
+     * Children are transformed sequentially, not concurrently, one after another in order.
+     * This method is intended for cases where async I/O is needed during transformation, not for parallel
+     * processing.
+     */
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            Node<T> node = this.equals(root) ? this : root;
+            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final Holder<List<T>> updatedChildren = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            int index = i;
+            T child = children.get(index);
+            chain = chain.andThen(originalListener -> {
+                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
+                    if (maybeTransformed.equals(child) == false) {
+                        if (updatedChildren.get() == null) {
+                            updatedChildren.set(new ArrayList<>(children));
+                        }
+                        updatedChildren.get().set(index, maybeTransformed);
+                    }
+                    o.onResponse(null);
+                }));
+            });
+        }
+        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
+            .addListener(listener);
+    }
+
     @SuppressWarnings("unchecked")
     public T transformUp(Function<? super T, ? extends T> rule) {
         T transformed = transformChildren(child -> child.transformUp(rule));
@@ -330,10 +378,13 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
+    /**
+     * Configuration for rendering the string representation.
+     */
     public enum NodeStringFormat {
         /** No list truncation, no line breaks due to string width. */
         FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
-        /** List truncation and line breaks due to string width applied. */
+        /** List truncation, line breaks, and limited number of lines. */
         LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
 
         final int maxProperties;
@@ -347,17 +398,28 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         }
     }
 
+    /**
+     * Render this {@link Node} to a {@link String} with the
+     * {@link NodeStringFormat#LIMITED limited} format. This does not include
+     * this node's {@link #children()}.
+     */
     public final String nodeString() {
-        return nodeString(NodeStringFormat.LIMITED);
+        StringBuilder sb = new StringBuilder();
+        nodeString(sb, NodeStringFormat.LIMITED);
+        return sb.toString();
     }
 
-    public String nodeString(NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
+    /**
+     * Append this {@link Node}'s string representation to {@code sb}. This
+     * does not include this node's {@link #children()}.
+     * @param sb target for the string
+     * @param format configuration for rendering the string representation
+     */
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true, format));
+        propertiesToString(sb, true, format);
         sb.append("]");
-        return sb.toString();
     }
 
     @Override
@@ -369,8 +431,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return new NodeToString(format).treeString(this, 0).toString();
     }
 
-    protected String propertiesToString(boolean skipIfChild, NodeStringFormat format) {
-        return new NodePropertiesToString(format, this, skipIfChild).propertiesToString();
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
+        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

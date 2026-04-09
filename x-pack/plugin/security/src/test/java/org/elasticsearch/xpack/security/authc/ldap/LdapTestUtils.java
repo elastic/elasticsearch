@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.nio.file.Path;
 
@@ -57,15 +56,13 @@ public class LdapTestUtils {
         options.setResponseTimeoutMillis(DEFAULT_LDAP_TIMEOUT.millis());
 
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
-        return LdapUtils.privilegedConnect(
-            () -> new LDAPConnection(
-                sslService.sslSocketFactory(sslConfiguration),
-                options,
-                ldapurl.getHost(),
-                ldapurl.getPort(),
-                bindDN,
-                bindPassword
-            )
+        return new LDAPConnection(
+            sslService.sslSocketFactory(sslConfiguration),
+            options,
+            ldapurl.getHost(),
+            ldapurl.getPort(),
+            bindDN,
+            bindPassword
         );
     }
 }

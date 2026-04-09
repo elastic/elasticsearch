@@ -479,7 +479,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // test harness to be able to call `warmingService.warmCache`
             var indexShard = mockIndexShard(fakeNode);
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
-            fakeNode.warmingService.warmCacheRecovery(
+            fakeNode.warmingService.warmCache(
                 SEARCH,
                 indexShard,
                 lastCommit,
@@ -856,7 +856,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // re-populate cache and fill holes
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
-            fakeNode.warmingService.warmCacheRecovery(
+            fakeNode.warmingService.warmCache(
                 SEARCH,
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
@@ -1049,7 +1049,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeTimeThreadPool.get().setCurrentTimeInMillis(timestamp);
                 warmTasksForBCCs.clear();
                 var listener = new SubscribableListener<Void>();
-                fakeNode.warmingService.warmCacheRecovery(
+                fakeNode.warmingService.warmCache(
                     SEARCH,
                     mockIndexShard(fakeNode),
                     lastCommit,
@@ -1143,7 +1143,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             var type = randomFrom(INDEXING, SEARCH);
-            node.warmingService.warmCacheRecovery(
+            node.warmingService.warmCache(
                 type,
                 mockIndexShard(node),
                 commit,
@@ -1196,7 +1196,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 // Warm the cache and verify the range is fetched with minimization as expected
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
-                node.warmingService.warmCacheRecovery(
+                node.warmingService.warmCache(
                     randomFrom(Type.values()),
                     indexShard,
                     commit,
@@ -1258,7 +1258,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCacheRecovery(
+            node.warmingService.warmCache(
                 randomValueOtherThanMany(t -> t.skipsWarmingForRegion0Locations, () -> randomFrom(Type.values())),
                 indexShard,
                 commit,
@@ -1410,7 +1410,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // Warm the cache with INDEXING_EARLY or INDEXING type and preWarmForIdLookup=true
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCacheRecovery(
+            node.warmingService.warmCache(
                 randomFrom(INDEXING_EARLY, INDEXING),
                 indexShard,
                 commit,

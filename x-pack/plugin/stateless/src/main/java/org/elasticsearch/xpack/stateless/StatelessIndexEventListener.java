@@ -321,7 +321,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // We must use a copied instance for warming as the index directory will move forward with new commits
                     var warmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
                     warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                    warmingService.warmCacheForShardRecovery(
+
+                    warmingService.warmCacheForShardRecoveryOrUnhollowing(
                         INDEXING,
                         indexShard,
                         recoveryCommit,
@@ -474,7 +475,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
                     if (blobFileRangesAndOffsetsToWarm != null) {
                         searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
-                        warmingService.warmCacheForShardRecovery(
+                        warmingService.warmCacheForShardRecoveryOrUnhollowing(
                             SEARCH,
                             indexShard,
                             compoundCommit,
@@ -483,7 +484,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         );
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
-                        warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory, null);
+                        warmingService.warmCacheForShardRecoveryOrUnhollowing(SEARCH, indexShard, compoundCommit, searchDirectory, null);
                     }
                     // this goes async (aka "offline warming")
                     assert indexShard.store().refCount() > 0 : indexShard.shardId();

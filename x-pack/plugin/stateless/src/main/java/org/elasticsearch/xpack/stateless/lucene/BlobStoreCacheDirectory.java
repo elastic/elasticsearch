@@ -182,6 +182,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         }
     }
 
+    public boolean metadataContainsReplicatedRanges() {
+        return currentMetadata.values().stream().anyMatch(BlobFileRanges::hasReplicatedRanges);
+    }
+
     protected boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {
         final Thread witness = updatingCommitThread.compareAndExchange(current, updated);
         assert witness == current

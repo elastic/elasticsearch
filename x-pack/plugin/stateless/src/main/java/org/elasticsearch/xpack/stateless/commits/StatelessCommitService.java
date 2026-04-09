@@ -1045,6 +1045,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.getMaxGenerationToUploadForFlush();
     }
 
+    /**
+     * Returns a 'snapshot' of the current blob locations. Concurrent changes to the shard commit states may not be
+     * reflected in the returned Map.
+     */
+    public Map<String, BlobLocation> getBlobLocations(ShardId shardId) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.blobLocations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().blobLocation()));
+    }
+
     // Visible for testing
     public VirtualBatchedCompoundCommit getCurrentVirtualBcc(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);

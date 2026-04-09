@@ -853,7 +853,17 @@ public class StatelessPlugin extends Plugin
         // available on all nodes despite being useful only on indexing nodes
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
-            new HollowShardsService(settings, clusterService, indicesService, indexShardCacheWarmer, threadPool, hollowShardMetrics.get())
+            new HollowShardsService(
+                settings,
+                clusterService,
+                indicesService,
+                objectStoreService,
+                commitService,
+                indexShardCacheWarmer,
+                threadPool,
+                hollowShardMetrics.get(),
+                bccHeaderReadExecutor.get()
+            )
         );
         components.add(hollowShardsService);
 
@@ -1625,6 +1635,7 @@ public class StatelessPlugin extends Plugin
                         }
                     }
                 );
+
                 final Engine engine = newHollowOrIndexEngine(indexSettings, newConfig);
 
                 IndexDirectory indexDirectory = IndexDirectory.unwrapDirectory(newConfig.getStore().directory());
@@ -1686,6 +1697,7 @@ public class StatelessPlugin extends Plugin
             logger.debug(() -> shardId + " using hollow engine for shard [generation: " + segmentCommitInfos.getGeneration() + "]");
             return new HollowIndexEngine(newConfig, getCommitService(), hollowShardsService.get(), segmentCommitInfos);
         }
+
         return newIndexEngine(
             newConfig,
             translogReplicator.get(),

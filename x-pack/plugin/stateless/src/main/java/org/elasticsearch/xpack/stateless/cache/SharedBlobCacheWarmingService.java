@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
-import org.elasticsearch.xpack.stateless.utils.IndexingShardRecoveryComparator;
+import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -463,8 +463,8 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Warms the cache to optimize cache hits during the recovery of an indexing or search shard. The warming happens concurrently
-     * with the recovery and doesn't block it.
+     * Warms the cache to optimize cache hits during the recovery or unhollowing. The warming happens concurrently
+     * with the recovery or the unhollowing and doesn't block it.
      *
      * <p>
      * This method uses the list of files of the recovered commit to identify which region(s) of the compound commit blob are likely to be
@@ -480,17 +480,17 @@ public class SharedBlobCacheWarmingService {
      * @param endOffsetsToWarm optional up-to offset (exclusive) in the {@code BlobFile} to warm in cache,
      *                         in addition to regular recovery warming, grouped by {@code BlobFile}s
      */
-    public void warmCacheForShardRecovery(
+    public void warmCacheForShardRecoveryOrUnhollowing(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm
     ) {
-        warmCacheForShardRecovery(type, indexShard, commit, directory, endOffsetsToWarm, false);
+        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, false, ActionListener.noop());
     }
 
-    public void warmCacheForShardRecovery(
+    public void warmCacheForShardRecoveryOrUnhollowing(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
@@ -498,10 +498,10 @@ public class SharedBlobCacheWarmingService {
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
         boolean preWarmForIdLookup
     ) {
-        warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, ActionListener.noop());
+        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, ActionListener.noop());
     }
 
-    protected void warmCacheRecovery(
+    protected void warmCache(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
@@ -568,9 +568,9 @@ public class SharedBlobCacheWarmingService {
                     idLookupPrewarmReqsTotalMetric.incrementBy(1, Map.of("es_blob_cache_prewarming_type", type.name()));
                 }
                 try (
-                    // warming up the latest commit upon recovery will fetch a few regions of every active
+                    // warming up the latest commit upon recovery/unhollowing will fetch a few regions of every active
                     // segment (the first region of every segment is always fetched)
-                    var warmer = new RecoveryWarmer(
+                    var warmer = new ShardWarmer(
                         warmingRun,
                         indexShard,
                         store::isClosing,
@@ -727,7 +727,7 @@ public class SharedBlobCacheWarmingService {
         throttledTaskRunner.enqueueTask(warmTask);
     }
 
-    private class RecoveryWarmer extends AbstractWarmer {
+    private class ShardWarmer extends AbstractWarmer {
 
         private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues = new ConcurrentHashMap<>();
         private final IndexShard indexShard;
@@ -736,7 +736,7 @@ public class SharedBlobCacheWarmingService {
         protected final AtomicLong skippedTasksCount = new AtomicLong(0L);
         private final boolean preWarmForIdLookup;
 
-        RecoveryWarmer(
+        ShardWarmer(
             WarmingRun warmingRun,
             IndexShard indexShard,
             Supplier<Boolean> isStoreClosing,
@@ -755,13 +755,16 @@ public class SharedBlobCacheWarmingService {
         void run() {
             filesToWarm.entrySet()
                 .stream()
-                .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
+                .sorted(Map.Entry.comparingByKey(new IndexingShardWarmingComparator()))
                 .forEach(entry -> addFile(entry.getKey(), LuceneFilesExtensions.fromFile(entry.getKey()), entry.getValue()));
         }
 
         @Override
         protected boolean isCancelled() {
-            return super.isCancelled() || indexShard.state() != IndexShardState.RECOVERING;
+            return super.isCancelled()
+                || (indexShard.state() != IndexShardState.RECOVERING
+                    && warmingRun.type != Type.UNHOLLOWING
+                    && warmingRun.type != Type.HOLLOWING);
         }
 
         @Override
@@ -801,7 +804,7 @@ public class SharedBlobCacheWarmingService {
          */
         private void addFile(String fileName, @Nullable LuceneFilesExtensions fileExtension, BlobLocation blobLocation) {
             if (isCancelled()) {
-                // stop warming if the shard is not recovering anymore
+                // stop warming
             } else if (fileExtension == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
@@ -868,7 +871,8 @@ public class SharedBlobCacheWarmingService {
         private void addCfe(String fileName) {
             assert LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.CFE : fileName;
             // We spawn to the generic pool here (via a throttled task runner), so that we have the following invocation path across
-            // the thread pools: GENERIC (recovery) -> FILL_VBCC_THREAD_POOL (if fetching from indexing node) -> GENERIC.
+            // the thread pools: GENERIC (recovery/hollowing/unhollowing) -> FILL_VBCC_THREAD_POOL (if fetching from indexing node)
+            // -> GENERIC.
             // We expect no blocking here since `addCfe` gets called AFTER warming the region.
             cfeThrottledTaskRunner.enqueueTask(listeners.acquire().map(ref -> {
                 try (ref) {
@@ -888,7 +892,7 @@ public class SharedBlobCacheWarmingService {
 
                         entries.entrySet()
                             .stream()
-                            .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
+                            .sorted(Map.Entry.comparingByKey(new IndexingShardWarmingComparator()))
                             .forEach(
                                 entry -> addFile(
                                     cfs,

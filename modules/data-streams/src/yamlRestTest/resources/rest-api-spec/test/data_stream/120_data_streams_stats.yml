@@ -8,9 +8,6 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            settings:
-              index.number_of_replicas: 0
           data_stream: {}
   - do:
       allowed_warnings:
@@ -19,9 +16,6 @@ setup:
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
-          template:
-            settings:
-              index.number_of_replicas: 0
           data_stream: {}
 
 ---
@@ -50,6 +44,10 @@ setup:
   - do:
       indices.rollover:
         alias: "simple-data-stream1"
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.data_streams_stats: {}
@@ -195,8 +193,8 @@ setup:
 
   - do:
       indices.data_streams_stats: {}
-  - match: { _shards.total: 3 }
-  - match: { _shards.successful: 3 }
+  - match: { _shards.total: 6 }
+  - match: { _shards.successful: 6 }
   - match: { _shards.failed: 0 }
   - match: { data_stream_count: 2 }
   - match: { backing_indices: 3 }

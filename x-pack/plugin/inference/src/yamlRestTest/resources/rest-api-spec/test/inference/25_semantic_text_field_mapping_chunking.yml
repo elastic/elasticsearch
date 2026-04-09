@@ -188,7 +188,7 @@ setup:
   - match: { "none-chunking-dense.mappings.properties.inference_field.chunking_settings.strategy": "none" }
 
 ---
-"We do not set custom chunking settings for null or empty specified chunking settings":
+"We do not set custom chunking settings for null chunking settings":
 
   - do:
       indices.create:
@@ -207,6 +207,8 @@ setup:
 
   - not_exists: null-chunking.mappings.properties.inference_field.chunking_settings
 
+---
+"We do not set custom chunking settings for empty specified chunking settings":
 
   - do:
       indices.create:

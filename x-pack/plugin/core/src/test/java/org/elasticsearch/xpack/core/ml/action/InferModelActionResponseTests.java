@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
@@ -50,7 +50,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
         PyTorchPassThroughResults.NAME,
         QuestionAnsweringInferenceResults.NAME,
         RegressionInferenceResults.NAME,
-        MlTextEmbeddingResults.NAME,
+        MlDenseEmbeddingResults.NAME,
         TextExpansionResults.NAME,
         TextSimilarityInferenceResults.NAME,
         WarningInferenceResults.NAME
@@ -87,7 +87,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
             case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
             case QuestionAnsweringInferenceResults.NAME -> QuestionAnsweringInferenceResultsTests.createRandomResults();
             case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
-            case MlTextEmbeddingResults.NAME -> MlTextEmbeddingResultsTests.createRandomResults();
+            case MlDenseEmbeddingResults.NAME -> MlDenseEmbeddingResultsTests.createRandomResults();
             case TextExpansionResults.NAME -> TextExpansionResultsTests.createRandomResults();
             case TextSimilarityInferenceResults.NAME -> TextSimilarityInferenceResultsTests.createRandomResults();
             case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();

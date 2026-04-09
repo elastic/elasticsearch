@@ -32,16 +32,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
@@ -51,15 +46,18 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.EmptyResponseListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -91,7 +89,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(CountDown3Plugin.class, ChunkAndFailPlugin.class, KeepPipeliningPlugin.class),
+            List.of(CountDown3Plugin.class, ChunkAndFailPlugin.class, KeepPipeliningPlugin.class, TestTelemetryPlugin.class),
             super.nodePlugins()
         );
     }
@@ -281,6 +279,90 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
         }
     }
 
+    public void testConnectionStatsExposedToTelemetryPlugin() throws Exception {
+        final var targetNode = internalCluster().startNode();
+
+        final var telemetryPlugin = asInstanceOf(
+            TestTelemetryPlugin.class,
+            internalCluster().getInstance(PluginsService.class, targetNode).filterPlugins(TelemetryPlugin.class).findAny().orElseThrow()
+        );
+
+        assertHttpMetrics(telemetryPlugin, 0L, 0L);
+
+        final var releasables = new ArrayList<Releasable>(3);
+        try {
+            final var keepPipeliningRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, KeepPipeliningPlugin.ROUTE);
+            releasables.add(keepPipeliningRequest::release);
+
+            final var responseReceivedLatch = new CountDownLatch(1);
+
+            final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+            releasables.add(() -> eventLoopGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS).awaitUninterruptibly());
+            final var clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
+                .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+                .group(eventLoopGroup)
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ch.pipeline().addLast(new HttpClientCodec());
+                        ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpResponse>() {
+
+                            @Override
+                            protected void channelRead0(ChannelHandlerContext ctx, HttpResponse msg) {
+                                responseReceivedLatch.countDown();
+                            }
+
+                            @Override
+                            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                                ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause));
+                            }
+                        });
+                    }
+                });
+
+            final var httpServerTransport = internalCluster().getInstance(HttpServerTransport.class, targetNode);
+            final var httpServerAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses()).address();
+
+            // Open a channel on which we will pipeline the requests to KeepPipeliningPlugin.ROUTE
+            final var pipeliningChannel = clientBootstrap.connect(httpServerAddress).syncUninterruptibly().channel();
+            releasables.add(() -> pipeliningChannel.close().syncUninterruptibly());
+
+            if (randomBoolean()) {
+                // assertBusy because client-side connect may complete before server-side
+                assertBusy(() -> assertHttpMetrics(telemetryPlugin, 1L, 1L));
+            } else {
+                // Send two pipelined requests so that we start to receive responses
+                pipeliningChannel.writeAndFlush(keepPipeliningRequest.retain());
+                pipeliningChannel.writeAndFlush(keepPipeliningRequest.retain());
+
+                // wait until we've started to receive responses (but we won't have received them all) - server side is definitely open now
+                safeAwait(responseReceivedLatch);
+                assertHttpMetrics(telemetryPlugin, 1L, 1L);
+            }
+        } finally {
+            Collections.reverse(releasables);
+            Releasables.close(releasables);
+        }
+
+        // assertBusy because client-side close may complete before server-side
+        assertBusy(() -> assertHttpMetrics(telemetryPlugin, 1L, 0L));
+    }
+
+    private static void assertHttpMetrics(TestTelemetryPlugin telemetryPlugin, long expectedTotal, long expectedCurrent) {
+        try {
+            telemetryPlugin.collect();
+            assertMeasurement(telemetryPlugin.getLongAsyncCounterMeasurement("es.http.connections.total"), expectedTotal);
+            assertMeasurement(telemetryPlugin.getLongGaugeMeasurement("es.http.connections.current"), expectedCurrent);
+        } finally {
+            telemetryPlugin.resetMeter();
+        }
+    }
+
+    private static void assertMeasurement(List<Measurement> measurements, long expectedValue) {
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getLong(), equalTo(expectedValue));
+    }
+
     private void assertOpaqueIdsInOrder(Collection<String> opaqueIds) {
         // check if opaque ids are monotonically increasing
         int i = 0;
@@ -301,13 +383,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
@@ -355,13 +431,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
@@ -436,13 +506,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {

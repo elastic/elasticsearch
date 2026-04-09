@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 142707
+summary: Reapply "Introduce pluggable external datasource framework"
+type: feature

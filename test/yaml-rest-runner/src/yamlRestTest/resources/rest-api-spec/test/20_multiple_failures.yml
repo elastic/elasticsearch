@@ -1,0 +1,17 @@
+---
+"Test with multiple failures":
+
+  - do:
+      index:
+        index: test_multiple
+        id:    testid
+        body:  { "field1": "value1", "field2": "value2", "field3": "value3" }
+
+  - do:
+      get:
+        index: test_multiple
+        id:    testid
+
+  - match: { _source.field1: "wrong_value1" }
+  - match: { _source.field2: "wrong_value2" }
+  - match: { _source.field3: "wrong_value3" }

@@ -18,6 +18,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
@@ -244,11 +246,22 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, Function<String, String> getParentField) throws IOException {
+    public DirectoryReader filter(
+        DirectoryReader reader,
+        IndexSettings indexSettings,
+        Function<String, Boolean> isMapped,
+        Function<String, String> getParentField
+    ) throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
-        return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton, getParentField);
+        return FieldSubsetReader.wrap(
+            reader,
+            permittedFieldsAutomaton,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
+            isMapped,
+            getParentField
+        );
     }
 
     Automaton getIncludeAutomaton() {

@@ -11,11 +11,15 @@
 | date | date_nanos | boolean |
 | date_nanos | date | boolean |
 | date_nanos | date_nanos | boolean |
+| dense_vector | dense_vector | boolean |
 | double | double | boolean |
 | double | integer | boolean |
 | double | long | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
+| geohash | geohash | boolean |
+| geohex | geohex | boolean |
+| geotile | geotile | boolean |
 | integer | double | boolean |
 | integer | integer | boolean |
 | integer | long | boolean |

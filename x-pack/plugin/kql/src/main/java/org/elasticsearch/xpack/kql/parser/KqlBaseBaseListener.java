@@ -241,6 +241,42 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterBooleanFieldQueryValue(KqlBaseParser.BooleanFieldQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitBooleanFieldQueryValue(KqlBaseParser.BooleanFieldQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterFieldName(KqlBaseParser.FieldNameContext ctx) { }
     /**
      * {@inheritDoc}

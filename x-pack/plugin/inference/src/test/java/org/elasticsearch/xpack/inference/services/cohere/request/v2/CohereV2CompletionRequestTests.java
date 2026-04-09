@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.hamcrest.CoreMatchers;
@@ -35,7 +36,7 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
             false
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -46,7 +47,10 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, is(Map.of("message", "abc", "model", "required model id", "stream", false)));
+        assertThat(
+            requestMap,
+            is(Map.of("messages", List.of(Map.of("role", "user", "content", "abc")), "model", "required model id", "stream", false))
+        );
     }
 
     public void testDefaultUrl() {
@@ -56,7 +60,7 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
             false
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
@@ -70,7 +74,7 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
             false
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
@@ -88,6 +92,6 @@ public class CohereV2CompletionRequestTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"message":"some input","model":"model","stream":false}"""));
+            {"messages":[{"role":"user","content":"some input"}],"model":"model","stream":false}"""));
     }
 }

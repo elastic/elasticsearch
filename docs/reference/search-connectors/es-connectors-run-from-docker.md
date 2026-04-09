@@ -20,8 +20,9 @@ When you are ready to run Connectors:
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output </absolute/path/to>/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output </absolute/path/to>/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Don’t forget to change the `--output` argument value to the path where you want to save the `config.yml` file on your local system. But keep note of where you wrote this file, as it is required in the `docker run` step below.
 
@@ -51,19 +52,19 @@ connectors:
 
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v "</absolute/path/to>/connectors-config:/config" \ # NOTE: you must change this path to match where the config.yml is located
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
 
 ::::{tip}
-For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:9.0.0-SNAPSHOT`.
+For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:{{version.stack}}-SNAPSHOT`.
 
 ::::
 

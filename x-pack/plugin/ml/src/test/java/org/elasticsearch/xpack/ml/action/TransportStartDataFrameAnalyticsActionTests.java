@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -41,6 +42,7 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.tooManyDocumentsForAnalysis;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -62,7 +64,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(equalTo("persistent task cannot be assigned while upgrade mode is enabled.")));
     }
@@ -75,7 +77,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -94,7 +96,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             )
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
@@ -116,9 +118,37 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.V_7_10_0, MlConfigVersion.V_7_10_0)))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
         assertThat(assignment.getExplanation(), is(emptyString()));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentBelowLimit() {
+        assertFalse(tooManyDocumentsForAnalysis(50_000_000L, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentAtLimit() {
+        long twoTo32 = 1L << 32;
+        assertTrue(tooManyDocumentsForAnalysis(twoTo32, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentJustBelowLimit() {
+        long justBelow = (1L << 32) - 1;
+        assertFalse(tooManyDocumentsForAnalysis(justBelow, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentBelowLimit() {
+        long twoTo32 = 1L << 32;
+        assertFalse(tooManyDocumentsForAnalysis(twoTo32, 50.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentAboveLimit() {
+        long twiceTheLimit = (1L << 32) * 2;
+        assertTrue(tooManyDocumentsForAnalysis(twiceTheLimit, 50.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_LargeRowCountWithFullTrainingPercent() {
+        assertFalse(tooManyDocumentsForAnalysis(1_000_000_000L, 100.0));
     }
 
     private static TaskExecutor createTaskExecutor() {

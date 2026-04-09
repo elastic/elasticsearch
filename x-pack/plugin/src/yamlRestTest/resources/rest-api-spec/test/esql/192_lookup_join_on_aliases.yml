@@ -145,10 +145,19 @@ setup:
 
 ---
 alias-as-lookup-index:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - match: {columns.0.name: "key"}
   - match: {columns.0.type: "long"}
@@ -159,10 +168,19 @@ alias-as-lookup-index:
 
 ---
 alias-repeated-alias:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test-lookup-alias | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:26: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - match: {columns.0.name: "key"}
   - match: {columns.0.type: "long"}
@@ -173,10 +191,19 @@ alias-repeated-alias:
 
 ---
 alias-repeated-index:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test-lookup-1 | SORT key | LOOKUP JOIN test-lookup-alias ON key | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:22: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - match: {columns.0.name: "key"}
   - match: {columns.0.type: "long"}
@@ -186,13 +213,13 @@ alias-repeated-index:
   - match: {values.1: [2, "yellow"]}
 
 ---
-fails when alias or pattern resolves to multiple:
+fails when alias or pattern resolves to multiple v2:
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [update_lookup_join_error_messages]
+          capabilities: [enable_lookup_join_on_remote]
       reason: "checks updated error messages"
   - do:
       esql.query:
@@ -201,14 +228,23 @@ fails when alias or pattern resolves to multiple:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:34: Lookup Join requires a single lookup mode index; [test-lookup-alias-pattern-multiple] resolves to [4] indices" }
+  - contains: { error.reason: "Lookup Join requires a single lookup mode index; [test-lookup-alias-pattern-multiple] resolves to multiple indices" }
 
 ---
 alias-pattern-single:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-alias-pattern-single ON key | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - match: {columns.0.name: "key"}
   - match: {columns.0.type: "long"}

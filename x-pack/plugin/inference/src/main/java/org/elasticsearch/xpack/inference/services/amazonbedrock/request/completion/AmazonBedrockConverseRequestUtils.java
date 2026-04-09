@@ -19,7 +19,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.c
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
 public final class AmazonBedrockConverseRequestUtils {
-    public static ConverseRequest getConverseRequest(String modelId, AmazonBedrockConverseRequestEntity requestEntity) {
+    public static ConverseRequest getConverseRequest(String modelId, AmazonBedrockCompletionRequestEntity requestEntity) {
         var converseRequest = ConverseRequest.builder()
             .modelId(modelId)
             .messages(getConverseMessageList(requestEntity.messages()))

@@ -165,9 +165,9 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                 assertEquals(3, hits.getHits().length);
 
                 // First hit should be brand_id=1 with highest price
-                Map<String, Object> firstHitSource = hits.getAt(0).getSourceAsMap();
-                assertEquals(1, firstHitSource.get("brand_id"));
-                assertEquals(105, firstHitSource.get("price"));
+                Map<String, Object> firstPaginatedHitSource = hits.getAt(0).getSourceAsMap();
+                assertEquals(1, firstPaginatedHitSource.get("brand_id"));
+                assertEquals(105, firstPaginatedHitSource.get("price"));
                 assertEquals("long03", hits.getAt(0).getId());
 
                 // Check inner hits for brand_id=1
@@ -178,9 +178,9 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                 assertEquals("long02", innerHits1.getAt(2).getId());
 
                 // Second hit should be brand_id=2 with highest price
-                Map<String, Object> secondHitSource = hits.getAt(1).getSourceAsMap();
-                assertEquals(2, secondHitSource.get("brand_id"));
-                assertEquals(203, secondHitSource.get("price"));
+                Map<String, Object> secondPaginatedHitSource = hits.getAt(1).getSourceAsMap();
+                assertEquals(2, secondPaginatedHitSource.get("brand_id"));
+                assertEquals(203, secondPaginatedHitSource.get("price"));
                 assertEquals("int05", hits.getAt(1).getId());
 
                 // Check inner hits for brand_id=2
@@ -191,9 +191,9 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                 assertEquals("long05", innerHits2.getAt(2).getId());
 
                 // third hit should be brand_id=3 with highest price
-                Map<String, Object> thirdHitSource = hits.getAt(2).getSourceAsMap();
-                assertEquals(3, thirdHitSource.get("brand_id"));
-                assertEquals(301, thirdHitSource.get("price"));
+                Map<String, Object> thirdPaginatedHitSource = hits.getAt(2).getSourceAsMap();
+                assertEquals(3, thirdPaginatedHitSource.get("brand_id"));
+                assertEquals(301, thirdPaginatedHitSource.get("price"));
                 assertEquals("short04", hits.getAt(2).getId());
 
                 // Check inner hits for brand_id=3

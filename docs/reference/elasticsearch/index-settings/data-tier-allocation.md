@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tier-shard-filtering.html
 navigation_title: Data tier allocation
+applies_to:
+  stack: all
 ---
 
 # Data tier allocation settings [data-tier-shard-filtering]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 You can use the index-level `_tier_preference` setting to control which [data tier](docs-content://manage-data/lifecycle/data-tiers.md) an index is allocated to.
 

@@ -1724,7 +1724,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         }
 
         private FieldCapabilitiesResponse build() {
-            return new FieldCapabilitiesResponse(new String[] { "test" }, fieldCaps);
+            return FieldCapabilitiesResponse.builder().withIndices(new String[] { "test" }).withFields(fieldCaps).build();
         }
     }
 }

@@ -302,6 +302,16 @@ public class GatewayMetaStateTests extends ESTestCase {
         ) {
             return upgrade ? IndexMetadata.builder(indexMetadata).build() : indexMetadata;
         }
+
+        @Override
+        public IndexMetadata verifyIndexMetadata(
+            IndexMetadata indexMetadata,
+            IndexVersion minimumIndexCompatibilityVersion,
+            IndexVersion minimumReadOnlyIndexCompatibilityVersion,
+            boolean archiveOrDeleteBrokenIndexSettings
+        ) {
+            return upgrade ? IndexMetadata.builder(indexMetadata).build() : indexMetadata;
+        }
     }
 
     private static class CustomMetadata1 extends TestClusterCustomMetadata {

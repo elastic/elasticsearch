@@ -1,0 +1,6 @@
+pr: 139596
+summary: "CPS: Copy existing resolved index expressions when constructing a new `SearchRequest`\
+  \ from an existing one"
+area: CCS
+type: bug
+issues: []

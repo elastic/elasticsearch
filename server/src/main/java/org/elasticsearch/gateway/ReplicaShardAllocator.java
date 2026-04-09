@@ -158,7 +158,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
         PerNodeAllocationResult result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
         Decision allocateDecision = result.decision();
-        if (allocateDecision.type() != Decision.Type.YES && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
+        if (allocateDecision.type().assignmentAllowed() == false && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
@@ -180,7 +180,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (primaryShard == null) {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
-                    + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
+                    + "exit early when canBeAllocatedToAtLeastOneNode returned a decision that doesn't allow assignment";
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
@@ -207,7 +207,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
-        if (allocateDecision.type() != Decision.Type.YES) {
+        if (allocateDecision.type().assignmentAllowed() == false) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.nodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
@@ -277,9 +277,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * Determines if the shard can be allocated on at least one node based on the allocation deciders.
      *
      * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
-     * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
-     * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
-     * in the returned tuple.
+     * node decided YES, THROTTLE if at least one node decided THROTTLE, NOT_PREFERRED if at least one node
+     * decided NOT_PREFERRED, and NO if none of the nodes decided YES, THROTTLE, or NOT_PREFERRED).
+     * If in explain mode, also returns the node-level explanations as the second element in the returned tuple.
      */
     public static PerNodeAllocationResult canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
@@ -293,13 +293,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // if we can't allocate it on a node, ignore it, for example, this handles
             // cases for only allocating a replica after a primary
             Decision decision = allocation.deciders().canAllocateReplicaWhenThereIsRetentionLease(shard, node, allocation);
-            if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
-                if (explain) {
-                    madeDecision = decision;
-                } else {
+            if (decision.type().compareToBetweenNodes(madeDecision.type()) > 0) {
+                if (decision.type() == Decision.Type.YES && explain == false) {
                     return new PerNodeAllocationResult(decision, null);
                 }
-            } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
                 madeDecision = decision;
             }
             if (explain) {

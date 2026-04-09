@@ -97,32 +97,16 @@ public final class Booleans {
     }
 
     /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
+     * Wrapper around Boolean.parseBoolean for lenient parsing of booleans.
      *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, Boolean)} instead.
+     * Note: Lenient parsing is highly discouraged and should only be used if absolutely necessary.
      */
-    @Deprecated
-    public static Boolean parseBooleanLenient(String value, Boolean defaultValue) {
-        if (value == null) { // only for the null case we do that here!
-            return defaultValue;
-        }
-        return parseBooleanLenient(value, false);
-    }
-
-    /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, boolean)} instead.
-     */
-    @Deprecated
+    @SuppressForbidden(reason = "allow lenient parsing of booleans")
     public static boolean parseBooleanLenient(String value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;
         }
-        return switch (value) {
-            case "false", "0", "off", "no" -> false;
-            default -> true;
-        };
+        return Boolean.parseBoolean(value);
     }
 
     /**
@@ -138,71 +122,4 @@ public final class Booleans {
     public static boolean isTrue(String value) {
         return "true".equals(value);
     }
-
-    /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(char[], int, int, boolean)} instead
-     */
-    @Deprecated
-    public static boolean parseBooleanLenient(char[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
-            return defaultValue;
-        }
-        if (length == 1) {
-            return text[offset] != '0';
-        }
-        if (length == 2) {
-            return (text[offset] == 'n' && text[offset + 1] == 'o') == false;
-        }
-        if (length == 3) {
-            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') == false;
-        }
-        if (length == 5) {
-            return (text[offset] == 'f'
-                && text[offset + 1] == 'a'
-                && text[offset + 2] == 'l'
-                && text[offset + 3] == 's'
-                && text[offset + 4] == 'e') == false;
-        }
-        return true;
-    }
-
-    /**
-     * returns true if the a sequence of chars is one of "true","false","on","off","yes","no","0","1"
-     *
-     * @param text   sequence to check
-     * @param offset offset to start
-     * @param length length to check
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #isBoolean(char[], int, int)} instead.
-     */
-    @Deprecated
-    public static boolean isBooleanLenient(char[] text, int offset, int length) {
-        if (text == null || length == 0) {
-            return false;
-        }
-        if (length == 1) {
-            return text[offset] == '0' || text[offset] == '1';
-        }
-        if (length == 2) {
-            return (text[offset] == 'n' && text[offset + 1] == 'o') || (text[offset] == 'o' && text[offset + 1] == 'n');
-        }
-        if (length == 3) {
-            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f')
-                || (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
-        }
-        if (length == 4) {
-            return (text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e');
-        }
-        if (length == 5) {
-            return (text[offset] == 'f'
-                && text[offset + 1] == 'a'
-                && text[offset + 2] == 'l'
-                && text[offset + 3] == 's'
-                && text[offset + 4] == 'e');
-        }
-        return false;
-    }
-
 }

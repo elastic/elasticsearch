@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -20,11 +19,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -56,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,7 +77,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -90,7 +91,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory,
             true,
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 
@@ -110,25 +112,25 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected QueryList queryList(
+    protected LookupEnrichQueryGenerator queryList(
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
+        DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
+        int channelOffset = 0;
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, aliasFilter, channelOffset);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
@@ -190,6 +192,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final String matchType;
         private final String matchField;
+        /**
+         * For mixed clusters with nodes &lt;8.14, this will be null.
+         */
+        @Nullable
+        final DataType inputDataType;
 
         TransportRequest(
             String sessionId,
@@ -202,18 +209,17 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
+            this.inputDataType = inputDataType;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
-                ? DataType.fromTypeName(in.readString())
-                : null;
+            DataType inputDataType = DataType.fromTypeName(in.readString());
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;
@@ -222,10 +228,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source = Source.readFrom(planIn);
-            }
+            var source = Source.readFrom(planIn);
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -246,22 +249,18 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeString(inputDataType.typeName());
-            }
+            out.writeString(inputDataType.typeName());
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source.writeTo(planOut);
-            }
+            source.writeTo(planOut);
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_type=" + matchType + " ,match_field=" + matchField;
+            return " ,input_type=" + inputDataType + " ,match_type=" + matchType + " ,match_field=" + matchField;
         }
     }
 
@@ -306,12 +305,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     @Override
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<AbstractLookupService.LookupResponse> delegate,
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+            delegate,
+            threadContext
+        );
         hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
             // Since we just checked the needed privileges
             // we can access the index regardless of the user/role that is executing the query

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public record SparseEmbeddingResults(List<Embedding> embeddings) implements EmbeddingResults<SparseEmbeddingResults.Embedding> {
 
     public static final String NAME = "sparse_embedding_results";
-    public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
+    public static final String SPARSE_EMBEDDING = "sparse_embedding";
 
     public SparseEmbeddingResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(SparseEmbeddingResults.Embedding::new));
@@ -120,7 +119,6 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
             ToXContentObject,
             EmbeddingResults.Embedding<Embedding> {
 
-        public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
 
         public Embedding(StreamInput in) throws IOException {

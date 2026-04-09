@@ -15,13 +15,18 @@ import java.util.regex.Pattern;
 public enum HttpHeaderParser {
     ;
 
-    private static final Pattern RANGE_HEADER_PATTERN = Pattern.compile("bytes=([0-9]+)-([0-9]+)");
+    // Pattern supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
+    private static final Pattern RANGE_HEADER_PATTERN = Pattern.compile("bytes=([0-9]+)-([0-9]*)");
     private static final Pattern CONTENT_RANGE_HEADER_PATTERN = Pattern.compile("bytes (?:(\\d+)-(\\d+)|\\*)/(?:(\\d+)|\\*)");
 
     /**
      * Parse a "Range" header
      *
-     * Note: only a single bounded range is supported (e.g. <code>Range: bytes={range_start}-{range_end}</code>)
+     * Supports both bounded and open-ended ranges:
+     * <ul>
+     *   <li>Bounded: <code>Range: bytes={range_start}-{range_end}</code></li>
+     *   <li>Open-ended: <code>Range: bytes={range_start}-</code> (end is null, meaning "to end of file")</li>
+     * </ul>
      *
      * @see <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range">MDN: Range header</a>
      * @param rangeHeaderValue The header value as a string
@@ -31,7 +36,10 @@ public enum HttpHeaderParser {
         final Matcher matcher = RANGE_HEADER_PATTERN.matcher(rangeHeaderValue);
         if (matcher.matches()) {
             try {
-                return new Range(Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2)));
+                long start = Long.parseLong(matcher.group(1));
+                String endGroup = matcher.group(2);
+                Long end = (endGroup == null || endGroup.isEmpty()) ? null : Long.parseLong(endGroup);
+                return new Range(start, end);
             } catch (NumberFormatException e) {
                 return null;
             }
@@ -39,10 +47,27 @@ public enum HttpHeaderParser {
         return null;
     }
 
-    public record Range(long start, long end) {
+    /**
+     * A HTTP "Range" from a Range header.
+     *
+     * @param start The start of the range (always present)
+     * @param end The end of the range, or null for open-ended ranges (meaning "to end of file")
+     */
+    public record Range(long start, Long end) {
+
+        public Range(long start, long end) {
+            this(start, (Long) end);
+        }
+
+        /**
+         * Returns true if this is an open-ended range (no end specified).
+         */
+        public boolean isOpenEnded() {
+            return end == null;
+        }
 
         public String headerString() {
-            return "bytes=" + start + "-" + end;
+            return end != null ? "bytes=" + start + "-" + end : "bytes=" + start + "-";
         }
     }
 

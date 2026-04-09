@@ -7,32 +7,35 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromGeoShapeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator wkb;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromGeoShapeEvaluator.class);
 
-  public ToStringFromGeoShapeEvaluator(Source source, EvalOperator.ExpressionEvaluator wkb,
+  private final ExpressionEvaluator wkb;
+
+  public ToStringFromGeoShapeEvaluator(Source source, ExpressionEvaluator wkb,
       DriverContext driverContext) {
     super(driverContext, source);
     this.wkb = wkb;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return wkb;
   }
 
@@ -120,12 +123,19 @@ public final class ToStringFromGeoShapeEvaluator extends AbstractConvertFunction
     Releasables.closeExpectNoException(wkb);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += wkb.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkb;
+    private final ExpressionEvaluator.Factory wkb;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkb) {
+    public Factory(Source source, ExpressionEvaluator.Factory wkb) {
       this.source = source;
       this.wkb = wkb;
     }

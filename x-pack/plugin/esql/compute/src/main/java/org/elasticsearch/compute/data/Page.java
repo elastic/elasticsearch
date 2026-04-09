@@ -8,9 +8,11 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -31,9 +33,17 @@ import java.util.Objects;
  */
 public final class Page implements Writeable, Releasable {
 
+    private static final TransportVersion BATCH_METADATA_VERSION = TransportVersion.fromName("esql_batch_page");
+
     private final Block[] blocks;
 
     private final int positionCount;
+
+    /**
+     * Optional batch metadata for bidirectional batch exchanges.
+     */
+    @Nullable
+    private final BatchMetadata batchMetadata;
 
     /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
@@ -50,7 +60,7 @@ public final class Page implements Writeable, Releasable {
      * @throws IllegalArgumentException if all blocks do not have the same number of positions
      */
     public Page(Block... blocks) {
-        this(true, determinePositionCount(blocks), blocks);
+        this(true, determinePositionCount(blocks), blocks, null);
     }
 
     /**
@@ -62,14 +72,21 @@ public final class Page implements Writeable, Releasable {
      * @param blocks the blocks
      */
     public Page(int positionCount, Block... blocks) {
-        this(true, positionCount, blocks);
+        this(true, positionCount, blocks, null);
     }
 
-    private Page(boolean copyBlocks, int positionCount, Block[] blocks) {
+    /**
+     * Create a new page with the given blocks and batch metadata.
+     */
+    public Page(BatchMetadata batchMetadata, Block... blocks) {
+        this(true, determinePositionCount(blocks), blocks, batchMetadata);
+    }
+
+    private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {
         Objects.requireNonNull(blocks, "blocks is null");
-        // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
+        this.batchMetadata = batchMetadata;
         for (Block b : blocks) {
             assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             if (b.isReleased()) {
@@ -90,6 +107,7 @@ public final class Page implements Writeable, Releasable {
             }
         }
         this.positionCount = prev.positionCount;
+        this.batchMetadata = prev.batchMetadata;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
         System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
@@ -113,6 +131,8 @@ public final class Page implements Writeable, Releasable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+        // Read optional batch metadata at the end (added in BATCH_METADATA_VERSION)
+        this.batchMetadata = in.getTransportVersion().supports(BATCH_METADATA_VERSION) ? in.readOptional(BatchMetadata::readFrom) : null;
     }
 
     @Override
@@ -121,6 +141,9 @@ public final class Page implements Writeable, Releasable {
         out.writeVInt(getBlockCount());
         for (Block block : blocks) {
             Block.writeTypedBlock(block, out);
+        }
+        if (out.getTransportVersion().supports(BATCH_METADATA_VERSION)) {
+            out.writeOptionalWriteable(batchMetadata);
         }
     }
 
@@ -200,8 +223,7 @@ public final class Page implements Writeable, Releasable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Page page = (Page) o;
-        return positionCount == page.positionCount
-            && (positionCount == 0 || Arrays.equals(blocks, 0, blocks.length, page.blocks, 0, page.blocks.length));
+        return positionCount == page.positionCount && Arrays.equals(blocks, page.blocks);
     }
 
     @Override
@@ -226,6 +248,38 @@ public final class Page implements Writeable, Releasable {
      */
     public int getBlockCount() {
         return blocks.length;
+    }
+
+    @Nullable
+    public BatchMetadata batchMetadata() {
+        return batchMetadata;
+    }
+
+    /**
+     * Creates a new page with the same blocks but with the given batch metadata.
+     * The blocks are shared (ref count incremented) with the original page.
+     */
+    public Page withBatchMetadata(BatchMetadata metadata) {
+        for (Block block : blocks) {
+            block.incRef();
+        }
+        return new Page(false, positionCount, blocks.clone(), metadata);
+    }
+
+    /**
+     * Check if this page is a batch marker (empty page with isLastPageInBatch=true).
+     * Marker pages are used to signal batch completion for batches that produce no output.
+     */
+    public boolean isBatchMarkerOnly() {
+        return positionCount == 0 && batchMetadata != null && batchMetadata.isLastPageInBatch();
+    }
+
+    /**
+     * Creates an empty marker page for batch completion.
+     * A marker page is an empty page with isLastPageInBatch=true.
+     */
+    public static Page createBatchMarkerPage(long batchId, int pageIndexInBatch) {
+        return new Page(false, 0, new Block[0], BatchMetadata.createMarker(batchId, pageIndexInBatch));
     }
 
     public long ramBytesUsedByBlocks() {
@@ -262,11 +316,15 @@ public final class Page implements Writeable, Releasable {
         }
     }
 
+    /**
+     * Makes a shallow copy of the {@link Page},
+     * {@link Block#incRef}ing all of the {@link Block}s.
+     */
     public Page shallowCopy() {
         for (Block b : blocks) {
             b.incRef();
         }
-        return new Page(blocks);
+        return new Page(false, positionCount, blocks.clone(), batchMetadata);
     }
 
     /**
@@ -291,7 +349,7 @@ public final class Page implements Writeable, Releasable {
                 mapped[b] = blocks[blockMapping[b]];
                 mapped[b].incRef();
             }
-            Page result = new Page(false, getPositionCount(), mapped);
+            Page result = new Page(false, getPositionCount(), mapped, batchMetadata);
             mapped = null;
             return result;
         } finally {
@@ -301,20 +359,50 @@ public final class Page implements Writeable, Releasable {
         }
     }
 
-    public Page filter(int... positions) {
+    /**
+     * Creates a new page that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered page
+     */
+    public Page filter(boolean mayContainDuplicates, int... positions) {
         Block[] filteredBlocks = new Block[blocks.length];
         boolean success = false;
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = getBlock(i).filter(positions);
+                filteredBlocks[i] = getBlock(i).filter(mayContainDuplicates, positions);
             }
             success = true;
         } finally {
-            releaseBlocks();
             if (success == false) {
                 Releasables.closeExpectNoException(filteredBlocks);
             }
         }
-        return new Page(filteredBlocks);
+        return new Page(false, positions.length, filteredBlocks, batchMetadata);
+    }
+
+    /**
+     * Return a subset of this {@link Page} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This will always return a new {@linkplain Page}
+     * but will skip performing any copies if the slice is a noop.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    public Page slice(int beginInclusive, int endExclusive) {
+        Block[] slicedBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                slicedBlocks[i] = getBlock(i).slice(beginInclusive, endExclusive);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(slicedBlocks);
+            }
+        }
+        return new Page(false, endExclusive - beginInclusive, slicedBlocks, batchMetadata);
     }
 }

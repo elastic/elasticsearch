@@ -7,5 +7,4 @@ with the replacement string `newStr`.
 ```esql
 ROW str = "Hello World"
 | EVAL str = REPLACE(str, "World", "Universe")
-| KEEP str
 ```

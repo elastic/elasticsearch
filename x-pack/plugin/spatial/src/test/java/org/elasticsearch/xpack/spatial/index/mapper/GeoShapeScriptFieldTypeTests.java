@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -21,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -106,7 +106,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 IndexSearcher searcher = newSearcher(reader);
                 GeoShapeScriptFieldType ft = build("fromWKT", Map.of(), OnScriptError.FAIL);
                 GeoShapeScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -168,33 +168,36 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public boolean needs_termStats() {
-                        return false;
-                    }
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues values =
-                                    (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) getDoc().get("test");
-                                try {
-                                    return values.get(0).getY() + 1;
-                                } catch (IOException ioe) {
-                                    throw new UncheckedIOException(ioe);
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues values =
+                                        (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) getDoc().get("test");
+                                    try {
+                                        return values.get(0).getY() + 1;
+                                    } catch (IOException ioe) {
+                                        throw new UncheckedIOException(ioe);
+                                    }
                                 }
-                            }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
+                            };
+                        }
+                    }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                    equalTo(1)
+                );
             }
         }
     }

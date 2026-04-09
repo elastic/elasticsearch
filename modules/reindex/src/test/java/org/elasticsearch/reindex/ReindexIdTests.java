@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
@@ -99,8 +99,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
     }
 
-    private ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
+    private PaginatedHitSource.BasicHit doc() {
+        return new PaginatedHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
     }
 
     @Override
@@ -109,6 +109,19 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     private Reindexer.AsyncIndexBySearchAction action(ProjectState state) {
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener());
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            state,
+            null,
+            request(),
+            listener(),
+            randomBoolean() ? null : Version.CURRENT,
+            randomPositiveTimeValue()
+        );
     }
 }

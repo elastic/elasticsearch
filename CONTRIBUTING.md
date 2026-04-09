@@ -49,6 +49,13 @@ We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
+We generally do not assign issues to contributors outside of Elastic, but
+please check the discussion on the issue to see if anyone else is working on
+the same topic. If there are other active contributors in the same area then it
+is a good idea to reach out to them so you can work together on the issue. If
+there hasn't been any discussion for a while then go ahead and start working on
+the issue yourself.
+
 The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
@@ -267,10 +274,8 @@ Please follow these formatting guidelines:
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e. `// ...` are.
-* Negative boolean expressions must use the form `foo == false` instead of
-  `!foo` for better readability of the code. This is enforced via
-  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
-  just `if (foo)`.
+* Negative boolean expressions should use the form `foo == false` instead of
+  `!foo` where this improves readability. Conversely, you should not write e.g. `if (foo == true)`, but just `if (foo)`.
 
 #### Editor / IDE support
 

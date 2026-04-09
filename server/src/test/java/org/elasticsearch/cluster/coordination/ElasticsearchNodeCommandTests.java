@@ -28,6 +28,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.test.TestClusterCustomMetadata;
 import org.elasticsearch.test.TestProjectCustomMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class ElasticsearchNodeCommandTests extends ESTestCase {
 
     public void testLoadStateWithoutMissingCustomsButPreserved() throws IOException {

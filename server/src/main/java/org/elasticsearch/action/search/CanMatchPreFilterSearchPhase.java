@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -28,10 +29,10 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,10 +59,23 @@ import static org.elasticsearch.core.Types.forciblyCast;
  */
 final class CanMatchPreFilterSearchPhase {
 
+    private static final String PHASE_NAME = "can_match";
+
+    /**
+     * Result of the can_match pre-filter phase: the shard iterators that may match the query,
+     * and per-cluster counts of shards that were skipped because they cannot match.
+     *
+     * @param iterators Shard iterators that passed the can_match check, in execution order
+     *                  (possibly sorted by primary sort min/max when applicable).
+     * @param skippedByClusterAlias Map from cluster alias (or {@link RemoteClusterAware#LOCAL_CLUSTER_GROUP_KEY}
+     *                              for the local cluster) to the number of shards skipped for that cluster.
+     */
+    public record CanMatchResult(List<SearchShardIterator> iterators, Map<String, Integer> skippedByClusterAlias) {}
+
     private final Logger logger;
     private final SearchRequest request;
     private final List<SearchShardIterator> shardsIts;
-    private final ActionListener<List<SearchShardIterator>> listener;
+    private final ActionListener<CanMatchResult> listener;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTransportService searchTransportService;
@@ -76,6 +90,13 @@ final class CanMatchPreFilterSearchPhase {
     private final MinAndMax<?>[] minAndMaxes;
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
+    /**
+     * When {@code true}, every shard appears in {@link CanMatchResult#iterators()} and non-matching shards use
+     * {@link SearchShardIterator#skip(boolean)} so older coordinators can observe skips without aggregate
+     * {@code numSkippedShards} on {@link SearchShardsResponse}. When {@code false}, non-matching shards are omitted
+     * from iterators and counted in {@link CanMatchResult#skippedByClusterAlias()}.
+     */
+    private final boolean includeSkippedShardsInIterators;
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -90,7 +111,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener
+        boolean includeSkippedShardsInIterators,
+        ActionListener<CanMatchResult> listener
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -104,27 +126,26 @@ final class CanMatchPreFilterSearchPhase {
         this.task = task;
         this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
+        this.includeSkippedShardsInIterators = includeSkippedShardsInIterators;
         this.executor = executor;
         final int size = shardsIts.size();
         possibleMatches = new FixedBitSet(size);
         minAndMaxes = new MinAndMax<?>[size];
-        // we compute the shard index based on the natural order of the shards
-        // that participate in the search request. This means that this number is
-        // consistent between two requests that target the same shards.
-        final SearchShardIterator[] naturalOrder = new SearchShardIterator[size];
+        // we compute a shard index based on the order of the shards
+        // that participate in the search request.
+        final SearchShardIterator[] shardOrder = new SearchShardIterator[size];
         int i = 0;
         for (SearchShardIterator shardsIt : shardsIts) {
-            naturalOrder[i++] = shardsIt;
+            shardOrder[i++] = shardsIt;
         }
-        Arrays.sort(naturalOrder);
-        final Map<SearchShardIterator, Integer> shardItIndexMap = Maps.newHashMapWithExpectedSize(naturalOrder.length);
-        for (int j = 0; j < naturalOrder.length; j++) {
-            shardItIndexMap.put(naturalOrder[j], j);
+        final Map<SearchShardIterator, Integer> shardItIndexMap = Maps.newHashMapWithExpectedSize(shardOrder.length);
+        for (int j = 0; j < shardOrder.length; j++) {
+            shardItIndexMap.put(shardOrder[j], j);
         }
         this.shardItIndexMap = shardItIndexMap;
     }
 
-    public static SubscribableListener<List<SearchShardIterator>> execute(
+    public static SubscribableListener<CanMatchResult> execute(
         Logger logger,
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -136,12 +157,33 @@ final class CanMatchPreFilterSearchPhase {
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
         boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes,
+        boolean includeSkippedShardsInIterators
     ) {
         if (shardsIts.isEmpty()) {
-            return SubscribableListener.newSucceeded(List.of());
+            return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), Collections.emptyMap()));
         }
-        final SubscribableListener<List<SearchShardIterator>> listener = new SubscribableListener<>();
+        final SubscribableListener<CanMatchResult> listener = new SubscribableListener<>();
+        long phaseStartTimeInNanos = System.nanoTime();
+
+        listener.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(CanMatchResult canMatchResult) {
+                searchResponseMetrics.recordSearchPhaseDuration(
+                    PHASE_NAME,
+                    System.nanoTime() - phaseStartTimeInNanos,
+                    searchRequestAttributes
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // do not record duration of failed phases
+            }
+        });
+
         // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override
@@ -149,7 +191,7 @@ final class CanMatchPreFilterSearchPhase {
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
-                listener.onFailure(new SearchPhaseExecutionException("can_match", "start", e, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, ShardSearchFailure.EMPTY_ARRAY));
             }
 
             @Override
@@ -168,6 +210,7 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
+                    includeSkippedShardsInIterators,
                     listener
                 ).runCoordinatorRewritePhase();
             }
@@ -217,7 +260,7 @@ final class CanMatchPreFilterSearchPhase {
             }
         }
         if (matchedShardLevelRequests.isEmpty()) {
-            listener.onResponse(getIterator(shardsIts));
+            listener.onResponse(getResult(shardsIts));
         } else {
             // verify missing shards only for the shards that we hit for the query
             checkNoMissingShards(matchedShardLevelRequests);
@@ -249,7 +292,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards("can_match", request, shards);
+        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {
@@ -369,7 +412,7 @@ final class CanMatchPreFilterSearchPhase {
                 }
             }
             if (remainingShards.isEmpty()) {
-                listener.onResponse(getIterator(shardsIts));
+                listener.onResponse(getResult(shardsIts));
             } else {
                 // trigger another round, forcing execution
                 executor.execute(new Round(remainingShards) {
@@ -386,7 +429,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            listener.onFailure(new SearchPhaseExecutionException("can_match", "round", e, ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, ShardSearchFailure.EMPTY_ARRAY));
         }
     }
 
@@ -425,11 +468,12 @@ final class CanMatchPreFilterSearchPhase {
             indexBoost,
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex)
+            ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex),
+            shardIt.getSplitShardCountSummary()
         );
     }
 
-    private synchronized List<SearchShardIterator> getIterator(List<SearchShardIterator> shardsIts) {
+    private synchronized CanMatchResult getResult(List<SearchShardIterator> shardsIts) {
         // TODO: pick the local shard when possible
         if (requireAtLeastOneMatch && numPossibleMatches == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
@@ -449,41 +493,66 @@ final class CanMatchPreFilterSearchPhase {
             possibleMatches.set(shardIndexToQuery);
         }
         int i = 0;
+        final int numMatching = possibleMatches.cardinality();
+        final int initialCapacity = includeSkippedShardsInIterators ? shardsIts.size() : numMatching;
+        final List<SearchShardIterator> iterators = new ArrayList<>(initialCapacity);
+        final Map<String, Integer> skippedByClusterAlias = new HashMap<>();
+
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
             boolean match = possibleMatches.get(i++);
-            if (match) {
-                assert iter.skip() == false;
+            if (includeSkippedShardsInIterators) {
+                if (match) {
+                    iter.skip(false);
+                } else {
+                    iter.skip(true);
+                }
+                iterators.add(iter);
             } else {
-                iter.skip(true);
+                if (match) {
+                    assert iter.skip() == false : "Shard shouldn't be marked skipped if possible to match";
+                    iterators.add(iter);
+                } else {
+                    skippedByClusterAlias.compute(
+                        Objects.requireNonNullElse(iter.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY),
+                        (k, v) -> v == null ? 1 : v + 1
+                    );
+                }
             }
         }
+        // order matching shard by the natural order, so that search results will use that order
+        iterators.sort(SearchShardIterator::compareTo);
+        CanMatchResult canMatchResult = new CanMatchResult(iterators, skippedByClusterAlias);
+
         if (shouldSortShards(minAndMaxes) == false) {
-            return shardsIts;
+            return canMatchResult;
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-        return sortShards(shardsIts, minAndMaxes, fieldSort.order());
+        return sortShards(canMatchResult, minAndMaxes, fieldSort.order());
     }
 
-    private static List<SearchShardIterator> sortShards(List<SearchShardIterator> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {
-        int bound = shardsIts.size();
+    private CanMatchResult sortShards(CanMatchResult canMatchResult, MinAndMax<?>[] minAndMaxes, SortOrder order) {
+        int bound = canMatchResult.iterators.size();
         List<Integer> toSort = new ArrayList<>(bound);
         for (int i = 0; i < bound; i++) {
             toSort.add(i);
         }
         Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
         toSort.sort((idx1, idx2) -> {
-            int res = keyComparator.compare(minAndMaxes[idx1], minAndMaxes[idx2]);
+            int res = keyComparator.compare(
+                minAndMaxes[shardItIndexMap.get(canMatchResult.iterators.get(idx1))],
+                minAndMaxes[shardItIndexMap.get(canMatchResult.iterators.get(idx2))]
+            );
             if (res != 0) {
                 return res;
             }
-            return shardsIts.get(idx1).compareTo(shardsIts.get(idx2));
+            return canMatchResult.iterators.get(idx1).compareTo(canMatchResult.iterators.get(idx2));
         });
         List<SearchShardIterator> list = new ArrayList<>(bound);
         for (Integer integer : toSort) {
-            list.add(shardsIts.get(integer));
+            list.add(canMatchResult.iterators.get(integer));
         }
-        return list;
+        return new CanMatchResult(list, canMatchResult.skippedByClusterAlias);
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {

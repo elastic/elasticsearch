@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.LogType;
@@ -65,6 +63,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
@@ -82,6 +81,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
     private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
+    public static final String FIRST_DISTRO_WITH_JDK_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
 
@@ -104,7 +104,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
-        private final ObjectMapper objectMapper;
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
@@ -115,7 +114,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
-        private final boolean usesSecureSecretsFile;
         private final int debugPort;
 
         private Path distributionDir;
@@ -127,18 +125,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private Set<Resource> roleFileListeners = new HashSet<>();
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null, false);
+            this(baseWorkingDir, distributionResolver, spec, null);
         }
 
-        public Node(
-            Path baseWorkingDir,
-            DistributionResolver distributionResolver,
-            LocalNodeSpec spec,
-            String suffix,
-            boolean usesSecureSecretsFile
-        ) {
-            this.usesSecureSecretsFile = usesSecureSecretsFile;
-            this.objectMapper = new ObjectMapper();
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
@@ -177,13 +167,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            if (usesSecureSecretsFile) {
-                writeSecureSecretsFile();
-            } else {
-                createKeystore();
-                addKeystoreSettings();
-                addKeystoreFiles();
-            }
+            configureKeystore();
             configureSecurity();
 
             startElasticsearch();
@@ -487,15 +471,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public void updateStoredSecureSettings() {
-            if (usesSecureSecretsFile) {
-                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
-            }
             final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
             try {
                 Files.deleteIfExists(keystoreFile);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            configureKeystore();
+        }
+
+        public void configureKeystore() {
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
@@ -552,29 +537,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 ).waitFor();
             } catch (InterruptedException | IOException e) {
                 throw new RuntimeException(e);
-            }
-        }
-
-        private void writeSecureSecretsFile() {
-            if (spec.getKeystoreFiles().isEmpty() == false) {
-                throw new IllegalStateException(
-                    "Non-string secure secrets are not supported in serverless. Secrets: ["
-                        + spec.getKeystoreFiles().keySet().stream().collect(Collectors.joining(","))
-                        + "]"
-                );
-            }
-            Map<String, String> secrets = spec.resolveKeystore();
-            if (secrets.isEmpty() == false) {
-                try {
-                    Path secretsFile = configDir.resolve("secrets/secrets.json");
-                    Files.createDirectories(secretsFile.getParent());
-                    Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", secrets);
-                    secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
-                    Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
             }
         }
 
@@ -867,6 +829,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
+            String esFallbackJavaHome = System.getenv("ES_FALLBACK_JAVA_HOME");
+            if (jdkIsIncompatible(spec.getVersion()) && esFallbackJavaHome != null && esFallbackJavaHome.isEmpty() == false) {
+                environment.put("ES_JAVA_HOME", esFallbackJavaHome);
+            }
             environment.put("ES_PATH_CONF", configDir.toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
@@ -874,7 +840,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             environment = environment.entrySet()
                 .stream()
-                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .map(p -> entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             String featureFlagProperties = "";
@@ -915,6 +881,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
+        }
+
+        private boolean jdkIsIncompatible(Version version) {
+            return version.before(FIRST_DISTRO_WITH_JDK_21);
         }
 
         private record ReplacementKey(String key, String fallback) {

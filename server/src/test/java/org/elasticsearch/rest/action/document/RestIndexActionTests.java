@@ -37,13 +37,13 @@ public final class RestIndexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestIndexAction());
-        controller().registerHandler(new CreateHandler());
-        controller().registerHandler(new AutoIdHandler());
+        controller().registerHandler(new RestIndexAction(null, null));
+        controller().registerHandler(new CreateHandler(null, null));
+        controller().registerHandler(new AutoIdHandler(null, null));
     }
 
     public void testCreateOpTypeValidation() {
-        RestIndexAction.CreateHandler create = new CreateHandler();
+        RestIndexAction.CreateHandler create = new CreateHandler(null, null);
 
         String opType = randomFrom("CREATE", null);
         CreateHandler.validateOpType(opType);

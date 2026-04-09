@@ -31,7 +31,12 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");
         settings.put("transport.port", "0");
-        settings.put("network.host", "_local_");
+
+        if (Boolean.getBoolean("java.net.preferIPv6Addresses")) {
+            settings.put("network.host", "_local:ipv6_");
+        } else {
+            settings.put("network.host", "_local_");
+        }
 
         if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST) {
             settings.put("xpack.security.enabled", "false");
@@ -40,6 +45,14 @@ public class DefaultSettingsProvider implements SettingsProvider {
             if (nodeSpec.getVersion().onOrAfter("7.16.0")) {
                 settings.put("cluster.deprecation_indexing.enabled", "false");
             }
+        }
+
+        // Limit the number of allocated processors for all nodes in the cluster by default.
+        // This is to ensure that the tests run consistently across different environments.
+        if (nodeSpec.getVersion().onOrAfter("7.4.0")) {
+            settings.put("node.processors", "2");
+        } else {
+            settings.put("processors", "2");
         }
 
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space

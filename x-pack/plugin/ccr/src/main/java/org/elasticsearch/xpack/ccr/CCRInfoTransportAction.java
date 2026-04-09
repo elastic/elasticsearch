@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,7 +89,7 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         public int getNumberOfFollowerIndices() {

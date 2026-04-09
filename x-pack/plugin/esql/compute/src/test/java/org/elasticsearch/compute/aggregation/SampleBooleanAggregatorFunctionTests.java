@@ -14,9 +14,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.SequenceBooleanBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceBooleanBlockSourceOperator;
 import org.elasticsearch.test.MixWithIncrement;
 
 import java.util.List;
@@ -48,8 +48,8 @@ public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTest
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        List<Boolean> inputValues = input.stream().flatMap(AggregatorFunctionTestCase::allBooleans).collect(Collectors.toList());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        List<Boolean> inputValues = input.stream().flatMap(p -> allBooleans(p.getBlock(0))).collect(Collectors.toList());
         Boolean[] resultValues = AggregatorFunctionTestCase.allBooleans(result).toArray(Boolean[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
     }
@@ -67,10 +67,9 @@ public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTest
         int trueCount = 0;
         int falseCount = 0;
         for (int iteration = 0; iteration < 1000; iteration++) {
-            List<Page> input = CannedSourceOperator.collectPages(
-                new SequenceBooleanBlockSourceOperator(driverContext().blockFactory(), IntStream.range(0, N).mapToObj(i -> i % 2 == 0))
-            );
-            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
+            var runner = new TestDriverRunner().builder(driverContext());
+            runner.input(new SequenceBooleanBlockSourceOperator(runner.blockFactory(), IntStream.range(0, N).mapToObj(i -> i % 2 == 0)));
+            List<Page> results = runner.run(operatorFactory);
             for (Page page : results) {
                 BooleanBlock block = page.getBlock(0);
                 for (int i = 0; i < block.getTotalValueCount(); i++) {

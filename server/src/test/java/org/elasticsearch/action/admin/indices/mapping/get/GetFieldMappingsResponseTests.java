@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
@@ -36,7 +38,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
                 GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
                 FieldMappingMetadata metadata = serialized.fieldMappings("index", "field");
                 assertNotNull(metadata);
-                assertEquals(new BytesArray("{}"), metadata.source());
+                assertThat(metadata.source(), equalBytes(new BytesArray("{}")));
             }
         }
     }

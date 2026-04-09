@@ -27,7 +27,7 @@ abstract class ValueExtractorForLong implements ValueExtractor {
     protected final boolean inKey;
 
     ValueExtractorForLong(TopNEncoder encoder, boolean inKey) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 

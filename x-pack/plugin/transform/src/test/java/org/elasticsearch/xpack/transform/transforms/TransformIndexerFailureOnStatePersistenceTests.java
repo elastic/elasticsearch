@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -242,7 +243,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                        mock(TransformNode.class)
+                        mock(TransformNode.class),
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -328,7 +331,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                        mock(TransformNode.class)
+                        mock(TransformNode.class),
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -463,7 +468,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

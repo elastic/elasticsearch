@@ -123,9 +123,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             .get();
 
         assertTrue(bulkResponse.hasFailures());
-        assertEquals(
-            "mapper [foo] cannot be changed from type [long] to [text]",
-            bulkResponse.getItems()[0].getFailure().getCause().getMessage()
+        assertThat(
+            bulkResponse.getItems()[0].getFailure().getCause().getMessage(),
+            containsString("failed to parse field [foo] of type [long]")
         );
     }
 
@@ -380,6 +380,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertThat(fields.get("a.c").getValues(), equalTo(List.of("bar")));
             assertThat(fields.get("a.c.keyword").getValues(), equalTo(List.of("bar")));
             assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitObjectArrayField() {
+        indexIgnoreDynamicBeyond(2, orderedMap("a", orderedMap("b", 1, "c", List.of(2, 3, 4))), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), Matchers.contains(1L));
+            assertThat(fields.get("_ignored").getValues(), Matchers.contains("a.c"));
         });
     }
 

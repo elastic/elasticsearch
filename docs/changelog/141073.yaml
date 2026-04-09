@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 139828
+pr: 141073
+summary: Added return_intermediate_results query param to toggle when partial results are returned for a get async results operation
+type: enhancement

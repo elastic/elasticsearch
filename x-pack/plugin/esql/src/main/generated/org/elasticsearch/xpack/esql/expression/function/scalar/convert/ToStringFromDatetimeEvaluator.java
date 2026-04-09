@@ -7,31 +7,38 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDatetimeEvaluator.class);
 
-  public ToStringFromDatetimeEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      DriverContext driverContext) {
+  private final ExpressionEvaluator datetime;
+
+  private final DateFormatter formatter;
+
+  public ToStringFromDatetimeEvaluator(Source source, ExpressionEvaluator datetime,
+      DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.datetime = datetime;
+    this.formatter = formatter;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return datetime;
   }
 
@@ -52,7 +59,7 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
 
   private BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDatetime(value);
+    return ToString.fromDatetime(value, this.formatter);
   }
 
   @Override
@@ -87,12 +94,12 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
 
   private BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDatetime(value);
+    return ToString.fromDatetime(value, this.formatter);
   }
 
   @Override
   public String toString() {
-    return "ToStringFromDatetimeEvaluator[" + "datetime=" + datetime + "]";
+    return "ToStringFromDatetimeEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -100,24 +107,34 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
     Releasables.closeExpectNoException(datetime);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += datetime.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime) {
+    private final DateFormatter formatter;
+
+    public Factory(Source source, ExpressionEvaluator.Factory datetime, DateFormatter formatter) {
       this.source = source;
       this.datetime = datetime;
+      this.formatter = formatter;
     }
 
     @Override
     public ToStringFromDatetimeEvaluator get(DriverContext context) {
-      return new ToStringFromDatetimeEvaluator(source, datetime.get(context), context);
+      return new ToStringFromDatetimeEvaluator(source, datetime.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromDatetimeEvaluator[" + "datetime=" + datetime + "]";
+      return "ToStringFromDatetimeEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
     }
   }
 }

@@ -37,6 +37,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String BBQ_INDEX_NAME = "bbq_vector_index";
     private static final String FLAT_QUANTIZED_INDEX_NAME = "flat_quantized_vector_index";
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
+    private static final String HNSW_BIT_INDEX_NAME = "hnsw_bit_vector_index";
+    private static final String FLAT_BIT_INDEX_NAME = "flat_bit_vector_index";
 
     // TODO: replace these with proper test features
     private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
@@ -44,6 +46,151 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.12.1";
     private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
     private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
+    private static final String BIT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.15.0";
+
+    public void testBitVectors() throws Exception {
+        assumeTrue("Bit vector search is not supported on this version", oldClusterHasFeature(BIT_VECTOR_SEARCH_TEST_FEATURE));
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 24,
+                      "element_type": "bit",
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "hnsw",
+                        "ef_construction": 100,
+                        "m": 16
+                      }
+                    }
+                  }
+                }
+                """;
+            // create index and index 10 random floating point vectors
+            createIndex(HNSW_BIT_INDEX_NAME, Settings.EMPTY, mapping);
+            indexVectors(HNSW_BIT_INDEX_NAME);
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + HNSW_BIT_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
+
+            mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 24,
+                      "element_type": "bit",
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "flat"
+                      }
+                    }
+                  }
+                }
+                """;
+            // create index and index 10 random floating point vectors
+            createIndex(FLAT_BIT_INDEX_NAME, Settings.EMPTY, mapping);
+            indexVectors(FLAT_BIT_INDEX_NAME);
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + FLAT_BIT_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
+        }
+
+        // search hnsw index first
+        {
+            Request searchRequest = new Request("POST", "/" + HNSW_BIT_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                {
+                  "query": {
+                    "script_score": {
+                      "query": {
+                        "exists": {
+                          "field": "vector"
+                        }
+                      },
+                      "script": {
+                       "source": "hamming(params.query, 'vector')",
+                        "params": {
+                          "query": [4, 5, 6]
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            Map<String, Object> response = search(searchRequest);
+            assertThat(extractValue(response, "hits.total.value"), equalTo(7));
+            List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+            assertThat(hits.get(0).get("_id"), equalTo("3"));
+            assertThat((double) hits.get(0).get("_score"), closeTo(8.0, 0.0001));
+
+            // search with knn
+            searchRequest = new Request("POST", "/" + HNSW_BIT_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                {
+                    "knn": {
+                    "field": "vector",
+                      "query_vector": [4, 5, 6],
+                      "k": 2,
+                      "num_candidates": 5
+                    }
+                }
+                """);
+            response = search(searchRequest);
+            assertThat(extractValue(response, "hits.total.value"), equalTo(2));
+            hits = extractValue(response, "hits.hits");
+            assertThat(hits.get(0).get("_id"), equalTo("1"));
+            assertThat((double) hits.get(0).get("_score"), closeTo(0.8333333, 0.0001));
+        }
+        // search the flat
+        {
+            Request searchRequest = new Request("POST", "/" + FLAT_BIT_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                {
+                  "query": {
+                    "script_score": {
+                      "query": {
+                        "exists": {
+                          "field": "vector"
+                        }
+                      },
+                      "script": {
+                       "source": "hamming(params.query, 'vector')",
+                        "params": {
+                          "query": [4, 5, 6]
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            Map<String, Object> response = search(searchRequest);
+            assertThat(extractValue(response, "hits.total.value"), equalTo(7));
+            List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+            assertThat(hits.get(0).get("_id"), equalTo("3"));
+            assertThat((double) hits.get(0).get("_score"), closeTo(8.0, 0.0001));
+
+            // search with knn
+            searchRequest = new Request("POST", "/" + FLAT_BIT_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                {
+                    "knn": {
+                    "field": "vector",
+                      "query_vector": [4, 5, 6],
+                      "k": 2,
+                      "num_candidates": 5
+                    }
+                }
+                """);
+            response = search(searchRequest);
+            assertThat(extractValue(response, "hits.total.value"), equalTo(2));
+            hits = extractValue(response, "hits.hits");
+            assertThat(hits.get(0).get("_id"), equalTo("1"));
+            assertThat((double) hits.get(0).get("_score"), closeTo(0.833333, 0.0001));
+        }
+    }
 
     public void testScriptByteVectorSearch() throws Exception {
         assumeTrue("byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));

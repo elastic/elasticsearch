@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,137 +20,234 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
+
     public record Factory(
+        List<MatchConfig> matchFields,
         String sessionId,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         Function<DriverContext, LookupFromIndexService> lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        FieldAttribute.FieldName matchField,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions,
+        boolean useStreamingOperator,
+        int exchangeBufferSize,
+        boolean profile,
+        @Nullable Configuration configuration
     ) implements OperatorFactory {
+
+        public Factory {
+            if (useStreamingOperator && configuration == null) {
+                throw new IllegalArgumentException("configuration is required for streaming lookup operator");
+            }
+        }
+
+        private String operatorName() {
+            return useStreamingOperator ? "StreamingLookupOperator" : "LookupOperator";
+        }
+
         @Override
         public String describe() {
-            return "LookupOperator[index="
-                + lookupIndex
-                + " input_type="
-                + inputDataType
-                + " match_field="
-                + matchField.string()
-                + " load_fields="
-                + loadFields
-                + " inputChannel="
-                + inputChannel
-                + "]";
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append(operatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+            for (MatchConfig matchField : matchFields) {
+                stringBuilder.append(" input_type=")
+                    .append(matchField.type())
+                    .append(" match_field=")
+                    .append(matchField.fieldName())
+                    .append(" inputChannel=")
+                    .append(matchField.channel());
+            }
+            stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
+            stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
+            stringBuilder.append("]");
+            return stringBuilder.toString();
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new LookupFromIndexOperator(
-                sessionId,
-                driverContext,
-                parentTask,
-                maxOutstandingRequests,
-                inputChannel,
-                lookupService.apply(driverContext),
-                inputDataType,
-                lookupIndexPattern,
-                lookupIndex,
-                matchField.string(),
-                loadFields,
-                source
-            );
+            if (useStreamingOperator) {
+                return new StreamingLookupFromIndexOperator(
+                    driverContext,
+                    matchFields,
+                    sessionId,
+                    parentTask,
+                    maxOutstandingRequests,
+                    lookupService.apply(driverContext),
+                    lookupIndexPattern,
+                    lookupIndex,
+                    loadFields,
+                    source,
+                    rightPreJoinPlan,
+                    joinOnConditions,
+                    exchangeBufferSize,
+                    profile,
+                    configuration
+                );
+            } else {
+                return new LookupFromIndexOperator(
+                    matchFields,
+                    sessionId,
+                    driverContext,
+                    parentTask,
+                    maxOutstandingRequests,
+                    lookupService.apply(driverContext),
+                    lookupIndexPattern,
+                    lookupIndex,
+                    loadFields,
+                    source,
+                    rightPreJoinPlan,
+                    joinOnConditions
+                );
+            }
         }
     }
 
     private final LookupFromIndexService lookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
-    private final int inputChannel;
-    private final DataType inputDataType;
     private final String lookupIndexPattern;
     private final String lookupIndex;
-    private final String matchField;
     private final List<NamedExpression> loadFields;
     private final Source source;
-    private long totalTerms = 0L;
+    private long totalRows = 0L;
+    private final List<MatchConfig> matchFields;
+    private final PhysicalPlan rightPreJoinPlan;
+    private final Expression joinOnConditions;
+    // MatchFieldsMapping is the same for all batches (based on operator configuration, not input pages)
+    private final MatchFieldsMapping matchFieldsMapping;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
     private long emittedPages = 0L;
+    /**
+     * Total number of rows emitted by this {@link Operator}.
+     */
+    private long emittedRows = 0L;
     /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
     private OngoingJoin ongoing = null;
 
     public LookupFromIndexOperator(
+        List<MatchConfig> matchFields,
         String sessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         LookupFromIndexService lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        String matchField,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
+        this.matchFields = matchFields;
         this.sessionId = sessionId;
         this.parentTask = parentTask;
-        this.inputChannel = inputChannel;
         this.lookupService = lookupService;
-        this.inputDataType = inputDataType;
         this.lookupIndexPattern = lookupIndexPattern;
         this.lookupIndex = lookupIndex;
-        this.matchField = matchField;
         this.loadFields = loadFields;
         this.source = source;
+        this.rightPreJoinPlan = rightPreJoinPlan;
+        this.joinOnConditions = joinOnConditions;
+        this.matchFieldsMapping = buildMatchFieldsMapping(matchFields, joinOnConditions);
+    }
+
+    /**
+     * Build MatchFieldsMapping from matchFields and joinOnConditions.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    static MatchFieldsMapping buildMatchFieldsMapping(List<MatchConfig> matchFields, Expression joinOnConditions) {
+        List<MatchConfig> newMatchFields = new ArrayList<>();
+        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields, joinOnConditions);
+        Map<Integer, Integer> channelMapping = new HashMap<>();
+        for (int i = 0; i < uniqueMatchFields.size(); i++) {
+            MatchConfig matchField = uniqueMatchFields.get(i);
+            int inputChannel = matchField.channel();
+            // the matchFields we have are indexed by the input channel on the left side of the join
+            // create a new MatchConfig that uses the field name and type from the matchField
+            // but the new channel index in the inputBlockArray
+            newMatchFields.add(new MatchConfig(matchField.fieldName(), i, matchField.type()));
+            // Map new channel index (i) to original input page channel offset (inputChannel)
+            channelMapping.put(i, inputChannel);
+        }
+        return new MatchFieldsMapping(newMatchFields, channelMapping);
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        final Block inputBlock = inputPage.getBlock(inputChannel);
-        totalTerms += inputBlock.getTotalValueCount();
+        Block[] inputBlockArray = matchFieldsMapping.applyTo(inputPage);
+        totalRows += inputPage.getBlock(0).getTotalValueCount();
+
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            inputDataType,
-            matchField,
-            new Page(inputBlock),
+            matchFieldsMapping.reindexedMatchFields(),
+            new Page(inputBlockArray),
             loadFields,
-            source
+            source,
+            rightPreJoinPlan,
+            joinOnConditions,
+            null, // clientToServerId - set only by StreamingLookupFromIndexOperator
+            null, // serverToClientId - set only by StreamingLookupFromIndexOperator
+            false, // profile - non-streaming lookup doesn't support plan output
+            null // configuration - non-streaming lookup doesn't use planning pipeline
         );
-        lookupService.lookupAsync(
-            request,
-            parentTask,
-            listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
-        );
+        lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+            List<Page> pages = response.takePages();
+            return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
+        }));
+    }
+
+    /**
+     * Get unique match fields by name, filtering duplicates if joinOnConditions is present.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    private static List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields, Expression joinOnConditions) {
+        if (joinOnConditions == null) {
+            return matchFields;
+        }
+        List<MatchConfig> uniqueFields = new ArrayList<>();
+        Set<String> seenFieldNames = new HashSet<>();
+        for (MatchConfig matchField : matchFields) {
+            if (seenFieldNames.add(matchField.fieldName())) {
+                uniqueFields.add(matchField);
+            }
+        }
+        return uniqueFields;
     }
 
     @Override
@@ -167,7 +265,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Page right = ongoing.itr.next();
             emittedPages++;
             try {
-                return ongoing.join.join(right);
+                Page joinedPage = ongoing.join.join(right);
+                emittedRows += joinedPage.getPositionCount();
+                return joinedPage;
             } finally {
                 right.releaseBlocks();
             }
@@ -180,6 +280,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return null;
         }
         emittedPages++;
+        emittedRows += remaining.get().getPositionCount();
         return remaining.get();
     }
 
@@ -188,19 +289,27 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         ongoingJoin.releaseOnAnyThread();
     }
 
+    private String getOperatorName() {
+        return "LookupOperator";
+    }
+
     @Override
     public String toString() {
-        return "LookupOperator[index="
-            + lookupIndex
-            + " input_type="
-            + inputDataType
-            + " match_field="
-            + matchField
-            + " load_fields="
-            + loadFields
-            + " inputChannel="
-            + inputChannel
-            + "]";
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(getOperatorName()).append("[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+        for (MatchConfig matchField : matchFields) {
+            stringBuilder.append(" input_type=")
+                .append(matchField.type())
+                .append(" match_field=")
+                .append(matchField.fieldName())
+                .append(" inputChannel=")
+                .append(matchField.channel());
+        }
+
+        stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
+        stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     @Override
@@ -225,7 +334,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages, emittedRows);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -235,29 +344,47 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
-        private final long totalTerms;
+        private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
+            "esql_lookup_operator_emitted_rows"
+        );
+
+        private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
          */
         private final long emittedPages;
+        /**
+         * Total number of rows emitted by this {@link Operator}.
+         */
+        private final long emittedRows;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms, long emittedPages) {
-            super(receivedPages, completedPages, totalTimeInMillis);
-            this.totalTerms = totalTerms;
+        Status(long receivedPages, long completedPages, long processNanos, long totalRows, long emittedPages, long emittedRows) {
+            super(receivedPages, completedPages, processNanos);
+            this.totalRows = totalRows;
             this.emittedPages = emittedPages;
+            this.emittedRows = emittedRows;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
-            this.totalTerms = in.readVLong();
+            this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+                this.emittedRows = in.readVLong();
+            } else {
+                this.emittedRows = 0L;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(totalTerms);
+            out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+                out.writeVLong(emittedRows);
+            }
+
         }
 
         @Override
@@ -269,16 +396,21 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return emittedPages;
         }
 
-        public long totalTerms() {
-            return totalTerms;
+        public long emittedRows() {
+            return emittedRows;
+        }
+
+        public long totalRows() {
+            return totalRows;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             super.innerToXContent(builder);
-            builder.field("emitted_pages", emittedPages());
-            builder.field("total_terms", totalTerms());
+            builder.field("pages_emitted", emittedPages);
+            builder.field("rows_emitted", emittedRows);
+            builder.field("total_rows", totalRows);
             return builder.endObject();
         }
 
@@ -291,16 +423,33 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalTerms == status.totalTerms && emittedPages == status.emittedPages;
+            return totalRows == status.totalRows && emittedPages == status.emittedPages && emittedRows == status.emittedRows;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalTerms, emittedPages);
+            return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows);
         }
     }
 
-    protected record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
+    /**
+     * Result of building match fields mapping - contains reindexed match fields and channel mapping.
+     */
+    record MatchFieldsMapping(List<MatchConfig> reindexedMatchFields, Map<Integer, Integer> channelMapping) {
+        /**
+         * Apply the channel mapping to extract blocks from an input page.
+         * Returns an array of blocks in the order expected by the lookup request.
+         */
+        Block[] applyTo(Page inputPage) {
+            Block[] result = new Block[channelMapping.size()];
+            for (Map.Entry<Integer, Integer> entry : channelMapping.entrySet()) {
+                result[entry.getKey()] = inputPage.getBlock(entry.getValue());
+            }
+            return result;
+        }
+    }
+
+    record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
         @Override
         public void close() {
             Releasables.close(join, Releasables.wrap(() -> Iterators.map(itr, page -> page::releaseBlocks)));

@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.nulls;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -51,7 +53,8 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
             "unsigned_long",
             "counter_long",
             "counter_integer",
-            "counter_double" }
+            "counter_double" },
+        examples = { @Example(file = "null", tag = "is-null") }
     )
     public IsNull(
         Source source,
@@ -100,7 +103,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new IsNullEvaluatorFactory(toEvaluator.apply(field()));
     }
 
@@ -135,9 +138,9 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
         return new NotQuery(source(), new ExistsQuery(source(), handler.nameOf(field())));
     }
 
-    record IsNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements EvalOperator.ExpressionEvaluator.Factory {
+    public record IsNullEvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new IsNullEvaluator(context, field.get(context));
         }
 
@@ -147,9 +150,9 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
         }
     }
 
-    record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    record IsNullEvaluator(DriverContext driverContext, ExpressionEvaluator field) implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IsNullEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
@@ -163,6 +166,11 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
                     return builder.build().asBlock();
                 }
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
 
         @Override

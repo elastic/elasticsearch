@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -164,9 +163,7 @@ public class MicrosoftGraphAuthzRealm extends Realm {
         final var clientSecret = config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_SECRET);
 
         final var timeout = config.getSetting(MicrosoftGraphAuthzRealmSettings.HTTP_REQUEST_TIMEOUT);
-        final var httpClient = new OkHttpClient.Builder().callTimeout(Duration.ofSeconds(timeout.seconds()))
-            .addInterceptor(new RetryHandler())
-            .build();
+        final var httpClient = new OkHttpClient.Builder().callTimeout(timeout.toDuration()).addInterceptor(new RetryHandler()).build();
 
         final var credentialProviderBuilder = new ClientSecretCredentialBuilder().clientId(
             config.getSetting(MicrosoftGraphAuthzRealmSettings.CLIENT_ID)
@@ -185,7 +182,13 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
         return new GraphServiceClient(
             new BaseGraphRequestAdapter(
-                new AzureIdentityAuthenticationProvider(credentialProvider, Strings.EMPTY_ARRAY, "https://graph.microsoft.com/.default"),
+                new AzureIdentityAuthenticationProvider(
+                    credentialProvider,
+                    Strings.EMPTY_ARRAY,
+                    null,
+                    false,
+                    "https://graph.microsoft.com/.default"
+                ),
                 config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST),
                 httpClient
             )

@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public final class RestGetSourceActionTests extends RestActionTestCase {
 
     private static RestRequest request = new FakeRestRequest();
-    private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+    private static FakeRestChannel channel = new FakeRestChannel(request, true);
     private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
 
     @Before
@@ -63,7 +64,7 @@ public final class RestGetSourceActionTests extends RestActionTestCase {
 
         assertThat(restResponse.status(), equalTo(OK));
         assertThat(restResponse.contentType(), equalTo("application/json"));// dropping charset as it was not on a request
-        assertThat(restResponse.content(), equalTo(new BytesArray("{\"foo\": \"bar\"}")));
+        assertThat(restResponse.content(), equalBytes(new BytesArray("{\"foo\": \"bar\"}")));
     }
 
     public void testRestGetSourceActionWithMissingDocument() {

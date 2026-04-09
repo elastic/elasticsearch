@@ -74,4 +74,8 @@ public class TestIndexNameExpressionResolver {
     public static IndexNameExpressionResolver newInstance(SystemIndices systemIndices, ProjectResolver projectResolver) {
         return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices, projectResolver);
     }
+
+    public static IndexNameExpressionResolver newInstance(ThreadContext threadContext, ProjectResolver projectResolver) {
+        return new IndexNameExpressionResolver(threadContext, EmptySystemIndices.INSTANCE, projectResolver);
+    }
 }

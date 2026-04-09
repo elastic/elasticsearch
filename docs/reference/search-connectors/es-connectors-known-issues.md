@@ -58,6 +58,7 @@ The connector service has the following known issues:
       }
     }
     ```
+    % TEST[skip:TODO]
 
 * **The connector service will fail to sync when the connector tries to fetch more more than 2,147,483,647 (*2^31-1*) documents from a data source**
 
@@ -75,6 +76,7 @@ The connector service has the following known issues:
       }
     }
     ```
+    % TEST[skip:TODO]
 
     This error can appear on Connectors or Crawlers that aren’t the cause of the issue. If the error continues, try running the above command for every document in the `.elastic-connectors` index.
 
@@ -112,6 +114,7 @@ The connector service has the following known issues:
           }
         }
         ```
+        % TEST[skip:TODO]
 
 * **Python connectors that upgraded from 8.7.1 will report document volumes in gigabytes (GB) instead of megabytes (MB)**
 

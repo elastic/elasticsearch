@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -88,6 +89,13 @@ public interface Repository extends LifecycleComponent {
     ProjectId getProjectId();
 
     /**
+     * Get the project qualified repository
+     */
+    default ProjectRepo getProjectRepo() {
+        return new ProjectRepo(getProjectId(), getMetadata().name());
+    }
+
+    /**
      * Returns metadata about this repository.
      */
     RepositoryMetadata getMetadata();
@@ -138,10 +146,11 @@ public interface Repository extends LifecycleComponent {
     /**
      * Returns global metadata associated with the snapshot.
      *
-     * @param snapshotId the snapshot id to load the global metadata from
+     * @param snapshotId                 the snapshot id to load the global metadata from
+     * @param fromProjectMetadata        The metadata may need to be constructed by first reading the project metadata
      * @return the global metadata about the snapshot
      */
-    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId);
+    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata);
 
     /**
      * Returns the index metadata associated with the snapshot.
@@ -196,16 +205,6 @@ public interface Repository extends LifecycleComponent {
         ActionListener<RepositoryData> repositoryDataUpdateListener,
         Runnable onCompletion
     );
-
-    /**
-     * Returns snapshot throttle time in nanoseconds
-     */
-    long getSnapshotThrottleTimeInNanos();
-
-    /**
-     * Returns restore throttle time in nanoseconds
-     */
-    long getRestoreThrottleTimeInNanos();
 
     /**
      * Returns stats on the repository usage
@@ -345,4 +344,14 @@ public interface Repository extends LifecycleComponent {
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
+
+    /**
+     * Get the current count of snapshots in progress
+     *
+     * @return The current number of shard snapshots in progress metric value, or null if this repository doesn't track that
+     */
+    @Nullable
+    LongWithAttributes getShardSnapshotsInProgress();
+
+    RepositoriesStats.SnapshotStats getSnapshotStats();
 }

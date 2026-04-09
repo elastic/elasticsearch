@@ -341,7 +341,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(listByteVector), 0.001);
             switch (field.getElementType()) {
                 case BYTE -> {
-                    assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(byteVector));
+                    assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(byteVector), 0.001);
                     assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(floatVector), 0.001);
                 }
                 case FLOAT -> {

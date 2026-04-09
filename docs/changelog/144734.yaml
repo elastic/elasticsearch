@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144734
+summary: Add cloud API rate limiting for external sources
+type: enhancement

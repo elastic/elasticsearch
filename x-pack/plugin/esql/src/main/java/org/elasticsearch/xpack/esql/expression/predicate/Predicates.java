@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
@@ -41,12 +43,20 @@ public abstract class Predicates {
         return singletonList(exp);
     }
 
-    public static Expression combineOr(List<Expression> exps) {
+    public static Expression combineOr(List<? extends Expression> exps) {
         return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
-    public static Expression combineAnd(List<Expression> exps) {
+    public static Expression combineAnd(List<? extends Expression> exps) {
         return combine(exps, (l, r) -> new And(l.source(), l, r));
+    }
+
+    public static Expression combineAndNullable(List<? extends Expression> exps) {
+        return combineAnd(exps.stream().filter(Objects::nonNull).toList());
+    }
+
+    public static Expression combineAndWithSource(List<? extends Expression> exps, Source source) {
+        return combine(exps, (l, r) -> new And(source, l, r));
     }
 
     /**
@@ -64,7 +74,7 @@ public abstract class Predicates {
      * While a bit longer, this method creates a balanced tree as opposed to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
-    private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
+    private static Expression combine(List<? extends Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
         if (exps.isEmpty()) {
             return null;
         }
@@ -144,6 +154,9 @@ public abstract class Predicates {
                 return Tuple.tuple(null, expressions);
             }
             splitAnds.add(split);
+        }
+        if (common == null) {
+            common = List.of();
         }
 
         List<Expression> trimmed = new ArrayList<>(expressions.size());

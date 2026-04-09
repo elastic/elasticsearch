@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.snapshots.get.After;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -115,7 +116,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.offset(offset);
         final String afterString = request.param("after");
         if (afterString != null) {
-            getSnapshotsRequest.after(SnapshotSortKey.decodeAfterQueryParam(afterString));
+            getSnapshotsRequest.after(After.decodeAfterQueryParam(afterString));
         }
         final String fromSortValue = request.param("from_sort_value");
         if (fromSortValue != null) {

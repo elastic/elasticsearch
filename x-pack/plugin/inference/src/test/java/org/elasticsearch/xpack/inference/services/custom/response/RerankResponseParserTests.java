@@ -456,6 +456,15 @@ public class RerankResponseParserTests extends AbstractBWCWireSerializationTestC
 
     @Override
     protected RerankResponseParser mutateInstance(RerankResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, RerankResponseParserTests::createRandom);
+        var relevanceScorePath = instance.getRelevanceScorePath();
+        var indexPath = instance.getRerankIndexPath();
+        var documentTextPath = instance.getDocumentTextPath();
+        switch (randomInt(2)) {
+            case 0 -> relevanceScorePath = randomValueOtherThan(relevanceScorePath, () -> "$." + randomAlphaOfLength(5));
+            case 1 -> indexPath = randomValueOtherThan(indexPath, () -> randomFrom("$." + randomAlphaOfLength(5), null));
+            case 2 -> documentTextPath = randomValueOtherThan(documentTextPath, () -> randomFrom("$." + randomAlphaOfLength(5), null));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new RerankResponseParser(relevanceScorePath, indexPath, documentTextPath);
     }
 }

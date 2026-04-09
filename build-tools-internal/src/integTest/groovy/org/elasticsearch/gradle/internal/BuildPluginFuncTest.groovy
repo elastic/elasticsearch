@@ -151,7 +151,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere
-            tasks.named('thirdPartyAudit').configure { enabled = false }
+            tasks.named('thirdPartyAudit').configure {
+                getRuntimeJavaVersion().set(JavaVersion.VERSION_21)
+                getTargetCompatibility().set(JavaVersion.VERSION_21)
+                enabled = false
+            }
             """
         when:
         def result = gradleRunner("check").build()
@@ -165,6 +169,25 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED
         result.task(":thirdPartyAudit").outcome == TaskOutcome.SKIPPED
         result.task(":loggerUsageCheck").outcome == TaskOutcome.SKIPPED
+    }
+
+    def "can generate dependency infos file"() {
+        given:
+        repository.generateJar("junit", "junit", "4.12", 'org.acme.JunitMock')
+        repository.configureBuild(buildFile)
+        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
+        file("licenses/junit-NOTICE.txt").text = "mock notice"
+        buildFile << """
+        dependencies {
+            api "junit:junit:4.12"
+        }
+        """
+        when:
+        def result = gradleRunner("dependenciesInfo").build()
+        then:
+        result.task(":dependenciesInfo").outcome == TaskOutcome.SUCCESS
+        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.12,https://repo1.maven.org/maven2/junit/junit/4.12,BSD-3-Clause,\n"
     }
 
     def assertValidJar(File jar) {

@@ -7,18 +7,9 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.fwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
-
-dependencies {
-  javaRestTestImplementation project(xpackModule('logsdb'))
-  javaRestTestImplementation project(':test:test-clusters')
-  javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'), 'javaRestTest')
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
-}
+apply plugin: 'elasticsearch.internal-test-artifact' // needed to run logsdb rest tests in serverless
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
@@ -30,4 +21,8 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
+}
+
+tasks.named("javaRestTest") {
+  enabled = false
 }

@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.apache.lucene.document.XYShape;
+import org.apache.lucene.geo.XYEncodingUtils;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 
 public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCase {
 
@@ -19,7 +25,35 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
 
     @Override
     protected Geometry getIndexGeometry() {
-        return ShapeTestUtils.randomGeometryWithoutCircle(false);
+        return randomValueOtherThanMany(
+            SpatialPushDownCartesianShapeIT::isInvalid,
+            () -> ShapeTestUtils.randomGeometryWithoutCircle(false)
+        );
+    }
+
+    static boolean isInvalid(Geometry geometry) {
+        return switch (geometry) {
+            case Polygon p -> isInvalid(p);
+            case MultiPolygon m -> isInvalid(m);
+            default -> false;
+        };
+    }
+
+    static boolean isInvalid(Polygon polygon) {
+        try {
+            XYShape.createIndexableFields("test", LuceneGeometriesUtils.toXYPolygon(polygon), true);
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    static boolean isInvalid(MultiPolygon mulitPolygon) {
+        boolean inValid = false;
+        for (Polygon p : mulitPolygon) {
+            inValid |= isInvalid(p);
+        }
+        return inValid;
     }
 
     @Override
@@ -30,5 +64,12 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
     @Override
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
+    }
+
+    @Override
+    protected Point quantizePoint(Point point) {
+        double x = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getX()));
+        double y = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getY()));
+        return new Point(x, y);
     }
 }

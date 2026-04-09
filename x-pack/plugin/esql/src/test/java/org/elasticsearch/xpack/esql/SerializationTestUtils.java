@@ -15,9 +15,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
@@ -27,6 +31,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -35,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -83,11 +89,12 @@ public class SerializationTestUtils {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
+
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, new TestNameIdMapper());
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -106,6 +113,7 @@ public class SerializationTestUtils {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, TermsQueryBuilder.NAME, TermsQueryBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchQueryBuilder.NAME, MatchQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RangeQueryBuilder.NAME, RangeQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, BoolQueryBuilder.NAME, BoolQueryBuilder::new));
@@ -113,6 +121,8 @@ public class SerializationTestUtils {
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RegexpQueryBuilder.NAME, RegexpQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, ExistsQueryBuilder.NAME, ExistsQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KqlQueryBuilder.NAME, KqlQueryBuilder::new));
         entries.add(SingleValueQuery.ENTRY);
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
@@ -123,6 +133,26 @@ public class SerializationTestUtils {
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
             )
         );
+        entries.add(TDigestHolder.ENTRY);
+        entries.add(WriteableExponentialHistogram.ENTRY);
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                GenericNamedWriteable.class,
+                LongRangeBlockBuilder.LongRange.ENTRY.name,
+                LongRangeBlockBuilder.LongRange::new
+            )
+        );
         return new NamedWriteableRegistry(entries);
+    }
+
+    /**
+     * Maps NameIds seen in a plan to themselves rather than creating new, unique ones.
+     * This makes equality checks easier when comparing a plan to itself after serialization and deserialization.
+     */
+    public static class TestNameIdMapper extends PlanStreamInput.NameIdMapper {
+        @Override
+        public NameId apply(long streamNameId) {
+            return new NameId(streamNameId);
+        }
     }
 }

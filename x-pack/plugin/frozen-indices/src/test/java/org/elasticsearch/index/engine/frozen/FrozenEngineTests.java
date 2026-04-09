@@ -8,11 +8,11 @@ package org.elasticsearch.index.engine.frozen;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -70,7 +70,7 @@ public class FrozenEngineTests extends EngineTestCase {
                                 ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()).shardId()
                             );
                             assertTrue(frozenEngine.isReaderOpen());
-                            TopDocs search = searcher.search(new MatchAllDocsQuery(), numDocs);
+                            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                             assertEquals(search.scoreDocs.length, numDocs);
                             assertEquals(1, listener.afterRefresh.get());
                         }
@@ -79,7 +79,7 @@ public class FrozenEngineTests extends EngineTestCase {
 
                         try (Engine.Searcher searcher = reader.acquireSearcher("frozen")) {
                             assertTrue(frozenEngine.isReaderOpen());
-                            TopDocs search = searcher.search(new MatchAllDocsQuery(), numDocs);
+                            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                             assertEquals(search.scoreDocs.length, numDocs);
                         }
                     }
@@ -113,14 +113,14 @@ public class FrozenEngineTests extends EngineTestCase {
                     Engine.SearcherSupplier reader1 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
                         assertTrue(frozenEngine.isReaderOpen());
-                        TopDocs search = searcher1.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher1.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertEquals(1, listener.afterRefresh.get());
                     }
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.SearcherSupplier reader2 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher2 = reader2.acquireSearcher("test")) {
-                        TopDocs search = searcher2.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher2.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertTrue(frozenEngine.isReaderOpen());
                         assertEquals(2, listener.afterRefresh.get());
@@ -129,7 +129,7 @@ public class FrozenEngineTests extends EngineTestCase {
                     assertEquals(2, listener.afterRefresh.get());
                     reader2.close();
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
-                        TopDocs search = searcher1.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher1.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertTrue(frozenEngine.isReaderOpen());
                     }
@@ -252,7 +252,7 @@ public class FrozenEngineTests extends EngineTestCase {
                                 for (int j = 0; j < numIters; j++) {
                                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                                         assertTrue(frozenEngine.isReaderOpen());
-                                        TopDocs search = searcher.search(new MatchAllDocsQuery(), Math.min(10, numDocsAdded));
+                                        TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Math.min(10, numDocsAdded));
                                         assertEquals(search.scoreDocs.length, Math.min(10, numDocsAdded));
                                     }
                                 }
@@ -375,14 +375,14 @@ public class FrozenEngineTests extends EngineTestCase {
                 engine.refresh("test");
                 try (Engine.SearcherSupplier reader = engine.acquireSearcherSupplier(Function.identity())) {
                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
+                        totalDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE).scoreDocs.length;
                     }
                 }
             }
             try (FrozenEngine frozenEngine = new FrozenEngine(config, true, randomBoolean())) {
                 try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+                        TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
                         assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));
                     }
                 }

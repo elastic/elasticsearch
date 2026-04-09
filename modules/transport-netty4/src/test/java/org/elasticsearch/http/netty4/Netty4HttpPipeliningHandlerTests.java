@@ -46,7 +46,7 @@ import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,6 +72,7 @@ import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -158,7 +159,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             new AggregatingDispatcher(),
             ClusterSettings.createBuiltInClusterSettings(),
             new SharedGroupFactory(Settings.EMPTY),
-            Tracer.NOOP,
+            TelemetryProvider.NOOP,
             TLSConfig.noTLS(),
             null,
             null
@@ -548,7 +549,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private static void assertContentAtIndexEquals(List<Object> messagesSeen, int index, BytesReference single) {
-        assertEquals(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content()), single);
+        assertThat(single, equalBytes(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content())));
     }
 
     private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {

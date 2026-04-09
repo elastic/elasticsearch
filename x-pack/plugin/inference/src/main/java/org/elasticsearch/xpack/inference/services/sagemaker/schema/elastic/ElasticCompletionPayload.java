@@ -85,7 +85,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
     @Override
     public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) {
         return SdkBytes.fromUtf8String(Strings.toString((builder, params) -> {
-            request.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokensTokens(params));
+            request.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(params));
             return builder;
         }));
     }

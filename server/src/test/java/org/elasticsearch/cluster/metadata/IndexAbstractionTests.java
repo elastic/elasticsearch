@@ -201,13 +201,18 @@ public class IndexAbstractionTests extends ESTestCase {
 
     private static DataStream newDataStreamInstance(List<Index> backingIndices, List<Index> failureStoreIndices) {
         boolean isSystem = randomBoolean();
+        boolean isReplicated = randomBoolean();
         return DataStream.builder(randomAlphaOfLength(50), backingIndices)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices).build())
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices)
+                    .setRolloverOnWrite(isReplicated == false && failureStoreIndices.isEmpty())
+                    .build()
+            )
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())
             .setSystem(isSystem)
             .setHidden(isSystem || randomBoolean())
-            .setReplicated(randomBoolean())
+            .setReplicated(isReplicated)
             .build();
     }
 }

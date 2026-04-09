@@ -11,12 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.automaton.UTF32ToUTF8;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -24,19 +25,21 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public class AutomataMatch {
     /**
-     * Build an {@link EvalOperator.ExpressionEvaluator.Factory} that will match
+     * Build an {@link ExpressionEvaluator.Factory} that will match
      * {@link BytesRef}s against {@link Automaton automata} and return a {@link BooleanBlock}.
      */
-    public static EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Source source,
-        EvalOperator.ExpressionEvaluator.Factory field,
-        Automaton utf32Automaton
-    ) {
+    public static ExpressionEvaluator.Factory toEvaluator(Source source, ExpressionEvaluator.Factory field, Automaton utf32Automaton) {
         /*
          * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
          * we couldn’t get a nice toDot - so we call UTF32ToUTF8 ourselves.
          */
-        Automaton automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton automaton;
+        try {
+            automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        }
+
         ByteRunAutomaton run = new ByteRunAutomaton(automaton, true);
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
     }

@@ -148,11 +148,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return new LeafFieldData() {
 
             @Override
-            public void close() {
-                in.close();
-            }
-
-            @Override
             public long ramBytesUsed() {
                 return in.ramBytesUsed();
             }

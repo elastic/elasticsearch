@@ -27,4 +27,16 @@ public class ESSloppyMath {
     public static double log(double value) {
         return FastMath.log(value);
     }
+
+    public static double acosh(double value) {
+        return FastMath.acosh(value);
+    }
+
+    public static double asinh(double value) {
+        return FastMath.asinh(value);
+    }
+
+    public static double atanh(double value) {
+        return FastMath.atanh(value);
+    }
 }

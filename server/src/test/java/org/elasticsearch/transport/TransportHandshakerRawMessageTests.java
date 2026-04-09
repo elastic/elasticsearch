@@ -39,7 +39,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV8Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
-        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion().id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);
@@ -91,7 +91,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV9Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
-        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion().id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V9_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);

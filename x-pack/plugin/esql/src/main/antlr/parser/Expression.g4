@@ -18,9 +18,10 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? LIKE string                               #likeExpression
-    | valueExpression (NOT)? RLIKE string                              #rlikeExpression
-    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
+    : valueExpression (NOT)? LIKE stringOrParameter                                     #likeExpression
+    | valueExpression (NOT)? RLIKE stringOrParameter                                    #rlikeExpression
+    | valueExpression (NOT)? LIKE LP stringOrParameter (COMMA stringOrParameter )* RP   #likeListExpression
+    | valueExpression (NOT)? RLIKE LP stringOrParameter (COMMA stringOrParameter )* RP  #rlikeListExpression
     ;
 
 matchBooleanExpression
@@ -53,14 +54,21 @@ functionExpression
 
 functionName
     : identifierOrParameter
+    | FIRST
+    | LAST
     ;
 
 mapExpression
-    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    : LEFT_BRACES (entryExpression (COMMA entryExpression)*)? RIGHT_BRACES
     ;
 
 entryExpression
-    : key=string COLON value=constant
+    : key=string COLON value=mapValue
+    ;
+
+mapValue
+    : constant
+    | mapExpression
     ;
 
 constant

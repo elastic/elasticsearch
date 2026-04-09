@@ -8,16 +8,17 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -25,6 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -32,9 +34,13 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
 
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
@@ -107,25 +113,37 @@ public final class SingleValueMatchQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
+                final LeafFieldData lfd = fieldData.load(ctx);
+                // If field is singleton, then it is safe to cache this query, because no warning will ever be emitted.
+                if (lfd instanceof LeafNumericFieldData n) {
+                    if (SortedNumericLongValues.unwrapSingleton(n.getLongValues()) != null) {
+                        return true;
+                    }
+                } else if (lfd instanceof LeafOrdinalsFieldData o) {
+                    if (DocValues.unwrapSingleton(o.getOrdinalsValues()) != null) {
+                        return true;
+                    }
+                } else {
+                    var sortedBinaryDocValues = lfd.getBytesValues();
+                    if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
+                        return true;
+                    }
+                }
                 // don't cache so we can emit warnings
                 return false;
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedNumericDocValues sortedNumerics,
+                SortedNumericLongValues sortedNumerics,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                    // check for dense field
-                    final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
-                    if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
-                    }
+                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedNumerics.advanceExact(doc)) {
@@ -147,20 +165,10 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
-                    // check for dense field
-                    final Terms terms = context.reader().terms(fieldData.getFieldName());
-                    if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedSetDocValues::advanceExact
-                        );
-                    }
+                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                if (sdv != null && sdv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedSetDocValues.advanceExact(doc)) {
@@ -182,7 +190,8 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) {
                 final int maxDoc = context.reader().maxDoc();
-                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
+                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
+                    || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
                     return new PredicateScorerSupplier(
                         boost,
                         scoreMode,
@@ -208,25 +217,51 @@ public final class SingleValueMatchQuery extends Query {
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
+            return Queries.ALL_DOCS_INSTANCE;
+        }
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
+            final LeafReader reader = context.reader();
+            final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                final PointValues pointValues = context.reader().getPointValues(fieldData.getFieldName());
-                if (pointValues == null
-                    || pointValues.getDocCount() != context.reader().maxDoc()
-                    || pointValues.size() != pointValues.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                final PointValues points = reader.getPointValues(fieldData.getFieldName());
+                if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
-                final Terms terms = context.reader().terms(fieldData.getFieldName());
-                if (terms == null || terms.getDocCount() != context.reader().maxDoc() || terms.getSumDocFreq() != terms.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                Terms terms = reader.terms(fieldData.getFieldName());
+                if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else {
+                var sortedBinaryDocValues = lfd.getBytesValues();
+                if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED
+                    && sortedBinaryDocValues.getSparsity() == SortedBinaryDocValues.Sparsity.DENSE) {
+                    continue;
+                }
                 return super.rewrite(indexSearcher);
             }
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

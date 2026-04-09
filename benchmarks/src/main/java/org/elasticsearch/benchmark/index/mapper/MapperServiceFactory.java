@@ -83,7 +83,9 @@ public class MapperServiceFactory {
                 }
             },
             bitsetFilterCache::getBitSetProducer,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null,
+            null
         );
 
         try {

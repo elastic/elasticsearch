@@ -9,19 +9,20 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -63,12 +63,14 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
  *     expose a single method to users.
  * </p>
  */
-public class ToIp extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
     private static final String LEADING_ZEROS = "leading_zeros";
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(LEADING_ZEROS, KEYWORD));
 
     private final Expression field;
     private final Expression options;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIp.class).binary(ToIp::new).name("to_ip");
 
     @FunctionInfo(
         returnType = "ip",
@@ -142,7 +144,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException("should be rewritten");
     }
 
@@ -173,38 +175,10 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
             sourceText(),
             null,
             supportedTypesNames(supportedTypes())
-        );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        if (options == null) {
-            return resolution;
-        }
-        resolution = isMapExpression(options, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        for (EntryExpression e : ((MapExpression) options).entryExpressions()) {
-            String key;
-            if (e.key().dataType() != KEYWORD) {
-                return new TypeResolution("map keys must be strings");
-            }
-            if (e.key() instanceof Literal keyl) {
-                key = BytesRefs.toString(keyl.value());
-            } else {
-                return new TypeResolution("map keys must be literals");
-            }
-            DataType expected = ALLOWED_OPTIONS.get(key);
-            if (expected == null) {
-                return new TypeResolution("[" + key + "] is not a supported option");
-            }
+        ).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS));
 
-            if (e.value().dataType() != expected) {
-                return new TypeResolution("[" + key + "] expects [" + expected + "] but was [" + e.value().dataType() + "]");
-            }
-            if (e.value() instanceof Literal == false) {
-                return new TypeResolution("map values must be literals");
-            }
+        if (resolution.unresolved()) {
+            return resolution;
         }
         try {
             LeadingZeros.from((MapExpression) options);

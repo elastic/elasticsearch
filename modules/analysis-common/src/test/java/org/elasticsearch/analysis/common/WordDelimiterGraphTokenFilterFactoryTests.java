@@ -191,7 +191,6 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put(
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
-                        random(),
                         IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                         IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
                     )

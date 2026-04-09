@@ -1,0 +1,6 @@
+pr: 140135
+summary: Add support for top-level arithmetic ops to TS|STATS
+area: ES|QL
+type: enhancement
+issues:
+ - 139570

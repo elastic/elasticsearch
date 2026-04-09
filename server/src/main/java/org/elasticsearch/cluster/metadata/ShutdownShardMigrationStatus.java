@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -128,17 +127,10 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.startedShards = in.readZLong();
-            this.relocatingShards = in.readZLong();
-            this.initializingShards = in.readZLong();
-            this.shardsRemaining = in.readZLong();
-        } else {
-            this.startedShards = -1;
-            this.relocatingShards = -1;
-            this.initializingShards = -1;
-            this.shardsRemaining = in.readLong();
-        }
+        this.startedShards = in.readZLong();
+        this.relocatingShards = in.readZLong();
+        this.initializingShards = in.readZLong();
+        this.shardsRemaining = in.readZLong();
         this.explanation = in.readOptionalString();
         this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
     }
@@ -188,14 +180,10 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeZLong(startedShards);
-            out.writeZLong(relocatingShards);
-            out.writeZLong(initializingShards);
-            out.writeZLong(shardsRemaining);
-        } else {
-            out.writeLong(shardsRemaining);
-        }
+        out.writeZLong(startedShards);
+        out.writeZLong(relocatingShards);
+        out.writeZLong(initializingShards);
+        out.writeZLong(shardsRemaining);
         out.writeOptionalString(explanation);
         out.writeOptionalWriteable(allocationDecision);
     }

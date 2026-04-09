@@ -38,6 +38,7 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_FIXED_BUILDER;
@@ -51,6 +52,7 @@ import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK_BUILDER;
 
 /**
  * Finds declared methods for the code generator.
@@ -120,6 +122,13 @@ public class Methods {
         return new ArgumentMatcher(
             args -> args.size() == argTypes.length && IntStream.range(0, argTypes.length).allMatch(i -> argTypes[i].test(args.get(i))),
             Stream.of(argTypes).map(TypeMatcher::toString).collect(joining(", "))
+        );
+    }
+
+    static ArgumentMatcher requireArgsStartsWith(TypeMatcher... argTypes) {
+        return new ArgumentMatcher(
+            args -> args.size() >= argTypes.length && IntStream.range(0, argTypes.length).allMatch(i -> argTypes[i].test(args.get(i))),
+            Stream.of(argTypes).map(TypeMatcher::toString).collect(joining(", ")) + ", ..."
         );
     }
 
@@ -222,6 +231,9 @@ public class Methods {
         if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
             return "appendFloat";
         }
+        if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
+            return "appendTDigest";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -281,6 +293,12 @@ public class Methods {
         if (t.equals(FLOAT_VECTOR_FIXED_BUILDER)) {
             return "newFloatVectorFixedBuilder";
         }
+        if (t.equals(TDIGEST_BLOCK_BUILDER)) {
+            return "newTDigestBlockBuilder";
+        }
+        if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
+            return "newExponentialHistogramBlockBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -288,7 +306,7 @@ public class Methods {
      * Returns the name of the method used to get {@code valueType} instances
      * from vectors or blocks.
      */
-    static String getMethod(TypeName elementType) {
+    public static String getMethod(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return "getBoolean";
         }
@@ -306,6 +324,12 @@ public class Methods {
         }
         if (elementType.equals(TypeName.FLOAT)) {
             return "getFloat";
+        }
+        if (elementType.equals(Types.EXPONENTIAL_HISTOGRAM)) {
+            return "getExponentialHistogram";
+        }
+        if (elementType.equals(Types.TDIGEST)) {
+            return "getTDigestHolder";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

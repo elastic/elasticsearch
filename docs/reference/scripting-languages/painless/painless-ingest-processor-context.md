@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-ingest-processor-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,25 @@ products:
 
 Use a Painless script in an [ingest processor](/reference/enrich-processor/script-processor.md) to modify documents upon insertion.
 
-**Variables**
+The ingest processor context enables document transformation during the indexing process, allowing you to enrich, modify, or restructure data before it’s stored in {{es}}.  
+Painless scripts run as script processors within ingest pipelines that support script execution.
+
+Ingest pipelines consist of multiple processors that can transform documents sequentially. The script processor allows Painless scripts to access and modify document fields using the `ctx` variable during this transformation process.
+
+For help debugging errors in this context, refer to [Debug ingest pipeline failures in Painless](docs-content://explore-analyze/scripting/painless-ingest-pipeline-failures.md).
+
+## Processing workflow
+
+The pipelines processing proceeds through four steps.
+
+* Documents enter the ingest pipeline.   
+* Each processor transforms the document according to its configuration.  
+* Script processors execute Painless code to perform custom transformations.  
+* Modified documents are indexed into {{es}}.
+
+For more information refer to [{{es}} ingest pipelines](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md). You can also check the troubleshooting guide for help with ingest pipelines failures.
+
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -20,7 +41,7 @@ Use a Painless script in an [ingest processor](/reference/enrich-processor/scrip
 `ctx` (`Map`)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields that are part of the document.
 
-**Side Effects**
+## Side Effects
 
 [`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md)
 :   Modify this to change the destination index for the current document.
@@ -28,94 +49,44 @@ Use a Painless script in an [ingest processor](/reference/enrich-processor/scrip
 `ctx` (`Map`)
 :   Modify the values in the `Map/List` structure to add, modify, or delete the fields of a document.
 
-**Return**
+## Return
 
 void
 :   No expected return value.
 
-**API**
+## API
 
-Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and [Specialized Ingest API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-ingest.html) are available.
+Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and specialized [Field API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-field.html) are available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-The seat data contains:
+The following example demonstrates how to use a script inside an ingest pipeline to create a new field named `custom_region_code`. This field combines the `geoip.country_iso_code` and the first two uppercase letters of `geoip.continent_name`.
 
-* A date in the format `YYYY-MM-DD` where the second digit of both month and day is optional.
-* A time in the format HH:MM* where the second digit of both hours and minutes is optional. The star (*) represents either the `String` `AM` or `PM`.
-
-The following ingest script processes the date and time `Strings` and stores the result in a `datetime` field.
-
-```painless
-String[] dateSplit = ctx.date.splitOnToken("-");                     <1>
-String year = dateSplit[0].trim();
-String month = dateSplit[1].trim();
-
-if (month.length() == 1) {                                           <2>
-    month = "0" + month;
-}
-
-String day = dateSplit[2].trim();
-
-if (day.length() == 1) {                                             <3>
-    day = "0" + day;
-}
-
-boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM"); <4>
-String[] timeSplit = ctx.time.substring(0,
-        ctx.time.length() - 2).splitOnToken(":");                    <5>
-int hours = Integer.parseInt(timeSplit[0].trim());
-int minutes = Integer.parseInt(timeSplit[1].trim());
-
-if (pm) {                                                            <6>
-    hours += 12;
-}
-
-String dts = year + "-" + month + "-" + day + "T" +
-        (hours < 10 ? "0" + hours : "" + hours) + ":" +
-        (minutes < 10 ? "0" + minutes : "" + minutes) +
-        ":00+08:00";                                                 <7>
-
-ZonedDateTime dt = ZonedDateTime.parse(
-         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);               <8>
-ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <9>
+```java
+String country = ctx.geoip.country_iso_code; 
+          
+ctx.custom_region_code = country + '_' + ctx.geoip.continent_name.substring(0,2).toUpperCase();
 ```
 
-1. Uses the `splitOnToken` function to separate the date `String` from the seat data into year, month, and day `Strings`.
-   NOTE : The use of the `ctx` ingest processor context variable to retrieve the data from the `date` field.
+The following request runs during ingestion time and uses the `ctx` object to access and modify the document fields.
 
-2. Appends the [string literal](/reference/scripting-languages/painless/painless-literals.md#string-literals) `"0"` value to a single digit month since the format of the seat data allows for this case.
-3. Appends the [string literal](/reference/scripting-languages/painless/painless-literals.md#string-literals) `"0"` value to a single digit day since the format of the seat data allows for this case.
-4. Sets the [`boolean type`](/reference/scripting-languages/painless/painless-types.md#primitive-types) [variable](/reference/scripting-languages/painless/painless-variables.md) to `true` if the time `String` is a time in the afternoon or evening.
-   NOTE: The use of the `ctx` ingest processor context variable to retrieve the data from the `time` field.
-
-5. Uses the `splitOnToken` function to separate the time `String` from the seat data into hours and minutes `Strings`.
-   NOTE: The use of the `substring` method to remove the `AM` or `PM` portion of the time `String`. The use of the `ctx` ingest processor context variable to retrieve the data from the `date` field.
-
-6. If the time `String` is an afternoon or evening value adds the [integer literal](/reference/scripting-languages/painless/painless-literals.md#integer-literals) `12` to the existing hours to move to a 24-hour based time.
-7. Builds a new time `String` that is parsable using existing API methods.
-8. Creates a `ZonedDateTime` [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) value by using the API method `parse` to parse the new time `String`.
-9. Sets the datetime field `datetime` to the number of milliseconds retrieved from the API method `getLong`.
-   NOTEL The use of the `ctx` ingest processor context variable to set the field `datetime`. Manipulate each document’s fields with the `ctx` variable as each document is indexed.
-
-
-
-
-Submit the following request:
-
-```console
-PUT /_ingest/pipeline/seats
+```json
+PUT /_ingest/pipeline/kibana_sample_data_ecommerce-custom_region_code
 {
-  "description": "update datetime for seats",
+  "description": "generate region code from country and continent name for kibana_sample_data_ecommerce dataset",
   "processors": [
     {
       "script": {
-        "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+        "lang": "painless",
+        "source": """
+          String country = ctx.geoip.country_iso_code; 
+          
+          ctx.custom_region_code = country + '_' + ctx.geoip.continent_name.substring(0,2).toUpperCase();
+        """
       }
     }
   ]
 }
 ```
-

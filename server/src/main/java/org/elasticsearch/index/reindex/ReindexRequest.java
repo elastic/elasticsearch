@@ -25,6 +25,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -38,6 +39,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -83,9 +85,16 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
+    public boolean supportsRemoteIndicesSearch() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
+        // When using PIT, indices are intentionally empty; the PIT defines the index context
+        boolean usingPit = getSearchRequest().source() != null && getSearchRequest().source().pointInTimeBuilder() != null;
+        if ((getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) && usingPit == false) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
@@ -115,6 +124,18 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
+            if (getSearchRequest().source().slice() != null) {
+                e = addValidationError(
+                    "reindex from remote sources doesn't support source.slice but was [" + getSearchRequest().source().slice() + "]",
+                    e
+                );
+            }
+            if (getRemoteInfo().getUsername() != null && getRemoteInfo().getPassword() == null) {
+                e = addValidationError("reindex from remote source included username but not password", e);
+            }
+            if (getRemoteInfo().getPassword() != null && getRemoteInfo().getUsername() == null) {
+                e = addValidationError("reindex from remote source included password but not username", e);
+            }
         }
         return e;
     }
@@ -137,6 +158,32 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             this.getSearchRequest().indices(sourceIndices);
         }
         return this;
+    }
+
+    /**
+     * After opening a point-in-time, mutates this request's {@link SearchRequest} to use that PIT for pagination.
+     * <p>
+     * This method:
+     * <ol>
+     *     <li>Sets the PIT on the search source</li>
+     *     <li>Clears the scroll since PIT and scroll are mutually exclusive</li>
+     *     <li>Copies the current {@link SearchRequest#indices()} to {@link #setSourceIndicesForDescription} so the
+     *     task descriptions remain correct</li>
+     *     <li>Clears indices on the search request (the PIT defines index context)</li>
+     *     <li>Clears project routing since it is fixed at open-PIT time</li>
+     * </ol>
+     *
+     * @param pitId      encoded PIT identifier from {@code open_point_in_time}
+     * @param keepAlive  keep-alive for the PIT on the search request
+     */
+    public void convertSearchRequestToUsePit(BytesReference pitId, TimeValue keepAlive) {
+        SearchRequest searchRequest = getSearchRequest();
+        String[] indices = searchRequest.indices();
+        searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive));
+        searchRequest.scroll(null);
+        setSourceIndicesForDescription(indices);
+        searchRequest.indices(Strings.EMPTY_ARRAY);
+        searchRequest.clearProjectRouting();
     }
 
     /**
@@ -248,6 +295,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
         sliced.setRemoteInfo(remoteInfo);
+        sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
     }
 
@@ -335,7 +383,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     parser.contentType()
                 )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false, context);
+                request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, context);
             }
         };
 
@@ -417,6 +465,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
 
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        String apiKey = extractString(remote, "api_key");
+        if (apiKey != null) {
+            headers = headersWithApiKey(headers, apiKey);
+        }
+
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
@@ -492,5 +545,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         } else {
             request.setMaxDocs(maxDocs);
         }
+    }
+
+    /**
+     * Returns a headers map with the {@code Authorization} key set to the value {@code "ApiKey <apiKey>"}. If the original map is a
+     * {@link HashMap}, it is mutated; if not (e.g. it is {@link java.util.Collections#EMPTY_MAP}), it is copied. If the headers already
+     * include an {@code Authorization} key, an {@link IllegalArgumentException} is thrown.
+     */
+    private static Map<String, String> headersWithApiKey(Map<String, String> original, String apiKey) {
+        if (original.keySet().stream().anyMatch(key -> key.equalsIgnoreCase("Authorization"))) {
+            throw new IllegalArgumentException("Cannot specify both [api_key] and [headers] including [Authorization] key");
+        }
+        Map<String, String> updated = (original instanceof HashMap) ? original : new HashMap<>(original);
+        updated.put("Authorization", "ApiKey " + apiKey);
+        return updated;
     }
 }

@@ -18,14 +18,13 @@ public interface FunctionResolutionStrategy {
     /**
      * Default behavior of standard function calls like {@code ABS(col)}.
      */
-    FunctionResolutionStrategy DEFAULT = new FunctionResolutionStrategy() {
-    };
+    FunctionResolutionStrategy DEFAULT = new FunctionResolutionStrategy() {};
 
     /**
      * Build the real function from this one and resolution metadata.
      */
     default Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-        return def.builder().build(uf, cfg);
+        return def.build(uf, cfg);
     }
 
     /**

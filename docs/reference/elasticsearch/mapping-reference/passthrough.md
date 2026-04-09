@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Pass-through object"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/passthrough.html
@@ -163,6 +166,7 @@ POST metrics-mymetrics-test/_doc
   "cpu": 10
 }
 ```
+% TEST[skip: The @timestamp value won’t match an accepted range in the TSDS]
 
 In the example above, `attributes` is defined as a dimension container. Its sub-fields `host.name` (static) and `zone` (dynamic) get included in the routing path and tsid, and can be referenced in queries without the `attributes.` prefix.
 

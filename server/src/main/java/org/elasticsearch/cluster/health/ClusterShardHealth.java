@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -96,11 +95,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            unassignedPrimaryShards = in.readVInt();
-        } else {
-            unassignedPrimaryShards = 0;
-        }
+        unassignedPrimaryShards = in.readVInt();
     }
 
     /**
@@ -167,9 +162,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(unassignedPrimaryShards);
-        }
+        out.writeVInt(unassignedPrimaryShards);
     }
 
     /**
@@ -177,7 +170,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      *
      * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
      * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
-     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * cluster health should not turn RED for the time when primaries are still in the initializing state but go to YELLOW instead.
      * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
      * some point, cluster health should still turn RED.
      *

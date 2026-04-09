@@ -24,7 +24,7 @@ public class UnknownTypeRepositoryTests extends ESTestCase {
 
     public void testShouldThrowWhenGettingMetadata() {
         assertThat(repository.getProjectId(), equalTo(projectId));
-        expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));
+        expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"), false));
     }
 
     public void testShouldNotThrowWhenApplyingLifecycleChanges() {

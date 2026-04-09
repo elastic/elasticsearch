@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -180,7 +181,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        indicatorService = new ShardsAvailabilityHealthIndicatorService(
+        indicatorService = new StatefulShardsAvailabilityHealthIndicatorService(
             clusterService,
             allocationService,
             new SystemIndices(List.of()),

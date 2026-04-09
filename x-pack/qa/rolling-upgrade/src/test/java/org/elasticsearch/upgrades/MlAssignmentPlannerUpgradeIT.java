@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
-    private static final boolean IS_SINGLE_PROCESSOR_TEST = Boolean.parseBoolean(
+    private static final boolean IS_SINGLE_PROCESSOR_TEST = Booleans.parseBoolean(
         System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
     );
 
@@ -66,7 +67,6 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
         assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
@@ -186,12 +186,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         createTrainedModel("old_memory_format", 0, 0);
         putModelDefinition("old_memory_format");
         putVocabulary(List.of("these", "are", "my", "words"), "old_memory_format");
-        startDeployment("old_memory_format");
+        startDeployment("old_memory_format", "started", "low");
 
         createTrainedModel("new_memory_format", ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(10).getBytes());
         putModelDefinition("new_memory_format");
         putVocabulary(List.of("these", "are", "my", "words"), "new_memory_format");
-        startDeployment("new_memory_format");
+        startDeployment("new_memory_format", "started", "low");
     }
 
     private void cleanupDeployments() throws IOException {
@@ -247,10 +247,14 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, "started");
+        return startDeployment(modelId, "started", "normal");
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        return startDeployment(modelId, waitForState, "normal");
+    }
+
+    private Response startDeployment(String modelId, String waitForState, String priority) throws IOException {
         String inferenceThreadParamName = "threads_per_allocation";
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
@@ -270,7 +274,8 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
                 + inferenceThreadParamName
                 + "=1&"
                 + modelThreadParamName
-                + "=1"
+                + "=1&priority="
+                + priority
         );
         if (compatibleHeader != null) {
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());

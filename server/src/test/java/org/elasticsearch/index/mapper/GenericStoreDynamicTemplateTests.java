@@ -21,7 +21,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
 
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(json));
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
         LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");

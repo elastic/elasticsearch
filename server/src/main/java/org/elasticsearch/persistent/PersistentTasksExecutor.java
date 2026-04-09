@@ -10,6 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -63,7 +64,31 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * <p>
      * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+    public final Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
+        assert (scope() == Scope.PROJECT && projectId != null) || (scope() == Scope.CLUSTER && projectId == null)
+            : "inconsistent project-id [" + projectId + "] and task scope [" + scope() + "]";
+        return doGetAssignment(params, candidateNodes, clusterState, projectId);
+    }
+
+    /**
+     * Returns the node id where the params has to be executed,
+     * <p>
+     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes.
+     * <p>
+     * If {@link #scope()} returns CLUSTER, then {@link ProjectId} will be null.
+     * If {@link #scope()} returns PROJECT, then {@link ProjectId} will not be null.
+     */
+    protected Assignment doGetAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
@@ -101,11 +126,30 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
+     * Whether this task should proactively be reassigned when its executing node is marked for shutdown.
+     * Automated reassignment allows for gap-free reassignment on a node (single cluster state update).
+     *
+     * <p>Returns {@code true} by default. Executors that manage their own shutdown handling must override
+     * this method to return {@code false} to preserve their existing behavior.
+     *
+     * <p><strong>Migration requirement:</strong> before removing a {@code return false} override, ensure
+     * that neither the executor nor any associated plugin or cluster-state listener independently handles
+     * node shutdown for this task (for example, by calling
+     * {@link AllocatedPersistentTask#markAsLocallyAborted}). Such bespoke handlers would race with the
+     * framework-level reassignment. If the handler fires first it will unassign the task and trigger a
+     * two-step unassign-then-reassign cycle, which is exactly the gap this mechanism is designed to
+     * eliminate.
+     */
+    public boolean automaticReassignmentOnShutdown() {
+        return true;
+    }
+
+    /**
      * Checks the current cluster state for compatibility with the params
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
      */
-    public void validate(Params params, ClusterState clusterState) {}
+    public void validate(Params params, ClusterState clusterState, @Nullable ProjectId projectId) {}
 
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager

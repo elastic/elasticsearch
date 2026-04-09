@@ -72,9 +72,10 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        IndexStateResolver indexStateResolver
+        IndexStateResolver indexStateResolver,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
-        super(threadPool, client, clusterService, indexStateResolver);
+        super(threadPool, client, clusterService, indexStateResolver, templateRegistry);
     }
 
     @Override

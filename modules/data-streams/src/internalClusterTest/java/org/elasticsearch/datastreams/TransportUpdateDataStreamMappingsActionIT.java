@@ -57,8 +57,10 @@ public class TransportUpdateDataStreamMappingsActionIT extends ESIntegTestCase {
         Map<String, Object> originalMappings = Map.of(
             "dynamic",
             "strict",
+            "_data_stream_timestamp",
+            Map.of("enabled", true),
             "properties",
-            Map.of("foo1", Map.of("type", "text"), "foo2", Map.of("type", "text"))
+            Map.of("@timestamp", Map.of("type", "date"), "foo1", Map.of("type", "text"), "foo2", Map.of("type", "text"))
         );
         Map<String, Object> mappingOverrides = Map.of(
             "properties",
@@ -67,8 +69,19 @@ public class TransportUpdateDataStreamMappingsActionIT extends ESIntegTestCase {
         Map<String, Object> expectedEffectiveMappings = Map.of(
             "dynamic",
             "strict",
+            "_data_stream_timestamp",
+            Map.of("enabled", true),
             "properties",
-            Map.of("foo1", Map.of("type", "text"), "foo2", Map.of("type", "keyword"), "foo3", Map.of("type", "text"))
+            Map.of(
+                "@timestamp",
+                Map.of("type", "date"),
+                "foo1",
+                Map.of("type", "text"),
+                "foo2",
+                Map.of("type", "keyword"),
+                "foo3",
+                Map.of("type", "text")
+            )
         );
         assertExpectedMappings(dataStreamName, Map.of(), originalMappings);
         updateMappings(dataStreamName, mappingOverrides, expectedEffectiveMappings, true);
@@ -118,15 +131,13 @@ public class TransportUpdateDataStreamMappingsActionIT extends ESIntegTestCase {
     private void createDataStream(String dataStreamName) throws IOException {
         String mappingString = """
             {
-              "_doc":{
-                "dynamic":"strict",
-                "properties":{
-                  "foo1":{
-                    "type":"text"
-                  },
-                  "foo2":{
-                    "type":"text"
-                  }
+              "dynamic":"strict",
+              "properties":{
+                "foo1":{
+                  "type":"text"
+                },
+                "foo2":{
+                  "type":"text"
                 }
               }
             }

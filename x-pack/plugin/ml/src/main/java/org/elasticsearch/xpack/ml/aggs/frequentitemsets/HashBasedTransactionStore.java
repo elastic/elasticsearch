@@ -452,13 +452,20 @@ public final class HashBasedTransactionStore extends TransactionStore {
         }
     }
 
+    private BytesRefArray takeBytesRefsOwnership(BytesRefHash hash) {
+        BytesRefArray bytes = hash.getBytesRefs();
+        bytes.incRef();
+        hash.close();
+        return bytes;
+    }
+
     public ImmutableTransactionStore createImmutableTransactionStore() {
         ImmutableTransactionStore immutableTransactionStore = new ImmutableTransactionStore(
             bigArrays,
-            items.takeBytesRefsOwnership(),
+            takeBytesRefsOwnership(items),
             itemCounts,
             totalItemCount,
-            transactions.takeBytesRefsOwnership(),
+            takeBytesRefsOwnership(transactions),
             transactionCounts,
             totalTransactionCount,
             filteredTransactionCount

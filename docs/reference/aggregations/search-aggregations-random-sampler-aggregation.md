@@ -40,6 +40,7 @@ GET kibana_sample_data_ecommerce/_search?size=0&track_total_hits=false
   }
 }
 ```
+% TEST[setup:kibana_sample_data_ecommerce]
 
 ## Top-level parameters for random_sampler [random-sampler-top-level-params]
 

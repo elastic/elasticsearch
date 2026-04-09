@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Basic syntax"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-syntax.html
@@ -25,6 +28,19 @@ For readability, this documentation puts each processing command on a new line. 
 
 ```esql
 source-command | processing-command1 | processing-command2
+```
+
+::::
+
+::::{note}
+In many cases, the {{esql}} optimizer makes the exact order of processing commands irrelevant. For example, the following two queries are optimized and executed the same:
+
+```esql
+FROM idx | EVAL x = 2*y | WHERE y > 0
+```
+
+```esql
+FROM idx | WHERE y > 0 | EVAL x = 2*y
 ```
 
 ::::
@@ -69,7 +85,7 @@ FROM index
 | WHERE first_name == "Georgi"
 ```
 
-If the literal string itself contains quotes, these need to be escaped (`\\"`). {{esql}} also supports the triple-quotes (`"""`) delimiter, for convenience:
+If the literal string itself contains quotes, these need to be escaped (`\"`). {{esql}} also supports the triple-quotes (`"""`) delimiter, for convenience:
 
 ```esql
 ROW name = """Indiana "Indy" Jones"""
@@ -138,7 +154,7 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 
 ### Function named parameters [esql-function-named-params]
 
-Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) use named parameters to provide additional options.
+Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions/match.md) use named parameters to provide additional options.
 
 Named parameters allow specifying name value pairs, using the following syntax:
 
@@ -146,7 +162,7 @@ Named parameters allow specifying name value pairs, using the following syntax:
 
 Valid value types are strings, numbers and booleans.
 
-An example using [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match):
+An example using [match](/reference/query-languages/esql/functions-operators/search-functions/match.md):
 
 ```console
 POST /_query
@@ -158,8 +174,9 @@ FROM library
 """
 }
 ```
+% TEST[setup:library]
 
-You can also use [query parameters](docs-content://explore-analyze/query-filter/languages/esql-rest.md#esql-rest-params) in function named parameters:
+You can also use [query parameters](/reference/query-languages/esql/esql-rest.md#esql-rest-params) in function named parameters:
 
 ```console
 POST /_query
@@ -173,4 +190,5 @@ FROM library
 "params": [300, "Frank Herbert", 2]
 }
 ```
+% TEST[setup:library]
 

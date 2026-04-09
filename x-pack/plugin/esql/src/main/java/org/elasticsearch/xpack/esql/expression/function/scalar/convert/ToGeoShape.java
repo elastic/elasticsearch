@@ -11,11 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -23,10 +25,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToShape;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
 public class ToGeoShape extends AbstractConvertFunction {
@@ -35,10 +41,14 @@ public class ToGeoShape extends AbstractConvertFunction {
         "ToGeoShape",
         ToGeoShape::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoShape.class).unary(ToGeoShape::new).name("to_geoshape");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(GEO_SHAPE, (source, fieldEval) -> fieldEval),
+        Map.entry(GEOHASH, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH)),
+        Map.entry(GEOTILE, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
+        Map.entry(GEOHEX, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
     );
@@ -55,7 +65,7 @@ public class ToGeoShape extends AbstractConvertFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "geo_point", "geo_shape", "keyword", "text" },
+            type = { "geo_point", "geo_shape", "geohash", "geohex", "geotile", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
@@ -94,5 +104,10 @@ public class ToGeoShape extends AbstractConvertFunction {
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
         return stringToGeo(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoGrid", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef fromGeoGrid(long in, @Fixed DataType dataType) {
+        return geoGridToShape(in, dataType);
     }
 }

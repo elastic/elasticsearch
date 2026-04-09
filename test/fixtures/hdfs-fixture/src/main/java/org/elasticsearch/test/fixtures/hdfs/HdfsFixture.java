@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -52,11 +51,16 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class HdfsFixture extends ExternalResource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFixture.class);
+    private static final Object STATIC_CONFIG_LOCK = new Object();
+
+    private static final String ES_USER_PATH = "/user/elasticsearch";
+    private static final String EXISTING_READONLY_REPO = "readonly-repository";
 
     private TemporaryFolder temporaryFolder = new TemporaryFolder();
     private MiniDFSCluster dfs;
@@ -66,7 +70,6 @@ public class HdfsFixture extends ExternalResource {
     private Configuration cfg;
 
     private Configuration haConfiguration;
-    private int explicitPort = findAvailablePort();
 
     public HdfsFixture withHAService(String haNameService) {
         this.haNameService = haNameService;
@@ -81,12 +84,30 @@ public class HdfsFixture extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        temporaryFolder.create();
-        assumeHdfsAvailable();
-        startMinHdfs();
+        // Save current locale and set to English for consistent HDFS startup behavior
+        Locale originalLocale = Locale.getDefault();
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            try {
+                Locale.setDefault(Locale.ENGLISH);
+                temporaryFolder.create();
+                assumeHdfsAvailable();
+                startMinHdfs();
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
+            }
+        }
     }
 
     private void assumeHdfsAvailable() {
+        // Skip HDFS tests when running with IPv6 preferred.
+        // HDFS's BlockPoolId generation uses InetAddress.getLocalHost() which can return
+        // link-local IPv6 addresses with zone IDs (e.g., fe80::1%eth0). The zone ID contains
+        // '%' which gets URL-encoded to '%25' and breaks URI parsing in HDFS file paths.
+        boolean preferIPv6 = Boolean.getBoolean("java.net.preferIPv6Addresses");
+        Assume.assumeFalse("HDFS tests are not compatible with IPv6 due to link-local address zone ID issues in BlockPoolId", preferIPv6);
+
         boolean fixtureSupported = false;
         if (isWindows()) {
             // hdfs fixture will not start without hadoop native libraries on windows
@@ -129,20 +150,29 @@ public class HdfsFixture extends ExternalResource {
     public void failoverHDFS(String from, String to) throws IOException {
         assert isHA() && haConfiguration != null : "HA Configuration must be set up before performing failover";
         LOGGER.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                CloseableHAAdmin haAdmin = new CloseableHAAdmin();
-                haAdmin.setConf(haConfiguration);
-                try {
-                    haAdmin.transitionToStandby(from);
-                    haAdmin.transitionToActive(to);
-                } finally {
-                    haAdmin.close();
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException pae) {
-            throw new IOException("Unable to perform namenode failover", pae);
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            // Save current locale and set to English for consistent HDFS failover behavior
+            Locale originalLocale = Locale.getDefault();
+            try {
+                Locale.setDefault(Locale.ENGLISH);
+                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                    CloseableHAAdmin haAdmin = new CloseableHAAdmin();
+                    haAdmin.setConf(haConfiguration);
+                    try {
+                        haAdmin.transitionToStandby(from);
+                        haAdmin.transitionToActive(to);
+                    } finally {
+                        haAdmin.close();
+                    }
+                    return null;
+                });
+            } catch (PrivilegedActionException pae) {
+                throw new IOException("Unable to perform namenode failover", pae);
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
+            }
         }
     }
 
@@ -186,20 +216,35 @@ public class HdfsFixture extends ExternalResource {
     }
 
     private void startMinHdfs() throws Exception {
-        Path baseDir = temporaryFolder.newFolder("baseDir").toPath();
         int maxAttempts = 3;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Create a fresh baseDir for each attempt to avoid residual state
+            Path baseDir = temporaryFolder.newFolder("baseDir-" + attempt).toPath();
             try {
                 Path hdfsHome = createHdfsDataFolder(baseDir);
                 tryStartingHdfs(hdfsHome);
                 break;
             } catch (IOException e) {
                 // Log the exception
-                System.out.println("Attempt " + attempt + " failed with error: " + e.getMessage());
+                System.out.println("Attempt " + attempt + " to start HDFS failed: " + e.getMessage());
+                // Clean up the failed attempt
+                try {
+                    FileUtils.deleteDirectory(baseDir.toFile());
+                } catch (IOException cleanupException) {
+                    // Log but don't fail on cleanup errors
+                    cleanupException.printStackTrace();
+                    System.out.println("Failed to cleanup baseDir after attempt " + attempt + ": " + cleanupException.getMessage());
+                }
                 // If the maximum number of attempts is reached, rethrow the exception
-                FileUtils.deleteDirectory(baseDir.toFile());
                 if (attempt == maxAttempts) {
-                    Assume.assumeTrue("Unable to start HDFS cluster", false);
+                    throw e;
+                }
+                // Add a small delay before retrying to allow filesystem to stabilize
+                try {
+                    Thread.sleep(1000L * attempt * attempt); // Progressive backoff: 1s, 4s
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting to retry HDFS startup", ie);
                 }
             }
         }
@@ -224,6 +269,9 @@ public class HdfsFixture extends ExternalResource {
         cfg = new Configuration();
         cfg.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, hdfsHome.toAbsolutePath().toString());
         cfg.set("hadoop.security.group.mapping", "org.apache.hadoop.security.JniBasedUnixGroupsMappingWithFallback");
+        // Disable HTTP server to avoid webapp issues with Hadoop 2.x
+        cfg.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
+        cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
 
         // optionally configure security
         if (isSecure()) {
@@ -245,7 +293,10 @@ public class HdfsFixture extends ExternalResource {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        builder.nameNodePort(explicitPort);
+        builder.nameNodePort(0);
+        // Explicitly enable formatting and directory management for clean test environment
+        builder.format(true);
+        builder.manageNameDfsDirs(true);
         if (isHA()) {
             MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(0);
             MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(0);
@@ -254,8 +305,9 @@ public class HdfsFixture extends ExternalResource {
             builder.nnTopology(namenodeTopology);
         }
         dfs = builder.build();
+        // dfs.waitClusterUp();
         // Configure contents of the filesystem
-        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path(ES_USER_PATH);
         FileSystem fs;
         if (isHA()) {
             dfs.transitionToActive(0);
@@ -274,8 +326,7 @@ public class HdfsFixture extends ExternalResource {
             }
 
             // Install a pre-existing repository into HDFS
-            String directoryName = "readonly-repository";
-            String archiveName = directoryName + ".tar.gz";
+            final String archiveName = EXISTING_READONLY_REPO + ".tar.gz";
             URL readOnlyRepositoryArchiveURL = getClass().getClassLoader().getResource(archiveName);
             if (readOnlyRepositoryArchiveURL != null) {
                 Path tempDirectory = Files.createTempDirectory(getClass().getName());
@@ -286,8 +337,8 @@ public class HdfsFixture extends ExternalResource {
                 fs.copyFromLocalFile(
                     true,
                     true,
-                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
-                    esUserPath.suffix("/existing/" + directoryName)
+                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(EXISTING_READONLY_REPO).toAbsolutePath().toUri()),
+                    esUserPath.suffix("/existing/" + EXISTING_READONLY_REPO)
                 );
 
                 FileUtils.deleteDirectory(tempDirectory.toFile());
@@ -297,26 +348,41 @@ public class HdfsFixture extends ExternalResource {
         }
     }
 
+    public String getExistingReadonlyRepoPath() {
+        return ES_USER_PATH + "/existing/" + EXISTING_READONLY_REPO;
+    }
+
     private boolean isSecure() {
         return keytab != null && principalConfig != null;
     }
 
     @Override
     protected void after() {
-        if (dfs != null) {
+        // Synchronize to prevent race conditions in concurrent test execution
+        synchronized (STATIC_CONFIG_LOCK) {
+            // Save current locale and set to English for consistent HDFS shutdown behavior
+            Locale originalLocale = Locale.getDefault();
             try {
-                if (isHA()) {
-                    dfs.getFileSystem(0).close();
-                    dfs.getFileSystem(1).close();
-                } else {
-                    dfs.getFileSystem().close();
+                Locale.setDefault(Locale.ENGLISH);
+                if (dfs != null) {
+                    try {
+                        if (isHA()) {
+                            dfs.getFileSystem(0).close();
+                            dfs.getFileSystem(1).close();
+                        } else {
+                            dfs.getFileSystem().close();
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    dfs.close();
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                temporaryFolder.delete();
+            } finally {
+                // Restore original locale
+                Locale.setDefault(originalLocale);
             }
-            dfs.close();
         }
-        temporaryFolder.delete();
     }
 
     private boolean isHA() {
@@ -324,7 +390,7 @@ public class HdfsFixture extends ExternalResource {
     }
 
     public int getPort() {
-        return dfs == null ? explicitPort : dfs.getNameNodePort(0);
+        return dfs.getNameNodePort(0);
     }
 
     // fix port handling to allow parallel hdfs fixture runs
@@ -437,7 +503,7 @@ public class HdfsFixture extends ExternalResource {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static void refreshKrb5Config() throws ClassNotFoundException, NoSuchMethodException, IllegalArgumentException,
-        IllegalAccessException, InvocationTargetException, InvocationTargetException {
+        IllegalAccessException, InvocationTargetException {
         Class classRef;
         if (System.getProperty("java.vendor").contains("IBM")) {
             classRef = Class.forName("com.ibm.security.krb5.internal.Config");
@@ -447,15 +513,6 @@ public class HdfsFixture extends ExternalResource {
 
         Method refreshMethod = classRef.getMethod("refresh");
         refreshMethod.invoke(classRef);
-    }
-
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (Exception ex) {
-            LOGGER.error("Failed to find available port", ex);
-        }
-        return -1;
     }
 
 }

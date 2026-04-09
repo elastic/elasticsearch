@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -18,7 +17,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElasticsearchInternalServiceSettings> {
+public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<
+    ElasticsearchInternalServiceSettings> {
 
     public static ElasticsearchInternalServiceSettings validInstance(String modelId) {
         boolean useAdaptive = randomBoolean();
@@ -49,6 +49,10 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected ElasticsearchInternalServiceSettings mutateInstance(ElasticsearchInternalServiceSettings instance) throws IOException {
+        return doMutateInstance(instance);
+    }
+
+    public static ElasticsearchInternalServiceSettings doMutateInstance(ElasticsearchInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> new ElserInternalServiceSettings(
                 new ElasticsearchInternalServiceSettings(
@@ -137,5 +141,10 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
 
         assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
         assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
+    }
+
+    @Override
+    protected void assertUpdated(ElasticsearchInternalServiceSettings original, ElasticsearchInternalServiceSettings updated) {
+        // Nothing to do as there are no additional properties
     }
 }

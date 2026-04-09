@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -99,7 +100,8 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ServiceProviderDefaults samlDefaults = new ServiceProviderDefaults("elastic-cloud", NameID.TRANSIENT, Duration.ofMinutes(15));
         resolver = new WildcardServiceProviderResolver(settings, scriptService, new SamlServiceProviderFactory(samlDefaults));

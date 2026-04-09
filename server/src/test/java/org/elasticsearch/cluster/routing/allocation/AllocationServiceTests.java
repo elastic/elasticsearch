@@ -44,6 +44,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -148,13 +150,14 @@ public class AllocationServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                     return ShardAllocationDecision.NOT_TAKEN;
                 }
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -266,9 +269,10 @@ public class AllocationServiceTests extends ESTestCase {
         final AllocationService allocationService = new AllocationService(
             null,
             null,
-            null,
-            null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            () -> ClusterInfo.EMPTY,
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
@@ -298,18 +302,11 @@ public class AllocationServiceTests extends ESTestCase {
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Collections.emptyList()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            null,
-            0L
-        );
-        allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-
+        final var debugMode = randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
             clusterState.globalRoutingTable().routingTable(projectId).index("index").shard(0).primaryShard(),
-            allocation
+            clusterState,
+            debugMode
         );
 
         assertTrue(shardAllocationDecision.isDecisionTaken());
@@ -390,7 +387,8 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
 
         final ProjectId project1 = randomUniqueProjectId();

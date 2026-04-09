@@ -84,7 +84,7 @@ teardown:
 
   - do:
       ingest.get_ip_location_database: {}
-  - length: { databases: 7 }
+  - length: { databases: 8 }
 
   - do:
       ingest.get_ip_location_database:
@@ -110,7 +110,7 @@ teardown:
 
   - do:
       ingest.get_ip_location_database: {}
-  - length: { databases: 6 }
+  - length: { databases: 7 }
 
   - do:
       ingest.get_ip_location_database:

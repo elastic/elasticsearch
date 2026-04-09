@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class StdDev extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
 
     @FunctionInfo(
         returnType = "double",
@@ -50,11 +52,11 @@ public class StdDev extends AggregateFunction implements ToAggregator {
             ) }
     )
     public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public StdDev(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public StdDev(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private StdDev(StreamInput in) throws IOException {
@@ -84,29 +86,29 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<StdDev> info() {
-        return NodeInfo.create(this, StdDev::new, field(), filter());
+        return NodeInfo.create(this, StdDev::new, field(), filter(), window());
     }
 
     @Override
     public StdDev replaceChildren(List<Expression> newChildren) {
-        return new StdDev(source(), newChildren.get(0), newChildren.get(1));
+        return new StdDev(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter);
+        return new StdDev(source(), field(), filter, window());
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier();
+            return new StdDevLongAggregatorFunctionSupplier(true);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier();
+            return new StdDevIntAggregatorFunctionSupplier(true);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier();
+            return new StdDevDoubleAggregatorFunctionSupplier(true);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -56,6 +57,12 @@ public class MatchQueryTests extends ESTestCase {
         assertThat(qb.lenient(), equalTo(true));
         assertThat(qb.operator(), equalTo(Operator.AND));
 
+        MatchQueryBuilder qb2 = getBuilder(Map.of("zero_terms_query", "all"));
+        assertThat(qb2.zeroTermsQuery(), equalTo(ZeroTermsQueryOption.ALL));
+
+        MatchQueryBuilder qb3 = getBuilder(Map.of("zero_terms_query", "none"));
+        assertThat(qb3.zeroTermsQuery(), equalTo(ZeroTermsQueryOption.NONE));
+
         Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("pizza", "yummy")));
         assertThat(e.getMessage(), equalTo("illegal match option [pizza]"));
 
@@ -65,14 +72,14 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", options);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo");
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }

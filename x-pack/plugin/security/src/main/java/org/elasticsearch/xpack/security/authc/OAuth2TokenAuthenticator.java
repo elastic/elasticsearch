@@ -26,8 +26,6 @@ import java.util.function.LongSupplier;
 
 class OAuth2TokenAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es.security.token_authc_failure_reason";
-
     private static final Logger logger = LogManager.getLogger(OAuth2TokenAuthenticator.class);
 
     private final SecurityMetrics<BearerToken> authenticationMetrics;
@@ -41,7 +39,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
         this.authenticationMetrics = new SecurityMetrics<>(
             SecurityMetricType.AUTHC_OAUTH2_TOKEN,
             meterRegistry,
-            this::buildMetricAttributes,
+            token -> Map.of(),
             nanoTimeSupplier
         );
         this.tokenService = tokenService;
@@ -88,10 +86,4 @@ class OAuth2TokenAuthenticator implements Authenticator {
         }));
     }
 
-    private Map<String, Object> buildMetricAttributes(BearerToken token, String failureReason) {
-        if (failureReason != null) {
-            return Map.of(ATTRIBUTE_AUTHC_FAILURE_REASON, failureReason);
-        }
-        return Map.of();
-    }
 }

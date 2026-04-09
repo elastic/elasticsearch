@@ -22,7 +22,7 @@ import java.util.Arrays;
 public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
     private static MultiGeoPointValues wrap(GeoPoint[][] points) {
-        return new MultiGeoPointValues(new AbstractSortedNumericDocValues() {
+        return new MultiGeoPointValues(new SortedNumericLongValues() {
             GeoPoint[] current;
             int i;
 

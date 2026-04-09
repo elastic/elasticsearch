@@ -53,8 +53,10 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted')\n"
-        subProject(":distribution:archives:integ-test-zip") << "configurations.create('default')\n"
+        subProject(":distribution:archives:integ-test-zip") << """
+apply plugin: 'base'
+configurations.create('extracted')
+"""
     }
 
     void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {

@@ -47,7 +47,7 @@ public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> im
                 .ofLongs()
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longMeasurementCallback(observer));
+                .buildWithCallback(OtelHelper.longMeasurementCallback(name, observer));
         }
     }
 }

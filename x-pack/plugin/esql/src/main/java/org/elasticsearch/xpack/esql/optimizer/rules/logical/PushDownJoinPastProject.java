@@ -42,10 +42,10 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
     @Override
     protected LogicalPlan rule(Join join) {
         if (join instanceof InlineJoin) {
-            // Do not apply to INLINESTATS; this rule could be expanded to include INLINESTATS, but the StubRelation refers to the left
+            // Do not apply to INLINE STATS; this rule could be expanded to include INLINE STATS, but the StubRelation refers to the left
             // child - so pulling out a Project from the left child would require us to also update the StubRelation (and the Aggregate
             // on top of it)
-            // TODO: figure out how to push down in case of INLINESTATS
+            // TODO: figure out how to push down in case of INLINE STATS
             return join;
         }
 
@@ -86,7 +86,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
                 if (leftOutput.contains(coreAttr) && lookupFieldNames.contains(coreAttr.name())) {
                     // Conflict - the core attribute will be shadowed by the `LOOKUP JOIN` and we need to alias it in an upstream Eval.
                     Alias renaming = aliasesForReplacedAttributesBuilder.computeIfAbsent(coreAttr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                        String tempName = TemporaryNameGenerator.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
 

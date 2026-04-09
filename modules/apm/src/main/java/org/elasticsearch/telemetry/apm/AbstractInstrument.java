@@ -12,7 +12,7 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.apm.internal.MetricNameValidator;
+import org.elasticsearch.telemetry.apm.internal.MetricValidator;
 import org.elasticsearch.telemetry.metric.Instrument;
 
 import java.util.Objects;
@@ -57,7 +57,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
         protected final String unit;
 
         public Builder(String name, String description, String unit) {
-            this.name = MetricNameValidator.validate(name);
+            this.name = MetricValidator.validateMetricName(name);
             this.description = Objects.requireNonNull(description);
             this.unit = Objects.requireNonNull(unit);
         }

@@ -1,62 +1,84 @@
 {
-  "cat.tasks":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
-      "description":"Returns information about the tasks currently executing on one or more nodes in the cluster."
+  "cat.tasks": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-tasks",
+      "description": "Get task information"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "text/plain", "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cat/tasks",
-          "methods":[
+          "path": "/_cat/tasks",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
       },
-      "nodes":{
-        "type":"list",
-        "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+      "nodes": {
+        "type": "list",
+        "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
       },
-      "actions":{
-        "type":"list",
-        "description":"A comma-separated list of actions that should be returned. Leave empty to return all."
+      "actions": {
+        "type": "list",
+        "description": "A comma-separated list of actions that should be returned. Leave empty to return all."
       },
-      "detailed":{
-        "type":"boolean",
-        "description":"Return detailed task information (default: false)"
+      "detailed": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return detailed task information (default: false)"
       },
-      "parent_task_id":{
-        "type":"string",
-        "description":"Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
+      "parent_task_id": {
+        "type": "string",
+        "description": "Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
       },
-      "h":{
-        "type":"list",
-        "description":"Comma-separated list of column names to display"
+      "h": {
+        "type": "list",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "action",
+          "task_id",
+          "parent_task_id",
+          "type",
+          "start_time",
+          "timestamp",
+          "running_time_ns",
+          "running_time",
+          "node_id",
+          "ip",
+          "port",
+          "node",
+          "version",
+          "x_opaque_id"
+        ]
       },
-      "help":{
-        "type":"boolean",
-        "description":"Return help information",
-        "default":false
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
       },
-      "s":{
-        "type":"list",
-        "description":"Comma-separated list of column names or column aliases to sort by"
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
       },
-      "time":{
-        "type":"enum",
-        "description":"The unit in which to display time values",
-        "options":[
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
           "d",
           "h",
           "m",
@@ -66,20 +88,32 @@
           "nanos"
         ]
       },
-      "v":{
-        "type":"boolean",
-        "description":"Verbose mode. Display column headers",
-        "default":false
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
       },
-      "timeout":{
-        "type":"time",
-        "default":"30s",
-        "description":"Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error."
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error."
       },
-      "wait_for_completion":{
-        "type":"boolean",
-        "default":false,
-        "description":"If `true`, the request blocks until the task has completed."
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": false,
+        "description": "If `true`, the request blocks until the task has completed."
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

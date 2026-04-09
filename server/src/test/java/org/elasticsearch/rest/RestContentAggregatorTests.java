@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.rest.RestContentAggregator.aggregate;
 
 public class RestContentAggregatorTests extends ESTestCase {
@@ -78,7 +79,7 @@ public class RestContentAggregatorTests extends ESTestCase {
 
         var aggregated = aggregatedRef.get();
         var expectedBytes = CompositeBytesReference.of(streamChunks.toArray(new ReleasableBytesReference[0]));
-        assertEquals(expectedBytes, aggregated.content());
+        assertThat(aggregated.content(), equalBytes(expectedBytes));
         aggregated.content().close();
     }
 

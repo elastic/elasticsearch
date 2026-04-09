@@ -39,7 +39,9 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -83,11 +85,24 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
+        "internal:transport/proxy/indices:data/read/*",
         ResolveIndexAction.NAME,
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME,  // cross-cluster inference for semantic search
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name()
     );
-    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
-    private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns(
+        "indices:data/read/*",
+        ResolveIndexAction.NAME,
+        "internal:transport/proxy/indices:data/read/*",
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name(),
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME // cross-cluster inference for semantic search
+    );
+    // NOTE: do not add new privileges here; use read or view_index_metadata instead
+    private static final Automaton DEPRECATED_READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
@@ -98,20 +113,26 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/update*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());
@@ -181,11 +202,18 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
+    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME);
+    private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
+    private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
+    private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
-    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
+    public static final IndexPrivilege DEPRECATED_READ_CROSS_CLUSTER = new IndexPrivilege(
+        "read_cross_cluster",
+        DEPRECATED_READ_CROSS_CLUSTER_AUTOMATON
+    );
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON);
@@ -218,6 +246,10 @@ public final class IndexPrivilege extends Privilege {
         "cross_cluster_replication_internal",
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
+    public static final IndexPrivilege MANAGE_VIEW = new IndexPrivilege("manage_view", MANAGE_VIEW_AUTOMATON);
+    public static final IndexPrivilege CREATE_VIEW = new IndexPrivilege("create_view", CREATE_VIEW_AUTOMATON);
+    public static final IndexPrivilege DELETE_VIEW = new IndexPrivilege("delete_view", DELETE_VIEW_AUTOMATON);
+    public static final IndexPrivilege READ_VIEW_METADATA = new IndexPrivilege("read_view_metadata", READ_VIEW_METADATA_AUTOMATON);
 
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
@@ -254,7 +286,7 @@ public final class IndexPrivilege extends Privilege {
                 entry("create_doc", CREATE_DOC),
                 entry("delete_index", DELETE_INDEX),
                 entry("view_index_metadata", VIEW_METADATA),
-                entry("read_cross_cluster", READ_CROSS_CLUSTER),
+                entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
                 entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
                 entry("manage_leader_index", MANAGE_LEADER_INDEX),
                 entry("manage_ilm", MANAGE_ILM),
@@ -262,7 +294,11 @@ public final class IndexPrivilege extends Privilege {
                 entry("maintenance", MAINTENANCE),
                 entry("auto_configure", AUTO_CONFIGURE),
                 entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
+                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+                entry("manage_view", MANAGE_VIEW),
+                entry("create_view", CREATE_VIEW),
+                entry("delete_view", DELETE_VIEW),
+                entry("read_view_metadata", READ_VIEW_METADATA)
             ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         )
     );

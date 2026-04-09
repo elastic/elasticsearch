@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
@@ -22,7 +23,7 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = randomChild(depth);
         List<Order> order = randomOrders();
         Expression limit = AbstractExpressionSerializationTests.randomChild();
-        return new TopN(source, child, order, limit);
+        return new TopN(source, child, order, limit, randomBoolean());
     }
 
     private static List<Order> randomOrders() {
@@ -40,16 +41,26 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = instance.child();
         List<Order> order = instance.order();
         Expression limit = instance.limit();
-        switch (between(0, 2)) {
+        boolean local = instance.local();
+        switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> order = randomValueOtherThan(order, TopNSerializationTests::randomOrders);
             case 2 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
+            case 3 -> local = local == false;
         }
-        return new TopN(source, child, order, limit);
+        return new TopN(source, child, order, limit, local);
     }
 
     @Override
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    @Override
+    protected TopN copyInstance(TopN instance, TransportVersion version) throws IOException {
+        // TopN#local is ALWAYS false after serialization.
+        TopN deserializedCopy = super.copyInstance(instance, version);
+        return deserializedCopy.withLocal(instance.local());
+    }
+
 }

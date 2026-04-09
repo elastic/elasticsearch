@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "within_series",
+  "name" : "irate",
+  "description" : "Calculates the per-second instant rate of increase based on the last two data points.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "range_vector",
+          "optional" : false,
+          "description" : "Range vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "irate(http_requests_total[5m])"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

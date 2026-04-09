@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic Salesforce connector* is a [connector](/reference/search-connectors/index.md) for [Salesforce](https://www.salesforce.com/) data sources.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-salesforce-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-salesforce-client-availability-prerequisites]
@@ -35,7 +31,7 @@ This connector is compatible with the following:
 
 To create a new Salesforce connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Salesforce** self-managed connector.
 
 
@@ -53,6 +49,7 @@ PUT _connector/my-salesforce-connector
   "service_type": "salesforce"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -190,8 +187,9 @@ You can deploy the Salesforce connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -229,13 +227,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -363,6 +361,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents using SOSL query.
 
@@ -374,6 +373,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
 **Fetch standard and custom objects using SOQL and SOSL queries**
@@ -392,6 +392,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
@@ -407,6 +408,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields$$$
 **Fetch documents with standard and custom fields**
@@ -421,6 +423,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
@@ -432,6 +435,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents with all standard fields for Account object.
 
@@ -443,6 +447,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Documents and syncs [es-connectors-salesforce-client-documents-syncs]
@@ -495,7 +500,7 @@ See [content extraction](/reference/search-connectors/es-connectors-content-extr
     Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects. Instead, if a given user/group can have access to *any* Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for *all* of the Objects of that type. See [https://github.com/elastic/connectors/issues/3028](https://github.com/elastic/connectors/issues/3028) for more details.
 
 * **Only first 500 nested entities are ingested**
-    
+
     Some of the entities that Salesforce connector fetches are nested - they are ingested along the parent objects using a `JOIN` query. Examples of such entities are `EmailMessages`, `CaseComments` and `FeedComments`. When Salesforce connector fetches these entities it sets a limit to fetch only first 500 entities per parent object. The only possible workaround for it now is to fork the Connectors repository and modify the code in Salesforce connector to increase these limits.
 
 Refer to [connector known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.
@@ -509,4 +514,4 @@ See [connectors security](/reference/search-connectors/es-connectors-security.md
 
 This connector is built with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/salesforce.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/salesforce) (branch *main*, compatible with Elastic *9.0*).

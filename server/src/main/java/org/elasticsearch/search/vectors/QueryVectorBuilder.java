@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 public interface QueryVectorBuilder extends VersionedNamedWriteable, ToXContentObject {
 
     /**
-     * Method for building a vector via the client. This method is called during RerwiteAndFetch.
+     * Method for building a vector via the client. This method is called during RewriteAndFetch.
      * Typical implementation for this method will:
      *  1. call some asynchronous client action
      *  2. Handle failure/success for that action (usually passing failure to the provided listener)
@@ -31,5 +31,4 @@ public interface QueryVectorBuilder extends VersionedNamedWriteable, ToXContentO
      * @param listener listener to accept the created vector
      */
     void buildVector(Client client, ActionListener<float[]> listener);
-
 }

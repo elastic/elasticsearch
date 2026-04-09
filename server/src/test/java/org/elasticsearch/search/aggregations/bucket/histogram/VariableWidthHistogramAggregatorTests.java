@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -22,6 +21,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -56,7 +56,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMERIC_FIELD = "numeric";
 
-    private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
+    private static final Query DEFAULT_QUERY = Queries.ALL_DOCS_INSTANCE;
 
     public void testNoDocs() throws Exception {
         final List<Number> dataset = Arrays.asList();

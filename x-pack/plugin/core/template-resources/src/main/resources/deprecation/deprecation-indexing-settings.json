@@ -1,5 +1,8 @@
 {
   "template": {
+    "lifecycle": {
+      "data_retention": "30d"
+    },
     "settings": {
       "index": {
         "auto_expand_replicas" : "0-1",

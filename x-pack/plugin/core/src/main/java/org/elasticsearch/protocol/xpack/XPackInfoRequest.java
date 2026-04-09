@@ -6,13 +6,10 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -58,9 +55,6 @@ public class XPackInfoRequest extends LegacyActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
-        if (hasLicenseVersionField(in.getTransportVersion())) {
-            int ignoredLicenseVersion = in.readVInt();
-        }
     }
 
     public void setVerbose(boolean verbose) {
@@ -92,12 +86,5 @@ public class XPackInfoRequest extends LegacyActionRequest {
         for (Category category : categories) {
             out.writeString(category.name());
         }
-        if (hasLicenseVersionField(out.getTransportVersion())) {
-            out.writeVInt(License.VERSION_CURRENT);
-        }
-    }
-
-    private static boolean hasLicenseVersionField(TransportVersion streamVersion) {
-        return streamVersion.between(TransportVersions.V_7_8_1, TransportVersions.V_8_0_0);
     }
 }

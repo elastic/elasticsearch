@@ -3,8 +3,25 @@ import { readFileSync, readdirSync } from "fs";
 import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
-import { BuildkitePipeline, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
+import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
+
+// Auto-retry configuration for PR pipelines.
+// - exit_status "-1": Agent/infrastructure failures (2 retries)
+// - signal_reason agent_stop: Agent stops (2 retries)
+// - exit_status "1": Test/build failures (1 retry with smart filtering)
+const AUTO_RETRY_CONFIG: BuildkiteRetry = {
+  automatic: [
+    { exit_status: "-1", limit: 2, signal_reason: "none" },
+    { signal_reason: "agent_stop", limit: 2 },
+    { exit_status: "1", limit: 1 },
+  ],
+  manual: {
+    allowed: true,
+    permit_on_passed: false,
+    reason: "Retry with smart test selection if desired",
+  },
+};
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
 
@@ -50,6 +67,14 @@ const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[])
   return true;
 };
 
+const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
+  if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
+    return true;
+  }
+
+  return !getArray(pipeline.config["skip-target-branches"]).some((branch) => branch === targetBranch);
+};
+
 const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
   if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config?.["trigger-phrase"]) {
     return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
@@ -78,6 +103,28 @@ const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
       delete newStep.bwc_template;
       step.steps.push(newStep);
     }
+  }
+};
+
+// Recursively inject retry configuration into all leaf steps (steps with a command, not group containers)
+const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
+  for (const step of steps) {
+    if (step.steps?.length) {
+      injectRetryIntoSteps(step.steps);
+    } else if (step.command && !step.retry) {
+      step.retry = AUTO_RETRY_CONFIG;
+    }
+  }
+};
+
+// Inject retry blocks into a pipeline when auto-retry config is explicitly enabled
+const injectAutoRetry = (pipeline: EsPipeline) => {
+  if (pipeline.config?.["auto-retry"] === false) {
+    return;
+  }
+
+  if (pipeline.steps) {
+    injectRetryIntoSteps(pipeline.steps);
   }
 };
 
@@ -138,6 +185,7 @@ export const generatePipelines = (
   }
 
   let filters: ((pipeline: EsPipeline) => boolean)[] = [
+    (pipeline) => checkTargetBranch(pipeline, process.env["GITHUB_PR_TARGET_BRANCH"]),
     (pipeline) => labelCheckAllow(pipeline, labels),
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
@@ -161,6 +209,7 @@ export const generatePipelines = (
 
   for (const pipeline of pipelines) {
     doBwcTransforms(pipeline);
+    injectAutoRetry(pipeline);
   }
 
   pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));

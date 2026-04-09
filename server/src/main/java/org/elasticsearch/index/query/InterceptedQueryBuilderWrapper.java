@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,13 +23,17 @@ import java.util.Objects;
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
-class InterceptedQueryBuilderWrapper implements QueryBuilder {
+public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     protected final QueryBuilder queryBuilder;
 
-    InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
+    public InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
         this.queryBuilder = queryBuilder;
+    }
+
+    public QueryBuilder query() {
+        return queryBuilder;
     }
 
     @Override
@@ -56,6 +61,11 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return queryBuilder.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        return queryBuilder.toQuery(context, visitor);
     }
 
     @Override

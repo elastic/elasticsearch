@@ -482,7 +482,7 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final var node0 = nodeVersionFactory.apply(
             0,
-            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            new VersionInformation(VersionUtils.randomVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
         );
         testHarness.accept(builder -> builder.add(node0), 0L);
 

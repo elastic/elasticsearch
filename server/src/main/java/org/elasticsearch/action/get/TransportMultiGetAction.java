@@ -18,10 +18,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -99,7 +101,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId());
+                IndexMetadata indexMetadata = project.index(shardId.getIndex());
+                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.getId());
+                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId(), splitShardCountSummary);
                 shardRequests.put(shardId, shardRequest);
             }
             shardRequest.add(i, item);

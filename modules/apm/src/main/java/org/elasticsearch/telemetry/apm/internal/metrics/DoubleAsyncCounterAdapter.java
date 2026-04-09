@@ -52,7 +52,7 @@ public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoub
                 .setDescription(description)
                 .setUnit(unit)
                 .ofDoubles()
-                .buildWithCallback(OtelHelper.doubleMeasurementCallback(observer));
+                .buildWithCallback(OtelHelper.doubleMeasurementCallback(name, observer));
         }
     }
 }

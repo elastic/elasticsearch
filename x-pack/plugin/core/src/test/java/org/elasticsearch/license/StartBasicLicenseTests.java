@@ -85,12 +85,12 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     }
 
     private static GetBasicStatusResponse getBasicStatus() {
-        return safeGet(clusterAdmin().execute(GetBasicStatusAction.INSTANCE, new GetBasicStatusRequest(TEST_REQUEST_TIMEOUT)));
+        return safeGet(client().execute(TransportGetBasicStatusAction.TYPE, new GetBasicStatusRequest(TEST_REQUEST_TIMEOUT)));
     }
 
     private static PostStartBasicResponse startBasic(boolean acknowledged) {
         return safeGet(
-            clusterAdmin().execute(
+            client().execute(
                 PostStartBasicAction.INSTANCE,
                 new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).acknowledge(acknowledged)
             )

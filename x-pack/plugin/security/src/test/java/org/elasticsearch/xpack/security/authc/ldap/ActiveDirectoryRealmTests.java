@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -33,6 +34,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.EntitledTestPackages;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -65,9 +67,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -106,6 +105,7 @@ import static org.mockito.Mockito.when;
  * The username used to authenticate then has to be in the form of CN=user. Finally the username needs to be added as an
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
+@EntitledTestPackages(value = { "com.unboundid.ldap.listener" }) // tests start LDAP server that listens for incoming connections
 public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private static final String PASSWORD = "password";
@@ -151,11 +151,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 new Attribute("objectClass", "top", "domain", "extensibleObject")
             );
             directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
-            // Must have privileged access because underlying server will accept socket connections
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                directoryServer.startListening();
-                return null;
-            });
+            directoryServer.startListening();
             directoryServers[i] = directoryServer;
         }
         threadPool = new TestThreadPool("active directory realm tests");
@@ -169,16 +165,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     private void tryConnect(InMemoryDirectoryServer ds) {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
-                } catch (LDAPException e) {
-                    throw new AssertionError("Failed to connect to " + ds, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        try (var c = ds.getConnection()) {
+            assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
+        } catch (LDAPException e) {
             throw new AssertionError("Failed to connect to " + ds, e);
         }
     }
@@ -437,7 +426,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
             @Override

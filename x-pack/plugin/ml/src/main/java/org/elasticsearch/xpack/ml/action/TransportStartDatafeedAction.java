@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -314,7 +315,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -494,10 +495,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             StartDatafeedAction.DatafeedParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             return new DatafeedNodeSelector(
                 clusterState,
@@ -510,7 +512,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
+        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
             new DatafeedNodeSelector(
                 clusterState,
                 resolver,
@@ -519,6 +521,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 params.getDatafeedIndices(),
                 params.getIndicesOptions()
             ).checkDatafeedTaskCanBeCreated();
+        }
+
+        @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
         }
 
         @Override
@@ -652,14 +659,37 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return false;
         }
 
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * using default rules for whether the job is auto-closed when the datafeed has an {@code end_time} (lookback-only).
+         *
+         * @param reason  short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+         */
         public void stop(String reason, TimeValue timeout) {
+            stop(reason, timeout, null);
+        }
+
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * optionally overriding whether the anomaly detection job is auto-closed after the stop.
+         *
+         * @param reason               short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+         *                             shutdown
+         * @param autoCloseJobOverride when non-null, whether to auto-close the job after the datafeed stops; when
+         *                             {@code null}, default lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         *                             Non-null values are forwarded to {@link DatafeedRunner}{@code .stopDatafeed(DatafeedTask,
+         *                             String, TimeValue, Boolean)}.
+         */
+        public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {
                 stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
                     return;
                 }
             }
-            datafeedRunner.stopDatafeed(this, reason, timeout);
+            datafeedRunner.stopDatafeed(this, reason, timeout, autoCloseJobOverride);
         }
 
         public synchronized StoppedOrIsolated getStoppedOrIsolated() {

@@ -82,9 +82,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper.routingTable;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.FILE_SETTINGS_METADATA_NAMESPACE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -307,6 +308,60 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private ClusterChangedEvent event(ClusterState clusterState) {
         return new ClusterChangedEvent("test-event", clusterState, EMPTY_CLUSTER_STATE);
+    }
+
+    public void testStateChangeListenerIsCalledIfMigrationIsRequired() {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final AtomicReference<ProjectId> projectIdRef = new AtomicReference<>();
+        final AtomicReference<IndexState> previousState = new AtomicReference<>();
+        final AtomicReference<IndexState> currentState = new AtomicReference<>();
+        final TriConsumer<ProjectId, IndexState, IndexState> listener = (projId, prevState, state) -> {
+            projectIdRef.set(projId);
+            previousState.set(prevState);
+            currentState.set(state);
+            listenerCalled.set(true);
+        };
+        manager.addStateListener(listener);
+
+        // index doesn't exist and now exists
+        ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        );
+        clusterStateBuilder = setMigrationVersion(
+            clusterStateBuilder.build(),
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            randomIntBetween(1, SecurityMigrations.highestMigrationVersion() - 1)
+        );
+
+        final ClusterState clusterState = markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterState));
+
+        assertThat(listenerCalled.get(), is(true));
+
+        for (int i = 0; i < 3; i++) {
+            listenerCalled.set(false);
+            ClusterChangedEvent event = new ClusterChangedEvent("same index state", clusterState, clusterState);
+            manager.clusterChanged(event);
+
+            assertThat(listenerCalled.get(), is(true));
+            assertThat(previousState.get(), equalTo(currentState.get()));
+        }
+
+        final var newClusterState = setMigrationVersion(
+            clusterState,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecurityMigrations.highestMigrationVersion()
+        ).build();
+
+        listenerCalled.set(false);
+        manager.clusterChanged(new ClusterChangedEvent("modified index state", newClusterState, clusterState));
+        assertThat(listenerCalled.get(), is(true));
+        assertThat(previousState.get(), not(equalTo(currentState.get())));
+
+        listenerCalled.set(false);
+        manager.clusterChanged(new ClusterChangedEvent("same index state", newClusterState, newClusterState));
+        assertThat(listenerCalled.get(), is(false));
     }
 
     public void testIndexHealthChangeListeners() {
@@ -643,7 +698,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfFeature() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -672,7 +727,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfMappingVersion() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -701,7 +756,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfPrecondition() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -779,7 +834,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // No role mappings in cluster state yet
-            metadataBuilder.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
+            metadataBuilder.getProject(projectId).putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -803,10 +858,13 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state with fallback name
-            metadataBuilder.putCustom(
-                RoleMappingMetadata.TYPE,
-                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true)))
-            );
+            metadataBuilder.getProject(projectId)
+                .putCustom(
+                    RoleMappingMetadata.TYPE,
+                    new RoleMappingMetadata(
+                        Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true))
+                    )
+                );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -830,10 +888,11 @@ public class SecurityIndexManagerTests extends ESTestCase {
             metadataBuilder.put(builder.build());
 
             // Role mappings in cluster state
-            metadataBuilder.putCustom(
-                RoleMappingMetadata.TYPE,
-                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
-            );
+            metadataBuilder.getProject(projectId)
+                .putCustom(
+                    RoleMappingMetadata.TYPE,
+                    new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
+                );
 
             assertThat(
                 SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
@@ -886,18 +945,18 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Map<ProjectId, Tuple<IndexState, IndexState>> listeners = new HashMap<>();
         manager.addStateListener((projId, oldState, newState) -> listeners.put(projId, Tuple.tuple(oldState, newState)));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(false));
         manager.clusterChanged(new ClusterChangedEvent("initial", ClusterState.EMPTY_STATE, ClusterState.EMPTY_STATE));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(1));
-        assertThat(listeners.keySet(), contains(DEFAULT_PROJECT_ID));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(false));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.keySet(), contains(ProjectId.DEFAULT));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
         listeners.clear();
 
         ClusterState oldState = ClusterState.EMPTY_STATE;
@@ -907,8 +966,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-project-1", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
@@ -927,8 +986,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-project-2", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
@@ -943,7 +1002,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         oldState = newState;
         metadata = Metadata.builder(oldState.metadata())
-            .put(createProjectMetadata(DEFAULT_PROJECT_ID)) // <- adds security index to project
+            .put(createProjectMetadata(ProjectId.DEFAULT)) // <- adds security index to project
             .put(createProjectMetadata(projectId1)) // <- adds security index to project
             .build();
         newState = ClusterState.builder(oldState)
@@ -951,8 +1010,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
         manager.clusterChanged(new ClusterChangedEvent("add-indices", newState, oldState));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(true));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId1).indexExists(), is(true));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
@@ -960,12 +1019,12 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(2));
-        assertThat(listeners.keySet(), containsInAnyOrder(DEFAULT_PROJECT_ID, projectId1));
+        assertThat(listeners.keySet(), containsInAnyOrder(ProjectId.DEFAULT, projectId1));
 
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().indexExists(), is(false));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().indexExists(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().indexExists(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().indexExists(), is(true));
 
         assertThat(listeners.get(projectId1).v1().isProjectAvailable(), is(true));
         assertThat(listeners.get(projectId1).v1().indexExists(), is(false));
@@ -982,8 +1041,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .build();
         manager.clusterChanged(new ClusterChangedEvent("remove-project1 + add-project-3", newState, oldState));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(true));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(true));
         assertThat(manager.getProject(projectId2).indexExists(), is(true));
@@ -1008,19 +1067,19 @@ public class SecurityIndexManagerTests extends ESTestCase {
         newState = ClusterState.EMPTY_STATE;
         manager.clusterChanged(new ClusterChangedEvent("reset-to-empty", newState, oldState));
 
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).isProjectAvailable(), is(true));
-        assertThat(manager.getProject(DEFAULT_PROJECT_ID).indexExists(), is(false));
+        assertThat(manager.getProject(ProjectId.DEFAULT).isProjectAvailable(), is(true));
+        assertThat(manager.getProject(ProjectId.DEFAULT).indexExists(), is(false));
         assertThat(manager.getProject(projectId1).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId2).isProjectAvailable(), is(false));
         assertThat(manager.getProject(projectId3).isProjectAvailable(), is(false));
 
         assertThat(listeners, aMapWithSize(3));
-        assertThat(listeners.keySet(), containsInAnyOrder(DEFAULT_PROJECT_ID, projectId2, projectId3));
+        assertThat(listeners.keySet(), containsInAnyOrder(ProjectId.DEFAULT, projectId2, projectId3));
 
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v1().indexExists(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().isProjectAvailable(), is(true));
-        assertThat(listeners.get(DEFAULT_PROJECT_ID).v2().indexExists(), is(false));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v1().indexExists(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().isProjectAvailable(), is(true));
+        assertThat(listeners.get(ProjectId.DEFAULT).v2().indexExists(), is(false));
 
         assertThat(listeners.get(projectId2).v1().isProjectAvailable(), is(true));
         assertThat(listeners.get(projectId2).v1().indexExists(), is(true));
@@ -1035,7 +1094,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private void assertInitialState() {
-        final ProjectId projectId = DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final var projectIndex = manager.getProject(projectId);
         assertThat(projectIndex.indexExists(), Matchers.equalTo(false));
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
@@ -1123,6 +1182,22 @@ public class SecurityIndexManagerTests extends ESTestCase {
         );
     }
 
+    private ClusterState.Builder setMigrationVersion(ClusterState clusterState, String indexName, Integer version) {
+        final ClusterState.Builder csBuilder = ClusterState.builder(clusterState);
+        clusterState.forEachProject(project -> {
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project.metadata());
+            final IndexMetadata.Builder indexBuilder = IndexMetadata.builder(project.metadata().index(indexName));
+            if (version == null) {
+                indexBuilder.removeCustom(MIGRATION_VERSION_CUSTOM_KEY);
+            } else {
+                indexBuilder.putCustom(MIGRATION_VERSION_CUSTOM_KEY, Map.of(MIGRATION_VERSION_CUSTOM_DATA_KEY, Integer.toString(version)));
+            }
+            projectBuilder.put(indexBuilder);
+            csBuilder.putProjectMetadata(projectBuilder);
+        });
+        return csBuilder;
+    }
+
     private ClusterState markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
         final ClusterState cs = clusterStateBuilder.build();
         final RoutingTable projectRouting = SecurityTestUtils.buildIndexRoutingTable(
@@ -1159,7 +1234,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         if (mappings != null) {
             indexMetadata.putMapping(mappings);
         }
-
         return indexMetadata;
     }
 

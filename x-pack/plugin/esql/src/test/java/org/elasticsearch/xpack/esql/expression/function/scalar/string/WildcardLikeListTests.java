@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -104,7 +105,8 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
     public void testNotPushableOverCanMatch() {
         TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
         assertThat(
-            translatable.translatable(LucenePushdownPredicates.forCanMatch(TransportVersion.current())).finish(),
+            translatable.translatable(LucenePushdownPredicates.forCanMatch(TransportVersion.minimumCompatible(), new EsqlFlags(true)))
+                .finish(),
             equalTo(TranslationAware.FinishedTranslatable.NO)
         );
     }
@@ -112,7 +114,7 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
     public void testPushable() {
         TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
         assertThat(
-            translatable.translatable(LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats())).finish(),
+            translatable.translatable(LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(), new EsqlFlags(true))).finish(),
             equalTo(TranslationAware.FinishedTranslatable.YES)
         );
     }

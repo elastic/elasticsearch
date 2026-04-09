@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -111,7 +111,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
         double x = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(179.9));
         LatLonDocValuesField field = new LatLonDocValuesField("bar", y, x);
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             "bar",
             0,
             bbox,
@@ -124,7 +124,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
         GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(90, 0), new GeoPoint(89, 10));
         LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
         LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
-        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "bar", 0, bbox, geoGrid -> {
             assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
             assertEquals(1, geoGrid.getBuckets().size());
             assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());
@@ -135,7 +135,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
         GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(-89, 0), new GeoPoint(-90, 10));
         LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
         LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
-        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "bar", 0, bbox, geoGrid -> {
             assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
             assertEquals(1, geoGrid.getBuckets().size());
             assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());

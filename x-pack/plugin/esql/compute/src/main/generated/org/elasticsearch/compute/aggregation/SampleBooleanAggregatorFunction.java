@@ -34,17 +34,11 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
 
   private final int limit;
 
-  public SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleBooleanAggregator.SingleState state, int limit) {
+  SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleBooleanAggregatorFunction(driverContext, channels, SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,69 +54,103 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      BooleanBlock block = page.getBlock(channels.get(0));
-      BooleanVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    BooleanBlock block = page.getBlock(channels.get(0));
-    BooleanVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BooleanVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SampleBooleanAggregator.combine(state, vector.getBoolean(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BooleanBlock valueBlock = page.getBlock(channels.get(0));
+    BooleanVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valueBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BooleanBlock valueBlock = page.getBlock(channels.get(0));
+    BooleanVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      if (valueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(valueBlock);
+      return;
+    }
+    addRawVector(valueVector);
+  }
+
+  private void addRawVector(BooleanVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawVector(BooleanVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(BooleanVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SampleBooleanAggregator.combine(state, vector.getBoolean(i));
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawBlock(BooleanBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(BooleanBlock valueBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SampleBooleanAggregator.combine(state, block.getBoolean(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        boolean valueValue = valueBlock.getBoolean(valueOffset);
+        SampleBooleanAggregator.combine(state, valueValue);
       }
     }
   }
 
-  private void addRawBlock(BooleanBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(BooleanBlock valueBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SampleBooleanAggregator.combine(state, block.getBoolean(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueValueCount;
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        boolean valueValue = valueBlock.getBoolean(valueOffset);
+        SampleBooleanAggregator.combine(state, valueValue);
       }
     }
   }
@@ -133,11 +161,20 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block sampleUncast = page.getBlock(channels.get(0));
     if (sampleUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleBooleanAggregator.combineIntermediate(state, sample);
   }
 

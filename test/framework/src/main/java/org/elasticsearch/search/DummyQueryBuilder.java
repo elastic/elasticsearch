@@ -11,10 +11,9 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DummyQueryParserPlugin.DummyQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
+public class DummyQueryBuilder extends LeafQueryBuilder<DummyQueryBuilder> {
     public static final String NAME = "dummy";
 
     public DummyQueryBuilder() {}
@@ -69,6 +68,6 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,6 +41,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -327,8 +329,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readString(), equalTo("goodbye"));
         assertThat(in.readGenericValue(), equalTo((Object) BytesRefs.toBytesRef("bytesref")));
         assertThat(in.readStringArray(), equalTo(new String[] { "a", "b", "cat" }));
-        assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
-        assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
+        assertThat(in.readBytesReference(), equalBytes(new BytesArray("test")));
+        assertThat(in.readOptionalBytesReference(), equalBytes(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
         assertEquals(ZoneId.of("CET"), in.readZoneId());
@@ -679,7 +681,7 @@ public class BytesStreamsTests extends ESTestCase {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 
-            assertEquals(output.bytes(), reverseMapOutput.bytes());
+            assertThat(reverseMapOutput.bytes(), equalBytes(output.bytes()));
         }
     }
 
@@ -928,76 +930,104 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeByte(byte b) {
             output.writeByte(b);
             counting.writeByte(b);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) {
             output.writeBytes(b, offset, length);
             counting.writeBytes(b, offset, length);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
+        }
+
+        @Override
+        public long position() {
+            final var result = output.position();
+            assertEquals(result, counting.position());
+            return result;
         }
 
         @Override
         public void writeInt(int i) throws IOException {
             output.writeInt(i);
             counting.writeInt(i);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeIntArray(int[] values) throws IOException {
             output.writeIntArray(values);
             counting.writeIntArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeLong(long i) throws IOException {
             output.writeLong(i);
             counting.writeLong(i);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeLongArray(long[] values) throws IOException {
             output.writeLongArray(values);
             counting.writeLongArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeFloat(float v) throws IOException {
             output.writeFloat(v);
             counting.writeFloat(v);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeFloatArray(float[] values) throws IOException {
             output.writeFloatArray(values);
             counting.writeFloatArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeDouble(double v) throws IOException {
             output.writeDouble(v);
             counting.writeDouble(v);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeDoubleArray(double[] values) throws IOException {
             output.writeDoubleArray(values);
             counting.writeDoubleArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            output.writeString(str);
+            counting.writeString(str);
+            assertThat((long) output.size(), equalTo(counting.position()));
+        }
+
+        @Override
+        public void writeOptionalString(@Nullable String str) throws IOException {
+            output.writeOptionalString(str);
+            counting.writeOptionalString(str);
+            assertThat((long) output.size(), equalTo(counting.position()));
+        }
+
+        @Override
+        public void writeGenericString(String value) throws IOException {
+            output.writeGenericString(value);
+            counting.writeGenericString(value);
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public BytesReference bytes() {
             BytesReference bytesReference = output.bytes();
-            assertThat((long) bytesReference.length(), equalTo(counting.size()));
+            assertThat((long) bytesReference.length(), equalTo(counting.position()));
             return bytesReference;
         }
 
@@ -1008,7 +1038,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         public int size() {
             int size = output.size();
-            assertThat((long) size, equalTo(counting.size()));
+            assertThat((long) size, equalTo(counting.position()));
             return size;
         }
 
@@ -1016,12 +1046,12 @@ public class BytesStreamsTests extends ESTestCase {
         public void flush() {
             output.flush();
             counting.flush();
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void close() {
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
             output.close();
             counting.close();
         }

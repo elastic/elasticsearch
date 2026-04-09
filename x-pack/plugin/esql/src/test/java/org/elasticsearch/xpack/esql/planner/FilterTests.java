@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AutomatonQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -27,20 +26,22 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -52,16 +53,20 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -71,7 +76,6 @@ public class FilterTests extends ESTestCase {
     private static final String LAST_NAME = "last_name";
     private static final String OTHER_FIELD = "salary";
 
-    private static EsqlParser parser;
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -79,22 +83,23 @@ public class FilterTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
-
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        TransportVersion minimumVersion = logicalOptimizer.context().minimumVersion();
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, minimumVersion));
         mapper = new Mapper();
 
         analyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
+                TEST_FUNCTION_REGISTRY,
+                indexResolutions(test),
+                Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                minimumVersion,
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -318,17 +323,6 @@ public class FilterTests extends ESTestCase {
         assertThat(filter, nullValue());
     }
 
-    public void testLikeList() {
-        String query = LoggerMessageFormat.format(null, """
-             FROM test
-            |WHERE {} LIKE ("a+", "b+")
-            """, LAST_NAME);
-        var plan = plan(query, null);
-
-        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
-        assertNull(filter);
-    }
-
     /**
      * Tests that we <strong>can</strong> extract a filter if the transport
      * version is {@code null}. This isn't run in the "filter for transport nodes"
@@ -342,12 +336,13 @@ public class FilterTests extends ESTestCase {
             """, LAST_NAME);
         var plan = plan(query, null);
 
-        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
+        PlanStreamWrapperQueryBuilder filterWrapper = (PlanStreamWrapperQueryBuilder) filterQueryForTransportNodes(null, plan);
+        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterWrapper.next();
         assertEquals(LAST_NAME, filter.fieldName());
-        AutomatonQueryBuilder innerFilter = (AutomatonQueryBuilder) filter.next();
+        ExpressionQueryBuilder innerFilter = (ExpressionQueryBuilder) filter.next();
         assertEquals(LAST_NAME, innerFilter.fieldName());
         assertEquals("""
-            LIKE("a+", "b+"), caseInsensitive=false""", innerFilter.description());
+            last_name LIKE ("a+", "b+")""", innerFilter.getExpression().toString());
     }
 
     /**
@@ -378,9 +373,9 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(logical);
+        var physical = mapper.map(new Versioned<>(logical, logicalOptimizer.context().minimumVersion()));
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,
@@ -397,7 +392,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
+        return PlannerUtils.detectFilter(new EsqlFlags(true), null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
     }
 
     @Override

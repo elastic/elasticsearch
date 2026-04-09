@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -82,32 +80,37 @@ public abstract class AbstractCompositeAggFunction implements Function {
             client,
             TransportSearchAction.TYPE,
             buildSearchRequestForValidation("preview", sourceConfig, timeout, numberOfBuckets),
-            ActionListener.wrap(r -> {
+            listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                        l.onFailure(
+                            new ElasticsearchStatusException(SourceAccessDiagnostics.diagnoseSourceAccessFailure(r), RestStatus.BAD_REQUEST)
                         );
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     if (agg == null || agg.getBuckets().isEmpty()) {
-                        listener.onResponse(Collections.emptyList());
+                        l.onResponse(Collections.emptyList());
                         return;
                     }
 
-                    TransformIndexerStats stats = new TransformIndexerStats();
-                    TransformProgress progress = new TransformProgress();
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
-                        this::documentTransformationFunction
-                    ).collect(Collectors.toList());
+                    var stats = new TransformIndexerStats();
+                    var progress = new TransformProgress();
+                    var docs = extractResults(agg, fieldTypeMap, stats, progress).map(doc -> {
+                        var docId = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
+                        doc = documentTransformationFunction(doc);
+                        return Map.ofEntries(
+                            Map.entry(TransformField.DOCUMENT_ID_FIELD, docId),
+                            Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, doc)
+                        );
+                    }).toList();
 
-                    listener.onResponse(docs);
+                    l.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
-                    listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
+                    l.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
                 }
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -138,6 +141,19 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         )
                     );
                     return;
+                }
+                // Null aggregations may indicate permission issues when accessing remote indices.
+                // We only fail validation when a security failure is positively identified (e.g.,
+                // ElasticsearchSecurityException in cluster or shard failures). We deliberately do NOT
+                // fail when no security failure is found, because null aggregations can also occur when
+                // a local wildcard index pattern resolves to zero indices -- a legitimate scenario for
+                // integrations that start transforms before source data exists (see #95562).
+                if (response.getAggregations() == null) {
+                    String diagnosis = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
+                    if (diagnosis.equals(SourceAccessDiagnostics.SOURCE_INDICES_MISSING) == false) {
+                        listener.onFailure(new ValidationException().addValidationError(diagnosis));
+                        return;
+                    }
                 }
                 listener.onResponse(true);
             }, e -> {
@@ -202,7 +218,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
         logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
-        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(sourceConfig.indicesOptions());
     }
 
     @Override

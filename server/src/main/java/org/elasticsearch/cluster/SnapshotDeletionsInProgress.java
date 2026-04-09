@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.UUIDs;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -33,8 +33,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP;
-
 /**
  * Represents the in-progress snapshot deletions in the cluster state.
  */
@@ -43,6 +41,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public static final SnapshotDeletionsInProgress EMPTY = new SnapshotDeletionsInProgress(List.of());
 
     public static final String TYPE = "snapshot_deletions";
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
@@ -65,10 +67,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
-        final Set<String> activeRepositories = new HashSet<>();
+        final Set<ProjectRepo> activeRepositories = new HashSet<>();
         for (Entry entry : entries) {
             if (entry.state() == State.STARTED) {
-                final boolean added = activeRepositories.add(entry.repository());
+                final boolean added = activeRepositories.add(new ProjectRepo(entry.projectId(), entry.repository()));
                 assert added : "Found multiple running deletes for a single repository in " + entries;
             }
         }
@@ -105,6 +107,35 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
+     * Returns a {@link SnapshotDeletionsInProgress} that has the entry with a UUID that matches that of {@code newEntry} replaced with
+     * {@code newEntry}. Returns {@code this} if the new entry is already present. It is invalid to call this if no entry with the given
+     * UUID exists.
+     */
+    public SnapshotDeletionsInProgress withReplacedEntry(Entry newEntry) {
+        List<Entry> updatedEntries = new ArrayList<>(entries.size());
+        boolean replaced = false;
+        for (Entry entry : entries) {
+            if (entry.uuid().equals(newEntry.uuid())) {
+                if (newEntry == entry) {
+                    return this;
+                }
+                assert Set.copyOf(newEntry.snapshots()).containsAll(entry.snapshots()) : "unexpected removal";
+                assert newEntry.snapshots().size() > entry.snapshots().size() : "unexpected no-add replacement";
+                replaced = true;
+                updatedEntries.add(newEntry);
+            } else {
+                updatedEntries.add(entry);
+            }
+        }
+        if (replaced) {
+            return SnapshotDeletionsInProgress.of(updatedEntries);
+        } else {
+            assert false : "nothing replaced with " + newEntry;
+            return this;
+        }
+    }
+
+    /**
      * Returns an unmodifiable list of snapshot deletion entries.
      */
     public List<Entry> getEntries() {
@@ -114,11 +145,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * Checks if there is an actively executing delete operation for the given repository
      *
+     * @param projectId project for the repository
      * @param repository repository name
      */
-    public boolean hasExecutingDeletion(String repository) {
+    public boolean hasExecutingDeletion(ProjectId projectId, String repository) {
         for (Entry entry : entries) {
-            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+            if (entry.state() == State.STARTED && entry.projectId.equals(projectId) && entry.repository().equals(repository)) {
                 return true;
             }
         }
@@ -131,6 +163,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public boolean hasDeletionsInProgress() {
         return entries.isEmpty() == false;
+    }
+
+    /**
+     * Similar to {@link #hasDeletionsInProgress()} but checks in the scope of the given project.
+     */
+    public boolean hasDeletionsInProgress(ProjectId projectId) {
+        return entries.stream().anyMatch(entry -> entry.projectId().equals(projectId));
     }
 
     @Override
@@ -167,7 +206,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -238,7 +277,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
         public static Entry readFrom(StreamInput in) throws IOException {
-            final ProjectId projectId = in.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+            final ProjectId projectId = in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                 ? ProjectId.readFrom(in)
                 : ProjectId.DEFAULT;
             return new Entry(
@@ -280,7 +319,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
                 projectId.writeTo(out);
             } else {
                 if (ProjectId.DEFAULT.equals(projectId) == false) {

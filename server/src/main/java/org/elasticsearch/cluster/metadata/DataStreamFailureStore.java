@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -59,6 +59,8 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         );
     }
 
+    private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
+
     /**
      *  @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration. Currently,
      *                  null value is not supported because there are no other arguments
@@ -74,10 +76,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public DataStreamFailureStore(StreamInput in) throws IOException {
         this(
             in.readOptionalBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
-                    ? in.readOptionalWriteable(DataStreamLifecycle::new)
-                    : null
+            in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null
         );
     }
 
@@ -88,8 +87,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(enabled);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
             out.writeOptionalWriteable(lifecycle);
         }
     }
@@ -169,8 +167,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             ResettableValue.write(out, enabled, StreamOutput::writeBoolean);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 ResettableValue.write(out, lifecycle, (o, v) -> v.writeTo(o));
             }
         }
@@ -178,8 +175,7 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
         public static Template read(StreamInput in) throws IOException {
             ResettableValue<Boolean> enabled = ResettableValue.read(in, StreamInput::readBoolean);
             ResettableValue<DataStreamLifecycle.Template> lifecycle = ResettableValue.undefined();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+            if (in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 lifecycle = ResettableValue.read(in, DataStreamLifecycle.Template::read);
             }
             return new Template(enabled, lifecycle);

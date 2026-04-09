@@ -58,12 +58,8 @@ class MaxIpAggregator {
         }
     }
 
-    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
-        state.combine(groupId, otherState, otherGroupId);
-    }
-
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 
     public static class GroupingState implements GroupingAggregatorState {
@@ -80,13 +76,6 @@ class MaxIpAggregator {
             }
         }
 
-        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId, otherState.scratch));
-            }
-        }
-
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }

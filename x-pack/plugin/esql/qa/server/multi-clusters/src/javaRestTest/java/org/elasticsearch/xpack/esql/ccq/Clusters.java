@@ -10,13 +10,20 @@ package org.elasticsearch.xpack.esql.ccq;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
+
+import java.nio.file.Path;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 public class Clusters {
 
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    public static ElasticsearchCluster remoteCluster() {
+    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -26,18 +33,60 @@ public class Clusters {
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
+            cluster.setting(entry.getKey(), entry.getValue());
+        }
         return cluster.build();
     }
 
+    static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings);
+    }
+
+    public static ElasticsearchCluster remoteCluster() {
+        return remoteCluster(emptyMap());
+    }
+
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
-        return localCluster(remoteCluster, true);
+        return localCluster(remoteCluster, emptyMap());
+    }
+
+    public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Map<String, String> additionalSettings) {
+        return localCluster(remoteCluster, true, additionalSettings);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
+        ElasticsearchCluster remoteCluster,
+        Map<String, String> additionalSettings
+    ) {
+        return localCluster(csvDataPath, remoteCluster, true, additionalSettings);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
+        return localCluster(remoteCluster, skipUnavailable, null);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        ElasticsearchCluster remoteCluster,
+        Boolean skipUnavailable,
+        Map<String, String> additionalSettings
+    ) {
+        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
+        ElasticsearchCluster remoteCluster,
+        Boolean skipUnavailable,
+        Map<String, String> additionalSettings
+    ) {
         Version version = distributionVersion("tests.version.local_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
@@ -50,9 +99,19 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        if (localClusterSupportsInferenceTestService()) {
+            cluster.plugin("inference-service-test");
+        }
+        if (additionalSettings != null && additionalSettings.isEmpty() == false) {
+            for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
+                cluster.setting(entry.getKey(), entry.getValue());
+            }
         }
         return cluster.build();
     }
@@ -73,9 +132,28 @@ public class Clusters {
         return local.before(remote) ? local : remote;
     }
 
+    public static boolean localClusterSupportsInferenceTestService() {
+        return isNewToOld();
+    }
+
+    /**
+     * Returns true if the current task is a "newToOld" BWC test.
+     * Checks the tests.task system property to determine the task type.
+     */
+    private static boolean isNewToOld() {
+        String taskName = System.getProperty("tests.task");
+        if (taskName == null) {
+            return false;
+        }
+        return taskName.endsWith("#newToOld");
+    }
+
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
-        return val != null ? Version.fromString(val) : Version.CURRENT;
+        if (val == null) {
+            throw new IllegalStateException("System property [" + key + "] is required but not set");
+        }
+        return Version.fromString(val);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

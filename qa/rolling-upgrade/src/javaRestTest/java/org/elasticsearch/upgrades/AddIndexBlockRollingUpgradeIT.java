@@ -13,7 +13,7 @@ import io.netty.handler.codec.http.HttpMethod;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -39,7 +39,7 @@ public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         } else if (isMixedCluster()) {
             blockWrites();
             // this is used both for upgrading from 9.0.0 to current and from 8.18 to current.
-            if (minimumTransportVersion().before(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            if (minimumTransportVersion().supports(TransportVersion.fromId(8840000)) == false) {
                 assertNull(verifiedSettingValue());
             } else {
                 assertThat(verifiedSettingValue(), Matchers.equalTo("true"));

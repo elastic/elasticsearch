@@ -7,6 +7,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -74,6 +75,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+                assumeTrue(
+                    "Older versions could not always reliably determine if we were in a mixed cluster state",
+                    Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)
+                );
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -97,13 +102,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
-        // TODO the mixed cluster assertions sometimes fail because the code that
-        // detects the mixed cluster relies on the transport versions being different.
-        // This assumption does not hold immediately after a version bump and new
-        // branch being cut as the new branch will have the same transport version
-        // See https://github.com/elastic/elasticsearch/issues/98560
-
-        assumeTrue("The mixed cluster is not always detected correctly, see https://github.com/elastic/elasticsearch/issues/98560", false);
         Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
 
         String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);

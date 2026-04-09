@@ -72,7 +72,7 @@ Note that Logstash will add a few extra fields per row ("document" in Elasticsea
 
 ### Manually
 
-Setting up the TDVT testing involves following the steps detailed in the [official documentation](https://tableau.github.io/connector-plugin-sdk/docs/tdvt). The "fragment" in parantheses reference the respective chapters in the documentation. It is recommended to execute each test run starting afresh.
+Setting up the TDVT testing involves following the steps detailed in the [official documentation](https://tableau.github.io/connector-plugin-sdk/docs/tdvt). The "fragment" in parentheses reference the respective chapters in the documentation. It is recommended to execute each test run starting afresh.
 
 1. Same as in the automated testing.
 
@@ -82,13 +82,13 @@ Setting up the TDVT testing involves following the steps detailed in the [offici
 	.\tableau.exe -DConnectPluginsPath=<path> -DDisableVerifyConnectorPluginSignature=true
 	```
 	where `<path>` is either the path to the directory containing the `.taco` connector *or* the path to the directory containing the connector directory, if this isn't yet packaged.
-  
+
 	**Note**: When connecting, make sure you pass the `timezone=Z` parameter into the `Additional settings` field of the connection dialog. This sets the timezone for the time data to UTC; if this isn't set, the JDBC driver will use JVM's/system's time zone, which will then result in some failed tests if the machine's not set to the UTC timezone.
 
 	Save the TDS files as `cast_calcs.elastic.tds` and `Staples.elastic.tds`
 
 3. Setup a TDVT "workspace" (#`Set up`), i.e. a directory containing the test files.
-	Either package TDVT and install it as a Python PIP module (recommended, if [working](https://github.com/tableau/connector-plugin-sdk/issues/534)), or simply copy the `tdvt` directory of the repo into the "workspace" directory. Invoking the TDVT will then be done as `py -3 -m tdvt.tdvt <params>`, or `py -3 .\tdvt\tdvt_launcher.py <params>`, respectively. In the steps below the invokation will be indicated by the `$TDVT` call.
+	Either package TDVT and install it as a Python PIP module (recommended, if [working](https://github.com/tableau/connector-plugin-sdk/issues/534)), or simply copy the `tdvt` directory of the repo into the "workspace" directory. Invoking the TDVT will then be done as `py -3 -m tdvt.tdvt <params>`, or `py -3 .\tdvt\tdvt_launcher.py <params>`, respectively. In the steps below the invocation will be indicated by the `$TDVT` call.
 	```
 	$TDVT action --setup
 	```

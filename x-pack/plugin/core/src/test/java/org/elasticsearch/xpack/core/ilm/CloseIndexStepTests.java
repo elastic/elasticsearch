@@ -82,7 +82,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
 
         assertEquals(true, actionCompleted.get());
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());
@@ -110,7 +110,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
 
         assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());

@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.security.apikey;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -87,6 +89,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String REMOTE_PERMISSIONS_USER = "remote_permissions_user";
     private static final String MANAGE_API_KEY_USER = "manage_api_key_user";
     private static final String MANAGE_SECURITY_USER = "manage_security_user";
+    private static final String CLONE_API_KEY_USER = "clone_api_key_user";
+    private static final String DATA_ADMIN_USER = "data_admin_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -94,30 +98,40 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("system_role", Set.of("grant_api_key"));
         createUser(END_USER, END_USER_PASSWORD, List.of("user_role"));
         createRole("user_role", Set.of("monitor"));
+        createUser(DATA_ADMIN_USER, END_USER_PASSWORD, List.of("data_admin_role"));
+        createRole("data_admin_role", Set.of("monitor", "manage_own_api_key"), "read", Set.of("*"));
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
         createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
         createRole("manage_api_key_role", Set.of("manage_api_key"));
         createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
         createRoleWithDescription("manage_security_role", Set.of("manage_security"), "Allows all security-related operations!");
+        createUser(CLONE_API_KEY_USER, END_USER_PASSWORD, List.of("clone_api_key_role"));
+        createRole("clone_api_key_role", Set.of("clone_api_key"));
     }
 
     @After
     public void cleanUp() throws IOException {
         deleteUser(SYSTEM_USER);
         deleteUser(END_USER);
+        deleteUser(DATA_ADMIN_USER);
         deleteUser(MANAGE_OWN_API_KEY_USER);
         deleteUser(MANAGE_API_KEY_USER);
         deleteUser(MANAGE_SECURITY_USER);
+        deleteUser(CLONE_API_KEY_USER);
         deleteRole("system_role");
         deleteRole("user_role");
+        deleteRole("data_admin_role");
         deleteRole("manage_own_api_key_role");
         deleteRole("manage_api_key_role");
         deleteRole("manage_security_role");
+        deleteRole("clone_api_key_role");
         invalidateApiKeysForUser(END_USER);
+        invalidateApiKeysForUser(DATA_ADMIN_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
         invalidateApiKeysForUser(MANAGE_API_KEY_USER);
         invalidateApiKeysForUser(MANAGE_SECURITY_USER);
+        invalidateApiKeysForUser(CLONE_API_KEY_USER);
     }
 
     @SuppressWarnings("unchecked")
@@ -1186,8 +1200,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         } else {
             setUserForRequest(createRequest, MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD);
         }
-        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        final ResponseException e = assertDenied(createRequest);
         assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
     }
 
@@ -1695,7 +1708,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         updateRequest.setJsonEntity("{}");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
         assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e2.getMessage(), containsString("must update either [access] or [metadata] for cross-cluster API keys"));
+        assertThat(
+            e2.getMessage(),
+            containsString("must update [access], [metadata], or [certificate_identity] for cross-cluster API keys")
+        );
 
         // Access cannot be empty
         updateRequest.setJsonEntity("{\"access\":{}}");
@@ -1755,8 +1771,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(anotherPowerUser, END_USER_PASSWORD, List.of(randomFrom("manage_api_key_role", "manage_own_api_key_role")));
         setUserForRequest(anotherUpdateRequest, anotherPowerUser, END_USER_PASSWORD);
         anotherUpdateRequest.setJsonEntity("{\"metadata\":{}}");
-        final ResponseException e8 = expectThrows(ResponseException.class, () -> client().performRequest(anotherUpdateRequest));
-        assertThat(e8.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        final ResponseException e8 = assertDenied(anotherUpdateRequest);
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
     }
 
@@ -1908,6 +1923,248 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", MANAGE_SECURITY_USER, END_USER_PASSWORD.toString()));
         var e = expectThrows(ResponseException.class, () -> client().performRequest(grantApiKeyRequest));
         assertThat(e.getMessage(), containsString("failed to parse role [my-role]. unexpected field [description]"));
+    }
+
+    public void testCloneApiKeySuccess() throws IOException {
+        // Create source API key with specific privileges: cluster monitor + read on a dedicated index
+        final String allowedIndex = randomIndexName() + "-allow";
+        createIndex(adminClient(), allowedIndex, null);
+        final EncodedApiKey source = createApiKey(
+            DATA_ADMIN_USER,
+            "source-key",
+            Map.of(),
+            Map.of(
+                "clone-test-role",
+                Map.<String, Object>of(
+                    "cluster",
+                    List.of("monitor"),
+                    "indices",
+                    List.of(Map.of("names", List.of(allowedIndex), "privileges", List.of("read")))
+                )
+            )
+        );
+
+        final Response x = fetchApiKeyWithUser(MANAGE_SECURITY_USER, source.id(), true);
+        final Map<String, Object> y = entityAsMap(x);
+        assertThat(y, notNullValue());
+
+        // Create another index for testing
+        final String deniedIndex = randomIndexName() + "-deny";
+        createIndex(adminClient(), deniedIndex, null);
+
+        CheckedConsumer<EncodedApiKey, IOException> verifyApiKeyPrivileges = key -> {
+            // (a) Authenticate with the API key and verify it works
+            doTestAuthenticationWithApiKey(key.name(), key.id(), key.encoded());
+
+            // (b) Verify the API key can perform the operations granted by its role
+            final Request clusterHealthRequest = new Request("GET", "_cluster/health");
+            setApiKeyForRequest(clusterHealthRequest, key.encoded());
+            assertOK(client().performRequest(clusterHealthRequest));
+
+            final Request searchRequest1 = new Request("GET", allowedIndex + "/_search");
+            setApiKeyForRequest(searchRequest1, key.encoded());
+            assertOK(client().performRequest(searchRequest1));
+
+            // But not other operations
+            final Request getUsersRequest = new Request("GET", "_security/user");
+            setApiKeyForRequest(getUsersRequest, key.encoded());
+            assertDenied(getUsersRequest);
+
+            final Request searchRequest2 = new Request("GET", deniedIndex + "/_search");
+            setApiKeyForRequest(searchRequest2, key.encoded());
+            assertDenied(searchRequest2);
+        };
+
+        verifyApiKeyPrivileges.accept(source);
+
+        // Clone the source key
+        final EncodedApiKey cloned = cloneApiKey(CLONE_API_KEY_USER, source, "cloned-key");
+        assertThat(cloned.id(), not(equalTo(source.id())));
+
+        verifyApiKeyPrivileges.accept(cloned);
+
+        // (c) Verify that the privileges of the cloned API key match the source (role_descriptors and limited_by)
+        final Response sourceKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, source.id(), true);
+        final Response clonedKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, cloned.id(), true);
+        assertOK(sourceKeyResponse);
+        assertOK(clonedKeyResponse);
+        final ObjectPath sourceKeyPath = assertOKAndCreateObjectPath(sourceKeyResponse);
+        final ObjectPath clonedKeyPath = assertOKAndCreateObjectPath(clonedKeyResponse);
+        assertThat(clonedKeyPath.evaluate("api_keys.0.role_descriptors"), equalTo(sourceKeyPath.evaluate("api_keys.0.role_descriptors")));
+        assertThat(clonedKeyPath.evaluate("api_keys.0.limited_by"), equalTo(sourceKeyPath.evaluate("api_keys.0.limited_by")));
+    }
+
+    public void testChainOfClonedApiKeys() throws IOException {
+        // Create source API key with role descriptors so we can assert they are preserved along the chain
+        final String allowedIndex = randomIndexName() + "-chain-allow";
+        createIndex(adminClient(), allowedIndex, null);
+        final EncodedApiKey source = createApiKey(
+            DATA_ADMIN_USER,
+            "chain-source-key",
+            Map.of(),
+            Map.of(
+                "chain-role",
+                Map.<String, Object>of(
+                    "cluster",
+                    List.of("monitor"),
+                    "indices",
+                    List.of(Map.of("names", List.of(allowedIndex), "privileges", List.of("read")))
+                )
+            )
+        );
+
+        final int numClones = randomIntBetween(2, 5);
+        EncodedApiKey current = source;
+        final List<EncodedApiKey> chain = new ArrayList<>();
+        chain.add(source);
+        for (int i = 0; i < numClones; i++) {
+            current = cloneApiKey(CLONE_API_KEY_USER, current, "chain-clone-" + (i + 1));
+            chain.add(current);
+        }
+        final EncodedApiKey finalKey = current;
+        final EncodedApiKey penultimate = chain.get(chain.size() - 2);
+
+        // Final key should match source for role_descriptors and limited_by
+        final Response sourceKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, source.id(), true);
+        final Response finalKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, finalKey.id(), true);
+        assertOK(sourceKeyResponse);
+        assertOK(finalKeyResponse);
+        final ObjectPath sourceKeyPath = assertOKAndCreateObjectPath(sourceKeyResponse);
+        final ObjectPath finalKeyPath = assertOKAndCreateObjectPath(finalKeyResponse);
+        assertThat(finalKeyPath.evaluate("api_keys.0.role_descriptors"), equalTo(sourceKeyPath.evaluate("api_keys.0.role_descriptors")));
+        assertThat(finalKeyPath.evaluate("api_keys.0.limited_by"), equalTo(sourceKeyPath.evaluate("api_keys.0.limited_by")));
+
+        // Final key metadata should contain _cloned_from pointing to the penultimate key
+        expectMetadata(finalKey.id(), Map.of("_cloned_from", penultimate.id()));
+
+        // Every API key in the chain should still be valid for authentication
+        for (EncodedApiKey key : chain) {
+            doTestAuthenticationWithApiKey(key.name(), key.id(), key.encoded());
+        }
+    }
+
+    public void testCloneApiKeyRequiresPrivilege() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-key", Map.of());
+        final ResponseException e = expectThrows(ResponseException.class, () -> cloneApiKey(END_USER, source, randomAlphaOfLength(12)));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("clone_api_key"));
+    }
+
+    public void testCloneApiKeyWithManageSecurityAllowed() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-key", Map.of());
+        final EncodedApiKey cloned = cloneApiKey(MANAGE_SECURITY_USER, source, "cloned-by-manage-security");
+        assertThat(cloned.name(), equalTo("cloned-by-manage-security"));
+    }
+
+    public void testCloneApiKeyFailsWithInvalidSourceId() throws IOException {
+        final String invalidEncoded = java.util.Base64.getEncoder()
+            .encodeToString("invalid-id:some-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(CLONE_API_KEY_USER, invalidEncoded, randomAlphaOfLength(12), Map.of())
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("unable to find apikey"));
+    }
+
+    public void testCloneApiKeyFailsWithInvalidSourceCredential() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-key", Map.of());
+        final String invalidEncoded = java.util.Base64.getEncoder()
+            .encodeToString((source.id() + ":wrong-secret").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(CLONE_API_KEY_USER, invalidEncoded, randomAlphaOfLength(12), Map.of())
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("invalid credentials for API key"));
+    }
+
+    public void testCloneApiKeyFailsWithCrossClusterSourceKey() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cross-cluster-key-to-clone",
+              "access": {
+                "search": [ { "names": [ "metrics" ] } ]
+              }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        final String crossClusterEncoded = createResponse.evaluate("encoded");
+
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(CLONE_API_KEY_USER, crossClusterEncoded, "cloned-from-cross-cluster", Map.of())
+        );
+
+        // Perhaps this should be 400 instead, but the API Key Service will fail authentication of the API Key (because it has an
+        // invalid type for the context) and the REST layer will translate that to a 403, which is good enough for us
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("cross_cluster"));
+    }
+
+    public void testCloneApiKeyExpiration() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-with-expiry", Map.of(), "1h");
+        final EncodedApiKey clonedSameExpiry = cloneApiKey(CLONE_API_KEY_USER, source, "cloned-same-expiry");
+        final Map<String, Object> noExpiry = new HashMap<>();
+        noExpiry.put("expiration", null);
+        final EncodedApiKey clonedNoExpiry = cloneApiKey(CLONE_API_KEY_USER, source.encoded(), "cloned-no-expiry", noExpiry);
+        final EncodedApiKey clonedNewExpiry = cloneApiKey(
+            CLONE_API_KEY_USER,
+            source.encoded(),
+            "cloned-new-expiry",
+            Map.of("expiration", "30d")
+        );
+
+        final Object sourceExpiration = assertOKAndCreateObjectPath(
+            adminClient().performRequest(new Request("GET", "_security/api_key?id=" + source.id()))
+        ).evaluate("api_keys.0.expiration");
+        assertThat(
+            assertOKAndCreateObjectPath(adminClient().performRequest(new Request("GET", "_security/api_key?id=" + clonedSameExpiry.id())))
+                .evaluate("api_keys.0.expiration"),
+            equalTo(sourceExpiration)
+        );
+        assertThat(
+            assertOKAndCreateObjectPath(adminClient().performRequest(new Request("GET", "_security/api_key?id=" + clonedNoExpiry.id())))
+                .evaluate("api_keys.0.expiration"),
+            nullValue()
+        );
+        final Object clonedNewExpiryExpiration = assertOKAndCreateObjectPath(
+            adminClient().performRequest(new Request("GET", "_security/api_key?id=" + clonedNewExpiry.id()))
+        ).evaluate("api_keys.0.expiration");
+        assertThat(clonedNewExpiryExpiration, notNullValue());
+        final long expirationMs = asInstanceOf(Number.class, clonedNewExpiryExpiration).longValue();
+        final long now = System.currentTimeMillis();
+        assertThat(expirationMs, greaterThanOrEqualTo(now + TimeValue.timeValueDays(29).millis()));
+        assertThat(expirationMs, lessThanOrEqualTo(now + TimeValue.timeValueDays(31).millis()));
+    }
+
+    public void testCloneApiKeyMetadata() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-with-meta", Map.of("foo", "bar"));
+        final EncodedApiKey clonedCopyMeta = cloneApiKey(CLONE_API_KEY_USER, source, "cloned-copy-meta");
+        expectMetadata(clonedCopyMeta.id(), Map.of("foo", "bar", "_cloned_from", source.id()));
+
+        final EncodedApiKey clonedOverrideMeta = cloneApiKey(
+            CLONE_API_KEY_USER,
+            source.encoded(),
+            "cloned-override-meta",
+            Map.of("metadata", Map.of("baz", "qux"))
+        );
+        expectMetadata(clonedOverrideMeta.id(), Map.of("baz", "qux", "_cloned_from", source.id()));
+
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(
+                CLONE_API_KEY_USER,
+                source.encoded(),
+                "cloned-override-meta",
+                Map.of("metadata", Map.of("_cloned_from", "not-allowed"))
+            )
+        );
+        assertThat("Expected 400 response: " + e.getResponse(), e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("metadata"));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("_"));
     }
 
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
@@ -2112,12 +2369,311 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
+    public void testUpdateCrossClusterApiKeyToAddCertificateIdentity() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cross-cluster-key-update-test",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "random" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath initialFetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(initialFetchResponse.evaluate("api_keys.0.certificate_identity"), nullValue());
+
+        final String certificateIdentity = "CN=updated-host,OU=engineering,DC=example,DC=com";
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(certificateIdentity));
+    }
+
+    public void testUpdateCrossClusterApiKeyToChangeCertificateIdentity() throws IOException {
+        final String originalCertIdentity = "CN=original-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-change-cert",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "metrics" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", originalCertIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath initialFetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(initialFetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(originalCertIdentity));
+
+        final String newCertificateIdentity = "CN=new-host,OU=security,DC=example,DC=com";
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", newCertificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(newCertificateIdentity));
+    }
+
+    public void testUpdateCrossClusterApiKeyCertificateIdentityNoop() throws IOException {
+        final String certificateIdentity = "CN=test-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-noop-test",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "something" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(false));
+    }
+
+    public void testUpdateCrossClusterApiKeyToRemoveCertificateIdentity() throws IOException {
+        // Create API key with certificate identity
+        final String initialCertIdentity = "CN=initial-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-remove-cert",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "logs" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", initialCertIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        // Verify initial certificate identity
+        ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(initialCertIdentity));
+
+        // Update to remove certificate identity (explicit null)
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "certificate_identity": null
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        // Verify certificate identity was removed
+        fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), nullValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateMultipleApiKeysWithCertificateIdentityShouldFail() throws IOException {
+        // Create two API keys without certificate identity
+        final Request createRequest1 = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest1.setJsonEntity("""
+            {
+              "name": "key-1",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "index1" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest1, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId1 = assertOKAndCreateObjectPath(client().performRequest(createRequest1)).evaluate("id");
+
+        final Request createRequest2 = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest2.setJsonEntity("""
+            {
+              "name": "key-2",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "index2" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest2, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId2 = assertOKAndCreateObjectPath(client().performRequest(createRequest2)).evaluate("id");
+
+        // Attempt to update both with a certificate identity - should fail
+        final Request bulkUpdateRequest = new Request("POST", "/_security/api_key/_bulk_update");
+        bulkUpdateRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s", "%s"],
+              "certificate_identity": "CN=bulk-update,DC=example,DC=com"
+            }""", apiKeyId1, apiKeyId2));
+        setUserForRequest(bulkUpdateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        // This should succeed (200 OK) but contain errors
+        final Response bulkUpdateResponse = client().performRequest(bulkUpdateRequest);
+        assertOK(bulkUpdateResponse);
+
+        final Map<String, Object> responseMap = responseAsMap(bulkUpdateResponse);
+        final Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        assertThat(errors.get("count"), equalTo(2));
+
+        final Map<String, Map<String, Object>> errorDetails = (Map<String, Map<String, Object>>) errors.get("details");
+        assertThat(
+            (String) errorDetails.get(apiKeyId1).get("reason"),
+            containsString("cannot update API key of type [cross_cluster] while expected type is [rest]")
+        );
+        assertThat(
+            (String) errorDetails.get(apiKeyId2).get("reason"),
+            containsString("cannot update API key of type [cross_cluster] while expected type is [rest]")
+        );
+    }
+
+    public void testUpdateCrossClusterApiKeyPreservesCertificateIdentityWhenNotSpecified() throws IOException {
+        final String certIdentity = "CN=preserve-test,OU=engineering,DC=example,DC=com";
+
+        // Create API key with certificate identity
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "preserve-cert-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "data" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", certIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        // Update only the access permissions (not certificate_identity)
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "access": {
+                "search": [
+                  {
+                    "names": [ "updated-data" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        // Verify certificate identity is preserved
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(certIdentity));
+    }
+
+    public void testCreateCrossClusterApiKeyWithInvalidCertificateIdentity() throws IOException {
+        // Test with invalid regex certificate identity
+        {
+            final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+            createRequest.setJsonEntity("""
+                {
+                  "name": "invalid-cert-key",
+                  "access": {
+                    "search": [
+                      {
+                        "names": [ "test" ]
+                      }
+                    ]
+                  },
+                  "certificate_identity": "["
+                }""");
+            setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Invalid certificate_identity format"));
+        }
+    }
+
+    public void testCannotSetCertificateIdentityOnRegularApiKey() throws IOException {
+        // Test that creating a regular API key with certificate_identity fails
+        final Request createRequest = new Request("POST", "_security/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "regular-key-with-cert",
+              "certificate_identity": "CN=test-host,OU=engineering,DC=example,DC=com"
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        ResponseException e1 = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e1.getMessage(), containsString("unknown field [certificate_identity"));
+
+        // Test that updating a regular API key with certificate_identity fails
+        final Request createRegularKeyRequest = new Request("POST", "_security/api_key");
+        createRegularKeyRequest.setJsonEntity("""
+            {
+              "name": "regular-key"
+            }""");
+        setUserForRequest(createRegularKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRegularKeyRequest)).evaluate("id");
+
+        final Request updateRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "certificate_identity": "CN=test-host,OU=engineering,DC=example,DC=com"
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e2.getMessage(), containsString("unknown field [certificate_identity"));
+    }
+
     private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
         );
         return client().performRequest(request);
+    }
+
+    private static ResponseException assertDenied(Request request) {
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        return e;
     }
 
     @SuppressWarnings("unchecked")
@@ -2320,13 +2876,89 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
+    /**
+     * Clones an API key via POST _security/api_key/clone, asserts success, and returns the cloned key.
+     * Optionally pass extra request fields (e.g. "expiration", "metadata") in {@code extraFields}.
+     */
+    private EncodedApiKey cloneApiKey(
+        final String username,
+        final String sourceEncodedKey,
+        final String cloneName,
+        final Map<String, Object> extraFields
+    ) throws IOException {
+        final Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("api_key", sourceEncodedKey);
+        requestBody.put("name", cloneName);
+        if (extraFields != null && extraFields.isEmpty() == false) {
+            requestBody.putAll(extraFields);
+        }
+        final Request request = new Request(randomFrom("POST", "PUT"), "_security/api_key/clone");
+        request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+        setUserForRequest(request, username, END_USER_PASSWORD);
+
+        final Response response = client().performRequest(request);
+        final ObjectPath path = assertOKAndCreateObjectPath(response);
+
+        final String id = path.evaluate("id");
+        final String encoded = path.evaluate("encoded");
+        final String name = path.evaluate("name");
+        assertThat(id, notNullValue());
+        assertThat(encoded, notNullValue());
+        assertThat(encoded, not(equalTo(sourceEncodedKey)));
+        assertThat(name, notNullValue());
+        assertThat(name, equalTo(cloneName));
+        return new EncodedApiKey(id, encoded, name);
+    }
+
+    private EncodedApiKey cloneApiKey(final String username, final EncodedApiKey source, final String cloneName) throws IOException {
+        final EncodedApiKey clone = cloneApiKey(username, source.encoded(), cloneName, Map.of());
+        assertThat(clone.id, not(equalTo(source.id())));
+        return clone;
+    }
+
     private EncodedApiKey createApiKey(final String apiKeyName, final Map<String, Object> metadata) throws IOException {
         return createApiKey(MANAGE_OWN_API_KEY_USER, apiKeyName, metadata);
     }
 
     private EncodedApiKey createApiKey(final String username, final String apiKeyName, final Map<String, Object> metadata)
         throws IOException {
-        final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", metadata);
+        return createApiKey(username, apiKeyName, metadata, null, null);
+    }
+
+    private EncodedApiKey createApiKey(
+        final String username,
+        final String apiKeyName,
+        final Map<String, Object> metadata,
+        @Nullable final String expiration
+    ) throws IOException {
+        return createApiKey(username, apiKeyName, metadata, null, expiration);
+    }
+
+    private EncodedApiKey createApiKey(
+        final String username,
+        final String apiKeyName,
+        final Map<String, Object> metadata,
+        @Nullable final Map<String, Object> roleDescriptors
+    ) throws IOException {
+        return createApiKey(username, apiKeyName, metadata, roleDescriptors, null);
+    }
+
+    private EncodedApiKey createApiKey(
+        final String username,
+        final String apiKeyName,
+        final Map<String, Object> metadata,
+        @Nullable final Map<String, Object> roleDescriptors,
+        @Nullable final String expiration
+    ) throws IOException {
+        final Map<String, Object> createApiKeyRequestBody = new HashMap<>();
+        createApiKeyRequestBody.put("name", apiKeyName);
+        createApiKeyRequestBody.put("metadata", metadata != null ? metadata : Map.of());
+        if (roleDescriptors != null) {
+            createApiKeyRequestBody.put("role_descriptors", roleDescriptors);
+        }
+        if (expiration != null) {
+            createApiKeyRequestBody.put("expiration", expiration);
+        }
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
@@ -2378,6 +3010,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 .toBuilder()
                 .removeHeader("Authorization")
                 .addHeader("Authorization", headerFromRandomAuthMethod(username, password))
+        );
+    }
+
+    private void setApiKeyForRequest(Request request, String encodedApiKey) throws IOException {
+        request.setOptions(
+            request.getOptions().toBuilder().removeHeader("Authorization").addHeader("Authorization", "ApiKey " + encodedApiKey)
         );
     }
 

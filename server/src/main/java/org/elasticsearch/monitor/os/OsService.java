@@ -55,7 +55,7 @@ public class OsService implements ReportingService<OsInfo> {
 
         private static final OsStats MISSING = new OsStats(
             0L,
-            new OsStats.Cpu((short) 0, new double[0]),
+            new OsStats.Cpu((short) 0, new double[0], 0),
             new OsStats.Mem(0, 0, 0),
             new OsStats.Swap(0, 0),
             null

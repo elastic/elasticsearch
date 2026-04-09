@@ -7,24 +7,28 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeohex}.
+ * {@link ExpressionEvaluator} implementation for {@link StGeohex}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohexFromFieldAndLiteralAndLiteralEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final ExpressionEvaluator in;
 
   private final StGeohex.GeoHexBoundedGrid bounds;
 
@@ -32,9 +36,8 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   private Warnings warnings;
 
-  public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator in, StGeohex.GeoHexBoundedGrid bounds,
-      DriverContext driverContext) {
+  public StGeohexFromFieldAndLiteralAndLiteralEvaluator(Source source, ExpressionEvaluator in,
+      StGeohex.GeoHexBoundedGrid bounds, DriverContext driverContext) {
     this.source = source;
     this.in = in;
     this.bounds = bounds;
@@ -46,6 +49,13 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
     try (BytesRefBlock inBlock = (BytesRefBlock) in.eval(page)) {
       return eval(page.getPositionCount(), inBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock inBlock) {
@@ -72,7 +82,7 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   @Override
   public String toString() {
-    return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+    return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
   }
 
   @Override
@@ -82,25 +92,20 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
-    private final StGeohex.GeoHexBoundedGrid bounds;
+    private final Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        StGeohex.GeoHexBoundedGrid bounds) {
+    public Factory(Source source, ExpressionEvaluator.Factory in,
+        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds) {
       this.source = source;
       this.in = in;
       this.bounds = bounds;
@@ -108,12 +113,12 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Eva
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds, context);
+      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + ", bounds=" + bounds + "]";
+      return "StGeohexFromFieldAndLiteralAndLiteralEvaluator[" + "in=" + in + "]";
     }
   }
 }

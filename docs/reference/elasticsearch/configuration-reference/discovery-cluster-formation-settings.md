@@ -50,7 +50,7 @@ If you adjust these settings then your cluster may not form correctly or may bec
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long to wait when attempting to identify the remote node via a handshake. Defaults to `30s`.
 
 `discovery.request_peers_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long a node will wait after asking its peers again before considering the request to have failed. Defaults to `3s`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) In 9.1.x and earlier versions, sets how long a node will wait after asking its peers again before considering the request to have failed. Has no effect from version 9.2.0 onwards. Defaults to `3s`.
 
 `discovery.find_peers_warning_timeout`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long a node will attempt to discover its peers before it starts to log verbose messages describing why the connection attempts are failing. Defaults to `3m`.
@@ -96,6 +96,8 @@ $$$fault-detection-settings$$$`cluster.fault_detection.follower_check.interval`
 
 `cluster.follower_lag.timeout`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long the master node waits to receive acknowledgements for cluster state updates from lagging nodes. The default value is `90s`. If a node does not successfully apply the cluster state update within this period of time, it is considered to have failed and is removed from the cluster. See [Publishing the cluster state](docs-content://deploy-manage/distributed-architecture/discovery-cluster-formation/cluster-state-overview.md#cluster-state-publishing).
+
+    {applies_to}`stack: ga 9.4` The value `-1` means that the master node will wait indefinitely for cluster state updates to be acknowledged.
 
 `cluster.max_voting_config_exclusions`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Sets a limit on the number of voting configuration exclusions at any one time. The default value is `10`. See [*Add and remove nodes in your cluster*](docs-content://deploy-manage/maintenance/add-and-remove-elasticsearch-nodes.md).

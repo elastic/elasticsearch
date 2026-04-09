@@ -34,7 +34,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         builder.startObject();
         unifiedRequestEntity.toXContent(
             builder,
-            UnifiedCompletionRequest.withMaxCompletionTokensTokens(model.getServiceSettings().modelId(), params)
+            UnifiedCompletionRequest.withMaxCompletionTokens(model.getServiceSettings().modelId(), params)
         );
 
         if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {

@@ -44,7 +44,13 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * enforced by the Limit in the surrogate plan.
  */
 @SupportsObservabilityTier(tier = COMPLETE)
-public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, LicenseAware {
+public class ChangePoint extends UnaryPlan
+    implements
+        SurrogateLogicalPlan,
+        PostAnalysisVerificationAware,
+        SortPreserving,
+        LicenseAware,
+        ExecutesOn.Coordinator {
 
     private final Attribute value;
     private final Attribute key;
@@ -130,7 +136,7 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
     }
 
     private Order order() {
-        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.ANY);
+        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
     }
 
     @Override
@@ -150,13 +156,16 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
     @Override
     public void postAnalysisVerification(Failures failures) {
         // Key must be sortable
-        Order order = order();
-        if (DataType.isSortable(order.dataType()) == false) {
-            failures.add(fail(this, "change point key [" + key.name() + "] must be sortable"));
+        DataType type = key.dataType();
+        if (DataType.isSortable(type) == false) {
+            failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), type));
         }
         // Value must be a number
-        if (value.dataType().isNumeric() == false) {
-            failures.add(fail(this, "change point value [" + value.name() + "] must be numeric"));
+        type = value.dataType();
+        if (DataType.isNullOrNumeric(type) == false) {
+            failures.add(
+                fail(value, "CHANGE_POINT only supports numeric values, found expression [{}] type [{}]", value.sourceText(), type)
+            );
         }
     }
 

@@ -13,14 +13,15 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
@@ -61,10 +62,10 @@ public class CustomResponseEntityTests extends ESTestCase {
 
         var model = CustomModelTests.getTestModel(
             TaskType.TEXT_EMBEDDING,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding")
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null, null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
@@ -72,10 +73,10 @@ public class CustomResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(results, instanceOf(TextEmbeddingFloatResults.class));
+        assertThat(results, instanceOf(DenseEmbeddingFloatResults.class));
         assertThat(
-            ((TextEmbeddingFloatResults) results).embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
+            ((DenseEmbeddingFloatResults) results).embeddings(),
+            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
         );
     }
 
@@ -115,7 +116,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             )
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null, null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
 
         );

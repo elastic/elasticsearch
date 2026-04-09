@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -53,6 +54,40 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         SearchStatsSettings searchStatsSettings = new SearchStatsSettings(clusterSettings);
         this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
+    }
+
+    public void testDfsPhase() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
+
+    public void testDfsPhase_withGroups() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
+
+    public void testDfsPhase_Failure() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onFailedDfsPhase(sc);
+
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testQueryPhase() {
@@ -272,7 +307,8 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         return new TestSearchContext(searchExecutionContext) {
             private final SearchRequest searchquest = new SearchRequest().allowPartialSearchResults(true);

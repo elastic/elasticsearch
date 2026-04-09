@@ -10,8 +10,8 @@
 package org.elasticsearch.gradle.internal.idea;
 
 import groovy.util.Node;
-import groovy.util.XmlParser;
 import groovy.xml.XmlNodePrinter;
+import groovy.xml.XmlParser;
 
 import org.gradle.api.Action;
 import org.xml.sax.SAXException;

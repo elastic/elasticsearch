@@ -94,7 +94,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -128,7 +128,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         performActionAndWait(step, indexToOperateOn, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -250,7 +250,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());

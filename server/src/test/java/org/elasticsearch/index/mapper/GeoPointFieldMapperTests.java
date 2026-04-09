@@ -22,12 +22,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -59,7 +59,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
@@ -67,6 +67,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        registerScriptChecks(checker);
+        checker.registerIgnoredParameter("time_series_dimension");
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "position"));
     }
 
     @Override
@@ -164,7 +167,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(positionMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -358,7 +361,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertTrue(((GeoPointFieldMapper) fieldMapper).fieldType().indexType().hasOnlyDocValues());
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
@@ -437,6 +440,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             assertEquals(expectedParser.currentToken(), parser.currentToken());
             assertEquals(expectedParser.currentName(), parser.currentName());
             assertEquals(expectedParser.getTokenLocation(), parser.getTokenLocation());
+            // getCurrentLocation() delegates to docParser, whose cursor differs from expectedParser's
+            assertEquals(docParser.getCurrentLocation(), parser.getCurrentLocation());
             assertEquals(expectedParser.textOrNull(), parser.textOrNull());
             expectThrows(UnsupportedOperationException.class, parser::nextToken);
         }
@@ -545,7 +550,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 
@@ -625,10 +629,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                // Malformed values always come last in synthetic source
-                Stream<Object> malformedValues = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                // Malformed values always come last in synthetic source (sorted by encoded BytesRef).
+                List<Object> malformedValues = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);
@@ -719,6 +727,42 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new IngestScriptSupport() {
+
+            @Override
+            protected ScriptFactory emptyFieldScript() {
+                return (GeoPointFieldScript.Factory) (
+                    fieldName,
+                    params,
+                    searchLookup,
+                    onScriptError) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript(
+                        fieldName,
+                        params,
+                        searchLookup,
+                        OnScriptError.FAIL,
+                        ctx
+                    ) {
+                        @Override
+                        public void execute() {
+
+                        }
+                    };
+            }
+
+            @Override
+            protected ScriptFactory nonEmptyFieldScript() {
+                return emptyFieldScript();
+            }
+        };
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

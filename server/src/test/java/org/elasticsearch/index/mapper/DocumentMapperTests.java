@@ -10,24 +10,22 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -50,11 +48,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testAddFields() throws Exception {
-        DocumentMapper stage1 = createDocumentMapper(mapping(b -> b.startObject("name").field("type", "text").endObject()));
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("name").field("type", "text").endObject()));
+        DocumentMapper stage1 = mapperService.documentMapper();
         DocumentMapper stage2 = createDocumentMapper(mapping(b -> {
             b.startObject("name").field("type", "text").endObject();
             b.startObject("age").field("type", "integer").endObject();
@@ -70,7 +71,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
 
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE, MergeReason.MAPPING_AUTO_UPDATE);
-        Mapping merged = MapperService.mergeMappings(stage1, stage2.mapping(), reason, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(stage2.mappingSource(), reason, Long.MAX_VALUE);
         // stage1 mapping should not have been modified
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
@@ -82,22 +83,23 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             merged.toCompressedXContent(),
             IndexVersion.current(),
             MapperMetrics.NOOP,
-            "myIndex"
+            "myIndex",
+            randomFrom(IndexMode.values())
         );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
 
     public void testMergeObjectDynamic() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
 
         DocumentMapper withDynamicMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         assertThat(withDynamicMapper.mapping().getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        Mapping merged = MapperService.mergeMappings(
-            mapper,
-            withDynamicMapper.mapping(),
+        Mapping merged = mapperService.mergeMappings(
+            withDynamicMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
@@ -105,21 +107,21 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeObjectAndNested() throws Exception {
-        DocumentMapper objectMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
-        DocumentMapper nestedMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "nested").endObject()));
+        MapperService objectMapperService = createMapperService(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
+        MapperService nestedMapperService = createMapperService(mapping(b -> b.startObject("obj").field("type", "nested").endObject()));
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE, MergeReason.MAPPING_AUTO_UPDATE);
 
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MapperService.mergeMappings(objectMapper, nestedMapper.mapping(), reason, Long.MAX_VALUE)
+                () -> objectMapperService.mergeMappings(nestedMapperService.documentMapper().mappingSource(), reason, Long.MAX_VALUE)
             );
             assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MapperService.mergeMappings(nestedMapper, objectMapper.mapping(), reason, Long.MAX_VALUE)
+                () -> nestedMapperService.mergeMappings(objectMapperService.documentMapper().mappingSource(), reason, Long.MAX_VALUE)
             );
             assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
@@ -194,14 +196,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 for (int i = 0; i < 200 && stopped.get() == false; i++) {
                     final String fieldName = Integer.toString(i);
                     ParsedDocument doc = documentMapper.parse(source(b -> b.field(fieldName, "test")));
-                    Mapping update = doc.dynamicMappingsUpdate();
+                    CompressedXContent update = doc.dynamicMappingsUpdate();
                     assert update != null;
                     lastIntroducedFieldName.set(fieldName);
-                    mapperService.merge(
-                        "_doc",
-                        new CompressedXContent(update.toString()),
-                        randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE)
-                    );
+                    mapperService.merge("_doc", update, randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE));
                 }
             } catch (Exception e) {
                 error.set(e);
@@ -253,23 +251,22 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeMeta() throws IOException {
-        DocumentMapper initMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "bar").endObject()));
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_meta").field("foo", "bar").endObject()));
+        DocumentMapper initMapper = mapperService.documentMapper();
         assertThat(initMapper.mapping().getMeta().get("foo"), equalTo("bar"));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
-        Mapping merged = MapperService.mergeMappings(
-            initMapper,
-            updatedMapper.mapping(),
+        Mapping merged = mapperService.mergeMappings(
+            updatedMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
         assertThat(merged.getMeta().get("foo"), equalTo("bar"));
 
         updatedMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "new_bar").endObject()));
-        merged = MapperService.mergeMappings(
-            initMapper,
-            updatedMapper.mapping(),
+        merged = mapperService.mergeMappings(
+            updatedMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
@@ -277,7 +274,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeMetaForIndexTemplate() throws IOException {
-        DocumentMapper initMapper = createDocumentMapper(topMapping(b -> {
+        MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("_meta");
             {
                 b.field("field", "value");
@@ -292,13 +289,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
 
         Map<String, Object> expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "value2"));
-        assertThat(initMapper.mapping().getMeta(), equalTo(expected));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
 
-        DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
-        Mapping merged = MapperService.mergeMappings(initMapper, updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
-        assertThat(merged.getMeta(), equalTo(expected));
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, fieldMapping(b -> b.field("type", "text")));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
 
-        updatedMapper = createDocumentMapper(topMapping(b -> {
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, topMapping(b -> {
             b.startObject("_meta");
             {
                 b.field("field", "value");
@@ -311,10 +307,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
-        assertThat(merged.getMeta(), equalTo(expected));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
     }
 
     public void testEmptyDocumentMapper() {
@@ -500,34 +495,59 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }
     }
 
+    @TestLogging(reason = "testing DEBUG logging", value = "org.elasticsearch.index.mapper.DocumentMapper:DEBUG")
     public void testParsingErrorLogging() throws Exception {
-        MockAppender appender = new MockAppender("mock_appender");
-        appender.start();
-        Logger testLogger = LogManager.getLogger(DocumentMapper.class);
-        Loggers.addAppender(testLogger, appender);
-        Level originalLogLevel = testLogger.getLevel();
-        Loggers.setLevel(testLogger, Level.ERROR);
+        DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+        MockLog.assertThatLogger(
+            () -> assertThat(
+                expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo")))).getMessage(),
+                containsString("failed to parse field [value] of type [integer] in document with id '1'")
+            ),
+            DocumentMapper.class,
+            new MockLog.SeenEventExpectation(
+                "parse message",
+                DocumentMapper.class.getCanonicalName(),
+                Level.DEBUG,
+                "*failed to parse field [value] of type [integer] in document with id '1'*"
+            )
+        );
+    }
 
-        try {
-            DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+    public void testHasConfidenceIntervalDifference() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
 
-            DocumentParsingException e = expectThrows(
-                DocumentParsingException.class,
-                () -> doc.parse(source(b -> b.field("value", "foo")))
-            );
-            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-            LogEvent event = appender.getLastEventAndReset();
-            if (event != null) {
-                assertThat(event.getMessage().getFormattedMessage(), containsString(e.getMessage()));
-            }
+        // Test with confidence_interval:0.0 in one source but not the other
+        String sourceWithConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
+            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}}}}}";
+        String sourceWithoutConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
+            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\"}}}}}";
 
-            e = expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo"))));
-            assertThat(e.getMessage(), containsString("failed to parse field [value] of type [integer] in document with id '1'"));
-            assertThat(appender.getLastEventAndReset(), nullValue());
-        } finally {
-            Loggers.setLevel(testLogger, originalLogLevel);
-            Loggers.removeAppender(testLogger, appender);
-            appender.stop();
-        }
+        CompressedXContent compressed1 = new CompressedXContent(sourceWithConfidenceInterval);
+        CompressedXContent compressed2 = new CompressedXContent(sourceWithoutConfidenceInterval);
+
+        assertTrue(mapper.hasConfidenceIntervalDifference(compressed1, compressed2));
+
+        // Test with confidence_interval:0.0 appearing multiple times
+        String sourceWithMultipleConfidenceIntervals = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
+            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}},"
+            + "\"another_vector\":{\"type\":\"dense_vector\",\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\","
+            + "\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}}}}}";
+        String sourceWithoutMultipleConfidenceIntervals = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\","
+            + "\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\"}},"
+            + "\"another_vector\":{\"type\":\"dense_vector\",\"dims\":4,\"index\":true,\"similarity\":\"l2_norm\","
+            + "\"index_options\":{\"type\":\"int4_flat\"}}}}}";
+
+        CompressedXContent compressed3 = new CompressedXContent(sourceWithMultipleConfidenceIntervals);
+        CompressedXContent compressed4 = new CompressedXContent(sourceWithoutMultipleConfidenceIntervals);
+
+        assertTrue(mapper.hasConfidenceIntervalDifference(compressed3, compressed4));
+
+        // Test with non-zero confidence_interval (should not match)
+        String sourceWithNonZeroConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
+            + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.5}}}}}";
+
+        CompressedXContent compressed5 = new CompressedXContent(sourceWithNonZeroConfidenceInterval);
+
+        assertFalse(mapper.hasConfidenceIntervalDifference(compressed5, compressed2));
     }
 }

@@ -26,9 +26,10 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         final List<String> ids,
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
-        @Nullable final TimeValue expiration
+        @Nullable final TimeValue expiration,
+        @Nullable final CertificateIdentity certificateIdentity
     ) {
-        super(roleDescriptors, metadata, expiration);
+        super(roleDescriptors, metadata, expiration, certificateIdentity);
         this.ids = Objects.requireNonNull(ids, "API key IDs must not be null");
     }
 
@@ -38,6 +39,16 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         if (ids.isEmpty()) {
             validationException = addValidationError("Field [ids] cannot be empty", validationException);
         }
+
+        if (getCertificateIdentity() != null && ids.size() > 1) {
+            validationException = addValidationError(
+                "Certificate identity can only be updated for a single API key at a time. Found ["
+                    + ids.size()
+                    + "] API key IDs in the request.",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -54,11 +65,12 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         return Objects.equals(getIds(), that.getIds())
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(expiration, that.expiration)
-            && Objects.equals(roleDescriptors, that.roleDescriptors);
+            && Objects.equals(roleDescriptors, that.roleDescriptors)
+            && Objects.equals(certificateIdentity, that.certificateIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getIds(), expiration, metadata, roleDescriptors);
+        return Objects.hash(getIds(), expiration, metadata, roleDescriptors, certificateIdentity);
     }
 }

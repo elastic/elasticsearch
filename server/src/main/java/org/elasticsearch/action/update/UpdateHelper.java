@@ -22,18 +22,19 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.UpsertCtxMap;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,16 +60,13 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
-        // TODO: Don't hard-code gFields
-        return prepare(request, indexShard, nowInMillis, new String[] { RoutingFieldMapper.NAME });
-    }
-
-    /**
-     * Prepares an update request by converting it into an index or delete request or an update response (no action).
-     */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, String[] gFields) throws IOException {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), gFields);
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
+        throws IOException {
+        if (indexShard.indexSettings().sequenceNumbersDisabled()) {
+            throw new UpdateNotSupportedException(indexShard.shardId());
+        }
+        final GetResult getResult = indexShard.getService()
+            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 
@@ -193,11 +191,7 @@ public class UpdateHelper {
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
-        final boolean noop = XContentHelper.update(
-            updatedSourceAsMap,
-            currentRequest.sourceAsMap(XContentParserDecorator.NOOP),
-            detectNoop
-        ) == false;
+        final boolean noop = XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop) == false;
 
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.

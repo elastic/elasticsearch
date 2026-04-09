@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -43,16 +42,14 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.randomCompatibleVersion(random()));
+                out.setTransportVersion(TransportVersionUtils.randomCompatibleVersion());
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setTransportVersion(out.getTransportVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
-                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                        assertEquals(request.masterTerm(), in.readVLong());
-                    }
+                    assertEquals(request.masterTerm(), in.readVLong());
                     assertEquals(request.ackTimeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
                     final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -63,14 +60,12 @@ public class CloseIndexRequestTests extends ESTestCase {
         }
         {
             final CloseIndexRequest sample = randomRequest();
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                    out.writeVLong(sample.masterTerm());
-                }
+                out.writeVLong(sample.masterTerm());
                 out.writeTimeValue(sample.ackTimeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);

@@ -1099,8 +1099,7 @@ create logsdb data stream with custom empty sorting:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
-  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
-  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+  - match: { .$backing_index.mappings.properties.host: null }
 
 ---
 create logsdb data stream with custom sorting on timestamp:
@@ -1143,3 +1142,161 @@ create logsdb data stream with custom sorting on timestamp:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+
+---
+create logsdb data stream with timestamp mixed date_nanos and date fields:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+  - do:
+      bulk:
+        index: logsdb
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2025-09-09T14:00:00Z
+            host.name: localhost
+  - is_false: errors
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                "@timestamp":
+                  type: "date_nanos"
+  - do:
+      indices.rollover:
+        alias: logsdb
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+  - do:
+      bulk:
+        index: logsdb
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2025-09-09T14:00:01Z
+            host.name: localhost
+  - is_false: errors
+  - do:
+      search:
+        index: logsdb
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2025-09-09"
+          aggs:
+            timestamp_histo:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: "day"
+  - length: { hits.hits: 2 }
+  - length: { aggregations.timestamp_histo.buckets: 1 }
+  - match: { aggregations.timestamp_histo.buckets.0.key_as_string: "2025-09-09T00:00:00.000Z" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM logsdb | WHERE @timestamp >= "2025-09-09" | STATS min = min(@timestamp) BY day = BUCKET(@timestamp, 1 day) | LIMIT 10'
+  - match: { columns.0.name: "min" }
+  - match: { columns.0.type: "date_nanos" }
+  - match: { columns.1.name: "day" }
+  - match: { columns.1.type: "date_nanos" }
+  - length: { values: 1 }
+  - match: { values.0: [ "2025-09-09T14:00:00.000Z", "2025-09-09T00:00:00.000Z" ] }
+
+---
+rollover with host as keyword:
+  - do:
+      indices.put_index_template:
+        name: "example"
+        body:
+          "index_patterns": [ "example*" ]
+          "template":
+            "settings":
+              "mode": "logsdb"
+            "mappings":
+              "properties":
+                "host":
+                  "type": "text"
+                "@timestamp":
+                  "type": "date"
+          "composed_of": []
+          "priority": 500
+          "data_stream": {}
+
+  - do:
+      index:
+        index: "example"
+        body:
+          "@timestamp": "2025-01-01T00:00:00.000Z"
+          "host": "test-host"
+
+  - do:
+      indices.rollover:
+        alias: "example"
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_data_stream:
+        name: "example"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index_0 }
+  - set: { data_streams.0.indices.1.index_name: backing_index_1 }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index_0
+  - is_false: .$backing_index_0.settings.index.logsdb.add_host_name_field
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index_0
+  - match: { .$backing_index_0.mappings.properties.host.properties: null }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index_1
+  - is_false: .$backing_index_1.settings.index.logsdb.add_host_name_field
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index_1
+  - match: { .$backing_index_1.mappings.properties.host.properties: null }

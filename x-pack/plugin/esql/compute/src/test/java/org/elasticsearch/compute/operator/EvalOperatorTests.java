@@ -12,9 +12,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -33,7 +35,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record Addition(DriverContext driverContext, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record Addition(DriverContext driverContext, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
@@ -47,6 +49,11 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 1;
+        }
+
+        @Override
         public String toString() {
             return "Addition[lhs=" + lhs + ", rhs=" + rhs + ']';
         }
@@ -55,7 +62,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         public void close() {}
     }
 
-    record LoadFromPage(int channel) implements EvalOperator.ExpressionEvaluator {
+    record LoadFromPage(int channel) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             Block block = page.getBlock(channel);
@@ -64,14 +71,19 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            return 2;
+        }
+
+        @Override
         public void close() {}
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+        return new EvalOperator.EvalOperatorFactory(new ExpressionEvaluator.Factory() {
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context) {
                 return new Addition(context, 0, 1);
             }
 
@@ -104,9 +116,9 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     public void testReadFromBlock() {
-        DriverContext context = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), 10));
-        List<Page> results = drive(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)).get(context), input.iterator(), context);
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(simpleInput(runner.blockFactory(), 10));
+        List<Page> results = runner.run(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)));
         Set<Long> found = new TreeSet<>();
         for (var page : results) {
             LongBlock lb = page.getBlock(2);
@@ -114,6 +126,6 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
         assertThat(found, equalTo(LongStream.range(0, 10).mapToObj(Long::valueOf).collect(Collectors.toSet())));
         results.forEach(Page::releaseBlocks);
-        assertThat(context.breaker().getUsed(), equalTo(0L));
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

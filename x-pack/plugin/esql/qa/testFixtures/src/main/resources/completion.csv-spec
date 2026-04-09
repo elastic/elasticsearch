@@ -6,7 +6,7 @@ completion using a ROW source operator
 required_capability: completion
 
 ROW prompt="Who is Victor Hugo?"
-| COMPLETION completion_output = prompt WITH test_completion
+| COMPLETION completion_output = prompt WITH { "inference_id" : "test_completion" }
 ;
 
 prompt:keyword      | completion_output:keyword
@@ -18,7 +18,7 @@ completion using a ROW source operator and prompt is a multi-valued field
 required_capability: completion
 
 ROW prompt=["Answer the following question:", "Who is Victor Hugo?"]
-| COMPLETION completion_output = prompt WITH test_completion
+| COMPLETION completion_output = prompt WITH { "inference_id" : "test_completion" }
 ;
 
 prompt:keyword                                        | completion_output:keyword
@@ -29,33 +29,62 @@ prompt:keyword                                        | completion_output:keywor
 completion after a search
 required_capability: completion
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
 | LIMIT 2
-| COMPLETION title WITH test_completion
+| COMPLETION title WITH { "inference_id" : "test_completion" }
 | KEEP title, completion
 ;
 
-title:text                      | completion:keyword
-War and Peace                   | WAR AND PEACE
-War and Peace (Signet Classics) | WAR AND PEACE (SIGNET CLASSICS)                     
+title:text                         | completion:keyword
+War and Peace                      | WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
-                                                                                                    
+
 completion using a function as a prompt
+required_capability: completion
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC
+| LIMIT 2
+| COMPLETION CONCAT("This is a prompt: ", title) WITH { "inference_id" : "test_completion" }
+| KEEP title, completion
+;
+
+title:text                         | completion:keyword
+War and Peace                      | THIS IS A PROMPT: WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | THIS IS A PROMPT: WAR AND PEACE: A NOVEL (6 VOLUMES)
+;                                                                                                                       
+
+completion followed by stats
 required_capability: completion
 required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| SORT _score DESC
-| LIMIT 2
-| COMPLETION CONCAT("This is a prompt: ", title) WITH test_completion
-| KEEP title, completion
+| COMPLETION CONCAT("This is a prompt: ", title) WITH { "inference_id" : "test_completion" }
+| STATS count=COUNT(*), avg_completion_length = AVG(LENGTH(completion))
 ;
 
-title:text                      | completion:keyword
-War and Peace                   | THIS IS A PROMPT: WAR AND PEACE
-War and Peace (Signet Classics) | THIS IS A PROMPT: WAR AND PEACE (SIGNET CLASSICS)
-;                                                                                                                       
+count:long | avg_completion_length:double
+4          | 50.75
+;
+
+
+completionWithTaskSettings
+required_capability: completion
+
+ROW prompt="test prompt"
+| COMPLETION completion = prompt WITH { "inference_id": "test_completion", "task_settings": {"temperature": 1} }
+| KEEP completion
+;
+
+completion:keyword
+temperature:1 TEST PROMPT
+;

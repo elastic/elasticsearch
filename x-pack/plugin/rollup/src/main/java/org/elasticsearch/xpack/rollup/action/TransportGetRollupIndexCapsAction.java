@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -86,11 +88,11 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
         final var project = projectResolver.getProjectMetadata(clusterService.state());
         String[] indices = resolver.concreteIndexNames(project, request.indicesOptions(), request);
-        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices), project.indices());
+        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(new HashSet<>(Arrays.asList(indices)), project.indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
+    static Map<String, RollableIndexCaps> getCapsByRollupIndex(Collection<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
 
         indices.entrySet().stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {

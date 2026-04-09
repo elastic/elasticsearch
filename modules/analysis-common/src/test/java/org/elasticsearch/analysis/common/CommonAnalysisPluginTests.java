@@ -34,7 +34,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current())
             )
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -58,7 +58,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
             )
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -83,7 +83,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current())
             )
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -107,7 +107,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_6_0)
             )
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -133,20 +133,19 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         doTestPrebuiltTokenizerDeprecation(
             "nGram",
             "ngram",
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
             false
         );
         doTestPrebuiltTokenizerDeprecation(
             "edgeNGram",
             "edge_ngram",
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
             false
         );
         doTestPrebuiltTokenizerDeprecation(
             "nGram",
             "ngram",
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_6_0,
                 IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
             ),
@@ -156,7 +155,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             "edgeNGram",
             "edge_ngram",
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_6_0,
                 IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
             ),
@@ -167,7 +165,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             () -> doTestPrebuiltTokenizerDeprecation(
                 "nGram",
                 "ngram",
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );
@@ -176,7 +174,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             () -> doTestPrebuiltTokenizerDeprecation(
                 "edgeNGram",
                 "edge_ngram",
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );
@@ -185,20 +183,19 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         doTestCustomTokenizerDeprecation(
             "nGram",
             "ngram",
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
             false
         );
         doTestCustomTokenizerDeprecation(
             "edgeNGram",
             "edge_ngram",
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
+            IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.V_7_5_2),
             false
         );
         doTestCustomTokenizerDeprecation(
             "nGram",
             "ngram",
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_6_0,
                 IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
             ),
@@ -208,7 +205,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             "edgeNGram",
             "edge_ngram",
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_6_0,
                 IndexVersion.max(IndexVersions.V_7_6_0, IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0))
             ),
@@ -219,7 +215,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             () -> doTestCustomTokenizerDeprecation(
                 "nGram",
                 "ngram",
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );
@@ -228,7 +224,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             () -> doTestCustomTokenizerDeprecation(
                 "edgeNGram",
                 "edge_ngram",
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()),
                 true
             )
         );

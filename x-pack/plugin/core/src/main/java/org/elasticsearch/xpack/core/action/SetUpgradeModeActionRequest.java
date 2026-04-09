@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,18 +21,8 @@ public class SetUpgradeModeActionRequest extends AcknowledgedRequest<SetUpgradeM
 
     private final boolean enabled;
 
-    private static final ParseField ENABLED = new ParseField("enabled");
-    public static final ConstructingObjectParser<SetUpgradeModeActionRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "set_upgrade_mode_action_request",
-        a -> new SetUpgradeModeActionRequest((Boolean) a[0])
-    );
-
-    static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-    }
-
-    public SetUpgradeModeActionRequest(boolean enabled) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public SetUpgradeModeActionRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, boolean enabled) {
+        super(masterNodeTimeout, ackTimeout);
         this.enabled = enabled;
     }
 
@@ -54,7 +43,7 @@ public class SetUpgradeModeActionRequest extends AcknowledgedRequest<SetUpgradeM
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled);
+        return Objects.hash(masterNodeTimeout(), ackTimeout(), enabled);
     }
 
     @Override
@@ -66,13 +55,15 @@ public class SetUpgradeModeActionRequest extends AcknowledgedRequest<SetUpgradeM
             return false;
         }
         SetUpgradeModeActionRequest other = (SetUpgradeModeActionRequest) obj;
-        return enabled == other.enabled();
+        return Objects.equals(masterNodeTimeout(), other.masterNodeTimeout())
+            && Objects.equals(ackTimeout(), other.ackTimeout())
+            && enabled == other.enabled();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ENABLED.getPreferredName(), enabled);
+        builder.field("enabled", enabled);
         builder.endObject();
         return builder;
     }

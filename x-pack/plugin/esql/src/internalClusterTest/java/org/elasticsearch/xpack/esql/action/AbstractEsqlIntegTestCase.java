@@ -29,6 +29,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -136,7 +140,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Override
@@ -166,15 +170,34 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(syncEsqlQueryRequest().query(esqlCommands).pragmas(randomPragmas()));
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()));
+    }
+
+    /** A hook for overriding. */
+    protected QueryPragmas getPragmas() {
+        return randomPragmas();
     }
 
     public EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(EsqlQueryAction.INSTANCE, maybeWrapAsPrepared(request)).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
+    }
+
+    /**
+     * Randomly wraps the given request in a {@link PreparedEsqlQueryRequest} to exercise the
+     * pre-built-plan code path.
+     */
+    private EsqlQueryRequest maybeWrapAsPrepared(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest || randomBoolean()) {
+            return request;
+        }
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+        var statement = parser.parse(request.query(), request.params(), inferenceSettings);
+        return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 
     protected static QueryPragmas randomPragmas() {

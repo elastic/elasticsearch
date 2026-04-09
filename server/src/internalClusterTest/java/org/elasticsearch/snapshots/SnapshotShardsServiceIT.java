@@ -127,7 +127,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         // allow cluster states to go through normally until we see a shard snapshot update
         final var shardUpdateSeen = new AtomicBoolean();
         MockTransportService.getInstance(masterNode)
-            .addRequestHandlingBehavior(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, (handler, request, channel, task) -> {
+            .addRequestHandlingBehavior(TransportUpdateSnapshotStatusAction.NAME, (handler, request, channel, task) -> {
                 shardUpdateSeen.set(true);
                 handler.messageReceived(request, channel, task);
             });

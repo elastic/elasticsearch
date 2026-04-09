@@ -119,7 +119,7 @@ public abstract class SageMakerSchemaPayloadTestCase<T extends SageMakerSchemaPa
         }
     }
 
-    public final void testUpdate() throws IOException {
+    public void testUpdate() throws IOException {
         var taskSettings = randomApiTaskSettings();
         if (taskSettings != SageMakerStoredTaskSchema.NO_OP) {
             var otherTaskSettings = randomValueOtherThan(taskSettings, this::randomApiTaskSettings);

@@ -32,9 +32,9 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayVector(bytesRefArray1, 0, blockFactory),
                 new BytesRefArrayVector(bytesRefArray2, 0, blockFactory),
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0).asVector(),
-                blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0).filter().asVector(),
+                blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0).filter(false).asVector(),
                 blockFactory.newBytesRefBlockBuilder(0).build().asVector(),
-                blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().asVector().filter()
+                blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().asVector().filter(false)
             );
             assertAllEquals(vectors);
         }
@@ -62,8 +62,9 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 ),
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0),
                 blockFactory.newBytesRefBlockBuilder(0).build(),
-                blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().filter(),
-                blockFactory.newBytesRefBlockBuilder(0).appendNull().build().filter()
+                blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().filter(false),
+                blockFactory.newBytesRefBlockBuilder(0).appendNull().build().filter(false),
+                (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
             );
             assertAllEquals(blocks);
         }
@@ -76,8 +77,8 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayVector(bytesRefArray1, 3, blockFactory),
                 new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).asBlock().asVector(),
                 new BytesRefArrayVector(bytesRefArray2, 3, blockFactory),
-                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(0, 1, 2),
-                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(0, 1, 2),
+                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(false, 0, 1, 2),
+                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(false, 0, 1, 2),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("2"))
@@ -90,14 +91,14 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("3"))
                     .build()
                     .asVector()
-                    .filter(0, 1, 2),
+                    .filter(false, 0, 1, 2),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("4"))
                     .appendBytesRef(new BytesRef("2"))
                     .appendBytesRef(new BytesRef("3"))
                     .build()
-                    .filter(0, 2, 3)
+                    .filter(false, 0, 2, 3)
                     .asVector(),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
@@ -106,7 +107,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("3"))
                     .build()
                     .asVector()
-                    .filter(0, 2, 3)
+                    .filter(false, 0, 2, 3)
             );
             assertAllEquals(vectors);
         }
@@ -117,8 +118,8 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayVector(bytesRefArray1, 3, blockFactory),
                 new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).asBlock().asVector(),
                 new BytesRefArrayVector(bytesRefArray2, 3, blockFactory),
-                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(0, 1, 2),
-                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(0, 1, 2),
+                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(false, 0, 1, 2),
+                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(false, 0, 1, 2),
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef("1"), 3).asVector(),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
@@ -132,14 +133,14 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("1"))
                     .build()
                     .asVector()
-                    .filter(0, 1, 2),
+                    .filter(false, 0, 1, 2),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("4"))
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("1"))
                     .build()
-                    .filter(0, 2, 3)
+                    .filter(false, 0, 2, 3)
                     .asVector(),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
@@ -148,7 +149,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("1"))
                     .build()
                     .asVector()
-                    .filter(0, 2, 3)
+                    .filter(false, 0, 2, 3)
             );
             assertAllEquals(moreVectors);
         }
@@ -175,9 +176,9 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory
                 ),
-                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(0, 1, 2).asBlock(),
-                new BytesRefArrayVector(bytesRefArray2, 3, blockFactory).filter(0, 1, 2).asBlock(),
-                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(0, 1, 2).asBlock(),
+                new BytesRefArrayVector(bytesRefArray1, 3, blockFactory).filter(false, 0, 1, 2).asBlock(),
+                new BytesRefArrayVector(bytesRefArray2, 3, blockFactory).filter(false, 0, 1, 2).asBlock(),
+                new BytesRefArrayVector(bytesRefArray2, 4, blockFactory).filter(false, 0, 1, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("2"))
@@ -188,21 +189,21 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("2"))
                     .appendBytesRef(new BytesRef("3"))
                     .build()
-                    .filter(0, 1, 2),
+                    .filter(false, 0, 1, 2),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("4"))
                     .appendBytesRef(new BytesRef("2"))
                     .appendBytesRef(new BytesRef("3"))
                     .build()
-                    .filter(0, 2, 3),
+                    .filter(false, 0, 2, 3),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendNull()
                     .appendBytesRef(new BytesRef("2"))
                     .appendBytesRef(new BytesRef("3"))
                     .build()
-                    .filter(0, 2, 3)
+                    .filter(false, 0, 2, 3)
             );
             assertAllEquals(blocks);
         }
@@ -227,28 +228,28 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory
                 ),
-                new BytesRefArrayVector(bytesRefArray1, 2, blockFactory).filter(0, 1).asBlock(),
-                new BytesRefArrayVector(bytesRefArray2, 2, blockFactory).filter(0, 1).asBlock(),
-                new BytesRefArrayVector(bytesRefArray2, 3, blockFactory).filter(0, 1).asBlock(),
+                new BytesRefArrayVector(bytesRefArray1, 2, blockFactory).filter(false, 0, 1).asBlock(),
+                new BytesRefArrayVector(bytesRefArray2, 2, blockFactory).filter(false, 0, 1).asBlock(),
+                new BytesRefArrayVector(bytesRefArray2, 3, blockFactory).filter(false, 0, 1).asBlock(),
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef("9"), 2),
                 blockFactory.newBytesRefBlockBuilder(2).appendBytesRef(new BytesRef("9")).appendBytesRef(new BytesRef("9")).build(),
                 blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("9"))
                     .appendBytesRef(new BytesRef("9"))
                     .build()
-                    .filter(0, 1),
+                    .filter(false, 0, 1),
                 blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("9"))
                     .appendBytesRef(new BytesRef("4"))
                     .appendBytesRef(new BytesRef("9"))
                     .build()
-                    .filter(0, 2),
+                    .filter(false, 0, 2),
                 blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("9"))
                     .appendNull()
                     .appendBytesRef(new BytesRef("9"))
                     .build()
-                    .filter(0, 2)
+                    .filter(false, 0, 2)
             );
             assertAllEquals(moreBlocks);
         }
@@ -275,7 +276,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("2"))
                     .build()
                     .asVector()
-                    .filter(1),
+                    .filter(false, 1),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("2"))
@@ -314,7 +315,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("2"))
                     .build()
-                    .filter(1),
+                    .filter(false, 1),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("2"))
@@ -357,17 +358,20 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
         boolean grow = randomBoolean();
         BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(grow ? 0 : positions);
         BytesRefBlock.Builder builder2 = blockFactory.newBytesRefBlockBuilder(grow ? 0 : positions);
+        ConstantNullBlock.Builder builder3 = new ConstantNullBlock.Builder(blockFactory);
         for (int p = 0; p < positions; p++) {
             builder1.appendNull();
             builder2.appendNull();
+            builder3.appendNull();
         }
         BytesRefBlock block1 = builder1.build();
         BytesRefBlock block2 = builder2.build();
+        Block block3 = builder3.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
 
-        List<BytesRefBlock> blocks = List.of(block1, block2);
+        List<Block> blocks = List.of(block1, block2, block3);
         assertAllEquals(blocks);
     }
 

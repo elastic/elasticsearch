@@ -287,6 +287,28 @@ public final class TimestampFormatFinder {
             Arrays.asList("    11  1111   11 11 11 111", "    1  1111   11 11 11 111"),
             0,
             0
+        ),
+        new CandidateTimestampFormat(
+            example -> Arrays.asList(
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy/MM/dd HH:mm:ss"),
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy.MM.dd HH:mm:ss"),
+                CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "yyyy-MM-dd HH:mm:ss")
+            ),
+            "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?\\b",
+            "\\b%{TIMESTAMP_YMD}\\b",
+            "TIMESTAMP_YMD",
+            List.of("1111 11 11 11 11 11"),
+            0,
+            10
+        ),
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("MMM d, yyyy"),
+            "\\b[A-Z][a-z]{2} \\d{1,2}, \\d{4}\\b",
+            "\\b%{MONTH} %{MONTHDAY}, %{YEAR}\\b",
+            CUSTOM_TIMESTAMP_GROK_NAME,
+            Arrays.asList("    11  1111", "    1  1111"),
+            5,
+            0
         )
     );
 

@@ -50,7 +50,7 @@ public class FilteredExpression extends Expression {
     }
 
     public Expression surrogate() {
-        return delegate.transformUp(AggregateFunction.class, af -> af.withFilter(filter));
+        return AggregateFunction.withFilter(delegate, filter);
     }
 
     @Override
@@ -91,5 +91,12 @@ public class FilteredExpression extends Expression {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new FilteredExpression(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    public FilteredExpression withDelegate(Expression newDelegate) {
+        if (newDelegate == delegate) {
+            return this;
+        }
+        return new FilteredExpression(source(), newDelegate, filter());
     }
 }

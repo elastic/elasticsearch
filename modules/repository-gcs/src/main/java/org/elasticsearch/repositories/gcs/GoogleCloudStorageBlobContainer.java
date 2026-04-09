@@ -9,6 +9,9 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.StorageException;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -20,10 +23,12 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -113,6 +118,32 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void copyBlob(
+        final OperationPurpose purpose,
+        final BlobContainer sourceBlobContainer,
+        final String sourceBlobName,
+        final String blobName,
+        final long blobSize
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        if (sourceBlobContainer instanceof GoogleCloudStorageBlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a GoogleCloudStorageBlobContainer");
+        }
+        var source = (GoogleCloudStorageBlobContainer) sourceBlobContainer;
+        BlobId sourceBlobId = BlobId.of(source.blobStore.bucketName, source.buildKey(sourceBlobName));
+        BlobId blobId = BlobId.of(blobStore.bucketName, buildKey(blobName));
+        try {
+            blobStore.client().copy(purpose, sourceBlobId, blobId, blobStore.getMegabytesCopiedPerChunk());
+        } catch (StorageException e) {
+            if (e.getCode() == RestStatus.NOT_FOUND.getStatus()) {
+                throw new NoSuchFileException("Copy source [" + sourceBlobName + "] not found: " + e.getMessage());
+            }
+            throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
+        }
+    }
+
+    @Override
     public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return blobStore.deleteDirectory(purpose, path().buildAsString());
     }
@@ -154,5 +185,10 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> blobStore.getRegister(purpose, buildKey(key), path, key));
+    }
+
+    // visible for testing
+    public GoogleCloudStorageBlobStore getBlobStore() {
+        return blobStore;
     }
 }

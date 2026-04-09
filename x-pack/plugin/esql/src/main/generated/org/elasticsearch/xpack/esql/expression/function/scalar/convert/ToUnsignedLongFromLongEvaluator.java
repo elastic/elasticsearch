@@ -6,31 +6,34 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
+ * {@link ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToUnsignedLongFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator lng;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToUnsignedLongFromLongEvaluator.class);
 
-  public ToUnsignedLongFromLongEvaluator(Source source, EvalOperator.ExpressionEvaluator lng,
+  private final ExpressionEvaluator lng;
+
+  public ToUnsignedLongFromLongEvaluator(Source source, ExpressionEvaluator lng,
       DriverContext driverContext) {
     super(driverContext, source);
     this.lng = lng;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return lng;
   }
 
@@ -113,12 +116,19 @@ public final class ToUnsignedLongFromLongEvaluator extends AbstractConvertFuncti
     Releasables.closeExpectNoException(lng);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lng.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lng;
+    private final ExpressionEvaluator.Factory lng;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lng) {
+    public Factory(Source source, ExpressionEvaluator.Factory lng) {
       this.source = source;
       this.lng = lng;
     }

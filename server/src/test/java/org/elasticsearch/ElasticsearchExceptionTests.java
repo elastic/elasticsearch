@@ -1258,6 +1258,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
+                ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), 0, null);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
                     new ShardSearchFailure(
                         new ParsingException(0, 0, "Parsing g", null),
@@ -1267,10 +1268,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         new RepositoryException("repository_g", "Repo"),
                         new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)
                     ),
-                    new ShardSearchFailure(
-                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)),
-                        null
-                    ) };
+                    new ShardSearchFailure(new SearchContextMissingException(shardSearchContextId), null) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"
@@ -1293,7 +1291,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 );
                 expected.addSuppressed(
                     new ElasticsearchException(
-                        "Elasticsearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
+                        "Elasticsearch exception [type=search_context_missing_exception, "
+                            + "reason=No search context found for id ["
+                            + shardSearchContextId
+                            + "]]"
                     )
                 );
             }
@@ -1553,19 +1554,24 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertArrayEquals(ser.getStackTrace(), rootException.getStackTrace());
     }
 
-    static class ExceptionSubclass extends ElasticsearchException {
+    static class TimeoutSubclass extends ElasticsearchException {
+        TimeoutSubclass(String message) {
+            super(message);
+        }
+
         @Override
         public boolean isTimeout() {
             return true;
         }
 
-        ExceptionSubclass(String message) {
-            super(message);
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
         }
     }
 
-    public void testTimeout() throws IOException {
-        var e = new ExceptionSubclass("some timeout");
+    public void testTimeoutHeader() throws IOException {
+        var e = new TimeoutSubclass("some timeout");
         assertThat(e.getBodyHeaderKeys(), hasItem(ElasticsearchException.TIMED_OUT_HEADER));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -1574,12 +1580,50 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         builder.endObject();
         String expected = """
             {
-              "type": "exception_subclass",
+              "type": "timeout_subclass",
               "reason": "some timeout",
               "timed_out": true,
               "header": {
                 "X-Timed-Out": "?1"
               }
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+    }
+
+    static class Exception5xx extends ElasticsearchException {
+        Exception5xx(String message) {
+            super(message);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    static class Exception4xx extends ElasticsearchException {
+        Exception4xx(String message) {
+            super(message);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
+        }
+    }
+
+    public void testExceptionTypeHeader() throws IOException {
+        var e = new Exception5xx("some exception");
+        assertThat(e.getHttpHeaderKeys(), hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        e.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "exception5xx",
+              "reason": "some exception"
             }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
@@ -1592,13 +1636,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(e.getHttpHeaders(), hasEntry("My-Header", List.of("value")));
 
         // ensure http headers are not written to response body
+    }
+
+    public void testNoExceptionTypeHeaderOn4xx() throws IOException {
+        var e = new Exception4xx("some exception");
+        assertThat(e.getHttpHeaderKeys(), not(hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER)));
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         e.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String expected = """
             {
-              "type": "exception",
+              "type": "exception4xx",
               "reason": "some exception"
             }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));

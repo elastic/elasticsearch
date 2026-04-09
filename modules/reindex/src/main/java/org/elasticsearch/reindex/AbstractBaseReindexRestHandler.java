@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -17,11 +20,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,9 +32,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class AbstractBaseReindexRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(AbstractBaseReindexRestHandler.class);
 
     private final A action;
 
@@ -43,6 +50,10 @@ public abstract class AbstractBaseReindexRestHandler<
         throws IOException {
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
+
+        // Only requests supporting remote indices can have IndicesOptions allowing cross-project index expressions
+        assert internal.supportsRemoteIndicesSearch()
+            || internal.getSearchRequest().indicesOptions().resolveCrossProjectIndexExpression() == false;
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -66,7 +77,16 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        responseListener.addListener(new LoggingTaskListener<>(task));
+        final ActionListener<BulkByScrollResponse> loggingListener = ActionListener.wrap(response -> {
+            logger.info("{} finished with response {}", task.getId(), response);
+        }, e -> {
+            if (e instanceof TaskRelocatedException relocatedException) {
+                logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
+            } else {
+                logger.warn(() -> format("%s failed with exception", task.getId()), e);
+            }
+        });
+        responseListener.addListener(loggingListener);
         return sendTask(client.getLocalNodeId(), task);
     }
 

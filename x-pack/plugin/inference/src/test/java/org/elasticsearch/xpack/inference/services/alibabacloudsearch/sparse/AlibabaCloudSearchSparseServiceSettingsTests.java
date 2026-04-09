@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -19,38 +20,113 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSerializingTestCase<AlibabaCloudSearchSparseServiceSettings> {
+public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    AlibabaCloudSearchSparseServiceSettings> {
+
+    private static final String TEST_SERVICE_ID = "test-service-id";
+    private static final String INITIAL_TEST_SERVICE_ID = "initial-test-service-id";
+    private static final String TEST_HOST = "test-host";
+    private static final String INITIAL_TEST_HOST = "initial-test-host";
+    private static final String TEST_WORKSPACE_NAME = "test-workspace-name";
+    private static final String INITIAL_TEST_WORKSPACE_NAME = "initial-test-workspace-name";
+    private static final String TEST_HTTP_SCHEMA = "https";
+    private static final String INITIAL_TEST_HTTP_SCHEMA = "http";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
     public static AlibabaCloudSearchSparseServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
         return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
     }
 
-    public void testFromMap() {
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AlibabaCloudSearchSparseServiceSettings(
+            new AlibabaCloudSearchServiceSettings(
+                INITIAL_TEST_SERVICE_ID,
+                INITIAL_TEST_HOST,
+                INITIAL_TEST_WORKSPACE_NAME,
+                INITIAL_TEST_HTTP_SCHEMA,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+            )
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(
+                Map.of(
+                    AlibabaCloudSearchServiceSettings.HOST,
+                    TEST_HOST,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
+                    TEST_SERVICE_ID,
+                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
+                    TEST_WORKSPACE_NAME,
+                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
+                    TEST_HTTP_SCHEMA,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                )
+            )
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AlibabaCloudSearchSparseServiceSettings(
+                    new AlibabaCloudSearchServiceSettings(
+                        INITIAL_TEST_SERVICE_ID,
+                        INITIAL_TEST_HOST,
+                        INITIAL_TEST_WORKSPACE_NAME,
+                        TEST_HTTP_SCHEMA,
+                        new RateLimitSettings(TEST_RATE_LIMIT)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AlibabaCloudSearchSparseServiceSettings(
+            new AlibabaCloudSearchServiceSettings(
+                INITIAL_TEST_SERVICE_ID,
+                INITIAL_TEST_HOST,
+                INITIAL_TEST_WORKSPACE_NAME,
+                INITIAL_TEST_HTTP_SCHEMA,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+            )
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Success() {
         var serviceSettings = AlibabaCloudSearchSparseServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     AlibabaCloudSearchServiceSettings.HOST,
-                    host,
+                    TEST_HOST,
                     AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
+                    TEST_SERVICE_ID,
                     AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
+                    TEST_WORKSPACE_NAME,
                     AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema
+                    TEST_HTTP_SCHEMA,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
             ),
             null
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new AlibabaCloudSearchSparseServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null)
+                    new AlibabaCloudSearchServiceSettings(
+                        TEST_SERVICE_ID,
+                        TEST_HOST,
+                        TEST_WORKSPACE_NAME,
+                        TEST_HTTP_SCHEMA,
+                        new RateLimitSettings(TEST_RATE_LIMIT)
+                    )
                 )
             )
         );
@@ -68,10 +144,20 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractWireSe
 
     @Override
     protected AlibabaCloudSearchSparseServiceSettings mutateInstance(AlibabaCloudSearchSparseServiceSettings instance) throws IOException {
-        return null;
+        return new AlibabaCloudSearchSparseServiceSettings(
+            randomValueOtherThan(instance.getCommonSettings(), AlibabaCloudSearchServiceSettingsTests::createRandom)
+        );
     }
 
     public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
         return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(serviceId, host, workspaceName);
+    }
+
+    @Override
+    protected AlibabaCloudSearchSparseServiceSettings mutateInstanceForVersion(
+        AlibabaCloudSearchSparseServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

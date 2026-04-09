@@ -42,7 +42,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         var state = projectStateWithEmptyProject();
@@ -62,7 +62,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.FALSE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         var state = projectStateWithEmptyProject();
@@ -86,7 +86,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         var state = projectStateWithEmptyProject();
@@ -110,7 +110,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         var state = projectStateWithEmptyProject();

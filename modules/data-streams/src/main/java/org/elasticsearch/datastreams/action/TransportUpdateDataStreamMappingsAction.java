@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -47,6 +48,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportUpdateDataStreamMappingsAction(
@@ -57,7 +59,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ProjectResolver projectResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        IndicesService indicesService
     ) {
         super(
             UpdateDataStreamMappingsAction.NAME,
@@ -73,6 +76,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -163,7 +167,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId))
+                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId), indicesService)
                             )
                         );
                     } catch (IOException e) {

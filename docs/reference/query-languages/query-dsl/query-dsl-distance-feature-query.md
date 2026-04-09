@@ -43,6 +43,7 @@ To see how you can set up an index for the `distance_feature` query, try the fol
       }
     }
     ```
+    % TESTSETUP
 
 2. Index several documents to this index.
 

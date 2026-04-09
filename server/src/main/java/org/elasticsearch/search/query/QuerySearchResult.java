@@ -12,7 +12,6 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -25,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -39,11 +39,16 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+    private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -77,6 +82,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final SubscribableListener<Void> aggsContextReleased;
 
+    @Nullable
+    private Long timeRangeFilterFromMillis;
+
+    /**
+     * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
+     * concurrent {@link #registerTopHitsForRelease} calls cannot race on lazy queue creation.
+     */
+    private final ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
+
     public QuerySearchResult() {
         this(false);
     }
@@ -98,7 +112,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
-        refCounted = null;
+        refCounted = isNull ? null : LeakTracker.wrap(new SimpleRefCounted());
         aggsContextReleased = null;
     }
 
@@ -286,6 +300,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
+        // On the shard, register top_hits for release when there was no partial reduce (list empty).
+        // When there was a partial reduce, the reduce context already registered merged refs here.
+        if (aggregations != null && topHitsToReleaseQueue.isEmpty()) {
+            InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
+        }
         releaseAggsContext();
     }
 
@@ -434,6 +453,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
                 } else {
                     aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    InternalAggregations.addTopHitsToReleaseList(aggregations.expand(), topHitsToReleaseCollector());
                 }
             }
             if (in.readBoolean()) {
@@ -447,11 +467,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
             nodeQueueSize = in.readInt();
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
             setRescoreDocIds(new RescoreDocIds(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
-                if (versionSupportsBatchedExecution(in.getTransportVersion())) {
-                    reduced = in.readBoolean();
-                }
+            rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
+            if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+                reduced = in.readBoolean();
+            }
+            if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+                timeRangeFilterFromMillis = in.readOptionalLong();
             }
             success = true;
         } finally {
@@ -495,7 +516,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeBoolean(true);
                 writeTopDocs(out, topDocsAndMaxScore);
             } else {
-                assert isPartiallyReduced();
                 out.writeBoolean(false);
             }
         } else {
@@ -515,13 +535,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankShardResult);
-        } else if (rankShardResult != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeOptionalNamedWriteable(rankShardResult);
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
+        }
+        if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+            out.writeOptionalLong(timeRangeFilterFromMillis);
         }
     }
 
@@ -551,15 +570,52 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return super.tryIncRef();
     }
 
+    /**
+     * Register SearchHits from a top_hits aggregation so they are released when this result is released.
+     * Takes a new reference ({@link SearchHits#incRef()}) so the SearchHits stay valid until this
+     * result is serialized and released (the fetch phase may release its reference before the query
+     * result is serialized).
+     * <p>
+     * SearchHits can flow along two paths: the SearchResponse path and this QuerySearchResult path
+     * (used in the aggregation fetch phase). Both need a reference; the SearchResponse path holds
+     * the default one for all cases. This method adds a ref for the flow where this result is used
+     * (e.g. partial reduction on the shard). An alternative would be to incRef here and decRef in
+     * the caller (e.g. InternalTopHits reducer), but that would add more volatile access. Release
+     * timings for SearchContext and SearchResponse are not correlated, so both paths must keep a
+     * ref count. For the reduce path that does not go through this result, use
+     * {@link org.elasticsearch.search.aggregations.AggregationReduceContext#transferTopHitsForRelease}
+     * instead (caller keeps the ref, no extra incRef).
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        searchHits.incRef();
+        topHitsToReleaseQueue.add(searchHits);
+    }
+
+    /**
+     * Returns the collection used to collect SearchHits that must be released when this result is released.
+     * Used when building the aggregation reduce context for partial reduction on the shard, so that
+     * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
+     */
+    public Collection<SearchHits> topHitsToReleaseCollector() {
+        return topHitsToReleaseQueue;
+    }
+
     @Override
     public boolean decRef() {
         if (refCounted != null) {
             if (refCounted.decRef()) {
-                aggsContextReleased.onResponse(null);
+                for (SearchHits h : topHitsToReleaseQueue) {
+                    h.decRef();
+                }
+                topHitsToReleaseQueue.clear();
+                if (aggsContextReleased != null) {
+                    aggsContextReleased.onResponse(null);
+                }
                 return true;
             }
             return false;
         }
+        assert topHitsToReleaseQueue.isEmpty() : "topHitsToReleaseQueue not empty on unmanaged QuerySearchResult";
         return super.decRef();
     }
 
@@ -572,7 +628,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
-            || transportVersion.isPatchFrom(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X);
+        return transportVersion.supports(BATCHED_QUERY_PHASE_VERSION);
+    }
+
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    public void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
     }
 }

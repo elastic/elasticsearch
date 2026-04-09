@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.migrate.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
 
@@ -19,6 +21,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(value = Scope.PUBLIC)
 public class RestCreateIndexFromSourceAction extends BaseRestHandler {
 
     @Override

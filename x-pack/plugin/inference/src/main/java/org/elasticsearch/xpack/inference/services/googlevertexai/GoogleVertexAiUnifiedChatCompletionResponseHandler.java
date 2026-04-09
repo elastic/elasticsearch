@@ -10,9 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -22,19 +19,17 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionErrorResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
-
-import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVertexAiResponseHandler {
 
@@ -42,9 +37,13 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     private static final String ERROR_CODE_FIELD = "code";
     private static final String ERROR_MESSAGE_FIELD = "message";
     private static final String ERROR_STATUS_FIELD = "status";
+    private static final GoogleVertexAiErrorParser ERROR_PARSER = new GoogleVertexAiErrorParser();
+
+    private final ChatCompletionErrorResponseHandler chatCompletionErrorResponseHandler;
 
     public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType) {
         super(requestType, GoogleVertexAiCompletionResponseEntity::fromResponse, GoogleVertexAiErrorResponse::fromResponse, true);
+        this.chatCompletionErrorResponseHandler = new ChatCompletionErrorResponseHandler(ERROR_PARSER);
     }
 
     @Override
@@ -52,7 +51,9 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         assert request.isStreaming() : "GoogleVertexAiUnifiedChatCompletionResponseHandler only supports streaming requests";
 
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
+        var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor(
+            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(request.getInferenceEntityId(), m, e)
+        );
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(googleVertexAiProcessor);
@@ -60,63 +61,30 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     }
 
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
-        var restStatus = toRestStatus(responseStatusCode);
-
-        return errorResponse instanceof GoogleVertexAiErrorResponse vertexAIErrorResponse
-            ? new UnifiedChatCompletionException(
-                restStatus,
-                errorMessage,
-                vertexAIErrorResponse.status(),
-                String.valueOf(vertexAIErrorResponse.code()),
-                null
-            )
-            : new UnifiedChatCompletionException(
-                restStatus,
-                errorMessage,
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
-                restStatus.name().toLowerCase(Locale.ROOT)
-            );
+    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result) {
+        return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
     }
 
-    private static Exception buildMidStreamError(Request request, String message, Exception e) {
-        var errorResponse = GoogleVertexAiErrorResponse.fromString(message);
-        if (errorResponse instanceof GoogleVertexAiErrorResponse gver) {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format(
-                    "%s for request from inference entity id [%s]. Error message: [%s]",
-                    SERVER_ERROR_OBJECT,
-                    request.getInferenceEntityId(),
-                    errorResponse.getErrorMessage()
-                ),
-                gver.status(),
-                String.valueOf(gver.code()),
-                null
-            );
-        } else if (e != null) {
-            return UnifiedChatCompletionException.fromThrowable(e);
-        } else {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
-                "stream_error"
-            );
+    private static class GoogleVertexAiErrorParser implements UnifiedChatCompletionErrorParserContract {
+
+        @Override
+        public UnifiedChatCompletionErrorResponse parse(HttpResult result) {
+            return GoogleVertexAiErrorResponse.fromResponse(result);
+        }
+
+        @Override
+        public UnifiedChatCompletionErrorResponse parse(String response) {
+            return GoogleVertexAiErrorResponse.fromString(response);
         }
     }
 
-    public static class GoogleVertexAiErrorResponse extends ErrorResponse {
-        private static final Logger logger = LogManager.getLogger(GoogleVertexAiErrorResponse.class);
-        private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
-            "google_vertex_ai_error_wrapper",
-            true,
-            args -> Optional.ofNullable((GoogleVertexAiErrorResponse) args[0])
-        );
+    public static class GoogleVertexAiErrorResponse extends UnifiedChatCompletionErrorResponse {
+        private static final ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> ERROR_PARSER =
+            new ConstructingObjectParser<>(
+                "google_vertex_ai_error_wrapper",
+                true,
+                args -> Optional.ofNullable((GoogleVertexAiErrorResponse) args[0])
+            );
 
         private static final ConstructingObjectParser<GoogleVertexAiErrorResponse, Void> ERROR_BODY_PARSER = new ConstructingObjectParser<>(
             "google_vertex_ai_error_body",
@@ -137,46 +105,39 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             );
         }
 
-        public static ErrorResponse fromResponse(HttpResult response) {
+        public static UnifiedChatCompletionErrorResponse fromResponse(HttpResult response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response.body())
             ) {
-                return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
+                return ERROR_PARSER.apply(parser, null).orElse(UnifiedChatCompletionErrorResponse.UNDEFINED_ERROR);
             } catch (Exception e) {
                 var resultAsString = new String(response.body(), StandardCharsets.UTF_8);
-                return new ErrorResponse(Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", resultAsString));
+                return new GoogleVertexAiErrorResponse(
+                    Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", resultAsString)
+                );
             }
         }
 
-        static ErrorResponse fromString(String response) {
+        public static UnifiedChatCompletionErrorResponse fromString(String response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response)
             ) {
-                return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
+                return ERROR_PARSER.apply(parser, null).orElse(UnifiedChatCompletionErrorResponse.UNDEFINED_ERROR);
             } catch (Exception e) {
-                return new ErrorResponse(Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", response));
+                return new GoogleVertexAiErrorResponse(
+                    Strings.format("Unable to parse the Google Vertex AI error, response body: [%s]", response)
+                );
             }
         }
 
-        private final int code;
-        @Nullable
-        private final String status;
-
-        GoogleVertexAiErrorResponse(Integer code, String errorMessage, @Nullable String status) {
-            super(Objects.requireNonNull(errorMessage));
-            this.code = code == null ? 0 : code;
-            this.status = status;
+        GoogleVertexAiErrorResponse(@Nullable Integer code, String errorMessage, @Nullable String status) {
+            super(errorMessage, status != null ? status : "google_vertex_ai_error", code == null ? "0" : String.valueOf(code), null);
         }
 
-        public int code() {
-            return code;
-        }
-
-        @Nullable
-        public String status() {
-            return status != null ? status : "google_vertex_ai_error";
+        GoogleVertexAiErrorResponse(String errorMessage) {
+            super(errorMessage, "google_vertex_ai_error", null, null);
         }
     }
 }

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 142980
+summary: Switch default model for `semantic_text` to jina-v5
+type: enhancement

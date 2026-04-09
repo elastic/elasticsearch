@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,6 +40,9 @@ public class ToBoolean extends AbstractConvertFunction {
         "ToBoolean",
         ToBoolean::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBoolean.class)
+        .unary(ToBoolean::new)
+        .name("to_boolean", "to_bool");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(BOOLEAN, (source, field) -> field),

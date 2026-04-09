@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/certgen.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-certgen [certgen]

@@ -10,13 +10,13 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,14 +26,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
-import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
 
 /**
  * Defines the base settings required to configure an inference endpoint.
@@ -49,16 +49,21 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
  * </ul>
  *
  * @param taskType the type of task the inference model performs.
- * @param dimensions the number of dimensions for the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
- * @param similarity the similarity measure used for embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
- * @param elementType the type of elements in the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
+ * @param dimensions the number of dimensions for the embeddings,
+ *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param similarity the similarity measure used for embeddings,
+ *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param elementType the type of elements in the embeddings,
+ *                    applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param endpointMetadata the metadata associated with the inference endpoint.
  */
 public record MinimalServiceSettings(
     @Nullable String service,
     TaskType taskType,
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
-    @Nullable ElementType elementType
+    @Nullable ElementType elementType,
+    EndpointMetadata endpointMetadata
 ) implements ServiceSettings, SimpleDiffable<MinimalServiceSettings> {
 
     public static final String NAME = "minimal_service_settings";
@@ -80,10 +85,10 @@ public record MinimalServiceSettings(
             DenseVectorFieldMapper.ElementType elementType = args[4] == null
                 ? null
                 : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
-            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType);
+            var metadata = args[5] == null ? EndpointMetadata.EMPTY_INSTANCE : (EndpointMetadata) args[5];
+            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, metadata);
         }
     );
-    private static final String UNKNOWN_SERVICE = "_unknown_";
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SERVICE_FIELD));
@@ -91,11 +96,20 @@ public record MinimalServiceSettings(
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ELEMENT_TYPE_FIELD));
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> EndpointMetadata.parse(p),
+            new ParseField(METADATA_FIELD_NAME)
+        );
     }
 
     public static MinimalServiceSettings parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
+
+    private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
+        "inference_model_registry_metadata"
+    );
 
     public static MinimalServiceSettings textEmbedding(
         String serviceName,
@@ -127,13 +141,24 @@ public record MinimalServiceSettings(
         validate(taskType, dimensions, similarity, elementType);
     }
 
+    public MinimalServiceSettings(
+        @Nullable String service,
+        TaskType taskType,
+        @Nullable Integer dimensions,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable ElementType elementType
+    ) {
+        this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY_INSTANCE);
+    }
+
     public MinimalServiceSettings(Model model) {
         this(
             model.getConfigurations().getService(),
             model.getTaskType(),
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
-            model.getServiceSettings().elementType()
+            model.getServiceSettings().elementType(),
+            model.getConfigurations().getEndpointMetadataOrEmpty()
         );
     }
 
@@ -143,7 +168,10 @@ public record MinimalServiceSettings(
             TaskType.fromStream(in),
             in.readOptionalInt(),
             in.readOptionalEnum(SimilarityMeasure.class),
-            in.readOptionalEnum(ElementType.class)
+            in.readOptionalEnum(ElementType.class),
+            in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)
+                ? new EndpointMetadata(in)
+                : EndpointMetadata.EMPTY_INSTANCE
         );
     }
 
@@ -154,6 +182,9 @@ public record MinimalServiceSettings(
         out.writeOptionalInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalEnum(elementType);
+        if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+            endpointMetadata.writeTo(out);
+        }
     }
 
     @Override
@@ -163,17 +194,17 @@ public record MinimalServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        return INFERENCE_MODEL_REGISTRY_METADATA;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
+        return version.supports(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return this::toXContent;
+        return (b, p) -> toXContent(b, p, false);
     }
 
     @Override
@@ -187,21 +218,7 @@ public record MinimalServiceSettings(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (service != null) {
-            builder.field(SERVICE_FIELD, service);
-        }
-        builder.field(TASK_TYPE_FIELD, taskType.toString());
-        if (dimensions != null) {
-            builder.field(DIMENSIONS_FIELD, dimensions);
-        }
-        if (similarity != null) {
-            builder.field(SIMILARITY_FIELD, similarity);
-        }
-        if (elementType != null) {
-            builder.field(ELEMENT_TYPE_FIELD, elementType);
-        }
-        return builder.endObject();
+        return toXContent(builder, params, true);
     }
 
     @Override
@@ -218,12 +235,13 @@ public record MinimalServiceSettings(
         if (elementType != null) {
             sb.append(", element_type=").append(elementType);
         }
+        sb.append(", metadata=").append(endpointMetadata);
         return sb.toString();
     }
 
     private static void validate(TaskType taskType, Integer dimensions, SimilarityMeasure similarity, ElementType elementType) {
         switch (taskType) {
-            case TEXT_EMBEDDING:
+            case TEXT_EMBEDDING, EMBEDDING:
                 validateFieldPresent(DIMENSIONS_FIELD, dimensions, taskType);
                 validateFieldPresent(SIMILARITY_FIELD, similarity, taskType);
                 validateFieldPresent(ELEMENT_TYPE_FIELD, elementType, taskType);
@@ -257,5 +275,26 @@ public record MinimalServiceSettings(
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
             && elementType == other.elementType;
+    }
+
+    private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
+        builder.startObject();
+        if (service != null) {
+            builder.field(SERVICE_FIELD, service);
+        }
+        builder.field(TASK_TYPE_FIELD, taskType.toString());
+        if (dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY_FIELD, similarity);
+        }
+        if (elementType != null) {
+            builder.field(ELEMENT_TYPE_FIELD, elementType);
+        }
+        if (includeFilteredFields && endpointMetadata.isEmpty() == false) {
+            builder.field(METADATA_FIELD_NAME, endpointMetadata);
+        }
+        return builder.endObject();
     }
 }

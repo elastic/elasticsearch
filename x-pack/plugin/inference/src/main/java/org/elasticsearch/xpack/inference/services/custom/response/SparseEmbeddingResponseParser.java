@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<SparseEmbeddingResults> {
+public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
 
     public static final String NAME = "sparse_embedding_response_parser";
     public static final String SPARSE_EMBEDDING_TOKEN_PATH = "token_path";
@@ -45,9 +45,7 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
 
         var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, fullScope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new SparseEmbeddingResponseParser(tokenPath, weightPath);
     }
@@ -75,6 +73,14 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<Spar
         }
         builder.endObject();
         return builder;
+    }
+
+    String getTokenPath() {
+        return tokenPath;
+    }
+
+    String getWeightPath() {
+        return weightPath;
     }
 
     @Override

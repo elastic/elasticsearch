@@ -1,6 +1,11 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-hdfs.html
+applies_to:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Hadoop HDFS repository plugin [repository-hdfs]
@@ -18,7 +23,7 @@ sudo bin/elasticsearch-plugin install repository-hdfs
 
 The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
 
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version}}.zip.asc).
+You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/repository-hdfs/repository-hdfs-{{version.stack}}.zip.asc).
 
 
 ## Removal [repository-hdfs-remove]

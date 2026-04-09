@@ -32,6 +32,14 @@ public class MvMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "representableNonSpatial"));
+        return equalTo(
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter, spatial types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+            )
+        );
     }
 }

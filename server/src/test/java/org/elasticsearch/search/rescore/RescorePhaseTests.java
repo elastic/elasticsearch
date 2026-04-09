@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
@@ -24,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -69,7 +69,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
                 );
                 IndexShard shard = newShard(true);
                 try (TestSearchContext context = new TestSearchContext(null, shard, s)) {
-                    context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+                    context.parsedQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
                     SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
                     context.setTask(task);
                     SearchContext wrapped = new FilteredSearchContext(context) {
@@ -105,7 +105,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
                         assertTrue(wrapped.isCancelled());
                         expectThrows(TaskCancelledException.class, cancellationChecks::run);
                         QueryRescorer.QueryRescoreContext rescoreContext = new QueryRescorer.QueryRescoreContext(10);
-                        rescoreContext.setQuery(new ParsedQuery(new MatchAllDocsQuery()));
+                        rescoreContext.setQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
                         rescoreContext.setCancellationChecker(cancellationChecks);
                         expectThrows(
                             TaskCancelledException.class,

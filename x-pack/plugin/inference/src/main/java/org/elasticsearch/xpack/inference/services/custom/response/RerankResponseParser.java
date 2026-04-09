@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsResults> {
+public class RerankResponseParser extends BaseCustomResponseParser {
 
     public static final String NAME = "rerank_response_parser";
     public static final String RERANK_PARSER_SCORE = "relevance_score";
@@ -48,9 +48,7 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         var rerankIndex = extractOptionalString(responseParserMap, RERANK_PARSER_INDEX, fullScope, validationException);
         var documentText = extractOptionalString(responseParserMap, RERANK_PARSER_DOCUMENT_TEXT, fullScope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new RerankResponseParser(relevanceScore, rerankIndex, documentText);
     }
@@ -91,6 +89,18 @@ public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsRes
         }
         builder.endObject();
         return builder;
+    }
+
+    String getRelevanceScorePath() {
+        return relevanceScorePath;
+    }
+
+    String getRerankIndexPath() {
+        return rerankIndexPath;
+    }
+
+    String getDocumentTextPath() {
+        return documentTextPath;
     }
 
     @Override

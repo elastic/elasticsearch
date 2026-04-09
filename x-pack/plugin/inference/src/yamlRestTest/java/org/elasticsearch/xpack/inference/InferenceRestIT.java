@@ -12,12 +12,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +37,14 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .plugin("inference-service-test")
         .distribution(DistributionType.DEFAULT)
         .build();
+
+    /**
+     * This will retry a failed test up to 3 times with a 1 second wait between retries. We've observed transient network
+     * failures when trying to download the elser model during the test. These network failure cause the tests to fail intermittently.
+     * The proper way to fix this would be to add retry logic to the download code but that is a larger fix.
+     */
+    @Rule
+    public RetryRule retryRule = new RetryRule(3, TimeValue.timeValueSeconds(1));
 
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

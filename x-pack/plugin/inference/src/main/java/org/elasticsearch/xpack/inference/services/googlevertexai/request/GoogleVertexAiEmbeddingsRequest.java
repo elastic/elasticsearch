@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,12 +46,18 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.nonStreamingUri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new GoogleVertexAiEmbeddingsRequestEntity(truncationResult.input(), inputType, model.getTaskSettings()))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new GoogleVertexAiEmbeddingsRequestEntity(
+                    truncationResult.input(),
+                    inputType,
+                    model.getTaskSettings(),
+                    model.getServiceSettings()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
 
         httpPost.setEntity(byteEntity);
@@ -58,7 +65,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public void decorateWithAuth(HttpPost httpPost) {

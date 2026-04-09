@@ -14,7 +14,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
@@ -50,7 +49,7 @@ import java.util.stream.IntStream;
 /**
  * A filter for a field based on several terms matching on any of them.
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -550,6 +549,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

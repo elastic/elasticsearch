@@ -9,18 +9,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -35,38 +23,7 @@ public interface RestRequestFilter {
     default RestRequest getFilteredRequest(RestRequest restRequest) {
         Set<String> fields = getFilteredFields();
         if (restRequest.hasContent() && fields.isEmpty() == false) {
-            return new RestRequest(restRequest) {
-
-                private BytesReference filteredBytes = null;
-
-                @Override
-                public boolean hasContent() {
-                    return true;
-                }
-
-                @Override
-                public ReleasableBytesReference content() {
-                    if (filteredBytes == null) {
-                        Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
-                            restRequest.requiredContent(),
-                            true,
-                            restRequest.getXContentType()
-                        );
-                        Map<String, Object> transformedSource = XContentMapValues.filter(
-                            result.v2(),
-                            null,
-                            fields.toArray(Strings.EMPTY_ARRAY)
-                        );
-                        try {
-                            XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                            filteredBytes = BytesReference.bytes(xContentBuilder);
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("failed to parse request", e);
-                        }
-                    }
-                    return ReleasableBytesReference.wrap(filteredBytes);
-                }
-            };
+            return new FilteredRestRequest(restRequest, fields);
         } else {
             return restRequest;
         }
@@ -76,4 +33,5 @@ public interface RestRequestFilter {
      * The list of fields that should be filtered. This can be a dot separated pattern to match sub objects and also supports wildcards
      */
     Set<String> getFilteredFields();
+
 }

@@ -1,5 +1,7 @@
 ---
 navigation_title: "Normalize for Stream"
+applies_to:
+  stack: preview 9.1
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/normalize-for-stream-processor.html
 ---
@@ -42,12 +44,12 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
   | `log.level` | `severity_text`                |
 
   The processor first looks for the nested form of the ECS field and if such does not exist, it looks for a top-level field with the dotted field name.
-* Other specific ECS fields that describe resources and have corresponding counterparts in the OpenTelemetry Semantic Conventions are moved to the `resource.attribtues` map. Fields that are considered resource attributes are such that conform to the following conditions:
+* Other specific ECS fields that describe resources and have corresponding counterparts in the OpenTelemetry Semantic Conventions are moved to the `resource.attributes` map. Fields that are considered resource attributes are such that conform to the following conditions:
     * They are ECS fields that have corresponding counterparts (either with
       the same name or with a different name) in OpenTelemetry Semantic Conventions.
     * The corresponding OpenTelemetry attribute is defined in
       [Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/model)
-      within a group that is defined as `type: enitity`.
+      within a group that is defined as `type: entity`.
 * All other fields, except for `@timestamp`, are moved to the `attributes` map.
 * All non-array entries of the `attributes` and `resource.attributes` maps are flattened. Flattening means that nested objects are merged into their parent object, and the keys are concatenated with a dot. See examples below.
 
@@ -55,7 +57,7 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
 
 If an OpenTelemetry-compliant document is detected, the processor does nothing. For example, the following document will stay unchanged:
 
-```json
+```js
 {
   "resource": {
     "attributes": {
@@ -74,10 +76,11 @@ If an OpenTelemetry-compliant document is detected, the processor does nothing. 
   }
 }
 ```
+% NOTCONSOLE
 
 If a non-OpenTelemetry-compliant document is detected, the processor normalizes it. For example, the following document:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "service": {
@@ -116,9 +119,11 @@ If a non-OpenTelemetry-compliant document is detected, the processor normalizes 
   "trace.id": "abcdef1234567890abcdef1234567890"
 }
 ```
+% NOTCONSOLE
+
 will be normalized into the following form:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "resource": {
@@ -144,6 +149,7 @@ will be normalized into the following form:
       }
     ]
   },
+  "severity_text": "INFO",
   "body": {
     "text": "Hello, world!"
   },
@@ -151,3 +157,95 @@ will be normalized into the following form:
   "trace_id": "abcdef1234567890abcdef1234567890"
 }
 ```
+% NOTCONSOLE
+
+## Structured `message` field
+
+If the `message` field in the ingested document is structured as a JSON, the
+processor will determine whether it is in ECS format or not, based on the
+existence or absence of the `@timestamp` field. If the `@timestamp` field is
+present, the `message` field will be considered to be in ECS format, and its
+contents will be merged into the root of the document and then normalized as
+described above. The `@timestamp` from the `message` field will override the
+root `@timestamp` field in the resulting document.
+If the `@timestamp` field is absent, the `message` field will be moved to
+the `body.structured` field as is, without any further normalization.
+
+For example, if the `message` field is an ECS-JSON, as follows:
+
+```js
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "message": "{\"@timestamp\":\"2023-10-01T12:01:00Z\",\"log.level\":\"INFO\",\"service.name\":\"my-service\",\"message\":\"The actual log message\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
+
+}
+```
+% NOTCONSOLE
+
+it will be normalized into the following form:
+
+```js
+{
+  "@timestamp": "2023-10-01T12:01:00Z",
+  "severity_text": "INFO",
+  "body": {
+    "text": "The actual log message"
+  },
+  "resource": {
+    "attributes": {
+      "service.name": "my-service"
+    }
+  },
+  "attributes": {
+    "http.method": "GET",
+    "http.url.path": "/api/v1/resource"
+  }
+}
+```
+% NOTCONSOLE
+
+However, if the `message` field is not recognized as ECS format, as follows:
+
+```js
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "log": {
+    "level": "INFO"
+  },
+  "service": {
+    "name": "my-service"
+  },
+  "tags": ["user-action", "api-call"],
+  "message": "{\"root_cause\":\"Network error\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
+}
+```
+% NOTCONSOLE
+
+it will be normalized into the following form:
+
+```js
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "severity_text": "INFO",
+  "resource": {
+    "attributes": {
+      "service.name": "my-service"
+    }
+  },
+  "attributes": {
+    "tags": ["user-action", "api-call"]
+  },
+  "body": {
+    "structured": {
+      "root_cause": "Network error",
+      "http": {
+        "method": "GET",
+        "url": {
+          "path": "/api/v1/resource"
+        }
+      }
+    }
+  }
+}
+```
+% NOTCONSOLE

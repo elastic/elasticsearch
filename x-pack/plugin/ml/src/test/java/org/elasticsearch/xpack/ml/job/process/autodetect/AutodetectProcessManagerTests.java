@@ -907,19 +907,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testSetJobState_withHandler_onFailure_triggersHandlerException() throws IOException {
         // Verifies that when updatePersistentTaskState reports a failure, the handler receives that exception
-        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class)))
-            .thenAnswer(invocation -> {
-                Runnable r = invocation.getArgument(0);
-                r.run();
-                return mock(ThreadPool.Cancellable.class);
-            });
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class))).thenAnswer(invocation -> {
+            Runnable r = invocation.getArgument(0);
+            r.run();
+            return mock(ThreadPool.Cancellable.class);
+        });
         AutodetectProcessManager manager = createSpyManager();
         JobTask jobTask = mock(JobTask.class);
         ResourceNotFoundException boom = new ResourceNotFoundException("boom");
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener =
-                (ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = (ActionListener<
+                PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
             listener.onFailure(boom);
             return null;
         }).when(jobTask).updatePersistentTaskState(any(), any());
@@ -993,6 +992,97 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(jobTask, times(1)).updatePersistentTaskState(any(JobTaskState.class), any());
         // The handler should have been invoked with the ResourceNotFoundException
         assertSame(rnfe, holder.get());
+    }
+
+    public void testStartProcess_preProcessError_doesNotSetJobStateFailed() {
+        // When getAutodetectParams fails (pre-process error), setJobState(FAILED) should NOT be called.
+        // The error should be propagated directly to closeHandler.
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(createJobDetails("foo"));
+            return null;
+        }).when(jobManager).getJob(eq("foo"), any());
+
+        // Make getAutodetectParams fail
+        RuntimeException getParamsError = new RuntimeException("getAutodetectParams failed");
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            Consumer<Exception> errorHandler = (Consumer<Exception>) invocationOnMock.getArguments()[2];
+            errorHandler.accept(getParamsError);
+            return null;
+        }).when(jobResultsProvider).getAutodetectParams(any(), any(), any());
+
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+
+        AtomicReference<Exception> closeHandlerError = new AtomicReference<>();
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> closeHandlerError.set(e));
+
+        // The closeHandler should have received the error
+        assertThat(closeHandlerError.get(), is(getParamsError));
+        // setJobState(FAILED) should NOT have been called for a pre-process error
+        verify(manager, org.mockito.Mockito.never()).setJobState(any(), eq(JobState.FAILED), any(), any());
+    }
+
+    public void testStartProcess_postProcessError_setsJobStateFailed() throws IOException {
+        // When createProcessAndSetRunning throws (post-process error), setJobState(FAILED) SHOULD be called.
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(createJobDetails("foo"));
+            return null;
+        }).when(jobManager).getJob(eq("foo"), any());
+
+        AutodetectProcessManager manager = createSpyManager();
+
+        // Make create() throw, which is called inside createProcessAndSetRunning
+        RuntimeException processCreateError = new RuntimeException("process creation failed");
+        doThrow(processCreateError).when(manager).create(any(), any(), any(), any());
+
+        // Wire setJobState(FAILED) to invoke the handler
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            CheckedConsumer<Exception, IOException> handler = (CheckedConsumer<Exception, IOException>) invocation.getArguments()[3];
+            handler.accept(null);
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        // setJobState(FAILED) SHOULD have been called for a post-process error
+        verify(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
+    }
+
+    public void testSetJobStateOpened_onFailure_emitsAuditWarning() throws IOException {
+        // When setJobState(OPENED) fails, an audit warning should be issued so operators
+        // can detect a job stuck in the OPENING state.
+        // Setup: getAutodetectParams and create() succeed (via @Before + createSpyManager),
+        // but setJobState(OPENED) reports failure.
+        AutodetectProcessManager manager = createSpyManager();
+
+        Exception openedStateFailure = new RuntimeException("master not available");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            CheckedConsumer<Exception, IOException> handler = (CheckedConsumer<Exception, IOException>) invocation.getArguments()[3];
+            handler.accept(openedStateFailure);
+            return null;
+        }).when(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+
+        // Audit warning must be issued for the stuck OPENING state
+        verify(auditor).warning(eq("foo"), org.mockito.ArgumentMatchers.contains("OPENED"));
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

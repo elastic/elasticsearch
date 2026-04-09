@@ -10,64 +10,68 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.inference.InferenceSettings.RERANK_ROW_LIMIT_SETTING;
 
-public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
+public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
-    public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
-    public static final String SCORE_COLUMN_OPTION_NAME = "scoreColumn";
+
+    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, RERANK_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
+    private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields) {
-        this(
-            source,
-            child,
-            Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID),
-            queryText,
-            rerankFields,
-            new UnresolvedAttribute(Source.EMPTY, MetadataAttribute.SCORE)
-        );
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression rowLimit,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute
+    ) {
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank(
         Source source,
         LogicalPlan child,
         Expression inferenceId,
+        Expression rowLimit,
         Expression queryText,
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        super(source, child, inferenceId);
+        super(source, child, inferenceId, rowLimit);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
@@ -78,6 +82,7 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new),
             in.readNamedWriteable(Attribute.class)
@@ -90,6 +95,11 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
         out.writeNamedWriteable(queryText);
         out.writeCollection(rerankFields());
         out.writeNamedWriteable(scoreAttribute);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression queryText() {
@@ -111,25 +121,31 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
 
     @Override
     public Rerank withInferenceId(Expression newInferenceId) {
-        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
+        if (inferenceId().equals(newInferenceId)) {
+            return this;
+        }
+        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
-        return new Rerank(source(), child(), inferenceId(), queryText, newRerankFields, scoreAttribute);
+        if (rerankFields.equals(newRerankFields)) {
+            return this;
+        }
+
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute);
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, newScoreAttribute);
-    }
+        if (scoreAttribute.equals(newScoreAttribute)) {
+            return this;
+        }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
@@ -144,7 +160,15 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     @Override
     public Rerank withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, this.renameScoreAttribute(newNames.get(0)));
+        return new Rerank(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            queryText,
+            rerankFields,
+            this.renameScoreAttribute(newNames.get(0))
+        );
     }
 
     private Attribute renameScoreAttribute(String newName) {
@@ -156,8 +180,12 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet rerankFields = AttributeSet.of(asAttributes(fields));
-        return Expressions.references(fields).subtract(rerankFields);
+        return Eval.computeReferences(fields);
+    }
+
+    public boolean isValidRerankField(Alias rerankField) {
+        // Only supporting string datatypes for rerank fields
+        return DataType.isString(rerankField.dataType());
     }
 
     @Override
@@ -166,8 +194,37 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
     }
 
     @Override
+    public boolean isFoldable() {
+        return false;
+    }
+
+    @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (queryText.resolved()) {
+            if (DataType.isString(queryText.dataType()) == false) {
+                // Rerank only supports string as query
+                failures.add(fail(queryText, "query must be a valid string in RERANK, found [{}]", queryText.source().text()));
+            }
+
+            if (queryText.foldable() == false) {
+                // Rerank only supports string as query
+                failures.add(fail(queryText, "query must be a constant, found [{}]", queryText.source().text()));
+            }
+        }
+
+        // Rerank fields must be string types
+        rerankFields.stream()
+            .filter(Predicate.not(this::isValidRerankField))
+            .forEach(
+                rerankField -> failures.add(
+                    fail(rerankField, "rerank field must be a valid string expression, found [{}]", rerankField.source().text())
+                )
+            );
     }
 
     @Override
@@ -192,27 +249,5 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
             lazyOutput = mergeOutputAttributes(List.of(scoreAttribute), child().output());
         }
         return lazyOutput;
-    }
-
-    public static class Builder {
-        private Rerank rerank;
-
-        public Builder(Rerank rerank) {
-            this.rerank = rerank;
-        }
-
-        public Rerank build() {
-            return rerank;
-        }
-
-        public Builder withInferenceId(Expression inferenceId) {
-            this.rerank = this.rerank.withInferenceId(inferenceId);
-            return this;
-        }
-
-        public Builder withScoreAttribute(Attribute scoreAttribute) {
-            this.rerank = this.rerank.withScoreAttribute(scoreAttribute);
-            return this;
-        }
     }
 }

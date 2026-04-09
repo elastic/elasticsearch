@@ -1,0 +1,170 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.benchmark.vector.scorer;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.BeforeClass;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+
+@TestLogging(
+    reason = "Noisy logging",
+    value = "org.elasticsearch.env.NodeEnvironment:WARN,org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache:WARN"
+)
+public class VectorScorerOSQBenchmarkTests extends ESTestCase {
+
+    private static final int REPETITIONS = 10;
+    private final float deltaPercent = 0.1f;
+    private final int dims;
+    private final byte bits;
+    private final VectorScorerOSQBenchmark.DirectoryType directoryType;
+    private final ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    private final VectorSimilarityFunction similarityFunction;
+
+    public VectorScorerOSQBenchmarkTests(
+        int dims,
+        byte bits,
+        VectorScorerOSQBenchmark.DirectoryType directoryType,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        this.dims = dims;
+        this.bits = bits;
+        this.directoryType = directoryType;
+        this.int4Encoding = int4Encoding;
+        this.similarityFunction = similarityFunction;
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    }
+
+    public void testSingleScalarVsVectorized() throws Exception {
+        for (int i = 0; i < REPETITIONS; i++) {
+            var seed = randomLong();
+
+            var scalar = new VectorScorerOSQBenchmark();
+            var vectorized = new VectorScorerOSQBenchmark();
+            try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
+
+                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scalar.dims = dims;
+                scalar.bits = bits;
+                scalar.directoryType = directoryType;
+                scalar.int4Encoding = int4Encoding;
+                scalar.similarityFunction = similarityFunction;
+                scalar.setup(data);
+
+                float[] expected = scalar.score();
+
+                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                vectorized.dims = dims;
+                vectorized.bits = bits;
+                vectorized.directoryType = directoryType;
+                vectorized.int4Encoding = int4Encoding;
+                vectorized.similarityFunction = similarityFunction;
+                vectorized.setup(data);
+
+                float[] result = vectorized.score();
+
+                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
+            } finally {
+                scalar.teardown();
+                vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
+            }
+        }
+    }
+
+    public void testBulkScalarVsVectorized() throws Exception {
+        for (int i = 0; i < REPETITIONS; i++) {
+            var seed = randomLong();
+
+            var scalar = new VectorScorerOSQBenchmark();
+            var vectorized = new VectorScorerOSQBenchmark();
+            try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
+
+                scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
+                scalar.dims = dims;
+                scalar.bits = bits;
+                scalar.directoryType = directoryType;
+                scalar.int4Encoding = int4Encoding;
+                scalar.similarityFunction = similarityFunction;
+                scalar.setup(data);
+
+                float[] expected = scalar.bulkScore();
+
+                vectorized.implementation = VectorScorerOSQBenchmark.VectorImplementation.VECTORIZED;
+                vectorized.dims = dims;
+                vectorized.bits = bits;
+                vectorized.directoryType = directoryType;
+                vectorized.int4Encoding = int4Encoding;
+                vectorized.similarityFunction = similarityFunction;
+                vectorized.setup(data);
+
+                float[] result = vectorized.bulkScore();
+
+                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
+            } finally {
+                scalar.teardown();
+                vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
+            }
+        }
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        String[] dims = Utils.possibleValues(VectorScorerOSQBenchmark.class, "dims").toArray(new String[0]);
+        String[] bits = Utils.possibleValues(VectorScorerOSQBenchmark.class, "bits").toArray(new String[0]);
+        String[] int4Encodings = Utils.possibleValues(VectorScorerOSQBenchmark.class, "int4Encoding").toArray(new String[0]);
+
+        return () -> Arrays.stream(dims)
+            .map(Integer::parseInt)
+            .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
+            .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
+            .flatMap(
+                params -> Arrays.stream(int4Encodings)
+                    .map(ES940OSQVectorsScorer.SymmetricInt4Encoding::valueOf)
+                    .map(encoding -> appendToCopy(params, encoding))
+            )
+            .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
+            .iterator();
+    }
+}

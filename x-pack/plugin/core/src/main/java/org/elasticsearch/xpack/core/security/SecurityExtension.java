@@ -12,15 +12,17 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -63,6 +65,9 @@ public interface SecurityExtension {
 
         /** Provides the ability to access project-scoped data from the global scope **/
         ProjectResolver projectResolver();
+
+        /** Provides the ability to access the APM tracer and meter registry **/
+        TelemetryProvider telemetryProvider();
     }
 
     /**
@@ -129,7 +134,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
+    default List<CustomAuthenticator> getCustomAuthenticators(SecurityComponents components) {
         return null;
     }
 
@@ -147,5 +152,9 @@ public interface SecurityExtension {
 
     default String extensionName() {
         return getClass().getName();
+    }
+
+    default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
+        return null;
     }
 }

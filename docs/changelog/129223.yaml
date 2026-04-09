@@ -1,5 +1,0 @@
-pr: 129223
-summary: Fix text similarity reranker does not propagate min score correctly
-area: Search
-type: bug
-issues: []

@@ -13,7 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -29,6 +29,8 @@ import java.util.Map;
 
 public final class DfsSearchResult extends SearchPhaseResult {
 
+    private static final TransportVersion DFS_SEARCH_TIMED_OUT = TransportVersion.fromName("dfs_search_timed_out");
+
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
@@ -36,6 +38,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
     private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private boolean searchTimedOut;
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -54,16 +57,10 @@ public final class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
-            } else {
-                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
-                knnResults = results != null ? List.of(results) : List.of();
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
+        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
+            searchTimedOut = in.readBoolean();
         }
     }
 
@@ -103,6 +100,14 @@ public final class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public boolean searchTimedOut() {
+        return searchTimedOut;
+    }
+
+    public void searchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -134,24 +139,10 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                out.writeOptionalCollection(knnResults);
-            } else {
-                if (knnResults != null && knnResults.size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Cannot serialize multiple KNN results to nodes using previous transport version ["
-                            + out.getTransportVersion().toReleaseVersion()
-                            + "], minimum required transport version is ["
-                            + TransportVersions.V_8_7_0.toReleaseVersion()
-                            + "]"
-                    );
-                }
-                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        out.writeOptionalCollection(knnResults);
+        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
+            out.writeBoolean(searchTimedOut);
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
@@ -45,7 +46,7 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     private final ElementType[] positionToType;
     private Block.Builder[] blocks;
 
-    public GrokEvaluatorExtracter(
+    private GrokEvaluatorExtracter(
         final Grok parser,
         final String pattern,
         final Map<String, Integer> keyToBlock,
@@ -169,6 +170,21 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
             }));
         }
 
+    }
+
+    public record Factory(Grok parser, String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types)
+        implements
+            ColumnExtractOperator.Evaluator.Factory {
+
+        @Override
+        public GrokEvaluatorExtracter create(DriverContext driverContext) {
+            return new GrokEvaluatorExtracter(parser, pattern, keyToBlock, types);
+        }
+
+        @Override
+        public String describe() {
+            return "GrokEvaluatorExtracter[pattern=" + pattern + "]";
+        }
     }
 
     private static void append(Object value, Block.Builder block, ElementType type) {

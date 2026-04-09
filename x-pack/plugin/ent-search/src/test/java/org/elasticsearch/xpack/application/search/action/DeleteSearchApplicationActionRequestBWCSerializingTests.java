@@ -29,7 +29,7 @@ public class DeleteSearchApplicationActionRequestBWCSerializingTests extends Abs
 
     @Override
     protected DeleteSearchApplicationAction.Request mutateInstance(DeleteSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteSearchApplicationAction.Request(randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

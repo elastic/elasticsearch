@@ -1,46 +1,50 @@
 {
-  "security.query_api_keys":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-api-key.html",
-      "description":"Retrieves information for API keys using a subset of query DSL"
+  "security.query_api_keys": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-query-api-keys",
+      "description": "Find API keys with a query"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/_query/api_key",
-          "methods":[
+          "path": "/_security/_query/api_key",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "with_limited_by":{
-        "type":"boolean",
-        "default":false,
+    "params": {
+      "with_limited_by": {
+        "type": "boolean",
+        "default": false,
         "description": "flag to show the limited-by role descriptors of API Keys"
       },
-      "with_profile_uid":{
-        "type":"boolean",
-        "default":false,
+      "with_profile_uid": {
+        "type": "boolean",
+        "default": false,
         "description": "flag to also retrieve the API Key's owner profile uid, if it exists"
       },
-      "typed_keys":{
-        "type":"boolean",
-        "default":false,
+      "typed_keys": {
+        "type": "boolean",
+        "default": false,
         "description": "flag to prefix aggregation names by their respective types in the response"
       }
     },
-    "body":{
-      "description":"From, size, query, sort and search_after",
-      "required":false
+    "body": {
+      "description": "From, size, query, sort and search_after",
+      "required": false
     }
   }
 }

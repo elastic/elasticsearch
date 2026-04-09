@@ -33,7 +33,6 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     private final RoutingNodes routingNodes;
     private final boolean isSimulating;
     private boolean isReconciling;
-    private boolean hasPendingAsyncFetch;
     private boolean ignoreDisable;
 
     /**
@@ -155,16 +154,6 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     @Override
     public boolean routingNodesChanged() {
         return nodesChangedObserver.isChanged();
-    }
-
-    @Override
-    public boolean hasPendingAsyncFetch() {
-        return hasPendingAsyncFetch;
-    }
-
-    @Override
-    public void setHasPendingAsyncFetch() {
-        this.hasPendingAsyncFetch = true;
     }
 
     /**

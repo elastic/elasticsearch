@@ -1,3 +1,4 @@
+# This file is auto-generated. See .buildkite/pipelines/periodic.template.yml
 steps:
   - group: bwc
     steps:
@@ -400,8 +401,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.14 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.14#bwcTest
+      - label: 8.19.15 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.15#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -410,7 +411,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.14
+          BWC_VERSION: 8.19.15
         retry:
           automatic:
             - exit_status: "-1"
@@ -463,8 +464,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.2.8 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.2.8#bwcTest
+      - label: 9.2.9 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.2.9#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -473,7 +474,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.2.8
+          BWC_VERSION: 9.2.9
         retry:
           automatic:
             - exit_status: "-1"
@@ -484,8 +485,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.3 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.3#bwcTest
+      - label: 9.3.4 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.4#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -494,7 +495,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.3
+          BWC_VERSION: 9.3.4
         retry:
           automatic:
             - exit_status: "-1"
@@ -610,7 +611,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.14", "9.2.8", "9.3.3", "9.4.0"]
+            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -677,7 +678,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.14", "9.2.8", "9.3.3", "9.4.0"]
+            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -734,7 +735,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk25
-            BWC_VERSION: ["8.19.14", "9.2.8", "9.3.3", "9.4.0"]
+            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

@@ -24,6 +24,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -60,7 +61,7 @@ public class BundleChangelogsTask extends DefaultTask {
      * @param sourceRepo    GitHub owner/name used for PR links, e.g. {@code elastic/ml-cpp}
      * @param changelogPath path inside the repo containing YAML entries, e.g. {@code docs/changelog}
      */
-    public record ExternalChangelogSource(String repoUrl, String sourceRepo, String changelogPath) {}
+    public record ExternalChangelogSource(String repoUrl, String sourceRepo, String changelogPath) implements java.io.Serializable {}
 
     private final ConfigurableFileCollection changelogs;
 
@@ -305,6 +306,7 @@ public class BundleChangelogsTask extends DefaultTask {
         this.externalSources = sources;
     }
 
+    @Input
     public List<ExternalChangelogSource> getExternalSources() {
         return externalSources;
     }

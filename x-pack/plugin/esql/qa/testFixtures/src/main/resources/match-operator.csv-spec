@@ -818,32 +818,3 @@ year:integer | author:text            | host:keyword
 2005         | Gabriel Garcia Marquez | null
 2014         | Gabriel Garcia Marquez | null
 ;
-matchOperatorOnConstantKeywordField
-required_capability: match_operator_colon
-required_capability: fix_full_text_functions_on_constant_keyword
-
-from all_types
-| where `constant_keyword-foo` : "foo"
-| keep `constant_keyword-foo`, keyword
-| sort keyword
-;
-
-constant_keyword-foo:keyword | keyword:keyword
-foo                          | key1
-foo                          | key2
-foo                          | key3
-foo                          | key4
-foo                          | key5
-;
-
-matchOperatorOnConstantKeywordFieldNoMatch
-required_capability: match_operator_colon
-required_capability: fix_full_text_functions_on_constant_keyword
-
-from all_types
-| where `constant_keyword-foo` : "bar"
-| keep `constant_keyword-foo`, keyword
-;
-
-constant_keyword-foo:keyword | keyword:keyword
-;

@@ -152,6 +152,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
                     evalExpr = new Sub(source, countMulConst, pair.sum(), context.configuration());
                 } else {
                     // SUM(field + c) or SUM(c + field) → SUM(sv) + c * COUNT(sv)
+                    // We don't need to worry about order since addition is commutative
                     evalExpr = new Add(source, pair.sum(), countMulConst, context.configuration());
                 }
                 newEvals.add(m.alias().replaceChild(evalExpr));

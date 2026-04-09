@@ -29,10 +29,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
- * Internal optimizer function that returns a field's value if it is single-valued, or null if it is multi-valued.
+ * Internal optimizer function that returns an expression's value if it is single-valued, or null if it is multi-valued.
  * <p>
  * This is not a user-visible function; it is injected by the query planner to enable rewrites such as:
- * {@code SUM(field + c) → SUM(SINGLE_VALUE_OR_NULL(field)) + c * COUNT(SINGLE_VALUE_OR_NULL(field))}.
+ * {@code SUM(expr + c) → SUM(SINGLE_VALUE_OR_NULL(expr)) + c * COUNT(SINGLE_VALUE_OR_NULL(expr))}.
+ * The wrapped expression is not limited to field references — it can be any expression whose result
+ * may be multi-valued.
  * </p>
  */
 public class MvSingleValueOrNull extends AbstractMultivalueFunction {

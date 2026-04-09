@@ -30,7 +30,23 @@ import static org.mockito.Mockito.when;
 public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(200);
+        when(statusLine.toString()).thenReturn("HTTP/1.1 200 OK");
+
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+
+        var mockRequest = mock(Request.class);
+        when(mockRequest.getInferenceEntityId()).thenReturn("id");
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        assertTrue("setup must use a successful HTTP status for this scenario", httpResult.isSuccessfulResponse());
+
+        var handler = new ContextualAiResponseHandler("", (request, result) -> null, false);
+        handler.checkForFailureStatusCode(mockRequest, httpResult);
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {

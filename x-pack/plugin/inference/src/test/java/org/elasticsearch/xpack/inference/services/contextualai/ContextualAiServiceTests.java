@@ -28,21 +28,18 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_INFERENCE_ENTITY_ID;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_RATE_LIMIT;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
-
-    private static final String INFERENCE_ENTITY_ID = "test-inference-entity-id";
-    private static final String TEST_MODEL_ID = "some-model";
-    private static final String TEST_URL = "http://www.abc.com";
-    private static final String TEST_API_KEY = "some-api-key";
-    private static final int RERANKER_WINDOW_SIZE = 5500;
     private ThreadPool threadPool;
 
     @Override
@@ -68,14 +65,14 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize(TEST_MODEL_ID), is(RERANKER_WINDOW_SIZE));
+        assertThat(rerankingInferenceService.rerankerWindowSize(TEST_MODEL_ID), is(ContextualAiService.DEFAULT_RERANKER_WINDOW_SIZE_WORDS));
     }
 
     public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException, URISyntaxException {
         var model = new ContextualAiRerankModel(
-            INFERENCE_ENTITY_ID,
+            TEST_INFERENCE_ENTITY_ID,
             new ContextualAiRerankServiceSettings(
-                new ContextualAiServiceSettings.CommonSettings(new URI(TEST_URL), TEST_MODEL_ID, new RateLimitSettings(1000))
+                new ContextualAiServiceSettings.CommonSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
             ),
             new ContextualAiRerankTaskSettings(null, null, null),
             new DefaultSecretSettings(new SecureString(TEST_API_KEY.toCharArray()))
@@ -85,7 +82,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID,
+            TEST_INFERENCE_ENTITY_ID,
             TaskType.CHAT_COMPLETION,
             ContextualAiService.NAME,
             mock(ServiceSettings.class)

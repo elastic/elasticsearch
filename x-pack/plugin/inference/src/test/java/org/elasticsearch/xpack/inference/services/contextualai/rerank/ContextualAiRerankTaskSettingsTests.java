@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,6 +24,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.INITIAL_TEST_INSTRUCTION;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.INITIAL_TEST_RETURN_DOCUMENTS;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.INITIAL_TEST_TOP_N;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.INVALID_STRING_VALUE;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.NEW_TEST_INSTRUCTION;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.NEW_TEST_RETURN_DOCUMENTS;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.NEW_TEST_TOP_N;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_INSTRUCTION;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_RETURN_DOCUMENTS;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_TOP_N;
 import static org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings.EMPTY_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings.INSTRUCTION_FIELD;
 import static org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings.RETURN_DOCUMENTS_FIELD;
@@ -32,20 +43,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<ContextualAiRerankTaskSettings> {
-
-    private static final String INVALID_FIELD_TYPE_STRING = "invalid";
-
-    private static final boolean TEST_RETURN_DOCUMENTS = true;
-    private static final boolean ORIGINAL_RETURN_DOCUMENTS = false;
-    private static final boolean NEW_RETURN_DOCUMENTS = true;
-
-    private static final int TEST_TOP_N = 5;
-    private static final int ORIGINAL_TOP_N = 10;
-    private static final int NEW_TOP_N = 15;
-
-    private static final String TEST_INSTRUCTION = "some instruction";
-    private static final String ORIGINAL_INSTRUCTION = "original instruction";
-    private static final String NEW_INSTRUCTION = "new instruction";
 
     public void testIsEmpty_True() {
         var emptySettings = new ContextualAiRerankTaskSettings(null, null, null);
@@ -60,15 +57,26 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     }
 
     public void testUpdatedTaskSettings_WithAllValues_ReplacesSettings() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
-        var updatedSettings = (ContextualAiRerankTaskSettings) originalSettings.updatedTaskSettings(
-            buildTaskSettingsMap(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION)
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
         );
-        assertThat(updatedSettings, is(new ContextualAiRerankTaskSettings(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION)));
+        var updatedSettings = (ContextualAiRerankTaskSettings) originalSettings.updatedTaskSettings(
+            buildTaskSettingsMap(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION)
+        );
+        assertThat(
+            updatedSettings,
+            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION))
+        );
     }
 
     public void testUpdatedTaskSettings_EmptyMap_ReturnsEmptySettings() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
         var updatedSettings = (ContextualAiRerankTaskSettings) originalSettings.updatedTaskSettings(new HashMap<>());
         assertThat(updatedSettings, sameInstance(EMPTY_SETTINGS));
     }
@@ -90,20 +98,20 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
 
     public void testFromMap_ReturnDocumentsIsInvalidValue_ThrowsValidationException() {
         assertFromMap_ThrowsValidationException(
-            new HashMap<>(Map.of(RETURN_DOCUMENTS_FIELD, INVALID_FIELD_TYPE_STRING)),
+            new HashMap<>(Map.of(RETURN_DOCUMENTS_FIELD, INVALID_STRING_VALUE)),
             Strings.format(
                 "field [return_documents] is not of the expected type. The value [%s] cannot be converted to a [Boolean]",
-                INVALID_FIELD_TYPE_STRING
+                INVALID_STRING_VALUE
             )
         );
     }
 
     public void testFromMap_TopNIsInvalidValue_ThrowsValidationException() {
         assertFromMap_ThrowsValidationException(
-            new HashMap<>(Map.of(TOP_N_FIELD, INVALID_FIELD_TYPE_STRING)),
+            new HashMap<>(Map.of(TOP_N_FIELD, INVALID_STRING_VALUE)),
             Strings.format(
                 "field [top_n] is not of the expected type. The value [%s] cannot be converted to a [Integer]",
-                INVALID_FIELD_TYPE_STRING
+                INVALID_STRING_VALUE
             )
         );
     }
@@ -147,41 +155,73 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     }
 
     public void testOf_KeepsOriginalWhenRequestIsEmpty() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
         var overrideSettings = new ContextualAiRerankTaskSettings(null, null, null);
         assertThat(ContextualAiRerankTaskSettings.of(originalSettings, overrideSettings), sameInstance(originalSettings));
     }
 
+    public void testOf_WhenOriginalIsEmpty_AppliesOverrideValues() {
+        var overrideSettings = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION);
+        assertThat(
+            ContextualAiRerankTaskSettings.of(EMPTY_SETTINGS, overrideSettings),
+            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION))
+        );
+    }
+
     public void testOf_ReturnsOriginalInstanceWhenRequestMatchesExistingValues() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
-        var requestWithSameValues = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
+        var requestWithSameValues = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
         assertThat(ContextualAiRerankTaskSettings.of(originalSettings, requestWithSameValues), sameInstance(originalSettings));
     }
 
     public void testOf_PartialTopNOverride_RetainsOriginalInstruction() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
-        var requestTopNOnly = new ContextualAiRerankTaskSettings(null, NEW_TOP_N, null);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
+        var requestTopNOnly = new ContextualAiRerankTaskSettings(null, NEW_TEST_TOP_N, null);
         assertThat(
             ContextualAiRerankTaskSettings.of(originalSettings, requestTopNOnly),
-            is(new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, NEW_TOP_N, ORIGINAL_INSTRUCTION))
+            is(new ContextualAiRerankTaskSettings(INITIAL_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, INITIAL_TEST_INSTRUCTION))
         );
     }
 
     public void testOf_PartialInstructionOverride_RetainsOriginalTopN() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
-        var requestInstructionOnly = new ContextualAiRerankTaskSettings(null, null, NEW_INSTRUCTION);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
+        var requestInstructionOnly = new ContextualAiRerankTaskSettings(null, null, NEW_TEST_INSTRUCTION);
         assertThat(
             ContextualAiRerankTaskSettings.of(originalSettings, requestInstructionOnly),
-            is(new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, NEW_INSTRUCTION))
+            is(new ContextualAiRerankTaskSettings(INITIAL_TEST_RETURN_DOCUMENTS, INITIAL_TEST_TOP_N, NEW_TEST_INSTRUCTION))
         );
     }
 
     public void testOf_UsesAllParametersOverride() {
-        var originalSettings = new ContextualAiRerankTaskSettings(ORIGINAL_RETURN_DOCUMENTS, ORIGINAL_TOP_N, ORIGINAL_INSTRUCTION);
-        var overrideSettings = new ContextualAiRerankTaskSettings(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION);
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
+        var overrideSettings = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION);
         assertThat(
             ContextualAiRerankTaskSettings.of(originalSettings, overrideSettings),
-            is(new ContextualAiRerankTaskSettings(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION))
+            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION))
         );
     }
 
@@ -206,7 +246,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         throws IOException {
         var settings = new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        settings.toXContent(builder, null);
+        settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return Strings.toString(builder);
     }
 

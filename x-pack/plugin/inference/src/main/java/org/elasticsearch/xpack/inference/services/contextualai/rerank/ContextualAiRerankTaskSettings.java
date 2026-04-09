@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiTaskSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,7 +26,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
-public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings implements TopNProvider {
+public class ContextualAiRerankTaskSettings implements TopNProvider, TaskSettings {
 
     public static final String NAME = "contextualai_rerank_task_settings";
 

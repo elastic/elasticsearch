@@ -52,11 +52,6 @@ public abstract class ContextualAiModel extends RateLimitGroupingModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    @Override
-    public ContextualAiTaskSettings getTaskSettings() {
-        return (ContextualAiTaskSettings) super.getTaskSettings();
-    }
-
     public abstract ExecutableAction accept(ContextualAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public int rateLimitGroupingHash() {

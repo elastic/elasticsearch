@@ -41,7 +41,7 @@ public final class Expressions {
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
      * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
-     * converted to an {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute} via
+     * converted to an {@link UnsupportedAttribute} via
      * {@link FieldAttribute#checkUnresolved()}, so the analyzer can surface a clear user-facing error.
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(

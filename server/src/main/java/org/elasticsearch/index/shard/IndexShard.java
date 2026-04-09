@@ -111,6 +111,7 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -118,6 +119,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -3938,6 +3940,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().getTimestampFieldType() != null;
+        final boolean hasDiskBBQFields = hasDiskBBQFields(mapperService);
         return new EngineConfig(
             shardId,
             threadPool,
@@ -3945,7 +3948,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings,
             warmer,
             store,
-            indexSettings.getMergePolicy(isTimeBasedIndex),
+            indexSettings.getMergePolicy(isTimeBasedIndex, hasDiskBBQFields),
             buildIndexAnalyzer(mapperService),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
@@ -3971,6 +3974,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mergeMetrics,
             Function.identity()
         );
+    }
+
+    /**
+     * Returns true if the index has any dense vector fields using the DiskBBQ index type.
+     * DiskBBQ benefits from a merge-to-largest policy because it creates a dominant segment
+     * during merges, enabling the cheaper INSERTION clustering strategy.
+     */
+    private static boolean hasDiskBBQFields(MapperService mapperService) {
+        if (mapperService == null) {
+            return false;
+        }
+        for (Mapper mapper : mapperService.mappingLookup().fieldMappers()) {
+            if (mapper instanceof DenseVectorFieldMapper dvfm && dvfm.fieldType().isDiskBBQ()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

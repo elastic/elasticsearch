@@ -203,17 +203,6 @@ public final class MergePolicyConfig {
             MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
                 return config.timeBasedMergePolicy;
             }
-        },
-        /**
-         * A merge policy that favors merging small segments into large segments. This is useful when
-         * the merge cost is asymmetric (e.g., IVF/DiskBBQ indices where centroid reuse is cheap,
-         * or HNSW indices where insertions are expensive but copies are cheap).
-         */
-        MERGE_TO_LARGEST {
-            @Override
-            MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeBasedIndex) {
-                return config.mergeToLargestPolicy;
-            }
         };
 
         abstract MergePolicy getMergePolicy(MergePolicyConfig config, boolean isTimeSeries);
@@ -424,11 +413,22 @@ public final class MergePolicyConfig {
     }
 
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+    MergePolicy getMergePolicy(boolean isTimeBasedIndex, boolean hasDiskBBQFields) {
         if (mergesEnabled == false) {
             return NoMergePolicy.INSTANCE;
         }
+        // When the merge policy type is not explicitly set and the index has DiskBBQ vector fields,
+        // automatically use the merge-to-largest policy. This creates a dominant segment during merges,
+        // which enables the cheaper INSERTION clustering strategy in DiskBBQ instead of WARM_START.
+        if (hasDiskBBQFields && mergePolicyType == Type.UNSET) {
+            return mergeToLargestPolicy;
+        }
         return mergePolicyType.getMergePolicy(this, isTimeBasedIndex);
+    }
+
+    @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
+    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+        return getMergePolicy(isTimeBasedIndex, false);
     }
 
     private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {

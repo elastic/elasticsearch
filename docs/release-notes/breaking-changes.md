@@ -19,9 +19,6 @@ stack: ga 9.3.3
 
 There are no breaking changes associated with this release.
 
-```{applies_to}
-stack: ga 9.3.2
-```
 ## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
 
 There are no breaking changes associated with this release.

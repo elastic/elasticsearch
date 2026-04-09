@@ -105,7 +105,6 @@ public class SynonymsManagementAPIService {
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int MAX_SYNONYM_RULES = 10_000;
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
     static final int PIT_BATCH_SIZE = 10_000;
@@ -115,7 +114,7 @@ public class SynonymsManagementAPIService {
     private static final String RULE_COUNT_FILTER_KEY = "synonym_rules";
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
-    private final int maxSynonymsSets;
+
     private final int maxSynonymRules;
     private final int pitBatchSize;
 
@@ -148,7 +147,7 @@ public class SynonymsManagementAPIService {
     // Used for testing PIT pagination behavior with a small batch size to force multiple iterations
     SynonymsManagementAPIService(Client client, int maxSynonymRules, int pitBatchSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
-        this.maxSynonymsSets = MAX_SYNONYMS_SETS;
+
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
     }
@@ -238,7 +237,7 @@ public class SynonymsManagementAPIService {
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
-                    .size(maxSynonymsSets)
+                    .size(maxSynonymRules)
                     .subAggregation(ruleCountAggregation)
             )
             .setPreference(Preference.LOCAL.type())

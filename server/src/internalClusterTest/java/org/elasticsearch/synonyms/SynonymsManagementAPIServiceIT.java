@@ -9,6 +9,7 @@
 
 package org.elasticsearch.synonyms;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -101,12 +103,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     public void testGetAllSynonymSetRulesViaPit() throws Exception {
         int pitBatchSize = randomIntBetween(2, 5);
         int rulesNumber = pitBatchSize * randomIntBetween(3, 6);
-        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), rulesNumber + 1, pitBatchSize);
+        int maxRules = randomBoolean() ? rulesNumber : Integer.MAX_VALUE;
+        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), maxRules, pitBatchSize);
 
         String synonymSetId = randomIdentifier();
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
         synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, putFuture);
-        putFuture.actionGet();
+        assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, putFuture.actionGet().synonymsOperationResult());
 
         PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
         synsApiService.getSynonymSetRules(synonymSetId, getFuture);
@@ -129,11 +132,22 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), putFuture);
         assertFalse(putFuture.actionGet().hasFailures());
 
-        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-        synsApiService.getSynonymSetRules(synonymSetId, getFuture);
-        PagedResult<SynonymRule> result = getFuture.actionGet();
-        assertEquals(rulesNumber, result.totalResults());   // true total from index
-        assertEquals(maxRules, result.pageResults().length); // capped at limit
+        try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning",
+                    SynonymsManagementAPIService.class.getName(),
+                    Level.WARN,
+                    "The number of synonym rules in the synonym set [" + synonymSetId + "] exceeds the maximum allowed*"
+                )
+            );
+            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+            PagedResult<SynonymRule> result = getFuture.actionGet();
+            assertEquals(rulesNumber, result.totalResults());   // true total from index
+            assertEquals(maxRules, result.pageResults().length); // capped at limit
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testCreateTooManySynonymsAtOnce() throws InterruptedException {

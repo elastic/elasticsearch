@@ -4,8 +4,6 @@
 
 | left | right | result |
 | --- | --- | --- |
-| date | date | boolean |
-| date | date_nanos | boolean |
-| date_nanos | date | boolean |
-| date_nanos | date_nanos | boolean |
+| date | date_range | boolean |
+| date_range | date_range | boolean |
 

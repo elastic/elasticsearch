@@ -23,10 +23,8 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
 /**
- * Parses the Contextual AI rerank response.
- * Based on the API documentation, the response should look like:
- *
- * <pre>
+ * Parses the Contextual AI rerank response. Contextual AI rerank response looks like:
+ * <pre><code>
  * {
  *   "results": [
  *     {
@@ -39,10 +37,16 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
  *     }
  *   ]
  * }
- * </pre>
+ * </code></pre>
  */
 public class ContextualAiRerankResponseEntity {
 
+    /**
+     * Parses the HTTP response from Contextual AI's reranking endpoint and converts it into {@link RankedDocsResults}.
+     * @param response the HTTP response from Contextual AI's reranking endpoint
+     * @return the parsed {@link RankedDocsResults}
+     * @throws IOException if there is an error parsing the response
+     */
     public static RankedDocsResults fromResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 

@@ -1,0 +1,113 @@
+```yaml {applies_to}
+serverless: ga 9.4.0
+stack: preview 9.4.0
+```
+
+The `TS_INFO` [processing command](/reference/query-languages/esql/commands/processing-commands.md) returns one
+row per (metric, time series) combination in a
+[time series data stream](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md),
+with metadata about each metric and the dimension values that identify the time series.
+
+## Syntax
+
+```esql
+TS_INFO
+```
+
+## Parameters
+
+`TS_INFO` takes no parameters.
+
+## Description
+
+`TS_INFO` is a more fine-grained variant of
+[`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md). Where `METRICS_INFO` returns one row
+per distinct metric signature, `TS_INFO` returns one row per metric **and** time series. This lets you
+inspect the exact dimension values that identify each series.
+
+The output contains the following columns, all of type `keyword`:
+
+`metric_name`
+:   The name of the metric field (single-valued).
+
+`data_stream`
+:   The data stream(s) that contain this metric (multi-valued when the metric spans multiple data streams).
+
+`unit`
+:   The unit declared in the field mapping, such as `bytes` or `packets` (multi-valued when backing indices
+    differ; may be `null` if no unit is declared).
+
+`metric_type`
+:   The metric type, for example `counter` or `gauge` (multi-valued when definitions differ across backing indices).
+
+`field_type`
+:   The Elasticsearch field type, for example `long`, `double`, or `integer` (multi-valued when definitions differ).
+
+`dimension_fields`
+:   The dimension field names associated with this metric (multi-valued).
+
+`dimensions`
+:   A JSON-encoded object containing the dimension key/value pairs that identify the time series (single-valued).
+    For example: `{"cluster":"prod","pod":"one","region":"us"}`.
+
+### Restrictions
+
+- `TS_INFO` can only be used after a [`TS`](/reference/query-languages/esql/commands/ts.md) source command.
+  Using it after `FROM` or other source commands produces an error.
+- `TS_INFO` must appear before pipeline-breaking commands such as
+  [`STATS`](/reference/query-languages/esql/commands/stats-by.md),
+  [`SORT`](/reference/query-languages/esql/commands/sort.md), or
+  [`LIMIT`](/reference/query-languages/esql/commands/limit.md).
+- The output replaces the original table — downstream commands operate on the metadata rows, not the
+  raw time series documents.
+
+## Examples
+
+### List all metric–time-series combinations
+
+```esql
+TS k8s
+| TS_INFO
+| SORT metric_name, dimensions
+```
+
+### Select specific columns
+
+Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to return only the columns you need:
+
+```esql
+TS k8s
+| TS_INFO
+| KEEP metric_name, dimensions
+| SORT metric_name, dimensions
+```
+
+### Filter by metric type
+
+```esql
+TS k8s
+| TS_INFO
+| WHERE metric_type == "gauge"
+| SORT metric_name, dimensions
+```
+
+### Count distinct time series per metric
+
+Combine with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) to count how many
+time series exist for each metric:
+
+```esql
+TS k8s
+| TS_INFO
+| STATS series_count = COUNT(*) BY metric_name
+| SORT metric_name
+```
+
+### Count distinct metrics per time series
+
+```esql
+TS k8s
+| TS_INFO
+| STATS metric_count = COUNT_DISTINCT(metric_name) BY dimensions
+| SORT dimensions
+```

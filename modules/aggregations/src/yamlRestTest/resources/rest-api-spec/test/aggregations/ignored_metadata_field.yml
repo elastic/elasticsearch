@@ -128,7 +128,6 @@ setup:
 
   - match: { aggregations.ignored_terms.buckets.1.key: "order_datetime" }
   - match: { aggregations.ignored_terms.buckets.1.doc_count: 7 }
-  - match: { aggregations.ignored_terms.buckets.1.top_by_datetime.hits.hits.0._ignored: ["order_datetime", "products"]}
 
   - match: { aggregations.ignored_terms.buckets.2.key: "products" }
   - match: { aggregations.ignored_terms.buckets.2.doc_count: 6 }

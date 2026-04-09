@@ -73,7 +73,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     int maybeAdjustIndexSettingCount(int baseCount) {
-        return expectedDisabledSequenceNumbers ? baseCount + 1 : baseCount;
+        // We need to adjust to account for the seq_no removal and synthetic id settings
+        return expectedDisabledSequenceNumbers ? baseCount + 2 : baseCount;
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {

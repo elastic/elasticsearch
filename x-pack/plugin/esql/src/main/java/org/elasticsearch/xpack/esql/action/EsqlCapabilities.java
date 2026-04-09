@@ -1218,6 +1218,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
 
         /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

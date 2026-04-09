@@ -262,12 +262,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /**
-     * Forces the destination to write first (by deferring the source's write), then releases the source.
-     * The source's CREATE actually executes but is a no-op since the document already exists. Version stays at 1.
+     * Forces the destination to write to .tasks first (by deferring the source's write), then releases the source.
+     * The source's CREATE actually executes but is a no-op since the document already exists.
      */
-    public void testDestinationWritesFirstThenSourceCreateIsNoOp() throws Exception {
+    public void testTasksIndexDestinationWritesFirstThenSourceIsNoOp() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
 
         final String destNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -284,10 +285,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
         final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(sourceNodeName, 1);
-        assertBusy(() -> getRunningReindex(originalTaskId));
 
         // Defer source writes so the destination writes first.
-        // prepareForShutdown blocks until the task completes, but the source's deferred write keeps it waiting — use a background thread.
+        // prepareForShutdown blocks until the task completes, but the source's deferred write keeps it waiting
+        // use a background thread so the test can continue
         final CountDownLatch sourceWriteLatch = BlockTasksWritePlugin.deferWritesOnNode(sourceNodeName);
         final Thread shutdownThread = new Thread(() -> {
             try {
@@ -299,35 +300,34 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         shutdownThread.start();
 
         // Wait for the destination's write (not deferred) to create .tasks.
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)));
+        ensureGreen(TaskResultsService.TASK_INDEX);
         assertThat("version is 1 after destination write", getTasksDocument(originalTaskId).getVersion(), is(1L));
 
-        // Release the source's deferred CREATE — it executes but is a no-op (doc already exists).
+        // Release the source's deferred CREATE
         sourceWriteLatch.countDown();
-        ensureGreen(TaskResultsService.TASK_INDEX);
-        internalCluster().stopNode(sourceNodeName);
-
-        assertThat("version stays 1 — source CREATE is a no-op", getTasksDocument(originalTaskId).getVersion(), is(1L));
 
         final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
             originalTaskId,
             destNodeId,
-            localReindexDescription(),
+            expectedDescription,
             1,
             shards
         );
         unthrottleReindex(relocatedTaskId);
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, 1, shards);
         assertExpectedNumberOfDocumentsInDestinationIndex();
+
+        assertThat("version stays 1 — source CREATE is a no-op", getTasksDocument(originalTaskId).getVersion(), is(1L));
     }
 
     /**
      * Forces the source to write first by deferring the destination's write. The destination's deferred INDEX then overwrites
      * the source's document, bumping the version to 2.
      */
-    public void testSourceWritesFirstThenDestinationOverwrites() throws Exception {
+    public void testTasksIndexSourceWritesFirstThenDestinationOverwrites() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
 
         final String destNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -344,10 +344,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
         final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(sourceNodeName, 1);
-        assertBusy(() -> getRunningReindex(originalTaskId));
 
-        // Defer the destination's write so the source writes first. The filter returns immediately (doesn't block executeLocally),
-        // so the response reaches the source and its CREATE succeeds.
+        // Defer the destination's write so the source writes first.
         final CountDownLatch destWriteLatch = BlockTasksWritePlugin.deferWritesOnNode(destNodeName);
         shutdownNodeNameAndRelocate(sourceNodeName);
 
@@ -362,12 +360,12 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
             originalTaskId,
             destNodeId,
-            localReindexDescription(),
+            expectedDescription,
             1,
             shards
         );
         unthrottleReindex(relocatedTaskId);
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, 1, shards);
         assertExpectedNumberOfDocumentsInDestinationIndex();
     }
 
@@ -376,9 +374,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * even when the source node cannot write. The test uses {@link BlockTasksWritePlugin} to block all {@code .tasks} writes on the source
      * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
      */
-    public void testDestinationWritesSourceTaskResultToTasksIndex() throws Exception {
+    public void testTasksIndexDestinationWrites() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
+        final var expectedDescription = localReindexDescription();
 
         final String destNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -403,6 +402,18 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         shutdownNodeNameAndRelocate(sourceNodeName);
 
+        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
+            originalTaskId,
+            destNodeId,
+            expectedDescription,
+            1,
+            shards
+        );
+
+        unthrottleReindex(relocatedTaskId);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, 1, shards);
+        assertExpectedNumberOfDocumentsInDestinationIndex();
+
         // Verify the document was written exactly once (by the destination) with correct content.
         final GetResponse doc = getTasksDocument(originalTaskId);
         assertThat("document should be written exactly once", doc.getVersion(), is(1L));
@@ -410,18 +421,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // Verify source and destination would store equivalent results.
         assertSourceAndDestinationStoreEquivalentResults(doc, BlockTasksWritePlugin.capturedDocumentSource(sourceNodeName));
-
-        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
-            originalTaskId,
-            destNodeId,
-            localReindexDescription(),
-            1,
-            shards
-        );
-
-        unthrottleReindex(relocatedTaskId);
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
-        assertExpectedNumberOfDocumentsInDestinationIndex();
     }
 
     /**
@@ -465,6 +464,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         @Override
         public Collection<Object> createComponents(PluginServices services) {
             myNodeName = Node.NODE_NAME_SETTING.get(services.environment().settings());
+            assertNotNull(myNodeName);
             return List.of();
         }
 
@@ -492,6 +492,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                         }
                         final CountDownLatch latch = deferLatch;
                         if (latch != null && myNodeName.equals(deferredNodeName)) {
+                            // fork to unblock the calling thread, also simulates async index write
                             new Thread(() -> {
                                 safeAwait(latch);
                                 chain.proceed(task, action, request, listener);

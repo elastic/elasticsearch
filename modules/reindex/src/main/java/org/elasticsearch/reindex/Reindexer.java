@@ -172,6 +172,7 @@ public class Reindexer {
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
+            // source task result should be present for top-level tasks only (e.g. leader or non-sliced worker)
             storeRelocationSourceTaskResult(
                 task,
                 resumeInfo,
@@ -188,6 +189,8 @@ public class Reindexer {
      * to store its task result. For sliced reindex tasks, only the leader will store the source task result.
      */
     private void storeRelocationSourceTaskResult(BulkByScrollTask task, ResumeInfo resumeInfo, ActionListener<Void> listener) {
+        assert task.isLeader() || (task.isWorker() && task.getParentTaskId().isSet() == false) :
+            "Only top level source task result should be stored, result for sliced workers should not be stored";
         final var relocatedException = new TaskRelocatedException(
             resumeInfo.relocationOrigin().originalTaskId(),
             new TaskId(clusterService.localNode().getId(), task.getId())

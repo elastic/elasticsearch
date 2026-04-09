@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.UnsupportedSelectorException;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
@@ -524,6 +525,14 @@ class IndicesAndAliasesResolver {
                 }
             } else {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
+                if (isAllIndices && indicesOptions.concreteTargetOptions().allowUnavailableTargets() == false) {
+                    /*
+                     * Security expanded empty / _all to concrete authorized names from one cluster state snapshot; transport
+                     * re-resolves against a newer snapshot. Allow unavailable concrete targets so an index or alias removed
+                     * between those snapshots does not yield a spurious IndexNotFoundException (see #104371).
+                     */
+                    allowUnavailableConcreteTargets(replaceable, indicesOptions);
+                }
             }
         } else {
             // For performance reasons, non-replaceable requests should be directly handled by
@@ -792,6 +801,23 @@ class IndicesAndAliasesResolver {
                 }
                 return new ResolvedIndices(List.of(), List.of(indexExpression));
             }
+        }
+    }
+
+    /**
+     * Sets {@link IndicesOptions.ConcreteTargetOptions#ALLOW_UNAVAILABLE_TARGETS} on the request by dispatching
+     * to the concrete type's own {@code indicesOptions(IndicesOptions)} setter. Only called after security
+     * expanded an all-indices expression to concrete names (see #104371).
+     */
+    private static void allowUnavailableConcreteTargets(IndicesRequest.Replaceable replaceable, IndicesOptions current) {
+        IndicesOptions merged = IndicesOptions.builder(current)
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+            .build();
+        switch (replaceable) {
+            case BroadcastRequest<?> r -> r.indicesOptions(merged);
+            case GetAliasesRequest r -> r.indicesOptions(merged);
+            case SearchRequest r -> r.indicesOptions(merged);
+            default -> logger.debug("Cannot merge allow-unavailable-targets on [{}], skipping", replaceable.getClass().getName());
         }
     }
 }

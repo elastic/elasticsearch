@@ -1718,6 +1718,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
+        assertFalse(
+            "explicit concrete indices must not enable ignore_unavailable (user expects 404 for missing names)",
+            request.indicesOptions().ignoreUnavailable()
+        );
     }
 
     public void testResolveWildcardsGetAliasesRequestStrictExpand() {
@@ -1827,6 +1831,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // _all gets replaced with all indices that user is authorized for
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
+        assertTrue(
+            "all-indices expansion must set ignore_unavailable so transport tolerates concurrent deletions (#104371)",
+            request.indicesOptions().ignoreUnavailable()
+        );
     }
 
     public void testResolveAllGetAliasesRequestExpandWildcardsOpenOnly() {

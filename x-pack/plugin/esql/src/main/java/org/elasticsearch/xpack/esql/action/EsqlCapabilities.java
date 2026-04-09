@@ -2006,6 +2006,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for the {@code DATE_UNIT_COUNT} function.
+         */
+        ESQL_DATE_UNIT_COUNT_FN,
+
+        /**
          * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
          */
         PROMQL_BUCKETS_PARAMETER,

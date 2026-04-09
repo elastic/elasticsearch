@@ -968,10 +968,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (DataType dt : DataType.UNDER_CONSTRUCTION) {
-            if (dt.supportedVersion().supportedLocally() == false) {
-                if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
-                    return true;
-                }
+            if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
+                return true;
             }
         }
         return false;

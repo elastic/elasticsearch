@@ -154,10 +154,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStop() {
-        try {
-            traceSupplier.attemptFlushTraces();
-        } catch (Exception e) {
-            logger.warn("Exception flushing trace supplier", e);
+        if (enabled) {
+            try {
+                traceSupplier.attemptFlushTraces();
+            } catch (Exception e) {
+                logger.warn("Exception flushing trace supplier", e);
+            }
         }
         try {
             traceSupplier.close();

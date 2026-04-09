@@ -54,8 +54,7 @@ public class APMTracerFlushTests extends ESTestCase {
     }
 
     /**
-     * The public attemptFlushTraces() is gated on enabled — callers should not pay the flush cost when tracing
-     * is off. doStop() is intentionally unconditional (see testDoStopDelegatesUnconditionallyWhenTracingDisabled).
+     * The public attemptFlushTraces() is gated on enabled — callers should not pay the flush cost when tracing is off.
      */
     public void testAttemptFlushTracesIsNoopWhenDisabled() {
         List<String> calls = new ArrayList<>();
@@ -112,10 +111,11 @@ public class APMTracerFlushTests extends ESTestCase {
     }
 
     /**
-     * A node could have had tracing enabled, accumulated data, then had tracing disabled via a settings change, and then shut down.
-     * This test checks that doStop() delegates to the supplier unconditionally so buffered data is drained before close.
+     * When tracing is disabled at shutdown, the flush must be skipped entirely — a user who disabled tracing
+     * may have done so specifically to prevent data from being exported (e.g. bad pipeline, sensitive data).
+     * close() must still be called to release resources.
      */
-    public void testDoStopDelegatesUnconditionallyWhenTracingDisabled() {
+    public void testDoStopSkipsFlushWhenTracingDisabled() {
         List<String> calls = new ArrayList<>();
         TraceSupplier trackingSupplier = new TraceSupplier() {
             @Override
@@ -139,7 +139,7 @@ public class APMTracerFlushTests extends ESTestCase {
         tracer.start();
         tracer.stop();
 
-        assertThat(calls, contains("attemptFlushTraces", "close"));
+        assertThat(calls, contains("close"));
     }
 
 }

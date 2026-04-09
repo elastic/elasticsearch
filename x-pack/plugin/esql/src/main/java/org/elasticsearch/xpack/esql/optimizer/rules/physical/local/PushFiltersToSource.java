@@ -264,8 +264,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter
-            ExternalSourceExec newExternalExec = externalExec.withPushedFilter(result.pushedFilter());
+            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
+                result.pushedFilter(),
+                result.pushedExpressions()
+            );
 
             // If there are non-pushable filters, keep FilterExec
             if (result.hasRemainder()) {

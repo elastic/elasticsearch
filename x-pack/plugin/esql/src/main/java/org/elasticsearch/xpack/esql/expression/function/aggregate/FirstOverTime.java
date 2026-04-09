@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -47,6 +48,9 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         "FirstOverTime",
         FirstOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
+        .ternary(FirstOverTime::new)
+        .name("first_over_time");
 
     private final Expression timestamp;
 
@@ -55,8 +59,9 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double", "exponential_histogram", "tdigest" },
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "first_over_time") }
     )
     public FirstOverTime(

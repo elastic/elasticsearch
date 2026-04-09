@@ -7,17 +7,22 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /** Reason for a task failing because it's been relocated to another node to continue execution. */
 public class TaskRelocatedException extends ElasticsearchException {
+
+    public static final TransportVersion TASK_RELOCATED_EXCEPTION_VERSION = TransportVersion.fromName("task_relocated_exception");
 
     private static final String ORIGINAL_TASK_ID_KEY = "original_task_id";
     private static final String ORIGINAL_TASK_ID_METADATA_KEY = "es." + ORIGINAL_TASK_ID_KEY;
@@ -28,22 +33,27 @@ public class TaskRelocatedException extends ElasticsearchException {
         super("Task was relocated");
     }
 
+    public TaskRelocatedException(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    public TaskRelocatedException(TaskId originalTaskId, TaskId relocatedTaskId) {
+        super("Task was relocated");
+        assert originalTaskId.isSet() : "original task ID is not set";
+        assert relocatedTaskId.isSet() : "relocated task ID is not set";
+        this.addMetadata(ORIGINAL_TASK_ID_METADATA_KEY, originalTaskId.toString());
+        this.addMetadata(RELOCATED_TASK_ID_METADATA_KEY, relocatedTaskId.toString());
+    }
+
     /** Returns the relocated task ID if the map is a serialized {@link TaskRelocatedException}. */
     public static Optional<TaskId> relocatedTaskIdFromErrorMap(final Map<String, Object> errorMap) {
         if ("task_relocated_exception".equals(errorMap.get("type"))
             && errorMap.get(RELOCATED_TASK_ID_KEY) instanceof String relocatedIdStr) {
             final TaskId relocatedTaskId = new TaskId(relocatedIdStr);
-            assert relocatedTaskId.isSet() : "relocated task ID is not real ID";
+            assert relocatedTaskId.isSet() : "relocated task ID is not set";
             return Optional.of(relocatedTaskId);
         }
         return Optional.empty();
-    }
-
-    public void setOriginalAndRelocatedTaskIdMetadata(final TaskId originalTaskId, final TaskId relocatedTaskId) {
-        assert originalTaskId.isSet() : "original task ID is not real ID";
-        assert relocatedTaskId.isSet() : "relocated task ID is not real ID";
-        this.addMetadata(ORIGINAL_TASK_ID_METADATA_KEY, originalTaskId.toString()); // implicit nullchecks
-        this.addMetadata(RELOCATED_TASK_ID_METADATA_KEY, relocatedTaskId.toString());
     }
 
     public Optional<String> getRelocatedTaskId() {

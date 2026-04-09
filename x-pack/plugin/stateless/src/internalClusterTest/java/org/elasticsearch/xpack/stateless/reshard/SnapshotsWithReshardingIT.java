@@ -38,16 +38,19 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
+import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
 public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestCase {
-    public void testShardSnapshotIsFailedWhenReshardingMetadataIsPresent() throws Exception {
+    public void testShardSnapshotIsFailedWhenReshardingMetadataIsPresent() {
         startMasterOnlyNode();
         var indexNode = startIndexNode();
         ensureStableCluster(2);
@@ -149,7 +152,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         assertNull(restoredMetadata.getReshardingMetadata());
     }
 
-    public void testShardSnapshotIsFailedDueToConcurrentCompletedSplit() throws Exception {
+    public void testShardSnapshotIsFailedDueToConcurrentCompletedSplit() {
         var indexNode = startMasterAndIndexNode();
         ensureStableCluster(1);
 
@@ -230,7 +233,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         assertNull(restoredMetadata.getReshardingMetadata());
     }
 
-    public void testSnapshotWithConcurrentSplit() throws Exception {
+    public void testSnapshotWithConcurrentSplit() {
         startMasterOnlyNode();
         var nodes = startIndexNodes(3);
         startSearchNode();
@@ -241,7 +244,17 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, 3, 1);
         ensureGreen();
-        indexDocs(indexName, randomIntBetween(10, 100));
+
+        // Index documents that would result in predefined amount documents per shard after a split.
+        int documentsPerShard = randomIntBetween(2, 10);
+        final Index index = resolveIndex(indexName);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 6);
+        for (int shard = 0; shard < 3; shard++) {
+            for (int doc = 0; doc < documentsPerShard; doc++) {
+                var id = makeIdThatRoutesToShard(indexRoutingPostSplit, shard, Integer.toString(shard) + doc);
+                prepareIndex(indexName).setId(id).setSource(Map.of("field", randomAlphaOfLength(5))).get();
+            }
+        }
 
         // We'll allow one shard snapshot to proceed at a time to test different scenarios.
         var shardSnapshotSemaphore = new Semaphore(1);
@@ -351,7 +364,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 .setAllowPartialSearchResults(false),
             searchResponse -> {
                 // We should have documents from the one shard that has a successful snapshot.
-                assertTrue(searchResponse.getHits().getTotalHits().value() > 0);
+                assertEquals(documentsPerShard, searchResponse.getHits().getTotalHits().value());
             }
         );
     }

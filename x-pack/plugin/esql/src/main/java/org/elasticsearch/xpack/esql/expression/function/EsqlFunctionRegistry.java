@@ -610,11 +610,12 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
+                Sparkline.DEFINITION,
+                // date_range functions
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
-                Sparkline.DEFINITION } };
+                ToDateRange.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

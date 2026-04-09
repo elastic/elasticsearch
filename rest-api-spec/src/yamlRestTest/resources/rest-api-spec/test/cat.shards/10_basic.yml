@@ -1,8 +1,8 @@
 ---
 "Help":
   - requires:
-      cluster_features: [ "gte_v8.16.0" ]
-      reason: search idle state was added in 8.16.0
+      cluster_features: [ "cat.shards.idle_state" ]
+      reason: search idle state was added
   - do:
       cat.shards:
         help: true

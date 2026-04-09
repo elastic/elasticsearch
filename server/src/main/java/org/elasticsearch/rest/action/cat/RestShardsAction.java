@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
@@ -58,6 +59,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
+
+    public static final NodeFeature SHARDS_IDLE_STATE = new NodeFeature("cat.shards.idle_state");
 
     @Override
     public List<Route> routes() {

@@ -1046,9 +1046,10 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
+                "{} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
                 warmingRun.shardId(),
                 warmingRun.type(),
+                blobFile.termAndGeneration(),
                 duration,
                 byteRangeToWarm,
                 tasksCount.get(),

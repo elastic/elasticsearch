@@ -1,8 +1,11 @@
 setup:
   - requires:
       cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: Needs generic vector support
   - do:
+      allowed_warnings: [ "Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version",
+                          "Parameter [confidence_interval] in [index_options] for dense_vector field [another_vector] is deprecated and will be removed in a future version" ]
       indices.create:
         index: int4_flat
         body:
@@ -21,6 +24,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
               another_vector:
                 type: dense_vector
                 element_type: bfloat16
@@ -29,6 +33,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
 
   - do:
       index:
@@ -312,6 +317,8 @@ setup:
                   type: int4_flat
 ---
 "Test odd dimensions fail indexing":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   # verify index creation fails
   - do:
       catch: bad_request
@@ -331,6 +338,7 @@ setup:
 
   # verify dynamic dimension fails
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -343,6 +351,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   # verify index fails for odd dim vector
   - do:
@@ -354,6 +363,7 @@ setup:
 
   # verify that we can index an even dim vector after the odd dim vector failure
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -409,10 +419,11 @@ setup:
 ---
 "Test index configured rescore vector":
   - requires:
-      test_runner_features: "close_to"
+      test_runner_features: ["close_to", "allowed_warnings"]
   - skip:
       features: "headers"
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_flat
         body:
@@ -431,6 +442,7 @@ setup:
                   type: int4_flat
                   rescore_vector:
                     oversample: 1.5
+                  confidence_interval: 0.0
 
   - do:
       bulk:
@@ -506,7 +518,10 @@ setup:
   - not_exists: int4_flat.mappings.properties.vector.index_options.rescore_vector
 ---
 "Nested flat search":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_flat_nested
         body:
@@ -530,7 +545,9 @@ setup:
                     similarity: l2_norm
                     index_options:
                       type: int4_flat
+                      confidence_interval: 0.0
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: int4_flat_nested
         id: "1"
@@ -543,6 +560,7 @@ setup:
               vector: [240.0, 300, -3, 1 ]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: int4_flat_nested
         id: "2"
@@ -557,6 +575,7 @@ setup:
               vector: [0, 1.0, 0, 1.8]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: int4_flat_nested
         id: "3"

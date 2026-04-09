@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 145570
+pr: 145632
+summary: Don't use a Literal for `constant_keyword` fields when used inside full-text
+  functions
+type: bug

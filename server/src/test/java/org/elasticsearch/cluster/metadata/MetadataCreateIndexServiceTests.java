@@ -1960,7 +1960,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 mockIndicesService(),
                 allocationService,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
                 newEnvironment(),
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,

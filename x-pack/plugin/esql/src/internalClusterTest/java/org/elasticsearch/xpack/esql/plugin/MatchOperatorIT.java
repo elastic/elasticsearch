@@ -398,6 +398,18 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
     }
 
+    public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after INLINE"));
+    }
+
     public void testMatchOperatorWithLookupJoin() {
         var query = """
             FROM test

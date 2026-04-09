@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -94,7 +95,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         """;
 
     public static MinimalServiceSettings randomInstance() {
-        TaskType taskType = randomFrom(TaskType.values());
+        TaskType taskType = randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY)));
         Integer dimensions = null;
         SimilarityMeasure similarity = null;
         DenseVectorFieldMapper.ElementType elementType = null;
@@ -139,7 +140,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         switch (randomIntBetween(0, 5)) {
             case 0 -> service = randomValueOtherThan(service, () -> randomAlphaOfLengthOrNull(10));
             case 1 -> {
-                taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+                taskType = randomValueOtherThan(taskType, () -> randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))));
                 // Update dimensions, similarity, elementType based on new taskType
                 if ((taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING)) {
                     if (instanceHasEmbeddingTaskType == false) {
@@ -390,5 +391,13 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         var json = Strings.toString(builder);
 
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITH_METADATA_JSON)));
+    }
+
+    public void testFilteredToXContent() throws IOException {
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.getFilteredXContentObject().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        var json = Strings.toString(builder);
+
+        assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));
     }
 }

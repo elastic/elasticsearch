@@ -214,6 +214,35 @@ public class Querier {
     }
 
     /**
+     * Closes the point-in-time associated with the search response, then notifies the given listener
+     * with the last page. Retains a reference to the response so it stays alive until the close
+     * callback runs (the transport releases its ref when the search listener returns, but we consume
+     * the response in the close callback).
+     */
+    public static void closePointInTimeWithLastPage(Client client, SearchResponse response, Page lastPage, ActionListener<Page> listener) {
+        response.incRef();
+        closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean r) {
+                try {
+                    listener.onResponse(lastPage);
+                } finally {
+                    response.decRef();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    response.decRef();
+                }
+            }
+        });
+    }
+
+    /**
      *
      * @param source
      * @param cfg

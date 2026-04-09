@@ -264,7 +264,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_Fork[[_meta_field{r}#30, emp_no{r}#31, first_name{r}#32, gender{r}#33, hire_date{r}#34, job{r}#35, job.raw{r}#36, l
      * anguages{r}#37, last_name{r}#38, long_noidx{r}#39, salary{r}#40, _fork{r}#41]]
@@ -280,7 +280,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
      *       \_Eval[[fork2[KEYWORD] AS _fork#5]]
      *         \_Filter[emp_no{f}#19 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
-     * }</pre>
+     * }
      */
     public void testPushDownLimitIntoForkWithUnboundedOrderBy() {
         var query = """
@@ -307,7 +307,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_Fork[[a{r}#18, b{r}#19, _fork{r}#20]]
      *   |_Project[[a{r}#14, b{r}#15, _fork{r}#12]]
@@ -322,7 +322,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
      *         \_MvExpand[b{r}#6,b{r}#17]
      *           \_MvExpand[a{r}#4,a{r}#16]
      *             \_LocalRelation[[a{r}#4, b{r}#6],Page{...}]
-     * }</pre>
+     * }
      */
     public void testPushDownLimitIntoForkWithRowAndUnboundedOrderBy() {
         var query = """

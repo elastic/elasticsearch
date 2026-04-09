@@ -20,14 +20,36 @@ import org.elasticsearch.xcontent.XContentType;
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
  * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
  * paginated hit sources.
+ * <p>
+ * PIT-based searches use an unpooled copy of the hit. Scroll responses retain pooled hits until
+ * {@link #release()} runs; use {@link #forScrollHit(SearchHit)} for that path.
  */
 
 class ClientHit implements PaginatedHitSource.Hit {
     private final SearchHit delegate;
     private final BytesReference source;
+    private final boolean refCounted;
 
     ClientHit(SearchHit delegate) {
-        this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
+        this(delegate, false);
+    }
+
+    /**
+     * Wraps a pooled scroll {@link SearchHit}; callers must invoke {@link #release()} when the hit is no longer needed.
+     */
+    static ClientHit forScrollHit(SearchHit delegate) {
+        return new ClientHit(delegate, true);
+    }
+
+    private ClientHit(SearchHit delegate, boolean refCounted) {
+        this.refCounted = refCounted;
+        if (refCounted) {
+            delegate.mustIncRef();
+            this.delegate = delegate;
+        } else {
+            // Unpooled copy for PIT; scroll uses pooled hits with ref counting via forScrollHit.
+            this.delegate = delegate.asUnpooled();
+        }
         source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
     }
 
@@ -79,5 +101,12 @@ class ClientHit implements PaginatedHitSource.Hit {
     private <T> T fieldValue(String fieldName) {
         DocumentField field = delegate.field(fieldName);
         return field == null ? null : field.getValue();
+    }
+
+    @Override
+    public void release() {
+        if (refCounted) {
+            delegate.decRef();
+        }
     }
 }

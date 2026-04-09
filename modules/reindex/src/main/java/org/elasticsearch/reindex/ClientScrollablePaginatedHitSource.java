@@ -157,72 +157,11 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         } else {
             hits = new ArrayList<>(response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
-                hits.add(new ClientHit(hit));
+                hits.add(ClientHit.forScrollHit(hit));
             }
             hits = unmodifiableList(hits);
         }
         long total = response.getHits().getTotalHits().value();
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
-    }
-
-    private static class ClientHit implements Hit {
-        private final SearchHit delegate;
-        private final BytesReference source;
-
-        ClientHit(SearchHit delegate) {
-            delegate.mustIncRef();
-            this.delegate = delegate;
-            source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
-        }
-
-        @Override
-        public void release() {
-            delegate.decRef();
-        }
-
-        @Override
-        public String getIndex() {
-            return delegate.getIndex();
-        }
-
-        @Override
-        public String getId() {
-            return delegate.getId();
-        }
-
-        @Override
-        public BytesReference getSource() {
-            return source;
-        }
-
-        @Override
-        public XContentType getXContentType() {
-            return XContentHelper.xContentType(source);
-        }
-
-        @Override
-        public long getVersion() {
-            return delegate.getVersion();
-        }
-
-        @Override
-        public long getSeqNo() {
-            return delegate.getSeqNo();
-        }
-
-        @Override
-        public long getPrimaryTerm() {
-            return delegate.getPrimaryTerm();
-        }
-
-        @Override
-        public String getRouting() {
-            return fieldValue(RoutingFieldMapper.NAME);
-        }
-
-        private <T> T fieldValue(String fieldName) {
-            DocumentField field = delegate.field(fieldName);
-            return field == null ? null : field.getValue();
-        }
     }
 }

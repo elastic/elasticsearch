@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -32,8 +30,9 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -151,9 +150,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     // No matches to be had
                     return null;
                 }
-                final ByteArrayStreamInput bytes = new ByteArrayStreamInput();
-                final BytesRef scratch = new BytesRef();
-                final BinaryDocValues values = DocValues.getBinary(context.reader(), field);
+                final SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(context.reader(), field);
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
@@ -166,9 +163,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                                     // Can happen when approxQuery resolves to some form of MatchAllDocs expression
                                     return false;
                                 }
-                                final BytesRef bytesRef = values.binaryValue();
-                                bytes.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                                return matcher.matchesBinaryDV(bytes, bytesRef, scratch);
+                                return matcher.matchesBinaryDV(values);
                             }
 
                             @Override
@@ -221,7 +216,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     interface BinaryDVMatcher {
-        boolean matchesBinaryDV(ByteArrayStreamInput bytes, BytesRef bytesRef, BytesRef scratch) throws IOException;
+        boolean matchesBinaryDV(SortedBinaryDocValues values) throws IOException;
     }
 
     private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {
@@ -236,14 +231,13 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         protected BinaryDVMatcher getBinaryDVMatcher() {
             final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
-            return (bytes, bytesRef, scratch) -> {
-                final int size = bytes.readVInt();
-                for (int i = 0; i < size; i++) {
-                    final int valLength = bytes.readVInt();
-                    if (byteRunAutomaton.run(bytesRef.bytes, bytes.getPosition(), valLength)) {
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
+                    if (byteRunAutomaton.run(val.bytes, val.offset, val.length)) {
                         return true;
                     }
-                    bytes.skipBytes(valLength);
                 }
                 return false;
             };
@@ -285,28 +279,22 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         protected BinaryDVMatcher getBinaryDVMatcher() {
-            return (bytes, bytesRef, scratch) -> {
-                scratch.bytes = bytesRef.bytes;
-                final int size = bytes.readVInt();
-                for (int i = 0; i < size; i++) {
-                    final int valLength = bytes.readVInt();
-                    scratch.offset = bytes.getPosition();
-                    scratch.length = valLength;
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
                     if (terms.length == 1) {
-                        if (terms[0].bytesEquals(scratch)) {
+                        if (terms[0].bytesEquals(val)) {
                             return true;
                         }
                     } else {
-                        final int pos = Arrays.binarySearch(terms, scratch, BytesRef::compareTo);
+                        final int pos = Arrays.binarySearch(terms, val, BytesRef::compareTo);
                         if (pos >= 0) {
-                            assert terms[pos].bytesEquals(scratch)
-                                : "Expected term at position " + pos + " to match scratch, but it did not.";
+                            assert terms[pos].bytesEquals(val) : "Expected term at position " + pos + " to match value, but it did not.";
                             return true;
                         }
                     }
-                    bytes.skipBytes(valLength);
                 }
-                assert bytes.available() == 0 : "Expected no bytes left to read, but found " + bytes.available();
                 return false;
             };
         }

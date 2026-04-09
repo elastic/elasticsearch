@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,11 +36,23 @@ import java.util.Optional;
  * <p>
  * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
  */
-public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices)
-    implements
-        Writeable {
+public record ResumeInfo(
+    RelocationOrigin relocationOrigin,
+    @Nullable WorkerResumeInfo worker,
+    @Nullable Map<Integer, SliceStatus> slices,
+    @Nullable TaskResult sourceTaskResult
+) implements Writeable {
 
     public ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
+        this(relocationOrigin, worker, slices, null);
+    }
+
+    public ResumeInfo(
+        RelocationOrigin relocationOrigin,
+        @Nullable WorkerResumeInfo worker,
+        @Nullable Map<Integer, SliceStatus> slices,
+        @Nullable TaskResult sourceTaskResult
+    ) {
         this.relocationOrigin = Objects.requireNonNull(relocationOrigin, "relocation origin cannot be null");
         if (worker == null && (slices == null || slices.size() < 2)) {
             throw new IllegalArgumentException("resume info requires a worker resume info or at minimum two slices");
@@ -49,13 +62,15 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         }
         this.worker = worker;
         this.slices = slices != null ? Map.copyOf(slices) : null;
+        this.sourceTaskResult = sourceTaskResult;
     }
 
     public ResumeInfo(StreamInput in) throws IOException {
         this(
             new RelocationOrigin(in), // if serialized, always present
             in.readOptionalNamedWriteable(WorkerResumeInfo.class),
-            in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new)
+            in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new),
+            in.readOptionalWriteable(TaskResult::new)
         );
     }
 
@@ -64,6 +79,7 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         out.writeWriteable(relocationOrigin);
         out.writeOptionalNamedWriteable(worker);
         out.writeOptionalMap(slices, StreamOutput::writeVInt, (o, v) -> v.writeTo(o));
+        out.writeOptionalWriteable(sourceTaskResult);
     }
 
     public int getTotalSlices() {

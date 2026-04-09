@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VectorIT extends ESIntegTestCase {
 
@@ -83,8 +84,8 @@ public class VectorIT extends ESIntegTestCase {
 
         float[] vector = new float[16];
         randomVector(vector, 25);
-        int upperLimit = 100;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null).addFilterQuery(
+        int upperLimit = 35;
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 10, 10f, null, null).addFilterQuery(
             QueryBuilders.rangeQuery(NUM_ID_FIELD).lt(upperLimit)
         );
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), acornResponse -> {
@@ -127,6 +128,7 @@ public class VectorIT extends ESIntegTestCase {
                     )
                     .sum();
 
+                assertThat(fanoutVectorOpsSum, lessThanOrEqualTo((long) upperLimit));
                 assertTrue(
                     "fanoutVectorOps ["
                         + fanoutVectorOpsSum
@@ -135,7 +137,9 @@ public class VectorIT extends ESIntegTestCase {
                         + "], filtered doc count ["
                         + upperLimit
                         + "]",
-                    fanoutVectorOpsSum >= vectorOpsSum
+                    fanoutVectorOpsSum > vectorOpsSum
+                        // if both switch to brute-force due to excessive exploration, they will both equal to upperLimit
+                        || (fanoutVectorOpsSum == vectorOpsSum && vectorOpsSum == upperLimit)
                 );
             });
         });

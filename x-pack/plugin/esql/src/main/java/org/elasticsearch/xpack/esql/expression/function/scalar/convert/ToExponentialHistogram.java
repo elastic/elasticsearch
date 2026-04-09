@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -41,6 +42,9 @@ public class ToExponentialHistogram extends AbstractConvertFunction {
         "ToExponentialHistogram",
         ToExponentialHistogram::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToExponentialHistogram.class)
+        .unary(ToExponentialHistogram::new)
+        .name("to_exponential_histogram");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DataType.EXPONENTIAL_HISTOGRAM, (source, field) -> field),

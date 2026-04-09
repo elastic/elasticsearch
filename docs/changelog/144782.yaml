@@ -1,6 +1,0 @@
-area: Infra/Core
-issues:
- - 144764
-pr: 144782
-summary: Fix system index mapping update for reindexed indices after migration
-type: bug

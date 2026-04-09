@@ -12,6 +12,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.Modifier;
 
@@ -85,13 +86,17 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
         builder.beginControlFlow("if ($LVector == null)", name);
 
-        for (String statement : invokeBlockEval) {
-            builder.addStatement(statement);
+        if (onAllNull != null) {
+            builder.beginControlFlow("if ($LBlock.areAllValuesNull())", name);
+            onAllNull.accept(builder);
+            builder.endControlFlow();
         }
+
+        onBlock.accept(builder);
 
         builder.endControlFlow();
     }

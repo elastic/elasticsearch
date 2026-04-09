@@ -44,7 +44,9 @@ public class ChangelogEntry {
     private Highlight highlight;
     private Deprecation deprecation;
     private String entryOverride;
+    private String sourceRepo;
 
+    private static final String DEFAULT_REPO = "elastic/elasticsearch";
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     /**
@@ -134,6 +136,20 @@ public class ChangelogEntry {
         this.entryOverride = entryOverride;
     }
 
+    public String getSourceRepo() {
+        return sourceRepo;
+    }
+
+    public void setSourceRepo(String sourceRepo) {
+        this.sourceRepo = sourceRepo;
+    }
+
+    @JsonIgnore
+    public String getRepoUrl() {
+        String repo = sourceRepo != null ? sourceRepo : DEFAULT_REPO;
+        return "https://github.com/" + repo;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -150,19 +166,20 @@ public class ChangelogEntry {
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
             && Objects.equals(breaking, that.breaking)
-            && Objects.equals(entryOverride, that.entryOverride);
+            && Objects.equals(entryOverride, that.entryOverride)
+            && Objects.equals(sourceRepo, that.sourceRepo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride, sourceRepo);
     }
 
     @Override
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s}",
+            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s, sourceRepo='%s'}",
             pr,
             issues,
             area,
@@ -170,7 +187,8 @@ public class ChangelogEntry {
             summary,
             highlight,
             breaking,
-            deprecation
+            deprecation,
+            sourceRepo
         );
     }
 

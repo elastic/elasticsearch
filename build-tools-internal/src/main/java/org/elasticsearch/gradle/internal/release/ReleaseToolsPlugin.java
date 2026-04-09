@@ -23,6 +23,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -69,11 +70,20 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Action<BundleChangelogsTask> configureBundleTask = task -> {
             task.setGroup("Documentation");
-            task.setDescription("Generates release notes from changelog files held in this checkout");
+            task.setDescription("Generates release notes from changelog files held in this checkout and external repos");
             task.setChangelogs(yamlFiles);
             task.setChangelogDirectory(changeLogDirectory);
             task.setChangelogBundlesDirectory(changeLogBundlesDirectory);
             task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
+            task.setExternalSources(
+                List.of(
+                    new BundleChangelogsTask.ExternalChangelogSource(
+                        "https://github.com/elastic/ml-cpp.git",
+                        "elastic/ml-cpp",
+                        "docs/changelog"
+                    )
+                )
+            );
             task.getOutputs().upToDateWhen(o -> false);
         };
 

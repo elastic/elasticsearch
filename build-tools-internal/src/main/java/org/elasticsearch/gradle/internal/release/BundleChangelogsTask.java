@@ -34,7 +34,10 @@ import org.gradle.process.ExecOperations;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
@@ -49,6 +52,16 @@ import static java.util.stream.Collectors.toList;
 public class BundleChangelogsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(BundleChangelogsTask.class);
 
+    /**
+     * Configuration for an external repository whose changelog entries should be
+     * merged into the Elasticsearch release notes bundle.
+     *
+     * @param repoUrl       HTTPS clone URL, e.g. {@code https://github.com/elastic/ml-cpp.git}
+     * @param sourceRepo    GitHub owner/name used for PR links, e.g. {@code elastic/ml-cpp}
+     * @param changelogPath path inside the repo containing YAML entries, e.g. {@code docs/changelog}
+     */
+    public record ExternalChangelogSource(String repoUrl, String sourceRepo, String changelogPath) {}
+
     private final ConfigurableFileCollection changelogs;
 
     private final RegularFileProperty bundleFile;
@@ -56,6 +69,8 @@ public class BundleChangelogsTask extends DefaultTask {
     private final DirectoryProperty changelogBundlesDirectory;
 
     private final GitWrapper gitWrapper;
+
+    private List<ExternalChangelogSource> externalSources = List.of();
 
     @Nullable
     private String branch;
@@ -172,6 +187,17 @@ public class BundleChangelogsTask extends DefaultTask {
                 return output.trim().isEmpty() == false;
             }).map(ChangelogEntry::parse).sorted(Comparator.comparing(ChangelogEntry::getPr)).collect(toList());
 
+            // Fetch changelog entries from external repositories
+            for (ExternalChangelogSource source : externalSources) {
+                List<ChangelogEntry> externalEntries = fetchExternalChangelogs(source, branch);
+                if (externalEntries.isEmpty() == false) {
+                    LOGGER.info("Adding {} entries from {}", externalEntries.size(), source.sourceRepo());
+                    entries.addAll(externalEntries);
+                }
+            }
+
+            entries.sort(Comparator.comparing(ChangelogEntry::getPr));
+
             ChangelogBundle bundle = new ChangelogBundle(version, finalize, Instant.now().toString(), entries);
 
             yamlMapper.writeValue(new File("docs/release-notes/changelog-bundles/" + version + ".yml"), bundle);
@@ -212,6 +238,75 @@ public class BundleChangelogsTask extends DefaultTask {
         }
 
         gitWrapper.runCommand("git", "checkout", refSpec, "--", changelogDirectory.get() + "/*.yaml");
+    }
+
+    /**
+     * Fetch changelog entries from an external repository for the given branch.
+     * Adds the repo as a temporary git remote, fetches the branch, reads each YAML
+     * file via {@code git show}, and sets {@code sourceRepo} on the parsed entries.
+     */
+    private List<ChangelogEntry> fetchExternalChangelogs(ExternalChangelogSource source, String branchRef) {
+        String remoteName = "external-" + source.sourceRepo().replace("/", "-");
+
+        try {
+            gitWrapper.runCommand("git", "remote", "add", remoteName, source.repoUrl());
+        } catch (Exception e) {
+            LOGGER.info("Remote {} may already exist, updating URL", remoteName);
+            gitWrapper.runCommand("git", "remote", "set-url", remoteName, source.repoUrl());
+        }
+
+        try {
+            gitWrapper.runCommand("git", "fetch", "--depth=1", remoteName, branchRef);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to fetch branch {} from {}: {}", branchRef, source.sourceRepo(), e.getMessage());
+            return List.of();
+        }
+
+        String ref = remoteName + "/" + branchRef;
+        String treePath = source.changelogPath();
+
+        List<String> files;
+        try {
+            files = gitWrapper.listFiles(ref, treePath).filter(f -> f.endsWith(".yaml")).toList();
+        } catch (Exception e) {
+            LOGGER.warn("No changelog directory found at {} in {}:{}", treePath, source.sourceRepo(), branchRef);
+            return List.of();
+        }
+
+        if (files.isEmpty()) {
+            LOGGER.info("No external changelog entries found in {}:{}", source.sourceRepo(), branchRef);
+            return List.of();
+        }
+
+        LOGGER.info("Found {} changelog file(s) in {}:{}", files.size(), source.sourceRepo(), branchRef);
+
+        List<ChangelogEntry> entries = new ArrayList<>();
+        for (String filePath : files) {
+            try {
+                String content = gitWrapper.runCommand("git", "show", ref + ":" + filePath);
+                Path tempFile = Files.createTempFile("external-changelog-", ".yaml");
+                try {
+                    Files.writeString(tempFile, content);
+                    ChangelogEntry entry = ChangelogEntry.parse(tempFile.toFile());
+                    entry.setSourceRepo(source.sourceRepo());
+                    entries.add(entry);
+                } finally {
+                    Files.deleteIfExists(tempFile);
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to parse external changelog {}: {}", filePath, e.getMessage());
+            }
+        }
+
+        return entries;
+    }
+
+    public void setExternalSources(List<ExternalChangelogSource> sources) {
+        this.externalSources = sources;
+    }
+
+    public List<ExternalChangelogSource> getExternalSources() {
+        return externalSources;
     }
 
     @InputDirectory

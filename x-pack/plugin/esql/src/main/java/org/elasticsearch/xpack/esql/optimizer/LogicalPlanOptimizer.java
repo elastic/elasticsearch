@@ -154,9 +154,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
-            // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
-            new RewriteSumFieldPlusConstant(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
@@ -172,6 +169,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
+            // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
+            // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
+            new RewriteSumFieldPlusConstant(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level

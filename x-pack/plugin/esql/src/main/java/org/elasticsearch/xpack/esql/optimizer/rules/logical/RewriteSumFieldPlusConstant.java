@@ -70,11 +70,12 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
     }
 
     /**
-     * Returns a {@link Match} if {@code agg} is an unfiltered {@code SUM(field ± c)} where
-     * exactly one operand is foldable (the constant) and the other is not (the field),
-     * or {@code null} if it does not match.
+     * Returns a {@link Match} if agg is of the form SUM(field ± c) or SUM(c ± field), where
+     * one operand is a constant and one is a field. Otherwise, returns null
      */
     private static Match tryMatch(NamedExpression agg) {
+        // Every aggregate output is wrapped in an Alias. Filtered aggregates are excluded because
+        // they operate on a subset of rows and cannot share a base SUM(sv)/COUNT(sv) with others.
         if (!(agg instanceof Alias alias) || !(alias.child() instanceof Sum s) || s.hasFilter()) {
             return null;
         }
@@ -152,6 +153,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
                 }
                 newEvals.add(m.alias().replaceChild(evalExpr));
             } else {
+                // agg is not the right form to optimize, so keep the old version
                 newAggs.add(agg);
             }
         }

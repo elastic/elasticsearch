@@ -556,7 +556,12 @@ public class ReindexerTests extends ESTestCase {
         assertFalse("handoff flag should not be set before relocation", task.useCreateSemanticsForResultStorage());
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), future);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            ActionListener.noop(),
+            future
+        );
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
         assertTrue("handoff flag should be set after relocation", task.useCreateSemanticsForResultStorage());

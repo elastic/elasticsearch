@@ -57,6 +57,11 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     public static final String NAME = "contextualai";
     private static final String SERVICE_NAME = "Contextual AI";
 
+    /**
+     * Approximate maximum input size in words for Contextual AI rerank models; see {@link #rerankerWindowSize(String)}.
+     */
+    static final int DEFAULT_RERANKER_WINDOW_SIZE_WORDS = 5500;
+
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
     private static final Map<TaskType, ModelCreator<? extends ContextualAiModel>> MODEL_CREATORS = Map.of(
         TaskType.RERANK,
@@ -184,13 +189,8 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        // Rerank accepts any input type
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
-
-    /**
-     * Approximate maximum input size in words for Contextual AI rerank models; see {@link #rerankerWindowSize(String)}.
-     */
-    static final int DEFAULT_RERANKER_WINDOW_SIZE_WORDS = 5500;
 
     @Override
     public int rerankerWindowSize(String modelId) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
 public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings implements TopNProvider {
 
@@ -156,5 +158,10 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
     @Override
     public boolean isEmpty() {
         return this.equals(EMPTY_SETTINGS);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

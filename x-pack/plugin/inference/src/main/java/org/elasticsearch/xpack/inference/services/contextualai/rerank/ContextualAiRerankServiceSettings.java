@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.ServiceSettings;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
 public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettings {
 
@@ -60,5 +63,10 @@ public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettin
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

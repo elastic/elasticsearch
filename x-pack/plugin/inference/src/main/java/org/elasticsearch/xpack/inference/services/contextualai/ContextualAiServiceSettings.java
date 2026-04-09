@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,8 +24,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
+/**
+ * Base class for ServiceSettings of Contextual AI inference services.
+ */
 public abstract class ContextualAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected static CommonSettings fromMap(
@@ -99,12 +100,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         return commonSettings.rateLimitSettings();
     }
 
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        assert false : "should never be called when supportsVersion is used";
-        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
-    }
-
     protected ContextualAiServiceSettings(StreamInput in) throws IOException {
         this(new CommonSettings(in));
     }
@@ -128,11 +123,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         builder.field(MODEL_ID, commonSettings.modelId());
         commonSettings.rateLimitSettings().toXContent(builder, params);
         return builder;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return ContextualAiUtils.supportsContextualAi(version);
     }
 
     @Override

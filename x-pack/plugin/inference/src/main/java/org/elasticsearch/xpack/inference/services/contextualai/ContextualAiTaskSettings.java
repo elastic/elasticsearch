@@ -7,21 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.inference.TaskSettings;
 
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
-
-public abstract class ContextualAiTaskSettings implements TaskSettings {
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        assert false : "should never be called when supportsVersion is used";
-        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return ContextualAiUtils.supportsContextualAi(version);
-    }
-}
+/**
+ * Base class for TaskSettings of Contextual AI inference tasks.
+ * Exists to group together shared logic and constants between different Contextual AI tasks.
+ */
+public abstract class ContextualAiTaskSettings implements TaskSettings {}

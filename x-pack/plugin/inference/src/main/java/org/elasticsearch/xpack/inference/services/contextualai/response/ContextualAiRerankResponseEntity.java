@@ -16,10 +16,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequest;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
@@ -45,22 +43,16 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
  */
 public class ContextualAiRerankResponseEntity {
 
-    public static RankedDocsResults fromResponse(ContextualAiRerankRequest request, HttpResult response) throws IOException {
+    public static RankedDocsResults fromResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
-            var rankedDocs = doParse(jsonParser);
-            var rankedDocsByRelevanceStream = rankedDocs.stream()
-                .sorted(Comparator.comparingDouble(RankedDocsResults.RankedDoc::relevanceScore).reversed());
-            var rankedDocStreamTopN = request.getTopN() == null
-                ? rankedDocsByRelevanceStream
-                : rankedDocsByRelevanceStream.limit(request.getTopN());
-            return new RankedDocsResults(rankedDocStreamTopN.toList());
+            return new RankedDocsResults(doParse(jsonParser));
         }
     }
 
-    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
+    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) {
         var responseParser = ResponseParser.PARSER;
         var responseObject = responseParser.apply(parser, null);
         return responseObject.results.stream()

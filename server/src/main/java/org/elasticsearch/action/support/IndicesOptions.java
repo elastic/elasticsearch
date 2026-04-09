@@ -441,13 +441,14 @@ public record IndicesOptions(
      * @param resolveAliases, aliases will be included in the result, if false we treat them like they do not exist. Defaults to true.
      * @param resolveViews, views will be included in the result, if false we treat them like they do not exist. Defaults to false.
      */
-    public record IndexAbstractionOptions(boolean resolveAliases, boolean resolveViews) {
+    public record IndexAbstractionOptions(boolean resolveAliases, boolean resolveViews, boolean resolveDatasets) {
 
-        public static final IndexAbstractionOptions DEFAULT = new IndexAbstractionOptions(true, false);
+        public static final IndexAbstractionOptions DEFAULT = new IndexAbstractionOptions(true, false, false);
 
         public static class Builder {
             private boolean resolveAliases;
             private boolean resolveViews;
+            private boolean resolveDatasets;
 
             Builder() {
                 this(DEFAULT);
@@ -456,6 +457,7 @@ public record IndicesOptions(
             Builder(IndexAbstractionOptions options) {
                 resolveAliases = options.resolveAliases;
                 resolveViews = options.resolveViews;
+                resolveDatasets = options.resolveDatasets;
             }
 
             /**
@@ -474,8 +476,16 @@ public record IndicesOptions(
                 return this;
             }
 
+            /**
+             * Datasets will be included in the result. Defaults to false.
+             */
+            public Builder resolveDatasets(boolean resolveDatasets) {
+                this.resolveDatasets = resolveDatasets;
+                return this;
+            }
+
             public IndexAbstractionOptions build() {
-                return new IndexAbstractionOptions(resolveAliases, resolveViews);
+                return new IndexAbstractionOptions(resolveAliases, resolveViews, resolveDatasets);
             }
         }
 
@@ -525,10 +535,12 @@ public record IndicesOptions(
         ALLOW_FAILURE_INDICES,  // Added in 8.14, Removed in 8.18
         ALLOW_SELECTORS,        // Added in 8.18
         INCLUDE_FAILURE_INDICES, // Added in 8.18
-        RESOLVE_VIEWS
+        RESOLVE_VIEWS,
+        RESOLVE_DATASETS
     }
 
     public static final TransportVersion INDICES_OPTIONS_RESOLVE_VIEWS = TransportVersion.fromName("esql_resolve_fields_response_views");
+    public static final TransportVersion INDICES_OPTIONS_RESOLVE_DATASETS = TransportVersion.fromName("esql_datasources");
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
     private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated "
@@ -897,6 +909,9 @@ public record IndicesOptions(
         if (indexAbstractionOptions.resolveViews() && out.getTransportVersion().supports(INDICES_OPTIONS_RESOLVE_VIEWS)) {
             backwardsCompatibleOptions.add(Option.RESOLVE_VIEWS);
         }
+        if (indexAbstractionOptions.resolveDatasets() && out.getTransportVersion().supports(INDICES_OPTIONS_RESOLVE_DATASETS)) {
+            backwardsCompatibleOptions.add(Option.RESOLVE_DATASETS);
+        }
         out.writeEnumSet(backwardsCompatibleOptions);
 
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
@@ -930,7 +945,8 @@ public record IndicesOptions(
             .build();
         IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(
             options.contains(Option.EXCLUDE_ALIASES) == false,
-            options.contains(Option.RESOLVE_VIEWS)
+            options.contains(Option.RESOLVE_VIEWS),
+            options.contains(Option.RESOLVE_DATASETS)
         );
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
@@ -1476,6 +1492,8 @@ public record IndicesOptions(
             + includeFailureIndices()
             + ", resolve_views="
             + indexAbstractionOptions.resolveViews()
+            + ", resolve_datasets="
+            + indexAbstractionOptions.resolveDatasets()
             + ", resolve_cross_project_index_expression="
             + resolveCrossProjectIndexExpression()
             + ']';

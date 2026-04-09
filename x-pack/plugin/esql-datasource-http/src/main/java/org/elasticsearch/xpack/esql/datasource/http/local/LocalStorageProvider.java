@@ -118,11 +118,7 @@ public final class LocalStorageProvider implements StorageProvider {
      */
     @SuppressForbidden(reason = "LocalStorageProvider converts user-supplied file:// URIs to Path objects")
     private Path toFilePath(StoragePath storagePath) {
-        String pathStr = storagePath.path();
-
-        // Handle file:// URLs - the path() method returns the path component after the scheme
-        // For file:///absolute/path, path() returns "/absolute/path"
-        // For file://relative/path, path() returns "relative/path"
+        String pathStr = storagePath.localPath();
 
         if (pathStr == null || pathStr.isEmpty()) {
             throw new IllegalArgumentException("Path cannot be empty for file:// scheme");

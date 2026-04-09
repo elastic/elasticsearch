@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -2577,9 +2576,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
             boolean useTimeSeriesSyntheticId = shouldUseTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, settings);
-            final boolean sequenceNumbersDisabled = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
-                && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
+            final boolean sequenceNumbersDisabled = indexCreatedVersion.onOrAfter(
+                IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT
+            ) && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2638,11 +2637,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         private static boolean shouldUseTimeSeriesSyntheticId(boolean isTsdb, IndexVersion version, Settings settings) {
             String codecSetting = settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey());
-            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && isTsdb
+            if (isTsdb
                 && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)
-                && (codecSetting == null || codecSetting.equalsIgnoreCase(CodecService.DEFAULT_CODEC))) {
-                boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+                && (codecSetting == null || IndexSettings.isValidCodecForSyntheticId(codecSetting, version))) {
+                boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
                 return settings.getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), defaultValue);
             }
             return false;

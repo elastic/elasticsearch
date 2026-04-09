@@ -136,7 +136,7 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
             : Map.of("Content-Type", List.of("application/x-protobuf"));
         var httpRequest = new FakeRestRequest.FakeHttpRequest(RestRequest.Method.POST, "/_prometheus/api/v1/write", headers, stream);
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
-        var channel = new FakeRestChannel(request, true, 1);
+        var channel = new FakeRestChannel(request, true);
         var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
         stream.setHandler(new HttpBody.ChunkHandler() {
             @Override

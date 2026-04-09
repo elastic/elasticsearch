@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 144885
+summary: Default to `bbq_disk` (DiskBBQ) on new indices
+type: enhancement

@@ -99,19 +99,23 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
             startDeployment(modelId);
-            assertInfer(modelId);
+            assertBusy(() -> {
+                try {
+                    assertInfer(modelId);
+                } catch (ResponseException e) {
+                    throw new AssertionError("Inference failed on old cluster", e);
+                }
+            }, 90, TimeUnit.SECONDS);
         } else {
             ensureHealth(".ml-inference-*,.ml-config*", (request -> {
                 request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "70s");
+                request.addParameter("timeout", "120s");
             }));
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
                 } catch (ResponseException e) {
-                    // assertBusy only loops on AssertionErrors, so we have
-                    // to convert failure status exceptions to these
                     throw new AssertionError("Inference failed", e);
                 }
             }, 90, TimeUnit.SECONDS);
@@ -122,7 +126,12 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response;
+            try {
+                response = getTrainedModelStats(modelId);
+            } catch (ResponseException e) {
+                throw new AssertionError("Model stats not available yet", e);
+            }
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
@@ -138,7 +147,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
+        String expectedResponse = oldClusterHasInferEndpoint()
+            ? "{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"
+            : "{\"predicted_value\":[[1.0,1.0]]}";
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo(expectedResponse));
     }
 
     private void putModelDefinition(String modelId) throws IOException {
@@ -229,8 +241,15 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         return response;
     }
 
+    private boolean oldClusterHasInferEndpoint() {
+        return isRunningAgainstOldCluster() == false || getOldClusterTestVersion().onOrAfter("8.3.0");
+    }
+
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        String endpoint = oldClusterHasInferEndpoint()
+            ? "/_ml/trained_models/" + modelId + "/_infer"
+            : "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=30s";
+        Request request = new Request("POST", endpoint);
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));

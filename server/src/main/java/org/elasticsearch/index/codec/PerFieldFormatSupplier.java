@@ -23,7 +23,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -88,7 +88,20 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
+        var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
+        this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
+            ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
+            : new ES94BloomFilterDocValuesFormat(
+                bigArrays,
+                IdFieldMapper.NAME,
+                bloomFilterSettings.optimizedMerge(),
+                bloomFilterSettings.numHashFunctions(),
+                bloomFilterSettings.smallSegmentMaxDocs(),
+                bloomFilterSettings.largeSegmentMinDocs(),
+                bloomFilterSettings.highBitsPerDoc(),
+                bloomFilterSettings.lowBitsPerDoc(),
+                bloomFilterSettings.maxSize()
+            );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -206,7 +219,7 @@ public class PerFieldFormatSupplier {
             boolean writePartitions = indexSettings.getMode() == IndexMode.TIME_SERIES
                 && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
                 && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(
+            return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
                 indexCreatedVersion,
                 useLargeNumericBlockSize,
                 useLargeBinaryBlockSize,

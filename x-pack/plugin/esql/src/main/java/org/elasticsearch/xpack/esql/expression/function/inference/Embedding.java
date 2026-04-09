@@ -78,7 +78,8 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
-                description = "Generate embeddings using the 'test_dense_inference' inference endpoint, using defaults:",
+                description = "Generate embeddings using the 'test_dense_inference' inference endpoint, "
+                    + "using the default type and format (text):",
                 file = "embedding",
                 tag = "embedding-knn"
             ),

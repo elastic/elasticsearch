@@ -66,7 +66,9 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -122,12 +124,14 @@ public class Reindexer {
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
+    @Nullable
     private final ReindexMetrics reindexMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
+    private final TimeValue reindexShutdownGracePeriod;
 
     Reindexer(
         ClusterService clusterService,
@@ -154,6 +158,7 @@ public class Reindexer {
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
+        this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -206,7 +211,7 @@ public class Reindexer {
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
-            listenerWithRelocations(task, request, listener),
+            listenerWithRelocations(task, request, relocationResponseListenerWithMetrics(reindexMetrics), listener),
             reindexMetrics,
             task,
             request
@@ -272,7 +277,8 @@ public class Reindexer {
                 reindexSslConfig,
                 request,
                 listener,
-                remoteVersion
+                remoteVersion,
+                reindexShutdownGracePeriod
             );
             searchAction.start();
         };
@@ -582,6 +588,15 @@ public class Reindexer {
         });
     }
 
+    /** Listener to call on a relocation response to record metrics. Visible for testing. */
+    static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
+        return ActionListener.assertOnce(
+            metrics == null
+                ? ActionListener.noop()
+                : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), metrics::recordRelocationFailure)
+        );
+    }
+
     /**
      * Wrap listener with reindex metrics. For sliced reindex, this should record once only when all slices complete
      * Visible for testing
@@ -671,6 +686,7 @@ public class Reindexer {
     ActionListener<BulkByScrollResponse> listenerWithRelocations(
         final BulkByScrollTask task,
         final ReindexRequest request,
+        final ActionListener<ResumeBulkByScrollResponse> onRelocationResponseListener,
         final ActionListener<BulkByScrollResponse> listener
     ) {
         final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
@@ -690,9 +706,11 @@ public class Reindexer {
             assert nodeToRelocateTo != null : "node to relocate to should be set if taskResumeInfo is present";
             final DiscoveryNode nodeToRelocateToNode = clusterService.state().nodes().get(nodeToRelocateTo);
             if (nodeToRelocateToNode == null) {
-                l.onFailure(
-                    new IllegalStateException(Strings.format("Node %s to relocate to left cluster before relocation", nodeToRelocateTo))
+                final var nodeToRelocateToNotFound = new IllegalStateException(
+                    Strings.format("Node %s to relocate to left cluster before relocation", nodeToRelocateTo)
                 );
+                onRelocationResponseListener.onFailure(nodeToRelocateToNotFound);
+                l.onFailure(nodeToRelocateToNotFound);
                 return;
             }
             final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
@@ -712,8 +730,12 @@ public class Reindexer {
             );
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
+                onRelocationResponseListener.onResponse(resp);
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
-            }, l::onFailure);
+            }, e -> {
+                onRelocationResponseListener.onFailure(e);
+                l.onFailure(e);
+            });
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,
@@ -895,7 +917,8 @@ public class Reindexer {
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
-            @Nullable Version remoteVersion
+            @Nullable Version remoteVersion,
+            TimeValue maxTaskShutdownGracePeriod
         ) {
             super(
                 task,
@@ -914,7 +937,8 @@ public class Reindexer {
                 listener,
                 scriptService,
                 sslConfig,
-                remoteVersion
+                remoteVersion,
+                maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }

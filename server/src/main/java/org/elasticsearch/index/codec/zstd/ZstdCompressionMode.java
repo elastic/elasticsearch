@@ -17,6 +17,7 @@ import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;

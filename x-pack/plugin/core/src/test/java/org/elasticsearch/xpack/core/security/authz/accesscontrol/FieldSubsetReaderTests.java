@@ -982,7 +982,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         DirectoryReader.open(iw),
                         filter,
                         IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        (fieldName) -> false
+                        (fieldName) -> false,
+                        (field) -> null
                     )
                 ) {
 
@@ -997,7 +998,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         DirectoryReader.open(iw),
                         filter,
                         IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        (fieldName) -> true
+                        (fieldName) -> true,
+                        (field) -> null
                     )
                 ) {
 
@@ -1013,7 +1015,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         DirectoryReader.open(iw),
                         filter,
                         IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        (fieldName) -> false
+                        (fieldName) -> false,
+                        (field) -> null
                     )
                 ) {
 
@@ -1028,7 +1031,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                         DirectoryReader.open(iw),
                         filter,
                         IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        (fieldName) -> true
+                        (fieldName) -> true,
+                        (field) -> null
                     )
                 ) {
 
@@ -1735,7 +1739,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader.open(writer),
                     new CharacterRunAutomaton(automaton),
                     IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
-                    (fieldName) -> false
+                    (fieldName) -> false,
+                    (field) -> null
                 );
             ) {
                 assertEquals(
@@ -1773,7 +1778,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader.open(writer),
                     new CharacterRunAutomaton(automaton),
                     IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
-                    (fieldName) -> false
+                    (fieldName) -> false,
+                    (field) -> null
                 );
             ) {
                 assertEquals(

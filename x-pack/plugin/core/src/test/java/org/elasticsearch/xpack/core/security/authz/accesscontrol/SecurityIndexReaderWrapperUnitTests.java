@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.Mapping;
@@ -91,7 +92,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testDefaultMetaFields() {
         var searchExecutionContext = mock(SearchExecutionContext.class);
-        MappingLookup mappingLookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(Mapping.EMPTY, IndexMode.STANDARD);
         when(searchExecutionContext.getMappingLookup()).thenReturn(mappingLookup);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
         when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());

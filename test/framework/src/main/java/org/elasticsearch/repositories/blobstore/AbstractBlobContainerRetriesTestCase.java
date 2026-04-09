@@ -274,6 +274,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
             .bufferSize(bufferSize)
             .readTimeout(readTimeout)
+            .requestTimeout(TimeValue.timeValueSeconds(1))
             .build();
 
         // HTTP server does not send a response
@@ -585,6 +586,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     protected abstract BlobContainer createBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
+        @Nullable TimeValue requestTimeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
@@ -597,6 +599,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         private Integer maxRetries;
         @Nullable
         private TimeValue readTimeout;
+        @Nullable
+        private TimeValue requestTimeout;
         @Nullable
         private Boolean disableChunkedEncoding;
         @Nullable
@@ -618,6 +622,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             return this;
         }
 
+        public TestBlobContainerBuilder requestTimeout(@Nullable TimeValue requestTimeout) {
+            this.requestTimeout = requestTimeout;
+            return this;
+        }
         public TestBlobContainerBuilder disableChunkedEncoding(@Nullable Boolean disableChunkedEncoding) {
             this.disableChunkedEncoding = disableChunkedEncoding;
             return this;
@@ -647,12 +655,12 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             return createBlobContainer(
                 maxRetries,
                 readTimeout,
+                requestTimeout,
                 disableChunkedEncoding,
                 maxConnections,
                 bufferSize,
                 maxBulkDeletes,
-                blobContainerPath
-            );
+                blobContainerPath);
         }
     }
 

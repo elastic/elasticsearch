@@ -672,11 +672,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     private BlobContainer createBlobContainer(int maxRetries) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, null);
-    }
-
-    private BlobContainer createBlobContainer(int maxRetries, @Nullable TimeValue timeout) {
-        return createBlobContainer(maxRetries, null, timeout, null, null, null, null, null, null, LocationMode.PRIMARY_ONLY);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, null);
     }
 
     @Override
@@ -697,18 +693,19 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     @Override
     protected BlobContainer createBlobContainer(
-        @Nullable Integer maxRetries,
-        @Nullable TimeValue readTimeout,
-        @Nullable Boolean disableChunkedEncoding,
-        @Nullable Integer maxConnections,
-        @Nullable ByteSizeValue bufferSize,
-        @Nullable Integer maxBulkDeletes,
-        @Nullable BlobPath blobContainerPath
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable Integer maxConnections,
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable Integer maxBulkDeletes,
+        final @Nullable BlobPath blobContainerPath
     ) {
         return createBlobContainer(
             maxRetries,
             readTimeout,
-            null,
+            requestTimeout,
             disableChunkedEncoding,
             maxConnections,
             bufferSize,

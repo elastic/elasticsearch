@@ -74,13 +74,14 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
 
     @Override
     protected BlobContainer createBlobContainer(
-        Integer maxRetries,
-        TimeValue readTimeout,
-        Boolean disableChunkedEncoding,
-        Integer maxConnections,
-        ByteSizeValue bufferSize,
-        Integer maxBulkDeletes,
-        BlobPath blobContainerPath
+            Integer maxRetries,
+            TimeValue readTimeout,
+            TimeValue requestTimeout,
+            Boolean disableChunkedEncoding,
+            Integer maxConnections,
+            ByteSizeValue bufferSize,
+            Integer maxBulkDeletes,
+            BlobPath blobContainerPath
     ) {
         Settings.Builder settingsBuilder = Settings.builder();
 

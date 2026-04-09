@@ -760,6 +760,10 @@ public class ObjectMapper extends Mapper {
         return mappers.get(field);
     }
 
+    public Map<String, Mapper> getMappers() {
+        return mappers;
+    }
+
     @Override
     public Iterator<Mapper> iterator() {
         return mappers.values().iterator();

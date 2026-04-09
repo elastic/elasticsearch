@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
+
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -15,7 +17,7 @@ import java.util.Map;
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
  * rejection, and toStoredSettings(). Subclasses provide cross-field validation via
- * {@link #validate()}.
+ * {@link #validate(ValidationException)}.
  */
 public abstract class DataSourceConfiguration {
 
@@ -24,10 +26,11 @@ public abstract class DataSourceConfiguration {
 
     /**
      * Parses, normalizes, and validates raw settings from a REST request or CRUD layer.
-     * Rejects unknown fields, then calls subclass {@link #validate()} for cross-field checks.
-     * Values preserve their original types (String, Integer, Boolean, etc.) for non-lossy round-trips.
-     * Fields marked {@link DataSourceConfigDefinition#caseInsensitive() caseInsensitive} are
-     * automatically lowercased on input.
+     * Rejects unknown fields, then calls subclass {@link #validate(ValidationException)} for
+     * cross-field checks. Values preserve their original types (String, Integer, Boolean, etc.)
+     * for non-lossy round-trips. Fields marked
+     * {@link DataSourceConfigDefinition#caseInsensitive() caseInsensitive} are automatically
+     * lowercased on input. All validation errors are accumulated and thrown together.
      *
      * <p>Note: {@code validate()} is a virtual call during base construction. This is safe
      * because subclasses must not add instance fields — all state is accessed via {@link #get}
@@ -35,13 +38,15 @@ public abstract class DataSourceConfiguration {
      *
      * @param raw the raw settings map from the REST request
      * @param fieldDefs the field definitions
+     * @throws ValidationException if any validation errors are found
      */
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         this.fieldDefs = fieldDefs;
-        DataSourceValidator.rejectUnknownFields(raw, fieldDefs.keySet());
+        ValidationException errors = new ValidationException();
+        DataSourceValidator.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
         Map<String, Object> parsed = new HashMap<>();
         for (var entry : raw.entrySet()) {
-            if (entry.getValue() != null) {
+            if (fieldDefs.containsKey(entry.getKey()) && entry.getValue() != null) {
                 Object value = entry.getValue();
                 DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
                 if (def.caseInsensitive() && value instanceof String s) {
@@ -51,11 +56,23 @@ public abstract class DataSourceConfiguration {
             }
         }
         this.values = Map.copyOf(parsed);
-        validate();
+        validate(errors);
+        errors.throwIfValidationErrorsExist();
     }
 
-    /** Cross-field validation. Called after construction. */
-    protected abstract void validate();
+    /** Cross-field validation. Accumulate errors into the provided exception. */
+    protected abstract void validate(ValidationException errors);
+
+    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
+    protected boolean hasAnySecretValue() {
+        for (var entry : values.entrySet()) {
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+            if (def != null && def.secret()) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Builds a raw settings map from alternating field/value pairs, skipping nulls.
@@ -77,17 +94,6 @@ public abstract class DataSourceConfiguration {
             }
         }
         return raw.isEmpty() ? null : raw;
-    }
-
-    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
-    protected boolean hasAnySecretValue() {
-        for (var entry : values.entrySet()) {
-            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
-            if (def != null && def.secret()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Returns the internal values map. Normalized, no nulls, types preserved. */

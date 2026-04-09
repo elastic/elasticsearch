@@ -71,7 +71,7 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testFromMapWithUnknownParamsThrows() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromFieldsWithAllFields() {
@@ -139,15 +139,24 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none")
+        );
     }
 
     public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none")
+        );
     }
 
     public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none")
+        );
     }
 
     public void testAuthNoneAllowsEndpoint() {
@@ -158,7 +167,7 @@ public class AzureConfigurationTests extends ESTestCase {
 
     public void testUnsupportedAuthValueThrows() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported")
         );
     }

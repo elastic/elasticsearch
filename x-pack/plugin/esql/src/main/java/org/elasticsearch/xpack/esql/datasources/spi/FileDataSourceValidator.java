@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 
 import java.util.HashMap;
@@ -64,34 +65,46 @@ public class FileDataSourceValidator implements DataSourceValidator {
         String resource,
         Map<String, Object> datasetSettings
     ) {
-        validateResource(resource);
+        ValidationException errors = new ValidationException();
+
+        validateResource(resource, errors);
 
         if (datasetSettings == null) {
             datasetSettings = Map.of();
         }
-        rejectUnknownFields(datasetSettings, DATASET_FIELDS);
+        rejectUnknownFields(datasetSettings, DATASET_FIELDS, errors);
 
         Map<String, Object> result = new HashMap<>();
-        validateEnum(datasetSettings, result, PARTITION_DETECTION, PartitionConfig.Strategy.values(), PartitionConfig.Strategy::parse);
-        validateEnum(datasetSettings, result, ERROR_MODE, ErrorPolicy.Mode.values(), ErrorPolicy.Mode::parse);
-        validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX);
+        validateEnum(
+            datasetSettings,
+            result,
+            PARTITION_DETECTION,
+            PartitionConfig.Strategy.values(),
+            PartitionConfig.Strategy::parse,
+            errors
+        );
+        validateEnum(datasetSettings, result, ERROR_MODE, ErrorPolicy.Mode.values(), ErrorPolicy.Mode::parse, errors);
+        validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX, errors);
+
+        errors.throwIfValidationErrorsExist();
         return result;
     }
 
-    private void validateResource(String resource) {
+    private void validateResource(String resource, ValidationException errors) {
         if (resource == null || resource.isBlank()) {
-            throw new IllegalArgumentException("[resource] is required");
+            errors.addValidationError("[resource] is required");
+            return;
         }
+        // Case-insensitive scheme match, consistent with DataSourceCapabilities.supportsScheme()
         boolean schemeMatch = false;
         for (String scheme : validSchemes) {
-            if (resource.startsWith(scheme)) {
+            if (resource.regionMatches(true, 0, scheme, 0, scheme.length())) {
                 schemeMatch = true;
                 break;
             }
         }
         if (schemeMatch == false) {
-            throw new IllegalArgumentException("[resource] must start with one of " + validSchemes + " but was [" + resource + "]");
+            errors.addValidationError("[resource] must start with one of " + validSchemes + " but was [" + resource + "]");
         }
     }
-
 }

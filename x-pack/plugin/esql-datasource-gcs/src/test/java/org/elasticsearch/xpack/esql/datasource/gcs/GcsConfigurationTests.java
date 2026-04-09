@@ -76,7 +76,7 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testFromMapWithUnknownParamsThrows() {
-        expectThrows(IllegalArgumentException.class, () -> GcsConfiguration.fromMap(Map.of("other_param", "value")));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromMapWithStringValues() {
@@ -189,7 +189,7 @@ public class GcsConfigurationTests extends ESTestCase {
 
     public void testAuthNoneConflictsWithCredentials() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "none")
         );
     }
@@ -201,6 +201,9 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        expectThrows(IllegalArgumentException.class, () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported")
+        );
     }
 }

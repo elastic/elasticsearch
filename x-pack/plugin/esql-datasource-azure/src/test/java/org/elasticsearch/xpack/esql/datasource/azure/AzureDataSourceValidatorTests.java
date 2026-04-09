@@ -37,23 +37,26 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("container", "x")));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDatasource(Map.of("container", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "managed_identity")));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
+        );
     }
 
     public void testValidateDatasourceAnonymousConflictConnectionString() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
         );
     }
 
     public void testValidateDatasourceAnonymousConflictSasToken() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01"))
         );
     }
@@ -82,16 +85,19 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetRequiresResource() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
     }
 
     public void testValidateDatasetWrongScheme() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of())
+        );
     }
 
     public void testValidateDatasetRejectsUnknown() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("format", "parquet"))
         );
     }
@@ -103,7 +109,7 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
                 .get("schema_sample_size")
         );
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 0))
         );
     }
@@ -122,11 +128,23 @@ public class AzureDataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetBlankResource() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
     }
 
     public void testValidateDatasetNullSettings() {
         assertTrue(validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", null).isEmpty());
+    }
+
+    public void testValidateDatasetAccumulatesMultipleErrors() {
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "wasbs://c@a.blob.core.windows.net/p",
+                Map.of("error_mode", "banana", "schema_sample_size", "abc")
+            )
+        );
+        assertEquals(2, e.validationErrors().size());
     }
 
     public void testToStoredSettingsSecretClassification() {

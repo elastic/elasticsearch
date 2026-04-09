@@ -40,11 +40,11 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
@@ -55,9 +55,17 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
         );
+    }
+
+    public void testValidateDatasourceAccumulatesMultipleErrors() {
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y"))
+        );
+        assertEquals(2, e.validationErrors().size());
     }
 
     public void testValidateDatasourceNullSettings() {
@@ -87,7 +95,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasetPartitionDetectionInvalid() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
         );
     }
@@ -101,16 +109,24 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         }
     }
 
+    public void testValidateDatasetSchemeCaseInsensitive() {
+        // URI schemes are case-insensitive, consistent with DataSourceCapabilities.supportsScheme()
+        assertNotNull(validator.validateDataset(Map.of(), "S3://bucket/path", Map.of()));
+    }
+
     public void testValidateDatasetRequiresResource() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
     }
 
     public void testValidateDatasetBlankResource() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
     }
 
     public void testValidateDatasetWrongScheme() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "gs://bucket/path", Map.of()));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "gs://bucket/path", Map.of())
+        );
     }
 
     public void testValidateDatasetAllSchemes() {
@@ -120,7 +136,10 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet"))
+        );
     }
 
     public void testValidateDatasetErrorModeAllValues() {
@@ -130,16 +149,22 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetErrorModeInvalid() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana")));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana"))
+        );
     }
 
     public void testValidateDatasetErrorModeEmpty() {
-        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "")));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", ""))
+        );
     }
 
     public void testValidateDatasetPartitionDetectionEmpty() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", ""))
         );
     }
@@ -147,21 +172,37 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
         );
         // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001))
         );
     }
 
     public void testValidateDatasetSchemaSampleSizeNonNumber() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc"))
         );
+    }
+
+    public void testValidateDatasetAccumulatesResourceAndFieldErrors() {
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "gs://wrong-scheme", Map.of("error_mode", "banana"))
+        );
+        assertEquals(2, e.validationErrors().size());
+    }
+
+    public void testValidateDatasetAccumulatesMultipleErrors() {
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana", "schema_sample_size", "abc"))
+        );
+        assertEquals(2, e.validationErrors().size());
     }
 
     public void testValidateDatasetNullSettings() {

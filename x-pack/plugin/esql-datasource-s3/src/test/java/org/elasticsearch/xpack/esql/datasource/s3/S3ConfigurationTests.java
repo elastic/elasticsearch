@@ -49,32 +49,32 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        org.elasticsearch.common.ValidationException e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
             () -> S3Configuration.fromFields(null, null, "http://e", null, "unsupported")
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unsupported auth value"));
     }
 
     public void testAuthNoneConflictsWithAccessKey() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        org.elasticsearch.common.ValidationException e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
             () -> S3Configuration.fromFields("ak", null, null, null, "none")
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithSecretKey() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        org.elasticsearch.common.ValidationException e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
             () -> S3Configuration.fromFields(null, "sk", null, null, "none")
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithBothKeys() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        org.elasticsearch.common.ValidationException e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
             () -> S3Configuration.fromFields("ak", "sk", null, null, "none")
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));

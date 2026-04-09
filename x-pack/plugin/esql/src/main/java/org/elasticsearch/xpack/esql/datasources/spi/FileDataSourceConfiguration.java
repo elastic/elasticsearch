@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
+
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
@@ -28,14 +30,12 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     }
 
     @Override
-    protected final void validate() {
+    protected final void validate(ValidationException errors) {
         if (auth() != null && AUTH_NONE.equals(auth()) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
+            errors.addValidationError("Unsupported auth value [" + auth() + "]; supported values: [none]");
         }
         if (isAnonymous() && hasAnySecretValue()) {
-            throw new IllegalArgumentException(
-                "auth=none cannot be combined with explicit credentials; anonymous access uses no credentials"
-            );
+            errors.addValidationError("auth=none cannot be combined with explicit credentials; anonymous access uses no credentials");
         }
     }
 

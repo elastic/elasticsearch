@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +28,7 @@ public interface DataSourceValidator {
      *
      * @param settings the raw settings from the REST request body
      * @return validated settings keyed by field name
-     * @throws IllegalArgumentException if settings are invalid
+     * @throws ValidationException if settings are invalid (may contain multiple errors)
      */
     Map<String, DataSourceStoredSetting> validateDatasource(Map<String, Object> settings);
 
@@ -40,7 +42,7 @@ public interface DataSourceValidator {
      * @param resource the resource path from the dataset definition
      * @param datasetSettings the raw dataset settings from the REST request body
      * @return validated dataset settings keyed by field name (values only, no secrets)
-     * @throws IllegalArgumentException if settings or resource are invalid
+     * @throws ValidationException if settings or resource are invalid (may contain multiple errors)
      */
     Map<String, Object> validateDataset(
         Map<String, DataSourceStoredSetting> datasourceSettings,
@@ -51,15 +53,16 @@ public interface DataSourceValidator {
     // --- Validation utilities for use by all validator implementations ---
 
     /**
-     * Rejects any keys in the settings map that are not in the known fields set.
+     * Adds an error for any keys in the settings map that are not in the known fields set.
      *
      * @param settings the settings map to check
      * @param knownFields the set of valid field names
+     * @param errors the exception to accumulate errors into
      */
-    static void rejectUnknownFields(Map<String, ?> settings, Set<String> knownFields) {
+    static void rejectUnknownFields(Map<String, ?> settings, Set<String> knownFields, ValidationException errors) {
         for (String key : settings.keySet()) {
             if (knownFields.contains(key) == false) {
-                throw new IllegalArgumentException("unknown setting [" + key + "]; known settings: " + knownFields);
+                errors.addValidationError("unknown setting [" + key + "]; known settings: " + knownFields);
             }
         }
     }
@@ -75,13 +78,15 @@ public interface DataSourceValidator {
      * @param field the setting field name
      * @param values the valid enum values (for error messages)
      * @param parser parses the string value into the enum (should throw on invalid)
+     * @param errors the exception to accumulate errors into
      */
     static <E extends Enum<E>> void validateEnum(
         Map<String, Object> settings,
         Map<String, Object> result,
         String field,
         E[] values,
-        Function<String, ?> parser
+        Function<String, ?> parser,
+        ValidationException errors
     ) {
         Object value = settings.get(field);
         if (value != null) {
@@ -89,10 +94,12 @@ public interface DataSourceValidator {
             try {
                 parsed = parser.apply(value.toString());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+                errors.addValidationError("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+                return;
             }
             if (parsed == null) {
-                throw new IllegalArgumentException("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+                errors.addValidationError("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+                return;
             }
             result.put(field, value);
         }
@@ -107,18 +114,28 @@ public interface DataSourceValidator {
      * @param field the setting field name
      * @param min minimum allowed value (inclusive)
      * @param max maximum allowed value (inclusive)
+     * @param errors the exception to accumulate errors into
      */
-    static void validateInt(Map<String, Object> settings, Map<String, Object> result, String field, int min, int max) {
+    static void validateInt(
+        Map<String, Object> settings,
+        Map<String, Object> result,
+        String field,
+        int min,
+        int max,
+        ValidationException errors
+    ) {
         Object value = settings.get(field);
         if (value != null) {
             int parsed;
             try {
                 parsed = Integer.parseInt(value.toString());
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("[" + field + "] must be a number, got [" + value + "]");
+                errors.addValidationError("[" + field + "] must be a number, got [" + value + "]");
+                return;
             }
             if (parsed < min || parsed > max) {
-                throw new IllegalArgumentException("[" + field + "] must be between " + min + " and " + max + ", got [" + parsed + "]");
+                errors.addValidationError("[" + field + "] must be between " + min + " and " + max + ", got [" + parsed + "]");
+                return;
             }
             result.put(field, parsed);
         }

@@ -1193,6 +1193,7 @@ c:long | last_name:keyword
 // employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
 // employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
 partiallyMappedTextFieldNotLoadedKeep
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1212,6 +1213,7 @@ emp_no:integer | gender:text           | _index:keyword
 ;
 
 partiallyMappedTextFieldNotLoadedDrop
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1258,6 +1260,7 @@ null                     | null         | null                | Connected to 10.
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
 // from _source even when not explicitly referenced in a downstream expression like KEEP.
 fieldIsPartiallyUnmappedMultiIndexWithoutKeep
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1286,6 +1289,7 @@ Connected to 10.1.0.1  | sample_data
 // EVAL on a fully mapped field (salary); the partially-mapped keyword fields (first_name, last_name) are not explicitly
 // referenced by any command — they remain in the output implicitly and get loaded.
 fieldIsPartiallyUnmappedWithEvalOnOtherMappedField
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1306,6 +1310,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | s
 ;
 
 fieldIsPartiallyUnmappedWithRenameOnOtherMappedField
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1328,6 +1333,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 // EVAL on a partially mapped field (last_name).
 // first_name is not referenced by any command but must still be loaded.
 fieldIsPartiallyUnmappedWithEvalOnOtherPartiallyUnmappedField
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1348,6 +1354,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | last_name:keyword
 ;
 
 fieldIsPartiallyUnmappedWithRenameOnOtherPartiallyUnmappedField
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1369,6 +1376,7 @@ emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:
 
 // Wildcard DROP leaving the partially-mapped keyword field (message) implicit — no explicit reference.
 fieldIsPartiallyUnmappedMultiIndexWithWildcardDrop
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
@@ -1396,6 +1404,7 @@ Connected to 10.1.0.1  | sample_data
 
 // DROP the partially-mapped field itself — verify no errors from converting then pruning.
 fieldIsPartiallyUnmappedMultiIndexDropPartiallyMappedField
+required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;

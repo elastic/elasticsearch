@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.contextualai.response;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,7 +26,6 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 /**
  * Parses the Contextual AI rerank response.
- *
  * Based on the API documentation, the response should look like:
  *
  * <pre>
@@ -36,12 +34,10 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
  *     {
  *       "index": 0,
  *       "relevance_score": 0.95,
- *       "document": "original document text if return_documents=true"
  *     },
  *     {
  *       "index": 1,
  *       "relevance_score": 0.85,
- *       "document": "original document text if return_documents=true"
  *     }
  *   ]
  * }
@@ -68,7 +64,7 @@ public class ContextualAiRerankResponseEntity {
         var responseParser = ResponseParser.PARSER;
         var responseObject = responseParser.apply(parser, null);
         return responseObject.results.stream()
-            .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, result.document))
+            .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, null))
             .toList();
     }
 
@@ -89,22 +85,20 @@ public class ContextualAiRerankResponseEntity {
         }
     }
 
-    private record RankedDocEntry(Integer index, Float relevanceScore, @Nullable String document) {
+    private record RankedDocEntry(Integer index, Float relevanceScore) {
 
         private static final ParseField INDEX = new ParseField("index");
         private static final ParseField RELEVANCE_SCORE = new ParseField("relevance_score");
-        private static final ParseField DOCUMENT = new ParseField("document");
 
         private static final ConstructingObjectParser<RankedDocEntry, Void> PARSER = new ConstructingObjectParser<>(
             "contextualai_ranked_doc",
             true,
-            args -> new RankedDocEntry((Integer) args[0], (Float) args[1], (String) args[2])
+            args -> new RankedDocEntry((Integer) args[0], (Float) args[1])
         );
 
         static {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), INDEX);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), RELEVANCE_SCORE);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DOCUMENT);
         }
     }
 

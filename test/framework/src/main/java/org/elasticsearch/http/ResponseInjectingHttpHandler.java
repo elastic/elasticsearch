@@ -12,6 +12,8 @@ package org.elasticsearch.http;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +26,8 @@ import java.util.function.Predicate;
 @SuppressForbidden(reason = "We use HttpServer for the fixtures")
 public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryIntegTestCase.DelegatingHttpHandler {
 
+    private static final Logger logger = LogManager.getLogger(ResponseInjectingHttpHandler.class);
+
     private final HttpHandler delegate;
     private final Queue<RequestHandler> requestHandlerQueue;
 
@@ -34,8 +38,13 @@ public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryInt
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        logger.trace(
+            () -> String.format("Handling request x-ms-client-request-id=%s", exchange.getRequestHeaders().get("x-ms-client-request-id"))
+        );
+
         RequestHandler nextHandler = requestHandlerQueue.peek();
         if (nextHandler != null && nextHandler.matchesRequest(exchange)) {
+            logger.trace(() -> String.format("Using injected requestHandler %s", nextHandler.getClass().getSimpleName()));
             requestHandlerQueue.poll().writeResponse(exchange, delegate);
         } else {
             delegate.handle(exchange);

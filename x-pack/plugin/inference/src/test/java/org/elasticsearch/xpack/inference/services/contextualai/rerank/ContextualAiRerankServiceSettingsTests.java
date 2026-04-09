@@ -41,10 +41,7 @@ import static org.hamcrest.Matchers.is;
 public class ContextualAiRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<ContextualAiRerankServiceSettings> {
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServiceSettings = createRerankServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
+        var originalServiceSettings = createRerankServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
             buildServiceSettingsMap(NEW_TEST_MODEL_ID, NEW_TEST_RATE_LIMIT)
         );
@@ -56,10 +53,7 @@ public class ContextualAiRerankServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = createRerankServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
+        var originalServiceSettings = createRerankServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
 
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 

@@ -75,6 +75,7 @@ import java.io.UncheckedIOException;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -281,7 +282,6 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    // Async callback chain — not recursive, no stack growth.
     private void fetchPageWithPit(
         String synonymSetId,
         BytesReference pitId,
@@ -307,20 +307,21 @@ public class SynonymsManagementAPIService {
             source.searchAfter(searchAfter);
         }
 
+        AtomicReference<BytesReference> currentPitId = new AtomicReference<>(pitId);
         client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
             SearchHit[] hits = response.getHits().getHits();
             long totalHits = response.getHits().getTotalHits().value();
             assert response.pointInTimeId() != null;
-            BytesReference currentPitId = response.pointInTimeId();
+            currentPitId.set(response.pointInTimeId());
 
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
-                    closePitAndThen(currentPitId, () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                    closePitAndThen(currentPitId.get(), () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
                         l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
                     })));
                 } else {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId, () -> listener.onResponse(result));
+                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
                 }
                 return;
             }
@@ -333,23 +334,18 @@ public class SynonymsManagementAPIService {
                 );
             }
 
-            try {
-                for (SearchHit hit : hits) {
-                    accumulated.add(hitToSynonymRule(hit));
-                    if (accumulated.size() >= maxSynonymRules) {
-                        PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                        closePitAndThen(currentPitId, () -> listener.onResponse(result));
-                        return;
-                    }
+            for (SearchHit hit : hits) {
+                accumulated.add(hitToSynonymRule(hit));
+                if (accumulated.size() >= maxSynonymRules) {
+                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                    return;
                 }
-            } catch (Exception e) {
-                closePitAndThen(currentPitId, () -> listener.onFailure(e));
-                return;
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-            fetchPageWithPit(synonymSetId, currentPitId, lastSortValues, accumulated, listener);
-        }, e -> { closePitAndThen(pitId, () -> listener.onFailure(e)); }));
+            fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
+        }, e -> { closePitAndThen(currentPitId.get(), () -> listener.onFailure(e)); }));
     }
 
     private void closePitAndThen(BytesReference pitId, Runnable andThen) {

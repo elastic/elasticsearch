@@ -44,7 +44,7 @@ public class S3ConfigurationTests extends ESTestCase {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://e", null, "NONE");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
-        // auth is normalized to lowercase
+        // case-insensitive fields normalized to lowercase
         assertEquals("none", config.auth());
     }
 
@@ -61,7 +61,7 @@ public class S3ConfigurationTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> S3Configuration.fromFields("ak", null, null, null, "none")
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithSecretKey() {
@@ -69,7 +69,7 @@ public class S3ConfigurationTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> S3Configuration.fromFields(null, "sk", null, null, "none")
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithBothKeys() {
@@ -77,7 +77,7 @@ public class S3ConfigurationTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> S3Configuration.fromFields("ak", "sk", null, null, "none")
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneAllowsEndpointAndRegion() {

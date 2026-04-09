@@ -120,8 +120,8 @@ public interface DataSourcePlugin {
         return List.of();
     }
 
-    /** CRUD-time type descriptors for datasource and dataset validation. */
-    default List<DatasourceValidator> datasourceValidators() {
-        return List.of();
+    /** CRUD-time validators for datasource and dataset settings, keyed by type name. */
+    default Map<String, DataSourceValidator> datasourceValidators() {
+        return Map.of();
     }
 }

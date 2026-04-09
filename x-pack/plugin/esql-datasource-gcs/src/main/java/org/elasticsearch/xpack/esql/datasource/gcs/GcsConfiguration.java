@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for Google Cloud Storage access including credentials and endpoint settings.
@@ -23,36 +25,23 @@ import java.util.Map;
  *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
  * </ul>
  */
-public class GcsConfiguration extends DatasourceConfiguration {
+public class GcsConfiguration extends FileDataSourceConfiguration {
 
-    private static final ConfigSetting CREDENTIALS = ConfigSetting.secret("credentials");
-    private static final ConfigSetting PROJECT_ID = ConfigSetting.plaintext("project_id");
-    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
-    private static final ConfigSetting TOKEN_URI = ConfigSetting.plaintext("token_uri");
-    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
+    private static final DataSourceConfigDefinition CREDENTIALS = secret("credentials");
+    private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
 
-    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(CREDENTIALS, PROJECT_ID, ENDPOINT, TOKEN_URI, AUTH);
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+        CREDENTIALS,
+        PROJECT_ID,
+        ENDPOINT,
+        TOKEN_URI,
+        AUTH
+    );
 
     private GcsConfiguration(Map<String, Object> raw) {
-        super(raw, SETTINGS);
-    }
-
-    @Override
-    protected String normalizeValue(String key, String value) {
-        if (AUTH.name().equals(key)) {
-            return value.toLowerCase(Locale.ROOT);
-        }
-        return value;
-    }
-
-    @Override
-    protected void validate() {
-        if (auth() != null && "none".equals(auth()) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
-        }
-        if ("none".equals(auth()) && serviceAccountCredentials() != null) {
-            throw new IllegalArgumentException("auth=none cannot be combined with credentials; anonymous access uses no credentials");
-        }
+        super(raw, FIELDS);
     }
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
@@ -97,14 +86,6 @@ public class GcsConfiguration extends DatasourceConfiguration {
 
     public String tokenUri() {
         return get(TOKEN_URI.name());
-    }
-
-    public String auth() {
-        return get(AUTH.name());
-    }
-
-    public boolean isAnonymous() {
-        return "none".equals(auth());
     }
 
     public boolean hasCredentials() {

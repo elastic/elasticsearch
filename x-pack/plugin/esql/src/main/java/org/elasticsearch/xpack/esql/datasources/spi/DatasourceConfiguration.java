@@ -9,78 +9,87 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
- * rejection, and toConfigSettings(). Subclasses provide cross-field validation via
- * {@link #validate()} and value normalization via {@link #normalizeValue(String, String)}.
+ * rejection, and toStoredSettings(). Subclasses provide cross-field validation via
+ * {@link #validate()}.
  */
-public abstract class DatasourceConfiguration {
+public abstract class DataSourceConfiguration {
 
-    private final Map<String, ConfigSetting> settingDefs;
+    private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
 
     /**
-     * Validates and normalizes raw settings from a REST request or CRUD layer.
-     * Rejects unknown fields, calls {@link #normalizeValue} per entry, then
-     * calls subclass {@link #validate()} for cross-field checks.
+     * Parses, normalizes, and validates raw settings from a REST request or CRUD layer.
+     * Rejects unknown fields, then calls subclass {@link #validate()} for cross-field checks.
+     * Values preserve their original types (String, Integer, Boolean, etc.) for non-lossy round-trips.
+     * Fields marked {@link DataSourceConfigDefinition#caseInsensitive() caseInsensitive} are
+     * automatically lowercased on input.
+     *
+     * <p>Note: {@code validate()} is a virtual call during base construction. This is safe
+     * because subclasses must not add instance fields — all state is accessed via {@link #get}
+     * from the already-populated base class. Subclass constructors should be private.
      *
      * @param raw the raw settings map from the REST request
-     * @param settingDefs the setting definitions — passed explicitly to avoid
-     *                    virtual method call in constructor
+     * @param fieldDefs the field definitions
      */
-    protected DatasourceConfiguration(Map<String, Object> raw, Map<String, ConfigSetting> settingDefs) {
-        this.settingDefs = settingDefs;
+    protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+        this.fieldDefs = fieldDefs;
         Map<String, Object> parsed = new HashMap<>();
         for (var entry : raw.entrySet()) {
-            if (settingDefs.containsKey(entry.getKey()) == false) {
+            if (fieldDefs.containsKey(entry.getKey()) == false) {
                 throw new IllegalArgumentException(
-                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + settingDefs.keySet()
+                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + fieldDefs.keySet()
                 );
             }
             if (entry.getValue() != null) {
-                parsed.put(entry.getKey(), normalizeValue(entry.getKey(), entry.getValue().toString()));
+                Object value = entry.getValue();
+                DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+                if (def.caseInsensitive() && value instanceof String s) {
+                    value = s.toLowerCase(Locale.ROOT);
+                }
+                parsed.put(entry.getKey(), value);
             }
         }
         this.values = Map.copyOf(parsed);
         validate();
     }
 
-    /**
-     * Normalizes a setting value. Override to apply type-specific normalization
-     * (e.g. lowercasing auth modes). Default returns the value unchanged.
-     */
-    protected String normalizeValue(String key, String value) {
-        return value;
-    }
-
     /** Cross-field validation. Called after construction. */
     protected abstract void validate();
 
-    /** Returns the setting definitions. */
-    public Map<String, ConfigSetting> settings() {
-        return settingDefs;
+    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
+    protected boolean hasAnySecretValue() {
+        for (var entry : values.entrySet()) {
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+            if (def != null && def.secret()) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    /** Returns the internal values map. Normalized, no nulls. */
+    /** Returns the internal values map. Normalized, no nulls, types preserved. */
     public Map<String, Object> toMap() {
         return values;
     }
 
-    /** Gets a setting value by name. */
+    /** Gets a setting value as a string. Returns {@code toString()} of the stored value, or null. */
     public String get(String key) {
         Object v = values.get(key);
         return v != null ? v.toString() : null;
     }
 
-    /** Returns validated settings as a map from definition to value. */
-    public Map<ConfigSetting, Object> toConfigSettings() {
-        Map<ConfigSetting, Object> result = new LinkedHashMap<>();
+    /** Returns validated settings as a map from field name to {@link DataSourceStoredSetting}. */
+    public Map<String, DataSourceStoredSetting> toStoredSettings() {
+        Map<String, DataSourceStoredSetting> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
-            ConfigSetting def = settingDefs.get(entry.getKey());
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             if (def != null) {
-                result.put(def, entry.getValue());
+                result.put(entry.getKey(), new DataSourceStoredSetting(entry.getValue(), def.secret()));
             }
         }
         return result;
@@ -90,7 +99,7 @@ public abstract class DatasourceConfiguration {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return values.equals(((DatasourceConfiguration) o).values);
+        return values.equals(((DataSourceConfiguration) o).values);
     }
 
     @Override

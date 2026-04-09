@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class GcsDatasourceValidatorTests extends ESTestCase {
+public class GcsDataSourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator validator = new FileDatasourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
 
     public void testType() {
         assertEquals("gcs", validator.type());
@@ -25,8 +24,8 @@ public class GcsDatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
-        assertTrue(findKey(result, "credentials").isSecret());
-        assertFalse(findKey(result, "project_id").isSecret());
+        assertTrue(result.get("credentials").secret());
+        assertFalse(result.get("project_id").secret());
     }
 
     public void testValidateDatasourceEmpty() {
@@ -50,7 +49,7 @@ public class GcsDatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasetValid() {
         var result = validator.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
-        assertEquals("hive", findValue(result, "partition_detection"));
+        assertEquals("hive", result.get("partition_detection"));
     }
 
     public void testValidateDatasetRequiresResource() {
@@ -66,21 +65,39 @@ public class GcsDatasourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetSchemaSampleSize() {
-        assertEquals(
-            50,
-            findValue(validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
-        );
+        assertEquals(50, validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(
             IllegalArgumentException.class,
             () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0))
         );
     }
 
-    private static Object findValue(Map<ConfigSetting, Object> settings, String name) {
-        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
+    public void testValidateDatasourceNullSettings() {
+        assertTrue(validator.validateDatasource(null).isEmpty());
     }
 
-    private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
-        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    public void testValidateDatasourceSkipsNullValues() {
+        var settings = new java.util.HashMap<String, Object>();
+        settings.put("project_id", "my-project");
+        settings.put("endpoint", null);
+        var result = validator.validateDatasource(settings);
+        assertEquals("my-project", result.get("project_id").value());
+        assertNull(result.get("endpoint"));
+    }
+
+    public void testValidateDatasetBlankResource() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
+    }
+
+    public void testValidateDatasetNullSettings() {
+        assertTrue(validator.validateDataset(Map.of(), "gs://b/p", null).isEmpty());
+    }
+
+    public void testToStoredSettingsSecretClassification() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
+        var result = config.toStoredSettings();
+        assertTrue(result.get("credentials").secret());
+        assertFalse(result.get("project_id").secret());
+        assertEquals("{\"type\":\"service_account\"}", result.get("credentials").value());
     }
 }

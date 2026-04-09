@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.
@@ -26,16 +28,15 @@ import java.util.Map;
  *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
  * </ul>
  */
-public class AzureConfiguration extends DatasourceConfiguration {
+public class AzureConfiguration extends FileDataSourceConfiguration {
 
-    private static final ConfigSetting CONNECTION_STRING = ConfigSetting.secret("connection_string");
-    private static final ConfigSetting ACCOUNT = ConfigSetting.plaintext("account");
-    private static final ConfigSetting KEY = ConfigSetting.secret("key");
-    private static final ConfigSetting SAS_TOKEN = ConfigSetting.secret("sas_token");
-    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
-    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
+    private static final DataSourceConfigDefinition CONNECTION_STRING = secret("connection_string");
+    private static final DataSourceConfigDefinition ACCOUNT = plaintext("account");
+    private static final DataSourceConfigDefinition KEY = secret("key");
+    private static final DataSourceConfigDefinition SAS_TOKEN = secret("sas_token");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
 
-    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CONNECTION_STRING,
         ACCOUNT,
         KEY,
@@ -45,27 +46,7 @@ public class AzureConfiguration extends DatasourceConfiguration {
     );
 
     private AzureConfiguration(Map<String, Object> raw) {
-        super(raw, SETTINGS);
-    }
-
-    @Override
-    protected String normalizeValue(String key, String value) {
-        if (AUTH.name().equals(key)) {
-            return value.toLowerCase(Locale.ROOT);
-        }
-        return value;
-    }
-
-    @Override
-    protected void validate() {
-        if (auth() != null && "none".equals(auth()) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
-        }
-        if ("none".equals(auth()) && hasExplicitCredentials()) {
-            throw new IllegalArgumentException(
-                "auth=none cannot be combined with connection_string/account+key/sas_token; anonymous access uses no credentials"
-            );
-        }
+        super(raw, FIELDS);
     }
 
     public static AzureConfiguration fromMap(Map<String, Object> raw) {
@@ -112,14 +93,6 @@ public class AzureConfiguration extends DatasourceConfiguration {
 
     public String endpoint() {
         return get(ENDPOINT.name());
-    }
-
-    public String auth() {
-        return get(AUTH.name());
-    }
-
-    public boolean isAnonymous() {
-        return "none".equals(auth());
     }
 
     public boolean hasCredentials() {

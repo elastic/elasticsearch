@@ -13,26 +13,23 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * {@link DatasourceValidator} for file-based external sources (S3, GCS, Azure).
+ * {@link DataSourceValidator} for file-based external sources (S3, GCS, Azure).
  */
-public class FileDatasourceValidator implements DatasourceValidator {
+public class FileDataSourceValidator implements DataSourceValidator {
 
-    private static final ConfigSetting PARTITION_DETECTION = ConfigSetting.plaintext("partition_detection");
-    private static final ConfigSetting SCHEMA_SAMPLE_SIZE = ConfigSetting.plaintext("schema_sample_size");
-    private static final ConfigSetting ERROR_MODE = ConfigSetting.plaintext("error_mode");
-    private static final Map<String, ConfigSetting> DATASET_SETTINGS = ConfigSetting.mapOf(
-        PARTITION_DETECTION,
-        SCHEMA_SAMPLE_SIZE,
-        ERROR_MODE
-    );
+    // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
+    private static final String PARTITION_DETECTION = "partition_detection";
+    private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    private static final String ERROR_MODE = "error_mode";
+    private static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
 
     private final String type;
-    private final Function<Map<String, Object>, DatasourceConfiguration> configFactory;
+    private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
     private final Set<String> validSchemes;
 
-    public FileDatasourceValidator(
+    public FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DatasourceConfiguration> configFactory,
+        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> validSchemes
     ) {
         this.type = type;
@@ -46,14 +43,17 @@ public class FileDatasourceValidator implements DatasourceValidator {
     }
 
     @Override
-    public Map<ConfigSetting, Object> validateDatasource(Map<String, Object> settings) {
-        DatasourceConfiguration config = configFactory.apply(settings);
-        return config != null ? config.toConfigSettings() : Map.of();
+    public Map<String, DataSourceStoredSetting> validateDatasource(Map<String, Object> settings) {
+        if (settings == null || settings.isEmpty()) {
+            return Map.of();
+        }
+        DataSourceConfiguration config = configFactory.apply(settings);
+        return config != null ? config.toStoredSettings() : Map.of();
     }
 
     @Override
-    public Map<ConfigSetting, Object> validateDataset(
-        Map<String, Object> datasourceSettings,
+    public Map<String, Object> validateDataset(
+        Map<String, DataSourceStoredSetting> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings
     ) {
@@ -75,16 +75,16 @@ public class FileDatasourceValidator implements DatasourceValidator {
             datasetSettings = Map.of();
         }
         for (String key : datasetSettings.keySet()) {
-            if (DATASET_SETTINGS.containsKey(key) == false) {
-                throw new IllegalArgumentException("unknown dataset setting [" + key + "]; known settings: " + DATASET_SETTINGS.keySet());
+            if (DATASET_FIELDS.contains(key) == false) {
+                throw new IllegalArgumentException("unknown dataset setting [" + key + "]; known settings: " + DATASET_FIELDS);
             }
         }
 
-        Map<ConfigSetting, Object> result = new LinkedHashMap<>();
-        putIfPresent(datasetSettings, result, PARTITION_DETECTION);
-        putIfPresent(datasetSettings, result, ERROR_MODE);
+        Map<String, Object> result = new LinkedHashMap<>();
+        copyIfPresent(datasetSettings, result, PARTITION_DETECTION);
+        copyIfPresent(datasetSettings, result, ERROR_MODE);
 
-        Object sampleSize = datasetSettings.get(SCHEMA_SAMPLE_SIZE.name());
+        Object sampleSize = datasetSettings.get(SCHEMA_SAMPLE_SIZE);
         if (sampleSize != null) {
             int value;
             try {
@@ -101,10 +101,10 @@ public class FileDatasourceValidator implements DatasourceValidator {
         return result;
     }
 
-    private static void putIfPresent(Map<String, Object> source, Map<ConfigSetting, Object> dest, ConfigSetting setting) {
-        Object value = source.get(setting.name());
+    private static void copyIfPresent(Map<String, Object> source, Map<String, Object> dest, String key) {
+        Object value = source.get(key);
         if (value != null) {
-            dest.put(setting, value);
+            dest.put(key, value);
         }
     }
 }

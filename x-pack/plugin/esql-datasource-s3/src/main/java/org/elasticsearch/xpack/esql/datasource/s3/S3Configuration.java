@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for S3 access including credentials and endpoint settings.
@@ -23,38 +25,23 @@ import java.util.Map;
  *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
  * </ul>
  */
-public class S3Configuration extends DatasourceConfiguration {
+public class S3Configuration extends FileDataSourceConfiguration {
 
-    private static final ConfigSetting ACCESS_KEY = ConfigSetting.secret("access_key");
-    private static final ConfigSetting SECRET_KEY = ConfigSetting.secret("secret_key");
-    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
-    private static final ConfigSetting REGION = ConfigSetting.plaintext("region");
-    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
+    private static final DataSourceConfigDefinition ACCESS_KEY = secret("access_key");
+    private static final DataSourceConfigDefinition SECRET_KEY = secret("secret_key");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition REGION = plaintext("region");
 
-    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(ACCESS_KEY, SECRET_KEY, ENDPOINT, REGION, AUTH);
+    private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
+        ACCESS_KEY,
+        SECRET_KEY,
+        ENDPOINT,
+        REGION,
+        AUTH
+    );
 
     private S3Configuration(Map<String, Object> raw) {
-        super(raw, SETTINGS);
-    }
-
-    @Override
-    protected String normalizeValue(String key, String value) {
-        if (AUTH.name().equals(key)) {
-            return value.toLowerCase(Locale.ROOT);
-        }
-        return value;
-    }
-
-    @Override
-    protected void validate() {
-        if (auth() != null && "none".equals(auth()) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
-        }
-        if (isAnonymous() && (accessKey() != null || secretKey() != null)) {
-            throw new IllegalArgumentException(
-                "auth=none cannot be combined with access_key/secret_key; anonymous access uses no credentials"
-            );
-        }
+        super(raw, FIELDS);
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {
@@ -89,14 +76,6 @@ public class S3Configuration extends DatasourceConfiguration {
 
     public String region() {
         return get(REGION.name());
-    }
-
-    public String auth() {
-        return get(AUTH.name());
-    }
-
-    public boolean isAnonymous() {
-        return "none".equals(auth());
     }
 
     public boolean hasCredentials() {

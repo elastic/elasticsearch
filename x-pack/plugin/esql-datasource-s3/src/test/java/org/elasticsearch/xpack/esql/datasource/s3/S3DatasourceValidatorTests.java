@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class S3DatasourceValidatorTests extends ESTestCase {
+public class S3DataSourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator validator = new FileDatasourceValidator(
+    private final DataSourceValidator validator = new FileDataSourceValidator(
         "s3",
         S3Configuration::fromMap,
         Set.of("s3://", "s3a://", "s3n://")
@@ -29,11 +28,11 @@ public class S3DatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
-        assertEquals("AKIA123", findValue(result, "access_key"));
-        assertTrue(findKey(result, "access_key").isSecret());
-        assertTrue(findKey(result, "secret_key").isSecret());
-        assertEquals("us-east-1", findValue(result, "region"));
-        assertFalse(findKey(result, "region").isSecret());
+        assertEquals("AKIA123", result.get("access_key").value());
+        assertTrue(result.get("access_key").secret());
+        assertTrue(result.get("secret_key").secret());
+        assertEquals("us-east-1", result.get("region").value());
+        assertFalse(result.get("region").secret());
     }
 
     public void testValidateDatasourceEmpty() {
@@ -48,10 +47,10 @@ public class S3DatasourceValidatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
-    public void testValidateDatasourceNormalizesAuth() {
+    public void testValidateDatasourceAuthCaseInsensitive() {
         var result = validator.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", findValue(result, "auth"));
-        assertFalse(findKey(result, "auth").isSecret());
+        assertEquals("none", result.get("auth").value());  // case-insensitive fields normalized to lowercase
+        assertFalse(result.get("auth").secret());
     }
 
     public void testValidateDatasourceAnonymousConflict() {
@@ -70,13 +69,20 @@ public class S3DatasourceValidatorTests extends ESTestCase {
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("us-east-1", findValue(result, "region"));
-        assertNull(findValueOrNull(result, "endpoint"));
+        assertEquals("us-east-1", result.get("region").value());
+        assertNull(result.get("endpoint"));
     }
 
+    // Dataset settings return plain values, not DataSourceStoredSetting — datasets never contain secrets.
+    // Credentials are inherited from the parent datasource at query time. The return type enforces this
+    // at compile time: validateDataset() returns Map<String, Object>, not Map<String, DataSourceStoredSetting>.
     public void testValidateDatasetValid() {
-        var result = validator.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
-        assertEquals("hive", findValue(result, "partition_detection"));
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("partition_detection", "hive")
+        );
+        assertEquals("hive", result.get("partition_detection"));
     }
 
     public void testValidateDatasetRequiresResource() {
@@ -102,10 +108,7 @@ public class S3DatasourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasetSchemaSampleSize() {
-        assertEquals(
-            50,
-            findValue(validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
-        );
+        assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(
             IllegalArgumentException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
@@ -123,24 +126,12 @@ public class S3DatasourceValidatorTests extends ESTestCase {
         assertTrue(validator.validateDataset(Map.of(), "s3://b/p", null).isEmpty());
     }
 
-    private static Object findValue(Map<ConfigSetting, Object> settings, String name) {
-        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
-    }
-
-    private static Object findValueOrNull(Map<ConfigSetting, Object> settings, String name) {
-        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElse(null);
-    }
-
-    public void testToConfigSettingsSecretClassification() {
+    public void testToStoredSettingsSecretClassification() {
         S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "AKIA", "secret_key", "secret", "region", "us-east-1"));
-        var result = config.toConfigSettings();
-        assertTrue(findKey(result, "access_key").isSecret());
-        assertTrue(findKey(result, "secret_key").isSecret());
-        assertFalse(findKey(result, "region").isSecret());
-        assertEquals("AKIA", result.get(findKey(result, "access_key")));
-    }
-
-    private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
-        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+        var result = config.toStoredSettings();
+        assertTrue(result.get("access_key").secret());
+        assertTrue(result.get("secret_key").secret());
+        assertFalse(result.get("region").secret());
+        assertEquals("AKIA", result.get("access_key").value());
     }
 }

@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,7 +56,8 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public List<DatasourceValidator> datasourceValidators() {
-        return List.of(new FileDatasourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://")));
+    public Map<String, DataSourceValidator> datasourceValidators() {
+        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
+        return Map.of(v.type(), v);
     }
 }

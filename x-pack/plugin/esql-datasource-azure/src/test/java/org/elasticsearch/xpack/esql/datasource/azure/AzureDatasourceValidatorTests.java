@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class AzureDatasourceValidatorTests extends ESTestCase {
+public class AzureDataSourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator validator = new FileDatasourceValidator(
+    private final DataSourceValidator validator = new FileDataSourceValidator(
         "azure_blob",
         AzureConfiguration::fromMap,
         Set.of("wasbs://", "wasb://")
@@ -29,8 +28,8 @@ public class AzureDatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceWithSharedKey() {
         var result = validator.validateDatasource(Map.of("account", "myaccount", "key", "mykey"));
-        assertFalse(findKey(result, "account").isSecret());
-        assertTrue(findKey(result, "key").isSecret());
+        assertFalse(result.get("account").secret());
+        assertTrue(result.get("key").secret());
     }
 
     public void testValidateDatasourceEmpty() {
@@ -60,21 +59,20 @@ public class AzureDatasourceValidatorTests extends ESTestCase {
     }
 
     public void testValidateDatasourceWithSasToken() {
-        assertTrue(findKey(validator.validateDatasource(Map.of("sas_token", "?sv=2020")), "sas_token").isSecret());
+        assertTrue(validator.validateDatasource(Map.of("sas_token", "?sv=2020")).get("sas_token").secret());
     }
 
     public void testValidateDatasourceWithConnectionString() {
         assertTrue(
-            findKey(
-                validator.validateDatasource(Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=x")),
-                "connection_string"
-            ).isSecret()
+            validator.validateDatasource(Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=x"))
+                .get("connection_string")
+                .secret()
         );
     }
 
     public void testValidateDatasetValid() {
         var result = validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p/*.parquet", Map.of("error_mode", "skip_row"));
-        assertEquals("skip_row", findValue(result, "error_mode"));
+        assertEquals("skip_row", result.get("error_mode"));
     }
 
     public void testValidateDatasetBothSchemes() {
@@ -101,10 +99,8 @@ public class AzureDatasourceValidatorTests extends ESTestCase {
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(
             50,
-            findValue(
-                validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 50)),
-                "schema_sample_size"
-            )
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 50))
+                .get("schema_sample_size")
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -112,11 +108,33 @@ public class AzureDatasourceValidatorTests extends ESTestCase {
         );
     }
 
-    private static Object findValue(Map<ConfigSetting, Object> settings, String name) {
-        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
+    public void testValidateDatasourceNullSettings() {
+        assertTrue(validator.validateDatasource(null).isEmpty());
     }
 
-    private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
-        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    public void testValidateDatasourceSkipsNullValues() {
+        var settings = new java.util.HashMap<String, Object>();
+        settings.put("account", "myaccount");
+        settings.put("endpoint", null);
+        var result = validator.validateDatasource(settings);
+        assertEquals("myaccount", result.get("account").value());
+        assertNull(result.get("endpoint"));
+    }
+
+    public void testValidateDatasetBlankResource() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
+    }
+
+    public void testValidateDatasetNullSettings() {
+        assertTrue(validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", null).isEmpty());
+    }
+
+    public void testToStoredSettingsSecretClassification() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("account", "myaccount", "key", "mykey", "sas_token", "?sv=2020"));
+        var result = config.toStoredSettings();
+        assertFalse(result.get("account").secret());
+        assertTrue(result.get("key").secret());
+        assertTrue(result.get("sas_token").secret());
+        assertEquals("myaccount", result.get("account").value());
     }
 }

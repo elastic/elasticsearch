@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
+import java.util.Base64;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -23,11 +25,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
     public void testIterateSmallInput() throws Exception {
-        assertIterateRequests(between(1, 100), DataType.TEXT);
+        assertIterateRequests(between(1, 100));
     }
 
     public void testIterateLargeInput() throws Exception {
-        assertIterateRequests(between(1_000, 10_000), DataType.TEXT);
+        assertIterateRequests(between(1_000, 10_000));
     }
 
     public void testIterateEmptyInput() throws Exception {
@@ -443,9 +445,10 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
-    private void assertIterateRequests(int size, DataType dataType) throws Exception {
+    private void assertIterateRequests(int size) throws Exception {
+        final DataType dataType = randomDataType();
         final String inferenceId = randomIdentifier();
-        final BytesRefBlock inputBlock = randomInputBlock(size);
+        final BytesRefBlock inputBlock = randomInputBlock(size, dataType);
 
         try (
             EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
@@ -484,22 +487,41 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    private static DataType randomDataType() {
+        return randomFrom(DataType.TEXT, DataType.IMAGE);
+    }
+
+    private static String randomInputValue(DataType dataType) {
+        if (dataType == DataType.IMAGE) {
+            return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(between(10, 100)));
+        }
+        return randomAlphaOfLength(10);
+    }
+
     private BytesRefBlock randomInputBlock(int size) {
+        return randomInputBlock(size, DataType.TEXT);
+    }
+
+    private BytesRefBlock randomInputBlock(int size, DataType dataType) {
         try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(size)) {
             for (int i = 0; i < size; i++) {
-                blockBuilder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                blockBuilder.appendBytesRef(new BytesRef(randomInputValue(dataType)));
             }
             return blockBuilder.build();
         }
     }
 
     private BytesRefBlock randomInputBlockWithNulls(int size) {
+        return randomInputBlockWithNulls(size, DataType.TEXT);
+    }
+
+    private BytesRefBlock randomInputBlockWithNulls(int size, DataType dataType) {
         try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(size)) {
             for (int i = 0; i < size; i++) {
                 if (randomBoolean()) {
                     blockBuilder.appendNull();
                 } else {
-                    blockBuilder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                    blockBuilder.appendBytesRef(new BytesRef(randomInputValue(dataType)));
                 }
             }
             return blockBuilder.build();

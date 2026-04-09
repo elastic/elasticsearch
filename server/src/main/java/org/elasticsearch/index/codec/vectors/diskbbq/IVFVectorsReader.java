@@ -75,6 +75,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private final String clusterExtension;
     private final int versionDirectIo;
     private final float dynamicVisitRatio;
+    protected int versionMeta = -1;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
@@ -111,6 +112,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
+                this.versionMeta = versionMeta;
                 readFields(ivfMeta, versionMeta, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -310,8 +312,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
-        FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
-        int numVectors = values.size();
+        final FloatVectorValues values = getFloatVectorValues(field);
+        final int numVectors = values.size();
         final float approximateCost;
         if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
             approximateCost = numVectors;
@@ -348,7 +350,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits, entry.centroidSlice(ivfCentroids));
+        PostingVisitor scorer = getPostingVisitor(
+            fieldInfo,
+            numVectors,
+            postListSlice,
+            target,
+            acceptDocsBits,
+            entry.centroidSlice(ivfCentroids)
+        );
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -530,6 +539,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        int numVectors,
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,

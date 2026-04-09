@@ -55,11 +55,6 @@ public class InMemoryViewResolver extends ViewResolver {
         return metadata.get();
     }
 
-    protected boolean viewsFeatureEnabled() {
-        // This is a test implementation, so we assume the feature is always enabled
-        return true;
-    }
-
     @Override
     protected void doEsqlResolveViewsRequest(
         EsqlResolveViewAction.Request request,

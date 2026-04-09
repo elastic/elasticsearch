@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -178,6 +179,12 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
                 entry("jvm.memory.non_heap.pool.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue()))
             )
         );
+
+        if (Constants.WINDOWS) {
+            // JVM file descriptor metrics are not emitted on Windows.
+            valueAssertions.remove("jvm.fd.used");
+            valueAssertions.remove("jvm.fd.max");
+        }
 
         CountDownLatch finished = new CountDownLatch(1);
 

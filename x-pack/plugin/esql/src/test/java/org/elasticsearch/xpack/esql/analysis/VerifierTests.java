@@ -3146,7 +3146,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true) | limit 100";
 
         defaultAnalyzer().query(queryPrefix + " | fuse");
         defaultAnalyzer().query(queryPrefix + " | fuse rrf");
@@ -3267,6 +3267,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE",
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
+        );
+
+        defaultAnalyzer().error(
+            "FROM test METADATA _index, _score, _id | FORK (WHERE true) (WHERE true) | FUSE",
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
 
@@ -3459,16 +3464,16 @@ public class VerifierTests extends ESTestCase {
             "FROM test\n"
                 + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
                 + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
-                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "| SORT _fork, emp_no"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender",
             containsString(
-                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+                "9:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@5:11]"
             )
         );
 
@@ -3489,16 +3494,14 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "FROM test\n"
                 + "| KEEP emp_no, languages, gender\n"
-                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | LIMIT 100)\n"
+                + "       (WHERE emp_no == 10081 OR emp_no == 10087 | LIMIT 100)\n"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
                 + "| SORT emp_no, gender, _fork\n"
                 + "| LIMIT 5",
             containsString(
-                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"
+                    + " but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@3:52]"
             )
         );
     }

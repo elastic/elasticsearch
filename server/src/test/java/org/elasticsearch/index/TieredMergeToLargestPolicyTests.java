@@ -173,9 +173,7 @@ public class TieredMergeToLargestPolicyTests extends ESTestCase {
     }
 
     public void testCompoundFileSettings() throws IOException {
-        Settings settings = Settings.builder()
-            .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "100mb")
-            .build();
+        Settings settings = Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "100mb").build();
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
         MergePolicy policy = indexSettings.getMergePolicy(false, true);
 
@@ -218,9 +216,7 @@ public class TieredMergeToLargestPolicyTests extends ESTestCase {
     }
 
     public void testMaxMergedSegmentSetting() {
-        Settings settings = Settings.builder()
-            .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(), "1gb")
-            .build();
+        Settings settings = Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(), "1gb").build();
         IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
         TieredMergeToLargestPolicy policy = (TieredMergeToLargestPolicy) indexSettings.getMergePolicy(false, true);
         assertThat(policy.getMaxMergedSegmentMB(), equalTo(ByteSizeValue.ofGb(1).getMbFrac()));

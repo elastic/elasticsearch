@@ -64,8 +64,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     );
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
-    private volatile boolean supportSeqNoDisabled;
-    private volatile boolean supportSyntheticId;
+    private final boolean supportSeqNoDisabled;
+    private final boolean supportSyntheticId;
 
     DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this(mapperServiceFactory, Settings.EMPTY);

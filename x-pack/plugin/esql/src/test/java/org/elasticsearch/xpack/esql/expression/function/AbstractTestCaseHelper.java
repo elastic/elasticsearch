@@ -25,6 +25,7 @@ import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>> {
+
     private static final Logger log = LogManager.getLogger(AbstractTestCaseHelper.class);
 
     private final int arity;
@@ -99,7 +100,7 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
     /**
      * Provide a naming function for the cases this will build. If this is not provided
      * then the case will be named
-     * <pre>{@code <param1name, param2name, param3name>}</pre>.
+     * {@code <param1name, param2name, param3name>}.
      */
     public final S name(Function<List<TestCaseSupplier.TypedDataSupplier>, String> name) {
         return create(values, name, this.evaluatorToString, this.outputType, this.expected, this.expectedWarnings, this.configuration);
@@ -109,9 +110,9 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
      * Sets the expected {@link Object#toString} of the {@link ExpressionEvaluator}.
      * Use {@code %0} for the "reader" for the first parameter. Use {@code %1} for the second. Etc.
      * Like:
-     * <pre>{@code
+     * {@snippet lang="java" :
      * helper.evaluatorToString("ToBase64Evaluator[field=%0]");
-     * }</pre>
+     * }
      */
     public final S evaluatorToString(String evaluatorToString) {
         return create(values, name, evaluatorToString, outputType, expected, expectedWarnings, configuration);

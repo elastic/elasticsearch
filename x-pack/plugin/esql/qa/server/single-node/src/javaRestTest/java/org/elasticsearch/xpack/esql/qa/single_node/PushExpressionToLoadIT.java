@@ -680,9 +680,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * LENGTH not pushed when on a fork branch.
+     * LENGTH pushed when on a fork branch.
      */
-    public void testLengthNotPushedToFork() throws IOException {
+    public void testLengthPushedToFork() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
             justType("keyword"),
@@ -691,6 +691,32 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | FORK
                     (EVAL test = LENGTH(test) + 1)
                     (EVAL test = LENGTH(test) + 2)
+                """,
+            matchesList().item(List.of(value.length() + 1, value.length() + 2)),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
+     * LENGTH not pushed when on a fork branch.
+     */
+    public void testLengthNotPushedToForkWithLimit() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | FORK
+                    (EVAL test = LENGTH(test) + 1 | LIMIT 10)
+                    (EVAL test = LENGTH(test) + 2 | LIMIT 10)
                 """,
             matchesList().item(List.of(value.length() + 1, value.length() + 2)),
             matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
@@ -704,7 +730,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
-    public void testLengthNotPushedBeforeFork() throws IOException {
+    public void testLengthPushedBeforeFork() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
             justType("keyword"),
@@ -716,11 +742,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     (EVAL j = 2)
                 """,
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
             sig -> assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator")
             )
@@ -824,7 +851,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("parsing", matchesMap().extraOk())
                     .entry("view_resolution", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
-                    .entry("dependency_resolution", matchesMap().extraOk())
+                    .entry("indices_resolution", matchesMap().extraOk())
+                    .entry("enrich_resolution", matchesMap().extraOk())
+                    .entry("inference_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))

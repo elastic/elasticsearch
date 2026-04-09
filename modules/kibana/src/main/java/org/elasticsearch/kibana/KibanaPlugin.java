@@ -55,8 +55,21 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
 
+    /** Composable index template resource for {@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME}. */
+    public static final String WORKFLOWS_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE = "workflows-events.json";
+
+    /** Substitution key for managed index version in {@value #WORKFLOWS_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String WORKFLOWS_EVENTS_MANAGED_INDEX_VERSION_VARIABLE = "kibana.workflows.events.managed.index.version";
+
     /** Log data stream registered in {@link #workflowsExecutionDataStreamLogsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME = ".workflows-execution-data-stream-logs";
+
+    /** Composable index template resource for {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}. */
+    public static final String WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE = "workflows-execution-data-stream-logs.json";
+
+    /** Substitution key for managed index version in {@value #WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE =
+        "kibana.workflows.execution.logs.managed.index.version";
 
     /**
      * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
@@ -136,8 +149,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
-                "workflows-events.json",
-                Map.of("kibana.workflows.events.managed.index.version", Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION))
+                WORKFLOWS_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(WORKFLOWS_EVENTS_MANAGED_INDEX_VERSION_VARIABLE, Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION))
             );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EVENTS_DATA_STREAM_NAME,
@@ -157,8 +170,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static SystemDataStreamDescriptor workflowsExecutionDataStreamLogsSystemDataStreamDescriptor() {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
-                "workflows-execution-data-stream-logs.json",
-                Map.of("kibana.workflows.execution.logs.managed.index.version", Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION))
+                WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION)
+                )
             );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,

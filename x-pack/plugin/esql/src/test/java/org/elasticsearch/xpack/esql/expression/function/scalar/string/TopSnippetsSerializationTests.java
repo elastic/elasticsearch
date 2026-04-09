@@ -52,6 +52,17 @@ public class TopSnippetsSerializationTests extends AbstractExpressionSerializati
             entries.add(Literal.keyword(Source.EMPTY, "num_words"));
             entries.add(new Literal(Source.EMPTY, randomIntBetween(0, 1000), DataType.INTEGER));
         }
+        if (randomBoolean()) {
+            entries.add(Literal.keyword(Source.EMPTY, "analyzer"));
+            entries.add(
+                Literal.keyword(
+                    Source.EMPTY,
+                    randomBoolean()
+                        ? randomFrom("standard", "whitespace", "simple", "keyword", "english", "french", "german", "spanish")
+                        : randomAlphaOfLengthBetween(1, 20)
+                )
+            );
+        }
         boolean highlight = randomBoolean();
         if (highlight) {
             entries.add(Literal.keyword(Source.EMPTY, "highlight"));

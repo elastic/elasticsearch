@@ -370,4 +370,45 @@ ROW content = CONCAT(
 snippets:keyword  
 \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates.
 // end::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
+
+topSnippetsAnalyzerWhitespaceCase
+required_capability: top_snippets_analyzer
+
+ROW content = "Walk your DOGs daily."
+| EVAL std = TOP_SNIPPETS(content, "dogs", { "analyzer": "standard" })
+| EVAL ws = TOP_SNIPPETS(content, "dogs", { "analyzer": "whitespace" })
+| KEEP std, ws
+;
+
+std:keyword | ws:keyword
+Walk your DOGs daily. | null
+;
+
+topSnippetsAnalyzerEnglishStemming
+required_capability: top_snippets_analyzer
+required_capability: top_snippets_highlight
+
+ROW content = "The running club meets daily for long runs."
+| EVAL eng = TOP_SNIPPETS(content, "run", { "analyzer": "english", "highlight": true, "num_words": 0 })
+| EVAL std = TOP_SNIPPETS(content, "run", { "analyzer": "standard", "highlight": true, "num_words": 0 })
+| KEEP eng, std
+;
+
+eng:keyword | std:keyword
+The <em>running</em> club meets daily for long <em>runs</em>. | null
+;
+
+topSnippetsAnalyzerImplicitMatchesExplicitStandard
+required_capability: top_snippets_analyzer
+
+FROM books
+| WHERE book_no == "1463"
+| EVAL implicit = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 500 })
+| EVAL explicit = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 500, "analyzer": "standard" })
+| EVAL same = implicit == explicit
+| KEEP same
+;
+
+same:boolean
+true
 ;

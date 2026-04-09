@@ -11,20 +11,33 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.planner.Layout;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -42,6 +55,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
+
+    private static AnalysisRegistry analysisRegistry;
+
+    @BeforeClass
+    public static void setupAnalysisRegistry() throws IOException {
+        analysisRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            List.of(new org.elasticsearch.analysis.common.CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+    }
+
+    @AfterClass
+    public static void tearDownAnalysisRegistry() {
+        analysisRegistry = null;
+    }
 
     private static final String PARAGRAPH_INPUT = """
         The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,
@@ -165,7 +196,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
-        return createOptions(numSnippets, numWords, null, null, null, null);
+        return createOptions(numSnippets, numWords, null, null, null, null, null);
     }
 
     private static MapExpression createOptions(
@@ -174,7 +205,8 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         Boolean highlight,
         String preTag,
         String postTag,
-        String encoder
+        String encoder,
+        String analyzer
     ) {
         List<Expression> optionsMap = new ArrayList<>();
 
@@ -206,6 +238,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(encoder)) {
             optionsMap.add(Literal.keyword(Source.EMPTY, "encoder"));
             optionsMap.add(Literal.keyword(Source.EMPTY, encoder));
+        }
+
+        if (Objects.nonNull(analyzer)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "analyzer"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, analyzer));
         }
 
         return optionsMap.isEmpty() ? null : new MapExpression(Source.EMPTY, optionsMap);
@@ -306,26 +343,26 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testHighlightDefaultTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
     }
 
     public void testHighlightCustomTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null);
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null, null);
         assertThat(result, equalTo(List.of("The Adirondack <b>Park</b> is a beautiful wilderness area.")));
     }
 
     public void testHighlightMultipleTerms() {
         String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
-        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>.")));
     }
 
     public void testHighlightFalseReturnsPlainText() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
-        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null);
-        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null);
+        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null, null);
+        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null, null);
         List<String> noHighlightOption = process(text, "park", 5, 300);
 
         assertThat(withHighlight, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
@@ -335,20 +372,46 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testHighlightHtmlEncoder() {
         String text = "Use <b>bold</b> & special chars with the Ring.";
-        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html");
+        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html", null);
         assertThat(result, equalTo(List.of("Use &lt;b&gt;bold&lt;&#x2F;b&gt; &amp; special chars with the <em>Ring</em>.")));
     }
 
+    public void testWhitespaceAnalyzerDoesNotLowercaseTokens() {
+        String text = "Walk your DOGs daily.";
+        List<String> standardResult = processWithHighlight(text, "dogs", 5, 300, null, null, null, null, "standard");
+        List<String> whitespaceResult = processWithHighlight(text, "dogs", 5, 300, null, null, null, null, "whitespace");
+        assertNotNull(standardResult);
+        assertNull(whitespaceResult);
+    }
+
+    public void testEnglishAnalyzerStemsRunningToRun() {
+        String text = "The running club meets daily for long runs.";
+        List<String> english = processWithHighlight(text, "run", 5, 0, true, null, null, null, "english");
+        List<String> standard = processWithHighlight(text, "run", 5, 0, true, null, null, null, "standard");
+        assertNotNull(english);
+        assertNull(standard);
+        assertThat(english.get(0), containsString("<em>running</em>"));
+        assertThat(english.get(0), containsString("<em>runs</em>"));
+    }
+
+    public void testUnknownAnalyzerThrows() {
+        String text = "Some text to analyze.";
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> processWithHighlight(text, "text", 5, 300, null, null, null, null, "nonexistent_analyzer")
+        );
+        assertThat(e.getMessage(), containsString("'analyzer' must be a registered analyzer"));
+        assertThat(e.getMessage(), containsString("nonexistent_analyzer"));
+    }
+
     /**
-     * TOP_SNIPPETS uses StandardAnalyzer (no stemming), so query "return" matches only the exact token "return",
-     * not "returns". The search highlight API instead uses the field's index analyzer from the mapping
-     * (see DefaultHighlighter.buildHighlighter / getIndexAnalyzer), so when a field is mapped with e.g. the
-     * english analyzer, the highlight API will highlight "returns" for query "return". Parity would require
-     * passing the field's analyzer when the input is from an indexed field.
+     * {@code TOP_SNIPPETS} runs on the coordinator, so an omitted {@code analyzer} resolves to
+     * {@link org.apache.lucene.analysis.standard.StandardAnalyzer}: query "return" matches only the
+     * exact token "return", not "returns".
      */
     public void testHighlightNoStemmingUsesExactTermOnly() {
         String text = "The API returns results. Use the return value to continue.";
-        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null, null);
         assertThat(result, equalTo(List.of("The API returns results. Use the <em>return</em> value to continue.")));
     }
 
@@ -359,7 +422,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             + "Elasticsearch supports distributed search across many nodes. "
             + "Elasticsearch provides near real-time search capabilities. "
             + "Elasticsearch scales horizontally for large search workloads.";
-        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null);
+        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null, null);
         assertThat(
             result,
             equalTo(
@@ -374,7 +437,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private List<String> process(String str, String query, int numSnippets, int numWords) {
-        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
+        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null, null);
     }
 
     private List<String> processWithHighlight(
@@ -385,21 +448,33 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         Boolean highlight,
         String preTag,
         String postTag,
-        String encoder
+        String encoder,
+        String analyzer
     ) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder);
+        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder, analyzer);
+        Expression expression = new TopSnippets(
+            Source.EMPTY,
+            field("field", DataType.KEYWORD),
+            new Literal(Source.EMPTY, new BytesRef(query), DataType.KEYWORD),
+            optionsMap
+        );
 
-        try (
-            ExpressionEvaluator eval = evaluator(
-                new TopSnippets(
-                    Source.EMPTY,
-                    field("field", DataType.KEYWORD),
-                    new Literal(Source.EMPTY, new BytesRef(query), DataType.KEYWORD),
-                    optionsMap
-                )
-            ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
-        ) {
+        ExpressionEvaluator.Factory factory;
+        if (analyzer != null) {
+            Layout.Builder builder = new Layout.Builder();
+            buildLayout(builder, expression);
+            factory = EvalMapper.toEvaluator(
+                FoldContext.small(),
+                expression,
+                builder.build(),
+                org.elasticsearch.compute.lucene.EmptyIndexedByShardId.instance(),
+                analysisRegistry
+            );
+        } else {
+            factory = evaluator(expression);
+        }
+
+        try (ExpressionEvaluator eval = factory.get(driverContext()); Block block = eval.eval(row(List.of(new BytesRef(str))))) {
             if (block.isNull(0)) {
                 return null;
             }

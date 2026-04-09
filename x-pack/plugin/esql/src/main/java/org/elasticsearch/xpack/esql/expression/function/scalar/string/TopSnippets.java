@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -104,6 +106,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String PRE_TAG = "pre_tag";
     private static final String POST_TAG = "post_tag";
     private static final String ENCODER = "encoder";
+    private static final String ANALYZER = "analyzer";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -115,7 +118,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         entry(HIGHLIGHT, DataType.BOOLEAN),
         entry(PRE_TAG, DataType.KEYWORD),
         entry(POST_TAG, DataType.KEYWORD),
-        entry(ENCODER, DataType.KEYWORD)
+        entry(ENCODER, DataType.KEYWORD),
+        entry(ANALYZER, DataType.KEYWORD)
     );
 
     @FunctionInfo(
@@ -209,7 +213,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1") }
+                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1"),
+                @MapParam.MapParamEntry(name = "analyzer", type = "keyword", description = """
+                    Name of the analyzer to use for scoring and highlighting. When omitted, defaults to the standard
+                    analyzer. The name must match a registered analyzer (prebuilt or plugin-contributed), such as
+                    `standard`, `whitespace`, `simple`, `keyword`, `english`, `french`, `german`, `spanish`, etc.
+                    """, valueHint = { "english" }, applies_to = "stack: preview 9.4.1") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -287,6 +296,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
         validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
         validateEncoder(options);
+        validateAnalyzer(options);
         validateHighlightOnlyOptions(options);
     }
 
@@ -309,6 +319,42 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         if (value != null && "default".equals(value) == false && "html".equals(value) == false) {
             throw new InvalidArgumentException("'{}' option must be 'default' or 'html', found [{}]", ENCODER, value);
         }
+    }
+
+    private static void validateAnalyzer(Map<String, Object> options) {
+        Object value = options.get(ANALYZER);
+        if (value == null) {
+            return;
+        }
+        String name = (String) value;
+        if (name.isBlank()) {
+            throw new InvalidArgumentException("'{}' option must be a non-empty string", ANALYZER);
+        }
+    }
+
+    /**
+     * Resolves a Lucene {@link Analyzer} for snippet scoring and highlighting.
+     * <p>
+     * Because {@code TOP_SNIPPETS} runs on the coordinator node (no shard contexts),
+     * the resolution is: explicit name via the node-level {@link AnalysisRegistry}
+     * if given, otherwise {@link StandardAnalyzer}.
+     */
+    static Analyzer resolveAnalyzer(String analyzerName, AnalysisRegistry registry) {
+        if (analyzerName != null) {
+            if (registry == null) {
+                throw new InvalidArgumentException("'{}' option cannot be resolved without an analysis registry", ANALYZER);
+            }
+            try {
+                Analyzer analyzer = registry.getAnalyzer(analyzerName);
+                if (analyzer != null) {
+                    return analyzer;
+                }
+            } catch (IOException e) {
+                throw new InvalidArgumentException("failed to load analyzer [{}]", e, analyzerName);
+            }
+            throw new InvalidArgumentException("'{}' must be a registered analyzer, found [{}]", ANALYZER, analyzerName);
+        }
+        return new StandardAnalyzer();
     }
 
     private static void validateHighlightOnlyOptions(Map<String, Object> options) {
@@ -482,11 +528,13 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         int numSnippets;
         int numWords;
         PassageFormatter highlightFormatter = null;
+        String analyzerName = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
+            analyzerName = (String) opts.get(ANALYZER);
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
@@ -501,7 +549,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+        Analyzer resolvedAnalyzer = resolveAnalyzer(analyzerName, toEvaluator.analysisRegistry());
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());
         // at this point this should only return null if we have List<BytesRef> which we handle in process

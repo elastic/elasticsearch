@@ -3816,6 +3816,14 @@ public class VerifierTests extends ESTestCase {
                     + "cannot cast [true] to [integer]"
             )
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"\"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"  \"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {

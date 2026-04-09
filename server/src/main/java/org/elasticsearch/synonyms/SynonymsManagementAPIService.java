@@ -107,8 +107,7 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int MAX_SYNONYM_RULES = 10_000;
-    private static final int PIT_KEEP_ALIVE_SECONDS = 60;
-    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(PIT_KEEP_ALIVE_SECONDS);
+    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
     static final int PIT_BATCH_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";

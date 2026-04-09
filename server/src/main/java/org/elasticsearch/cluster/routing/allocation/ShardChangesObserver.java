@@ -97,7 +97,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
         UnassignedInfo info = unassignedShard.unassignedInfo();
         if (info != null) {
             long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
-            Map<String, Object> attrs = attributes(info, initializedShard);
+            final var attrs = attributes(info, initializedShard);
             unassignedToInitializingDuration.record(Math.max(0, durationMillis), attrs);
             shardInitializingCounter.incrementBy(1, attrs);
         }

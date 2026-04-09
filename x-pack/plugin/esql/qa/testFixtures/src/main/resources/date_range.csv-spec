@@ -300,6 +300,71 @@ date_range:date_range                              | decade:integer | descriptio
 ;
 
 ###############################################
+# RANGE_WITHIN with range in first parameter position
+###############################################
+
+literalRangeWithinRange
+required_capability: date_range_field_type_v2
+
+ROW y2020 = TO_DATE_RANGE("2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"),
+    y2021 = TO_DATE_RANGE("2021-01-01T00:00:00.000Z..2022-01-01T00:00:00.000Z"),
+    feb2020 = TO_DATE_RANGE("2020-02-01T00:00:00.000Z..2020-03-01T00:00:00.000Z"),
+    feb2021 = TO_DATE_RANGE("2021-02-01T00:00:00.000Z..2021-03-01T00:00:00.000Z")
+| EVAL y2020in2021 = RANGE_WITHIN(y2020, y2021),
+       y2021in2020 = RANGE_WITHIN(y2021, y2020),
+       feb2020in2020 = RANGE_WITHIN(feb2020, y2020),
+       feb2020in2021 = RANGE_WITHIN(feb2020, y2021),
+       feb2021in2020 = RANGE_WITHIN(feb2021, y2020),
+       feb2021in2021 = RANGE_WITHIN(feb2021, y2021),
+       y2020inFeb2020 = RANGE_WITHIN(y2020, feb2020),
+       y2021inFeb2020 = RANGE_WITHIN(y2021, feb2020),
+       y2020inFeb2021 = RANGE_WITHIN(y2020, feb2021),
+       y2021inFeb2021 = RANGE_WITHIN(y2021, feb2021)
+| DROP y2020, y2021, feb2020, feb2021
+;
+
+y2020in2021:bool | y2021in2020:bool | feb2020in2020:bool | feb2020in2021:bool | feb2021in2020:bool | feb2021in2021:bool | y2020inFeb2020:bool | y2021inFeb2020:bool | y2020inFeb2021:bool | y2021inFeb2021:bool
+false            | false            | true               | false              | false              | true               | false               | false               | false               | false
+;
+
+
+fieldRangeWithinRange
+required_capability: date_range_field_type_v2
+
+FROM decades
+| EVAL c1900 = TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z"),
+       c2000 = TO_DATE_RANGE("2000-01-01T00:00:00.000Z..2100-01-01T00:00:00.000Z"),
+       y1975to2005 = TO_DATE_RANGE("1975-01-01T00:00:00.000Z..2006-01-01T00:00:00.000Z"),
+       feb2000 = TO_DATE_RANGE("2000-02-01T00:00:00.000Z..2000-03-01T00:00:00.000Z")
+| EVAL in1900s = RANGE_WITHIN(date_range, c1900),
+       in2000s = RANGE_WITHIN(date_range, c2000),
+       inThirty = RANGE_WITHIN(date_range, y1975to2005),
+       inFeb2000 = RANGE_WITHIN(date_range, feb2000),
+       c1900inRange = RANGE_WITHIN(c1900, date_range),
+       c2000inRange = RANGE_WITHIN(c2000, date_range),
+       thirtyInRange = RANGE_WITHIN(y1975to2005, date_range),
+       feb2000inRange = RANGE_WITHIN(feb2000, date_range)
+| DROP date_range, description, c1900, c2000, y1975to2005, feb2000
+| SORT decade
+;
+
+decade:integer | in1900s:bool | in2000s:bool | inThirty:bool | inFeb2000:bool | c1900inRange:bool | c2000inRange:bool | thirtyInRange:bool | feb2000inRange:bool
+1900           | true         | false        | false         | false          | false             | false             | false              | false
+1910           | true         | false        | false         | false          | false             | false             | false              | false
+1920           | true         | false        | false         | false          | false             | false             | false              | false
+1930           | true         | false        | false         | false          | false             | false             | false              | false
+1940           | true         | false        | false         | false          | false             | false             | false              | false
+1950           | true         | false        | false         | false          | false             | false             | false              | false
+1960           | true         | false        | false         | false          | false             | false             | false              | false
+1970           | true         | false        | false         | false          | false             | false             | false              | false
+1980           | true         | false        | true          | false          | false             | false             | false              | false
+1990           | true         | false        | true          | false          | false             | false             | false              | false
+2000           | false        | true         | false         | false          | false             | false             | false              | true
+2010           | false        | true         | false         | false          | false             | false             | false              | false
+2020           | false        | true         | false         | false          | false             | false             | false              | false
+;
+
+###############################################
 # RANGE_WITHIN with disjunction / boundary (uses decades)
 ###############################################
 

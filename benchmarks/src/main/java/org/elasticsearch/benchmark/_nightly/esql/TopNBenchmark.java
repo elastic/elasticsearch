@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -82,36 +83,31 @@ public class TopNBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
-    }
-
-    static void selfTest() {
-        try {
-            for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
-                for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String sortedInput : TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value()) {
-                        run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
-                    }
-                }
-            }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
         }
     }
 
-    @Param(
+    static void selfTest() {
+        for (String data : Utils.possibleValues(TopNBenchmark.class, "data")) {
+            for (String topCount : Utils.possibleValues(TopNBenchmark.class, "topCount")) {
+                for (String sortedInput : Utils.possibleValues(TopNBenchmark.class, "sortedInput")) {
+                    run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
+                }
+            }
+        }
+    }
+
+    @Param({ LONGS + ASC, LONGS + DESC, INTS + ASC, LONGS + DESC + AND + BYTES_REFS + DESC })
+    @ExtraParam(
         {
-            LONGS + ASC,
-            LONGS + DESC,
-            INTS + ASC,
             DOUBLES + ASC,
             BOOLEANS + ASC,
             BYTES_REFS + ASC,
             LONGS + ASC + AND + LONGS + ASC,
             LONGS + ASC + AND + LONGS + DESC,
             LONGS + DESC + AND + LONGS + DESC,
-            LONGS + ASC + AND + BYTES_REFS + ASC,
-            LONGS + DESC + AND + BYTES_REFS + DESC }
+            LONGS + ASC + AND + BYTES_REFS + ASC }
     )
     public String data;
 
@@ -119,12 +115,13 @@ public class TopNBenchmark {
     public boolean sortedInput;
 
     /*
-        - 4096 is the page size,
+        - 4096 is a fairly normal page size,
         - 10000 reflects using a LIMIT with smaller pages, which seems to be a more realistic
           benchmark than having a LIMIT 10 and receiving pages from the data nodes that
           contain 4096 documents
      */
-    @Param({ "10", "1000", "4096", "10000" })
+    @Param({ "10", "4096", "10000" })
+    @ExtraParam({ "1000" })
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {

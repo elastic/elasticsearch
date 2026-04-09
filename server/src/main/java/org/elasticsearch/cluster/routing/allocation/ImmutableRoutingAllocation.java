@@ -81,16 +81,6 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
-    public boolean hasPendingAsyncFetch() {
-        return false;
-    }
-
-    @Override
-    public void setHasPendingAsyncFetch() {
-        assert false : "This should never be called on an immutable routing allocation";
-    }
-
-    @Override
     public boolean isSimulating() {
         return false;
     }

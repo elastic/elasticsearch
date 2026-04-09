@@ -1041,6 +1041,7 @@ FROM sample_data, sample_data_str,
 
 subqueryInFromWithUnionTypesWithoutCommonTypesWithoutExplicitCasting
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos
@@ -1052,7 +1053,7 @@ FROM sample_data, sample_data_str,
 | SORT @timestamp
 ;
 
-@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:keyword
+@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:unsupported
 1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | null
 2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
 2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
@@ -1127,6 +1128,7 @@ FROM k8s-downsampled, (FROM sample_data)
 
 subqueryInFromWithTimeSeriesDataTypesInMainQueryAndSubquery
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
@@ -1134,7 +1136,7 @@ FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z"
 | SORT @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
-@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
+@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:unsupported
 2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
 2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
 2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
@@ -1186,3 +1188,32 @@ FROM (FROM books | EVAL x = 1 | WHERE x > 100 | KEEP author),
 
 author:text | emp_no:long
 ;
+
+
+subqueryInFromUnionConflictingTypes
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM (FROM sample_data), (FROM sample_data_str)
+| KEEP client_ip
+| LIMIT 1
+;
+
+client_ip:unsupported
+null                 
+;
+
+
+subqueryInFromUnionMixedNumericTypes
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM (FROM employees), (FROM employees_incompatible)
+| KEEP emp_no
+| LIMIT 1
+;
+
+emp_no:unsupported
+null                 
+;
+

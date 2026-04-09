@@ -331,17 +331,42 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     public void testCancelOnExpiry() throws Exception {
-        TimeValue keepAlive = timeValueMillis(between(1000, 2000));
         var request = asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(queryPragmas())
+            // small interval so that we can return quickly on submission
             .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
             .keepOnCompletion(randomBoolean())
-            .keepAlive(keepAlive);
+            .allowPartialResults(false)
+            // large interval so that the tasks won't be cancelled until it has started
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;
+        scriptPermits.drainPermits();
         try {
             try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
                 assertTrue(initialResponse.asyncExecutionId().isPresent());
                 asyncId = initialResponse.asyncExecutionId().get();
+            }
+            // make sure at least one data node driver has started
+            assertBusy(() -> {
+                List<TaskInfo> driverTasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(d -> d.status().toString().contains("Lucene"))
+                    .toList();
+                assertThat(driverTasks, not(empty()));
+                for (TaskInfo driveTask : driverTasks) {
+                    assertFalse(driveTask.cancelled());
+                }
+            });
+            var getRequest = new GetAsyncResultRequest(asyncId).setWaitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+                .setKeepAlive(timeValueMillis(randomIntBetween(1, 100)));
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertTrue(resp.isRunning());
             }
             // all the started drivers were canceled
             assertBusy(() -> {

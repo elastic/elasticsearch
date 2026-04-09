@@ -217,9 +217,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testCancelOnExpiry
-  issue: https://github.com/elastic/elasticsearch/issues/145502
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/145519

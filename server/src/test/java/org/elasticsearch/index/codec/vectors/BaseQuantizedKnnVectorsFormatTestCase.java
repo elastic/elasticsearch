@@ -61,6 +61,7 @@ public abstract class BaseQuantizedKnnVectorsFormatTestCase extends BaseKnnVecto
 
                 HasIndexSlice sliceable = (HasIndexSlice) vectorValues;
                 float[] sliceValues = new float[dimension];
+                assertNotNull(sliceable.getSlice());
                 var slice = sliceable.getSlice().clone();
                 slice.seek(0L);
                 slice.readFloats(sliceValues, 0, dimension);

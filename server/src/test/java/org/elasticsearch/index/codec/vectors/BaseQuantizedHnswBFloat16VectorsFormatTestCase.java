@@ -66,6 +66,7 @@ public abstract class BaseQuantizedHnswBFloat16VectorsFormatTestCase extends Bas
 
                 HasIndexSlice sliceable = (HasIndexSlice) vectorValues;
                 byte[] sliceBytes = new byte[dimension * BFloat16.BYTES];
+                assertNotNull(sliceable.getSlice());
                 var slice = sliceable.getSlice().clone();
                 slice.seek(0L);
                 slice.readBytes(sliceBytes, 0, sliceBytes.length);

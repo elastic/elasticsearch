@@ -35,8 +35,8 @@ steps:
           agents:
             provider: gcp
             image: family/elasticsearch-ubuntu-2004
-            machineType: e2-standard-32
-            diskType: pd-ssd
+            machineType: n4-standard-32
+            diskType: hyperdisk-balanced
             buildDirectory: /dev/shm/bk
           matrix:
             setup:

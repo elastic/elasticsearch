@@ -12,8 +12,8 @@ package org.elasticsearch.test.apmintegration;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 import org.junit.rules.ExternalResource;
 
@@ -93,10 +93,17 @@ public class RecordingApmServer extends ExternalResource {
                     if (requestBody != null) {
                         if ("/v1/metrics".equals(path)) {
                             received.addAll(OtlpMetricsParser.parse(requestBody));
+                        } else if ("/v1/traces".equals(path)) {
+                            received.addAll(OtlpTracesParser.parse(requestBody));
                         } else {
                             List<String> lines = readJsonMessages(requestBody);
                             for (String line : lines) {
-                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                                ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
+                                    if (msg instanceof ReceivedTelemetry.ReceivedSpan s) {
+                                        logger.debug("APM span received: {}", s);
+                                    }
+                                    received.add(msg);
+                                });
                             }
                         }
                     }

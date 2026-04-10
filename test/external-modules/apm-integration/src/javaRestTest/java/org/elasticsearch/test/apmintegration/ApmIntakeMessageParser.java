@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +30,10 @@ import java.util.Set;
 public final class ApmIntakeMessageParser {
 
     static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata");
+
+    private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
+    private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
+    private static final Set<String> ERROR_DECODED_KEYS = Set.of("id", "trace_id", "transaction_id", "parent_id", "exception");
 
     private ApmIntakeMessageParser() {}
 
@@ -50,6 +55,8 @@ public final class ApmIntakeMessageParser {
                 return Optional.of(parseTransaction(map));
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
+            } else if (map.containsKey("error")) {
+                return Optional.of(parseError(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
                 // We don't care about these
                 return Optional.empty();
@@ -131,7 +138,10 @@ public final class ApmIntakeMessageParser {
             throw new IOException("transaction missing name or trace_id");
         }
         String spanId = id != null ? id : "";
-        return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, Optional.empty());
+        String parentId = getString(transaction, "parent_id");
+        Optional<String> parent = (parentId == null || parentId.isEmpty()) ? Optional.empty() : Optional.of(parentId);
+        Map<String, Object> attributes = flattenAttributes(transaction, TRANSACTION_DECODED_KEYS);
+        return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, parent, attributes);
     }
 
     @SuppressWarnings("unchecked")
@@ -151,7 +161,67 @@ public final class ApmIntakeMessageParser {
         if (parentId == null) {
             parentId = getString(span, "transaction_id");
         }
-        return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId));
+        Map<String, Object> attributes = flattenAttributes(span, SPAN_DECODED_KEYS);
+        return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId), attributes);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ReceivedTelemetry parseError(Map<String, Object> root) throws IOException {
+        Object errorObj = root.get("error");
+        if (errorObj == null || (errorObj instanceof Map<?, ?> == false)) {
+            throw new IOException("error missing or not an object");
+        }
+        Map<String, Object> error = (Map<String, Object>) errorObj;
+        String id = getString(error, "id");
+        String traceId = getString(error, "trace_id");
+        if (id == null || traceId == null) {
+            throw new IOException("error missing id or trace_id");
+        }
+        String txId = getString(error, "transaction_id");
+        if (txId == null) {
+            txId = getString(error, "parent_id");
+        }
+        Object exceptionObj = error.get("exception");
+        String exceptionType = "";
+        String exceptionMessage = "";
+        boolean hasStacktrace = false;
+        if (exceptionObj instanceof Map<?, ?> exception) {
+            exceptionType = getString((Map<String, Object>) exception, "type");
+            if (exceptionType == null) exceptionType = "";
+            exceptionMessage = getString((Map<String, Object>) exception, "message");
+            if (exceptionMessage == null) exceptionMessage = "";
+            Object stacktrace = exception.get("stacktrace");
+            hasStacktrace = stacktrace instanceof List<?> list && list.isEmpty() == false;
+        }
+        return new ReceivedTelemetry.ReceivedError(id, traceId, Optional.ofNullable(txId), exceptionType, exceptionMessage, hasStacktrace);
+    }
+
+    /**
+     * Produces a flat dot-notation map from a nested APM intake object,
+     * skipping the top-level keys that are already decoded into typed fields.
+     * For example, {@code {"context":{"request":{"method":"GET"}}}} becomes
+     * {@code {"context.request.method": "GET"}}.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> flattenAttributes(Map<String, Object> source, Set<String> exclude) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (exclude.contains(entry.getKey()) == false) {
+                flattenInto(entry.getKey(), entry.getValue(), result);
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void flattenInto(String key, Object value, Map<String, Object> out) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                flattenInto(key + "." + entry.getKey(), entry.getValue(), out);
+            }
+        } else if (value != null) {
+            out.put(key, value);
+        }
     }
 
     private static String getString(Map<String, Object> map, String key) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,13 +39,41 @@ public sealed interface ReceivedTelemetry {
 
     /**
      * Root span (aka "transaction") has {@code parentSpanId} empty.
+     * {@code attributes} is a flat map of span attributes using dot-notation keys
+     * (e.g. {@code "context.request.method"} for APM intake, OTel semantic keys for OTLP).
+     * Use this to discover and assert on protocol-specific fields.
      */
-    record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId) implements ReceivedTelemetry {
+    record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId, Map<String, Object> attributes)
+        implements
+            ReceivedTelemetry {
         public ReceivedSpan {
             requireNonNull(name);
             requireNonNull(traceId);
             requireNonNull(spanId);
             parentSpanId.ifPresent(Objects::requireNonNull);
+            attributes = Collections.unmodifiableMap(requireNonNull(attributes));
+        }
+    }
+
+    /**
+     * An error event captured from the APM intake protocol.
+     * {@code hasStacktrace} is {@code true} when the APM agent included stack frames
+     * (i.e. {@code stack_trace_limit > 0}); {@code false} when frames were suppressed.
+     */
+    record ReceivedError(
+        String id,
+        String traceId,
+        Optional<String> transactionId,
+        String exceptionType,
+        String exceptionMessage,
+        boolean hasStacktrace
+    ) implements ReceivedTelemetry {
+        public ReceivedError {
+            requireNonNull(id);
+            requireNonNull(traceId);
+            transactionId.ifPresent(Objects::requireNonNull);
+            requireNonNull(exceptionType);
+            requireNonNull(exceptionMessage);
         }
     }
 

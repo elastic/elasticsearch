@@ -229,10 +229,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     private static void addSingleValueDoc(RandomIndexWriter writer, String fieldName, String value) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-            fieldName,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-        );
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
         field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         var countField = NumericDocValuesField.indexedField(fieldName + ".counts", 1);
         document.add(field);
@@ -242,10 +239,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     private static void addMultiValueDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-            fieldName,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-        );
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
         for (String value : values) {
             field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         }

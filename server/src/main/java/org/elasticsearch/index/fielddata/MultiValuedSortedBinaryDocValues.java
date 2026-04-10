@@ -74,7 +74,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     public abstract BytesRef nextValue() throws IOException;
 
     /**
-     * Multivalued binary doc values encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}.
+     * Multivalued binary doc values encoded by {@link org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField}.
      * These have the form: [doc value count][length of value 1][value 1][length of value 2][value 2]...
      */
     private static class IntegratedCounts extends MultiValuedSortedBinaryDocValues {

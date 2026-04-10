@@ -210,6 +210,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145519
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
+  method: testTopNByKeyEncoderTooMuchMemory
+  issue: https://github.com/elastic/elasticsearch/issues/145627
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/145654
@@ -222,9 +225,9 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testApplicationDefaultCredentialsFallbackToComputeEngine
-  issue: https://github.com/elastic/elasticsearch/issues/145689
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/145855
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/145877

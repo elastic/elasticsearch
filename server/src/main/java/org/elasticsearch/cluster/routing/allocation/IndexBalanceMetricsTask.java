@@ -131,19 +131,31 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         clusterService.addListener(taskStarter);
         for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
             final int bucket = i;
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongsGauge(
                 PRIMARY_METRIC_NAMES[i],
                 "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " primary shard imbalance",
                 "{index}",
-                () -> new LongWithAttributes(lastState.get().primaryBalanceHistogram()[bucket])
+                () -> publishIfNotEmpty(lastState.get(), true, bucket)
             );
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongsGauge(
                 REPLICA_METRIC_NAMES[i],
                 "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " replica shard imbalance",
                 "{index}",
-                () -> new LongWithAttributes(lastState.get().replicaBalanceHistogram()[bucket])
+                () -> publishIfNotEmpty(lastState.get(), false, bucket)
             );
         }
+    }
+
+    private static List<LongWithAttributes> publishIfNotEmpty(
+        IndexBalanceMetrics.IndexBalanceState state,
+        boolean primary,
+        int bucketIndex
+    ) {
+        if (state == IndexBalanceMetrics.IndexBalanceState.EMPTY) {
+            return List.of();
+        }
+        final var histogram = primary ? state.primaryBalanceHistogram() : state.replicaBalanceHistogram();
+        return List.of(new LongWithAttributes(histogram[bucketIndex]));
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

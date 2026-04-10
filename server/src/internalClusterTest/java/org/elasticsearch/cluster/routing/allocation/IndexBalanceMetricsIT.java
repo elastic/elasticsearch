@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -46,7 +47,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(TestTelemetryPlugin.class)).toList();
     }
 
-    public void testIndexBalanceMetricsTaskStartedAndAssigned() throws Exception {
+    public void testIndexBalanceMetricsTaskStartedAndAssigned() {
         internalCluster().startNode();
         ensureGreen();
         awaitClusterState(state -> IndexBalanceMetricsTask.Task.findTask(state) != null);
@@ -79,7 +80,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         final int numIndices = between(1, 5);
         final int numPrimaries = between(1, 3);
         final int numReplicas = between(1, numNodes - 1);
-        internalCluster().startNodes(numNodes);
+        final var allNodeNames = internalCluster().startNodes(numNodes);
         ensureGreen();
 
         for (int i = 0; i < numIndices; i++) {
@@ -103,6 +104,21 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
             assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.PRIMARY_METRIC_NAMES, numIndices);
             assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.REPLICA_METRIC_NAMES, numIndices);
         });
+
+        // Only the executor node should be publishing metrics
+        for (String otherNodeName : allNodeNames) {
+            if (otherNodeName.equals(executorNodeName)) {
+                continue;
+            }
+            final var otherNodeTelemetryPlugin = getTelemetryPlugin(otherNodeName);
+            otherNodeTelemetryPlugin.collect();
+            for (String metricName : IndexBalanceMetricsTask.PRIMARY_METRIC_NAMES) {
+                assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
+            }
+            for (String metricName : IndexBalanceMetricsTask.REPLICA_METRIC_NAMES) {
+                assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
+            }
+        }
     }
 
     private static void assertImbalanceMetrics(TestTelemetryPlugin plugin, String[] metricNames, int expectedTotal) {

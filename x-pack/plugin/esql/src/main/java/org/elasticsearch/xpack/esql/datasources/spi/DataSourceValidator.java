@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceStoredSetting;
 import org.elasticsearch.common.ValidationException;
 
 import java.util.Map;

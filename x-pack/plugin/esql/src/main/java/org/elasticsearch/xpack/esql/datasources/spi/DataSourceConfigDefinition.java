@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceStoredSetting;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;

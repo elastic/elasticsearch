@@ -793,7 +793,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         );
     }
 
-    //TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
+    // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
         var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {

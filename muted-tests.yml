@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
-- class: org.elasticsearch.reindex.ReindexBasicTests
-  method: testReindexFailsWhenSourceIndexIsClosed
-  issue: https://github.com/elastic/elasticsearch/issues/146031
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/146032

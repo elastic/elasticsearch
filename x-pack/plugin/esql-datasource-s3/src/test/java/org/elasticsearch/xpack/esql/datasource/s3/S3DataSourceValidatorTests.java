@@ -16,11 +16,7 @@ import java.util.Set;
 
 public class S3DataSourceValidatorTests extends ESTestCase {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator(
-        "s3",
-        S3Configuration::fromMap,
-        Set.of("s3://", "s3a://", "s3n://")
-    );
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
 
     public void testType() {
         assertEquals("s3", validator.type());

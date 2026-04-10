@@ -57,7 +57,7 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators() {
-        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
+        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }
 }

@@ -276,6 +276,10 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145963
+- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
+  method: testIterateAsyncVisitsLeavesInDocIdOrder
+  issue: https://github.com/elastic/elasticsearch/issues/146078
+
 
 # Examples:
 #

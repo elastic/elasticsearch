@@ -72,6 +72,20 @@ public class ExternalChangelogSourceTests {
             IllegalArgumentException.class,
             () -> BundleChangelogsTask.normalizeBranchForExternalFetch("abc1234def5678")
         );
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> BundleChangelogsTask.normalizeBranchForExternalFetch("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2")
+        );
+    }
+
+    @Test
+    public void testIsShaRef() {
+        assertThat(BundleChangelogsTask.isShaRef("abc1234"), equalTo(true));
+        assertThat(BundleChangelogsTask.isShaRef("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"), equalTo(true));
+        assertThat(BundleChangelogsTask.isShaRef("main"), equalTo(false));
+        assertThat(BundleChangelogsTask.isShaRef("9.3"), equalTo(false));
+        assertThat(BundleChangelogsTask.isShaRef("upstream/main"), equalTo(false));
+        assertThat(BundleChangelogsTask.isShaRef("feature/foo"), equalTo(false));
     }
 
     @Test

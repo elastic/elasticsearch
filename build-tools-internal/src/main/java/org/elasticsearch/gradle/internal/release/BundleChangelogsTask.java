@@ -246,6 +246,10 @@ public class BundleChangelogsTask extends DefaultTask {
      * the parsed entries.
      */
     private List<ChangelogEntry> fetchExternalChangelogs(ExternalChangelogSource source, String branchRef) {
+        if (isShaRef(branchRef)) {
+            LOGGER.info("Skipping external changelog fetch from {} for SHA ref {}", source.sourceRepo(), branchRef);
+            return List.of();
+        }
         String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
 
         try {
@@ -296,8 +300,12 @@ public class BundleChangelogsTask extends DefaultTask {
      * All other refs (including branch names with slashes like {@code feature/foo})
      * are passed through unchanged.
      */
+    static boolean isShaRef(String ref) {
+        return ref.matches("^[0-9a-f]{7,40}$");
+    }
+
     static String normalizeBranchForExternalFetch(String branchRef) {
-        if (branchRef.matches("^[0-9a-f]{7,40}$")) {
+        if (isShaRef(branchRef)) {
             throw new IllegalArgumentException(
                 "Cannot use a commit SHA (" + branchRef + ") for external changelog sources. Use a branch name instead."
             );

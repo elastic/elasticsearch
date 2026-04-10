@@ -57,12 +57,12 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
 
     private record SvPair(Attribute sum, Attribute count) {}
 
-    private record Match(Alias alias, Expression dataExpr, Expression constant, Sum sum, boolean isSubtraction, boolean fieldIsLeft) {
+    private record Match(Alias alias, Expression dataExpr, Expression constant, Sum sum, boolean isSubtraction, boolean constantIsRight) {
         Key key() {
             return new Key(dataExpr.canonical(), sum.summationMode().canonical());
         }
 
-        private record Key(Expression field, Expression summationMode) {}
+        private record Key(Expression expr, Expression summationMode) {}
     }
 
     /**
@@ -95,30 +95,30 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
     protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext context) {
         var source = aggregate.source();
 
-        // Pass 1: count matches per (field, summationMode) key.
-        Map<Match.Key, Long> fieldMatchCount = aggregate.aggregates()
+        // Pass 1: count matches per (expression, summationMode) key.
+        Map<Match.Key, Long> exprMatchCount = aggregate.aggregates()
             .stream()
             .map(RewriteSumFieldPlusConstant::tryMatch)
             .filter(Objects::nonNull)
             .collect(Collectors.groupingBy(Match::key, Collectors.counting()));
 
-        // Only rewrite fields that appear in 2 or more SUM expressions
-        if (fieldMatchCount.values().stream().noneMatch(c -> c >= 2)) {
+        // Only rewrite expressions that appear in 2 or more SUM expressions
+        if (exprMatchCount.values().stream().noneMatch(c -> c >= 2)) {
             return aggregate;
         }
 
-        // Pass 2: rewrite eligible expressions, sharing a single SUM(sv)/COUNT(sv) pair per field.
-        Map<Match.Key, SvPair> fieldToSvPair = new HashMap<>();
+        // Pass 2: rewrite eligible expressions, sharing a single SUM(sv)/COUNT(sv) pair per expression.
+        Map<Match.Key, SvPair> exprToSvPair = new HashMap<>();
         List<NamedExpression> newAggs = new ArrayList<>();
         List<Alias> newEvals = new ArrayList<>();
         int[] counter = { 0 };
 
         for (NamedExpression agg : aggregate.aggregates()) {
             Match m = tryMatch(agg);
-            if (m != null && fieldMatchCount.getOrDefault(m.key(), 0L) >= 2) {
+            if (m != null && exprMatchCount.getOrDefault(m.key(), 0L) >= 2) {
                 final Expression de = m.dataExpr();
                 final Sum fs = m.sum();
-                SvPair pair = fieldToSvPair.computeIfAbsent(m.key(), k -> {
+                SvPair pair = exprToSvPair.computeIfAbsent(m.key(), k -> {
                     var sv = new MvSingleValueOrNull(fs.field().source(), de);
                     var svSumName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);
                     var svSumExpr = new Sum(
@@ -140,7 +140,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
 
                 var countMulConst = new Mul(source, m.constant(), pair.count());
                 Expression evalExpr;
-                if (m.isSubtraction() && m.fieldIsLeft()) {
+                if (m.isSubtraction() && m.constantIsRight()) {
                     // SUM(field - c) → SUM(sv) - c * COUNT(sv)
                     evalExpr = new Sub(source, pair.sum(), countMulConst, context.configuration());
                 } else if (m.isSubtraction()) {

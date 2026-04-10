@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -101,7 +102,11 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
-                "[" + indexName + "][0][P] is relocating (move(no)) from [node-1] to [node-2]"
+                "["
+                    + indexName
+                    + "][0][P] is relocating ("
+                    + BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON
+                    + ") from [node-1] to [node-2]"
             ),
             new MockLog.SeenEventExpectation(
                 "Should log shard starting",

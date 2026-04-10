@@ -564,8 +564,8 @@ public class DesiredBalanceReconciler {
 
         private static String getReason(Decision canRemainDecision) {
             return switch (canRemainDecision.type()) {
-                case NO -> "move(no)";
-                case NOT_PREFERRED -> "move(not preferred)";
+                case NO -> BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON;
+                case NOT_PREFERRED -> BalancedShardsAllocator.MOVE_NOT_PREFERRED_REASON;
                 default -> {
                     assert false : "All moves should have canRemain NO or NOT_PREFERRED";
                     yield "move";

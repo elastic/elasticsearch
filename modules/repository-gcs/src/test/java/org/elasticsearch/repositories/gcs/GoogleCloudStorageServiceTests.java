@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.Storage;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;

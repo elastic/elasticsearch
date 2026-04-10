@@ -84,6 +84,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
     public static final String MOVE_NOT_PREFERRED_REASON = "move(not-preferred)";
     public static final String MOVE_CANNOT_REMAIN_REASON = "move(cannot-remain)";
+    public static final String REBALANCE_REASON = "rebalance";
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",
@@ -1665,7 +1666,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         projectIndex(shard),
                         canAllocateOrRebalance == Type.YES
                             /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, "rebalance", allocation.changes()).v1()
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, REBALANCE_REASON, allocation.changes()).v1()
                             : shard.relocate(minNode.getNodeId(), shardSize)
                     );
                     return true;

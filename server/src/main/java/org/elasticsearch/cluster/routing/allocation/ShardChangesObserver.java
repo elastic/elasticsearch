@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.MOVE_NOT_PREFERRED_REASON;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.REBALANCE_REASON;
 
 /// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
 class ShardChangesObserver implements RoutingChangesObserver {
@@ -38,8 +39,8 @@ class ShardChangesObserver implements RoutingChangesObserver {
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
     static final Map<String, Map<String, Object>> RELOCATION_ATTRIBUTES = Map.of(
-        "rebalance",
-        Map.of("es_relocation_reason", "rebalance"),
+        REBALANCE_REASON,
+        Map.of("es_relocation_reason", REBALANCE_REASON),
         MOVE_CANNOT_REMAIN_REASON,
         Map.of("es_relocation_reason", MOVE_CANNOT_REMAIN_REASON),
         MOVE_NOT_PREFERRED_REASON,

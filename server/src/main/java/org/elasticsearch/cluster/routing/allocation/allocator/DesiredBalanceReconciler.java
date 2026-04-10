@@ -643,7 +643,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "rebalance",
+                            BalancedShardsAllocator.REBALANCE_REASON,
                             allocation.changes()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());

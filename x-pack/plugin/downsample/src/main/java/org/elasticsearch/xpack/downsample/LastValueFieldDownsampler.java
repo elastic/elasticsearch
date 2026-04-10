@@ -142,7 +142,7 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
                     } else {
                         return null;
                     }
-                });
+                }, FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE);
                 helper.write(builder);
                 builder.endObject();
             }

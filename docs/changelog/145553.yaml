@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145553
+summary: Improve ndjson schema inference for date-time
+type: enhancement

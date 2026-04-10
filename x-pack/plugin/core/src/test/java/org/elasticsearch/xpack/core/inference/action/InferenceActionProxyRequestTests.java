@@ -68,7 +68,7 @@ public class InferenceActionProxyRequestTests extends AbstractBWCWireSerializati
             InferenceContextTests.createRandom()
         );
 
-        var timeoutNetDetermined = new InferenceActionProxy.Request(
+        var timeoutNotDetermined = new InferenceActionProxy.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             randomBytesReference(10),
@@ -78,7 +78,7 @@ public class InferenceActionProxyRequestTests extends AbstractBWCWireSerializati
             InferenceContextTests.createRandom()
         );
 
-        assertThat(negativeTimeout, not(timeoutNetDetermined));
+        assertThat(negativeTimeout, not(timeoutNotDetermined));
     }
 
     @Override

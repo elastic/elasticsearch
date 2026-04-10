@@ -139,7 +139,7 @@ public class PutInferenceModelActionRequestTests extends AbstractBWCWireSerializ
             case 3 -> contentType = randomValueOtherThan(contentType, () -> randomFrom(XContentType.values()));
             case 4 -> {
                 if (timeout == null || timeout.equals(TIMEOUT_NOT_DETERMINED)) {
-                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DEFINED, which would not mutate the instance
+                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
                     timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
                 } else {
                     timeout = randomValueOtherThan(timeout, () -> randomFrom(randomTimeValue(), null));

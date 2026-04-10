@@ -545,7 +545,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             case 7 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(InputType.values()));
             case 8 -> {
                 if (inferenceTimeout.equals(TIMEOUT_NOT_DETERMINED)) {
-                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DEFINED, which would not mutate the instance
+                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
                     inferenceTimeout = randomValueOtherThan(inferenceTimeout, ESTestCase::randomTimeValue);
                 } else {
                     inferenceTimeout = randomValueOtherThan(inferenceTimeout, () -> randomFrom(randomTimeValue(), null));

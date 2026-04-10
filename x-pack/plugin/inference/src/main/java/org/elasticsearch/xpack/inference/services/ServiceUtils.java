@@ -1088,7 +1088,15 @@ public final class ServiceUtils {
     }
 
     /**
-     * Resolves the inference timeout based on input type, task type and cluster settings. If the supplied timeout is null and
+     * Resolves the inference timeout based on input type, task type and cluster settings. If the supplied timeout is not {@code null} or
+     * {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED}, the supplied timeout is returned.
+     * <p>
+     * If the supplied timeout is {@code null} or {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED} <b>and</b> the {@link InputType}
+     * is {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the configured {@link InferencePlugin#INFERENCE_QUERY_TIMEOUT}
+     * from the cluster settings is returned.
+     * <p>
+     * If the {@link InputType} is not {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the default timeout for the
+     * {@link TaskType} is returned.
      *
      * @param timeout        The provided timeout value, may be null
      * @param inputType      The input type for the inference request

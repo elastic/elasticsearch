@@ -123,7 +123,9 @@ public class ApproximationTests extends ApproximationTestCase {
         );
         assertError(
             "FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x",
-            equalTo("line 1:13: approximation not supported: query with [CHANGE_POINT salary ON emp_no] before [STATS] cannot be approximated")
+            equalTo(
+                "line 1:13: approximation not supported: query with [CHANGE_POINT salary ON emp_no] before [STATS] cannot be approximated"
+            )
         );
     }
 

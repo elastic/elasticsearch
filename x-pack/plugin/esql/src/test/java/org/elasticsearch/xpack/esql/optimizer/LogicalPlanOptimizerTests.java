@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
@@ -9972,6 +9973,55 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // EsRelation[test]
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
+    }
+
+    public void testFullTextFunctionQueryArgFoldedFromConcat() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = optimizedPlan(String.format(Locale.ROOT, """
+            from test
+            | where %s(last_name, concat("Do", "e"))
+            """, functionName));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        FieldAttribute lastName = as(fullTextFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", lastName.name());
+        Literal queryLiteral = as(fullTextFunction.query(), Literal.class);
+        assertEquals(new BytesRef("Doe"), queryLiteral.value());
+    }
+
+    public void testFullTextFunctionQueryArgPropagatedFromEval() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = optimizedPlan(String.format(Locale.ROOT, """
+            from test
+            | eval q = "Doe"
+            | where %s(last_name, q)
+            """, functionName));
+
+        // Eval is retained in the plan even after propagation
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        FieldAttribute lastName = as(fullTextFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", lastName.name());
+        Literal queryLiteral = as(fullTextFunction.query(), Literal.class);
+        assertEquals(new BytesRef("Doe"), queryLiteral.value());
+    }
+
+    public void testQueryStringFunctionQueryArgFoldedFromConcat() {
+        String functionName = randomFrom("qstr", "kql");
+        var plan = optimizedPlan(String.format(Locale.ROOT, """
+            from test
+            | where %s(concat("last_name:", "Doe"))
+            """, functionName));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), FullTextFunction.class);
+        Literal queryLiteral = as(fullTextFunction.query(), Literal.class);
+        assertEquals(new BytesRef("last_name:Doe"), queryLiteral.value());
     }
 
     /**

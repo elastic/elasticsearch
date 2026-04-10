@@ -61,7 +61,10 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         assert sampleProbability < 1.0;
 
         // The only non-unary plans that are currently supported are Joins.
-        // For these, only the first index needs to be sampled.
+        // At the moment, the left side of the join is the "expensive" side and
+        // will be sampled, while the right side is just a lookup table.
+        // This will probably change in the future, in which case ths logic
+        // must be reconsidered.
         Holder<Boolean> sampledAdded = new Holder<>(false);
         PhysicalPlan child = plan.child().transformDown(p -> {
             if (p instanceof LeafExec && sampledAdded.get() == false) {

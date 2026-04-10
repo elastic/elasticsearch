@@ -48,12 +48,12 @@ static inline __m256 apply_base_corrections(
 }
 
 // BBQ inline correction layout: corrections are stored after each vector's quantized bytes.
-// Per-vector layout at offset (node[i] * pitchInBytes + vectorSizeInBytes):
+// Per-vector layout at offset (vectorSizeInBytes) from each address:
 //   float lowerInterval, float upperInterval, float additionalCorrection, short targetComponentSum
-// Since nodes may be arbitrary ordinals, we load corrections individually and pack into SIMD registers.
+// Since vectors may be at arbitrary addresses, we load corrections individually and pack into SIMD registers.
 
 static inline void bbq_load_corrections_8(
-    const void *const data,
+    const void* const* addresses,
     const int32_t vectorSizeInBytes,
     __m256& lowerInterval,
     __m256& upperInterval,
@@ -65,7 +65,7 @@ static inline void bbq_load_corrections_8(
     alignas(32) f32_t li[8], ui[8], ac[8];
     alignas(32) int32_t tcs[8];
     for (int j = 0; j < 8; ++j) {
-        const int8_t* base = (const int8_t*)data + vectorSizeInBytes;
+        const int8_t* base = (const int8_t*)addresses[j] + vectorSizeInBytes;
         li[j] = *(const f32_t*)base;
         ui[j] = *(const f32_t*)(base + sizeof(f32_t));
         ac[j] = *(const f32_t*)(base + 2 * sizeof(f32_t));
@@ -103,7 +103,7 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
+        bbq_load_corrections_8(addresses + i, vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(
@@ -161,7 +161,7 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
+        bbq_load_corrections_8(addresses + i, vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(
@@ -224,7 +224,7 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
+        bbq_load_corrections_8(addresses + i, vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(

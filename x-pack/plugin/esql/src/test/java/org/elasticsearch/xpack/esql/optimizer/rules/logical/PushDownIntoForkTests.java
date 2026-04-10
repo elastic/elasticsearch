@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.is;
 public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#18,ASC,LAST]],10[INTEGER],false]
      * \_Fork[[_meta_field{r}#17, emp_no{r}#18, first_name{r}#19, gender{r}#20, hire_date{r}#21, job{r}#22, job.raw{r}#23, l
      * anguages{r}#24, last_name{r}#25, long_noidx{r}#26, salary{r}#27, _fork{r}#28]]
@@ -49,7 +49,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *       \_Eval[[fork1[KEYWORD] AS _fork#4]]
      *         \_Filter[emp_no{f}#6 > 100[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     * }</pre>
+     * }
      */
     public void testWithASingleBranch() {
         var query = """
@@ -75,7 +75,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#30,ASC,LAST]],10[INTEGER],false]
      * \_Fork[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35, l
      * anguages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39, _fork{r}#40]]
@@ -91,7 +91,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *       \_Eval[[fork2[KEYWORD] AS _fork#4]]
      *         \_Filter[emp_no{f}#18 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
-     * }</pre>
+     * }
      */
     public void testSimple() {
         var query = """
@@ -121,7 +121,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[_fork{r}#92, emp_no{r}#81, hd{r}#94, x{r}#91, y{r}#93]]
      * \_TopN[[Order[_fork{r}#92,DESC,FIRST], Order[emp_no{r}#81,ASC,LAST], Order[hd{r}#94,DESC,FIRST]],10[INTEGER],false]
      *   \_Fork[[emp_no{r}#81, x{r}#91, _fork{r}#92, y{r}#93, hd{r}#94]]
@@ -142,7 +142,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      * ME_DURATION]) AS y#17, hd{r}#12]]
      *           \_Eval[[DATETRUNC(P2Y[DATE_PERIOD],hire_date{f}#59) AS hd#12]]
      *             \_EsRelation[employees][_meta_field{f}#58, emp_no{f}#52, first_name{f}#53, ..]
-     * }</pre>
+     * }
      */
     public void testWithMixedBranches() {
         var query = """
@@ -191,7 +191,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#32,ASC,LAST]],20[INTEGER],false]
      * \_Fork[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37, l
      * anguages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, _fork{r}#42]]
@@ -207,7 +207,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *       \_TopN[[Order[salary{f}#25,ASC,LAST]],10[INTEGER],false]
      *         \_Filter[emp_no{f}#20 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
-     * }</pre>
+     * }
      */
     public void testNoPushDownWhenLimitExists() {
         var query = """
@@ -238,7 +238,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#32,ASC,LAST]],20[INTEGER],false]
      * \_Fork[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37, l
      * anguages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, _fork{r}#42]]
@@ -254,7 +254,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *       \_TopN[[Order[salary{f}#25,ASC,LAST]],10[INTEGER],false]
      *         \_Filter[emp_no{f}#20 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
-     * }</pre>
+     * }
      */
     public void testWithEmptyForkBranch() {
         var query = """
@@ -289,7 +289,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#29,ASC,LAST]],20[INTEGER],false]
      * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
      * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
@@ -303,7 +303,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Subquery[]
      *       \_Filter[emp_no{f}#17 < 10[INTEGER]]
      *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     * }</pre>
+     * }
      */
     public void testWithSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -332,7 +332,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#32,ASC,LAST]],10[INTEGER],false]
      * \_Fork[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37, l
      * anguages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, _fork{r}#42]]
@@ -348,7 +348,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *       \_Eval[[fork2[KEYWORD] AS _fork#5]]
      *         \_Filter[emp_no{f}#20 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
-     * }</pre>
+     * }
      */
     public void testWithForkAndUnboundedOrderBy() {
         var query = """
@@ -378,7 +378,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[c{r}#27,ASC,LAST]],10[INTEGER],false]
      * \_Fork[[a{r}#25, b{r}#26, c{r}#27, _fork{r}#28]]
      *   |_Project[[a{r}#19, b{r}#20, c{r}#21, _fork{r}#16]]
@@ -395,7 +395,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
      *           \_MvExpand[b{r}#6,b{r}#23]
      *             \_MvExpand[a{r}#4,a{r}#22]
      *               \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{...}]
-     * }</pre>
+     * }
      */
     public void testWithForkAndUnboundedOrderByAndRow() {
         var query = """

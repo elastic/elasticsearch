@@ -19,8 +19,5 @@ serverless: preview
 :::{include} ../description/range_max.md
 :::
 
-:::{include} ../types/range_max.md
-:::
-
 :::{include} ../examples/range_max.md
 :::

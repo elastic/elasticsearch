@@ -721,7 +721,7 @@ public abstract class DocsV3Support {
                     description.type()
                 );
             }
-            renderTypes(name, description.args());
+            boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             assert info != null;
@@ -736,7 +736,7 @@ public abstract class DocsV3Support {
             }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(info, hasExamples, hasAppendix, hasFunctionOptions);
+            renderFullLayout(info, hasTypes, hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, null, info);
             renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic(), getObservabilityTier());
         }
@@ -813,8 +813,13 @@ public abstract class DocsV3Support {
             return appliesToText.toString();
         }
 
-        private void renderFullLayout(FunctionInfo info, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
-            throws IOException {
+        private void renderFullLayout(
+            FunctionInfo info,
+            boolean hasTypes,
+            boolean hasExamples,
+            boolean hasAppendix,
+            boolean hasFunctionOptions
+        ) throws IOException {
             // H2 heading generation removed here
             StringBuilder rendered = new StringBuilder(
                 DOCS_WARNING + """
@@ -830,8 +835,11 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
             );
-            for (String section : new String[] { "parameters", "description", "types" }) {
+            for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
+            }
+            if (hasTypes) {
+                rendered.append(addInclude("types"));
             }
             if (hasFunctionOptions) {
                 rendered.append(addInclude("functionNamedParams"));
@@ -1132,7 +1140,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        boolean renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
             assert args.size() == 2;
             StringBuilder header = new StringBuilder("| ");
             StringBuilder separator = new StringBuilder("| ");
@@ -1161,7 +1169,7 @@ public abstract class DocsV3Support {
             Collections.sort(table);
             if (table.isEmpty()) {
                 logger.info("Warning: No table of types generated for [{}]", name);
-                return;
+                return false;
             }
 
             String rendered = DOCS_WARNING + """
@@ -1171,6 +1179,7 @@ public abstract class DocsV3Support {
             logger.info("Writing function types for [{}]", name);
             logger.debug("{}", rendered);
             writeToTempSnippetsDir("types", rendered);
+            return true;
         }
     }
 
@@ -1404,7 +1413,7 @@ public abstract class DocsV3Support {
         return "## " + title + "\n\n";
     }
 
-    void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+    boolean renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         boolean showResultColumn = signatures.get().stream().map(TypeSignature::returnType).anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
@@ -1431,7 +1440,7 @@ public abstract class DocsV3Support {
         Collections.sort(table);
         if (table.isEmpty()) {
             logger.info("Warning: No table of types generated for [{}]", name);
-            return;
+            return false;
         }
 
         String rendered = DOCS_WARNING
@@ -1445,6 +1454,7 @@ public abstract class DocsV3Support {
         logger.info("Writing function types for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
+        return true;
     }
 
     /**

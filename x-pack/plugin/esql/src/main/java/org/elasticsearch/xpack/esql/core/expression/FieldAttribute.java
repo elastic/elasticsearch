@@ -46,7 +46,7 @@ import java.util.Set;
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public sealed class FieldAttribute extends TypedAttribute permits TemporalityAttribute, TimeSeriesMetadataAttribute, UnsupportedAttribute {
+public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMetadataAttribute, UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.

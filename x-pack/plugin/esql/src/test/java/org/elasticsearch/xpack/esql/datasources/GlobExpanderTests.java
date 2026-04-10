@@ -185,7 +185,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateHints() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // First wildcard maps to {year} → rewritten to 2024
         assertEquals("s3://bucket/2024/*/*.parquet", rewritten);
@@ -193,7 +193,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateInHints() {
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // Second wildcard maps to {month} → rewritten to {1,2}
         assertEquals("s3://bucket/*/{1,2}/*.parquet", rewritten);
@@ -201,7 +201,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         // Range hints are not rewritable, so pattern should be unchanged
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
@@ -209,7 +209,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testRewriteGlobWithTemplateNoMatchingHints() {
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east"));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         // "region" not in template, so Hive rewriting also won't match → unchanged
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
@@ -220,7 +220,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
             hint("day", PartitionFilterHintExtractor.Operator.EQUALS, 15)
         );
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}/{day}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}/{day}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
     }
@@ -231,7 +231,7 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet", 200)
         );
         StubProvider provider = new StubProvider(listing);
-        PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
@@ -248,7 +248,7 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet", 200)
         );
         StubProvider provider = new StubProvider(listing);
-        PartitionConfig config = new PartitionConfig(PartitionConfig.NONE, null);
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.NONE, null);
 
         FileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());

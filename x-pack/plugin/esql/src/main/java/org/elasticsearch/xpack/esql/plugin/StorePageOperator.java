@@ -253,14 +253,13 @@ public class StorePageOperator extends SinkOperator {
     }
 
     private void storePage(int pageIndex, List<Page> outputPage, boolean needsDeepCopy) {
-        cursorStorageService.storePage(
-            paginationContext.cursorId(),
-            pageIndex,
-            outputPage,
-            needsDeepCopy,
-            ActionListener.wrap(v -> onStoreComplete(), e -> onStoreFailure(e, "page", pageIndex))
-        );
-        releasePages(outputPage);
+        cursorStorageService.storePage(paginationContext.cursorId(), pageIndex, outputPage, needsDeepCopy, ActionListener.wrap(v -> {
+            releasePages(outputPage);
+            onStoreComplete();
+        }, e -> {
+            releasePages(outputPage);
+            onStoreFailure(e, "page", pageIndex);
+        }));
     }
 
     private void onStoreComplete() {

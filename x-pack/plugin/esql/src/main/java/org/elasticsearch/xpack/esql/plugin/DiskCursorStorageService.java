@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -79,12 +80,32 @@ public class DiskCursorStorageService implements CursorStorageService {
      * in sequential page-index order. Pages may arrive out of order from concurrent
      * executor threads; this ensures both {@code data.bin} and {@code pages.idx}
      * receive strictly ordered appends.
+     * <p>
+     * File channels are kept open for the lifetime of the writer to avoid the overhead
+     * of opening/closing per page. They are closed when writing completes or the cursor is deleted.
      */
-    private static class CursorWriter {
+    private static class CursorWriter implements Closeable {
         final Object lock = new Object();
         int nextFlushIndex = 0;
         final TreeMap<Integer, byte[]> pendingData = new TreeMap<>();
         final TreeMap<Integer, ActionListener<Void>> pendingListeners = new TreeMap<>();
+        FileChannel dataChannel;
+        FileChannel idxChannel;
+
+        void ensureOpen(Path dataFile, Path idxFile) throws IOException {
+            if (dataChannel == null) {
+                Files.createDirectories(dataFile.getParent());
+                dataChannel = FileChannel.open(dataFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+            }
+            if (idxChannel == null) {
+                idxChannel = FileChannel.open(idxFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(dataChannel, idxChannel);
+        }
     }
 
     public DiskCursorStorageService(Path dataPath, NamedWriteableRegistry registry, BlockFactory blockFactory, Executor executor) {
@@ -138,81 +159,57 @@ public class DiskCursorStorageService implements CursorStorageService {
 
     @Override
     public void storePage(String cursorId, int pageIndex, List<Page> pageData, boolean needsDeepCopy, ActionListener<Void> listener) {
-        try {
-            List<Page> toStore;
-            if (needsDeepCopy) {
-                toStore = deepCopyPages(pageData);
-            } else {
-                toStore = pageData;
-            }
-            byte[] serialized;
+        executor.execute(() -> {
             try {
-                serialized = serializePages(toStore);
-            } finally {
+                List<Page> toStore;
                 if (needsDeepCopy) {
-                    toStore.forEach(Page::releaseBlocks);
+                    toStore = deepCopyPages(pageData);
+                } else {
+                    toStore = pageData;
                 }
-            }
-            executor.execute(() -> {
                 try {
+                    byte[] serialized = serializePages(toStore);
                     Path cursorDir = cursorDir(cursorId);
-                    Path dataFile = cursorDir.resolve(DATA_FILE);
-                    Path idxFile = cursorDir.resolve(PAGES_IDX_FILE);
 
                     CursorWriter writer = cursorWriters.computeIfAbsent(cursorId, k -> new CursorWriter());
                     List<ActionListener<Void>> flushedListeners;
                     synchronized (writer.lock) {
+                        writer.ensureOpen(cursorDir.resolve(DATA_FILE), cursorDir.resolve(PAGES_IDX_FILE));
                         writer.pendingData.put(pageIndex, serialized);
                         writer.pendingListeners.put(pageIndex, listener);
-                        flushedListeners = flushReady(writer, dataFile, idxFile);
+                        flushedListeners = flushReady(writer);
                     }
                     for (ActionListener<Void> flushed : flushedListeners) {
                         flushed.onResponse(null);
                     }
-                } catch (Exception e) {
-                    listener.onFailure(e);
+                } finally {
+                    if (needsDeepCopy) {
+                        toStore.forEach(Page::releaseBlocks);
+                    }
                 }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
      * Flushes all consecutive pages starting from {@code writer.nextFlushIndex} to disk
      * and returns the listeners for the flushed pages. Must be called while holding {@code writer.lock}.
      */
-    private List<ActionListener<Void>> flushReady(CursorWriter writer, Path dataFile, Path idxFile) throws IOException {
+    private List<ActionListener<Void>> flushReady(CursorWriter writer) throws IOException {
         List<ActionListener<Void>> flushedListeners = new ArrayList<>();
         byte[] data;
         while ((data = writer.pendingData.remove(writer.nextFlushIndex)) != null) {
-            long offset;
-            try (
-                FileChannel dataCh = FileChannel.open(
-                    dataFile,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE,
-                    StandardOpenOption.APPEND
-                )
-            ) {
-                offset = dataCh.position();
-                dataCh.write(ByteBuffer.wrap(data));
-            }
+            long offset = writer.dataChannel.position();
+            writer.dataChannel.write(ByteBuffer.wrap(data));
 
             ByteBuffer idxEntry = ByteBuffer.allocate(PAGE_INDEX_ENTRY_SIZE);
             idxEntry.putLong(offset);
             idxEntry.putInt(data.length);
             idxEntry.flip();
-            try (
-                FileChannel idxCh = FileChannel.open(
-                    idxFile,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE,
-                    StandardOpenOption.APPEND
-                )
-            ) {
-                idxCh.write(idxEntry);
-            }
+            writer.idxChannel.write(idxEntry);
+
             flushedListeners.add(writer.pendingListeners.remove(writer.nextFlushIndex));
             writer.nextFlushIndex++;
         }
@@ -223,6 +220,7 @@ public class DiskCursorStorageService implements CursorStorageService {
     public void updateMetadataComplete(String cursorId, int totalRows, int totalPages, ActionListener<Void> listener) {
         executor.execute(() -> {
             try {
+                closeCursorWriter(cursorId);
                 Path cursorDir = cursorDir(cursorId);
                 CursorMetadata existing = readMetaFile(cursorDir);
                 writeMetaFileAtomic(
@@ -247,6 +245,7 @@ public class DiskCursorStorageService implements CursorStorageService {
     public void updateMetadataFailed(String cursorId, ActionListener<Void> listener) {
         executor.execute(() -> {
             try {
+                closeCursorWriter(cursorId);
                 Path cursorDir = cursorDir(cursorId);
                 CursorMetadata existing = readMetaFile(cursorDir);
                 writeMetaFileAtomic(
@@ -355,6 +354,15 @@ public class DiskCursorStorageService implements CursorStorageService {
         });
     }
 
+    private void closeCursorWriter(String cursorId) throws IOException {
+        CursorWriter writer = cursorWriters.remove(cursorId);
+        if (writer != null) {
+            synchronized (writer.lock) {
+                writer.close();
+            }
+        }
+    }
+
     // ---- Delete path ----
 
     @Override
@@ -366,8 +374,8 @@ public class DiskCursorStorageService implements CursorStorageService {
                     listener.onResponse(false);
                     return;
                 }
+                closeCursorWriter(cursorId);
                 IOUtils.rm(cursorDir);
-                cursorWriters.remove(cursorId);
                 listener.onResponse(true);
             } catch (Exception e) {
                 listener.onFailure(e);

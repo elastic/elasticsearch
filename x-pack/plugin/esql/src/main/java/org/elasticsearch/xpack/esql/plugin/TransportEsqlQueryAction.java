@@ -325,7 +325,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 securityHeaders
             );
             CursorStorageService selectedStorageService = cursorStorageResolver.resolve(storageType);
-            paginationStoreProvider = new PaginationStoreProvider(selectedStorageService, paginationContext);
+            paginationStoreProvider = new PaginationStoreProvider(selectedStorageService, paginationContext, threadPool);
         } else {
             paginationStoreProvider = null;
         }

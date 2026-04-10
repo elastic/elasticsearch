@@ -8,11 +8,19 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.SizeBlockingQueue;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlCursor;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,8 +35,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class PaginationStoreProvider {
 
+    private static final double QUEUE_PRESSURE_THRESHOLD = 0.5;
+    private static final long MAX_WAIT_NANOS = TimeUnit.SECONDS.toNanos(5);
+
     private final CursorStorageService cursorStorageService;
     private final PaginationContext paginationContext;
+    private final ThreadPool threadPool;
     private volatile List<ColumnInfoImpl> columns;
     private volatile TaskId backgroundTaskId;
     private final AtomicReference<List<Page>> firstPage = new AtomicReference<>();
@@ -38,9 +50,10 @@ public class PaginationStoreProvider {
     private final SubscribableListener<List<Page>> firstPageListener = new SubscribableListener<>();
     private final AtomicBoolean firstPageResolved = new AtomicBoolean(false);
 
-    public PaginationStoreProvider(CursorStorageService cursorStorageService, PaginationContext paginationContext) {
+    public PaginationStoreProvider(CursorStorageService cursorStorageService, PaginationContext paginationContext, ThreadPool threadPool) {
         this.cursorStorageService = cursorStorageService;
         this.paginationContext = paginationContext;
+        this.threadPool = threadPool;
     }
 
     public void setColumns(List<ColumnInfoImpl> columns) {
@@ -70,8 +83,35 @@ public class PaginationStoreProvider {
     public void setFirstPage(List<Page> pages) {
         firstPage.set(pages);
         if (firstPageResolved.compareAndSet(false, true)) {
-            firstPageListener.onResponse(pages);
+            waitForWriteCapacity(pages, System.nanoTime() + MAX_WAIT_NANOS);
         }
+    }
+
+    /**
+     * For index-based storage, defers the first page response until the system_write thread pool
+     * queue drops below {@link #QUEUE_PRESSURE_THRESHOLD}. This provides backpressure to clients:
+     * the client cannot send the next paginated query until the current one's first page is returned,
+     * so delaying the response naturally throttles the request rate when the server is overloaded.
+     * Fails with a rejection error if the queue stays above threshold for 5 seconds.
+     */
+    private void waitForWriteCapacity(List<Page> pages, long deadlineNanos) {
+        if (paginationContext.storageType() != EsqlCursor.StorageType.INDEX || hasWriteCapacity()) {
+            firstPageListener.onResponse(pages);
+            return;
+        }
+        if (System.nanoTime() >= deadlineNanos) {
+            firstPageListener.onFailure(new EsRejectedExecutionException("server too busy for paginated query"));
+            return;
+        }
+        threadPool.schedule(() -> waitForWriteCapacity(pages, deadlineNanos), TimeValue.timeValueMillis(10), threadPool.generic());
+    }
+
+    private boolean hasWriteCapacity() {
+        ExecutorService exec = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        if (exec instanceof ThreadPoolExecutor tpe && tpe.getQueue() instanceof SizeBlockingQueue<?> q) {
+            return (double) q.size() / q.capacity() < QUEUE_PRESSURE_THRESHOLD;
+        }
+        return true;
     }
 
     public List<Page> firstPage() {

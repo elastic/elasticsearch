@@ -431,7 +431,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
             Map.of()
         );
         FakeCursorIndexService fakeService = new FakeCursorIndexService(recorder);
-        PaginationStoreProvider provider = new PaginationStoreProvider(fakeService, ctx);
+        PaginationStoreProvider provider = new PaginationStoreProvider(fakeService, ctx, threadPool);
         provider.setColumns(List.of(new ColumnInfoImpl("val", "integer", null)));
         return provider;
     }

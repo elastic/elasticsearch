@@ -4280,6 +4280,7 @@ s1:long  | bare:long | s2:long
 ;
 
 Sum expression with constant duplicate alias shadowing
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS s = SUM(salary + 1), s = SUM(salary + 2)
 ;
@@ -4291,7 +4292,7 @@ s:long
 
 Sum expression with constant foldable cast in constant position
 FROM employees
-| STATS s1 = SUM(salary + TO_INTEGER("1")), s2 = SUM(salary + TO_INTEGER("2"))
+| STATS s1 = SUM(salary + "1.0"::int), s2 = SUM(salary + TO_INTEGER("2"))
 ;
 
 s1:long  | s2:long
@@ -4305,4 +4306,39 @@ FROM employees
 
 s1:long | s2:long
 null    | null
+;
+
+Sum expression with constant multiple clauses by grouping alias
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY l = languages
+| SORT l
+;
+
+s1:long  | s2:long  | l:integer
+null     | null     | null
+930231   | 930281   | 1
+967767   | 967827   | 2
+871184   | 871244   | 3
+843671   | 843731   | 4
+212102   | 212132   | 5
+;
+
+Sum expression with constant count alongside
+FROM employees
+| STATS s1 = SUM(salary + 1), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
+;
+
+Sum expression with constant shadowed bare sum
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS s1 = SUM(salary + 1), c = SUM(salary), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+warning:Line 2:31: Field 'c' shadowed by field at line 2:48
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
 ;

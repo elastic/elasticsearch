@@ -335,6 +335,50 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertFalse("SUM(null + c) should not be rewritten because null is foldable", hasMvSingleValueOrNull);
     }
 
+    public void testSumWithGroupingExpressionAlias() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2) by l = languages
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        assertThat(agg.groupings(), hasSize(1));
+        assertThat(agg.aggregates(), hasSize(3)); // SUM(sv), COUNT(sv), grouping attribute
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
+
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(as(eval.fields().get(0), Alias.class).name(), equalTo("s1"));
+        assertThat(as(eval.fields().get(1), Alias.class).name(), equalTo("s2"));
+    }
+
+    public void testShadowedNonMatchingExprRuleFires() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), c = sum(emp_no), c = count(emp_no), s2 = sum(emp_no + 2)
+            | limit 10
+            """, new TestSubstitutionOnlyOptimizer());
+
+        // After RemoveStatsOverride drops c = sum(emp_no), s1 and s2 still satisfy the 2-match threshold.
+        assertTrue(
+            "Expected RewriteSumFieldPlusConstant to fire after shadowing removes c = sum(emp_no)",
+            plan.anyMatch(
+                node -> node instanceof Eval e
+                    && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
+            )
+        );
+        // Aggregate has internal SUM(sv), internal COUNT(sv), and user's COUNT(emp_no).
+        assertTrue(
+            "Expected 3 aggregates after rewrite",
+            plan.anyMatch(node -> node instanceof Aggregate agg && agg.aggregates().size() == 3)
+        );
+        assertWarnings("Line 2:31: Field 'c' shadowed by field at line 2:48");
+    }
+
     // INLINE STATS wraps the Aggregate in an InlineJoin, but the rule still visits it.
     public void testInlineStatsWithSumOfFieldPlusConstant() {
         var plan = plan("""

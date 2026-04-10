@@ -36,7 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {

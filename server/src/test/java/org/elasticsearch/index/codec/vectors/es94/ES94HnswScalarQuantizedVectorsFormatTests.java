@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.vectors.es94;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
-public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     private int bits;
 

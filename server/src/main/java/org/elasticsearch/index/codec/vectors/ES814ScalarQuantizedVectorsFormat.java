@@ -208,9 +208,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            FloatVectorValues floatVectorValues = delegate.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
             // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
             // raw vectors
-            return new QuantizedAndRawFloatVectorValues(delegate.getFloatVectorValues(field), rawDelegate.getFloatVectorValues(field));
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field));
         }
 
         @Override

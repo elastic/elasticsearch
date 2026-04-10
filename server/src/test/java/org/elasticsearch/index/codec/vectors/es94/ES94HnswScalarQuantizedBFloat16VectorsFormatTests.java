@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
+public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
     private int bits;
 

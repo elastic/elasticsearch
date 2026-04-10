@@ -47,7 +47,7 @@ public class OrcFilterPushdownSupport implements FilterPushdownSupport {
         }
 
         logger.debug("ORC filter pushdown: validated {} of {} expressions for pushdown", pushed.size(), filters.size());
-        return new PushdownResult(new OrcPushedExpressions(pushed), remainder);
+        return new PushdownResult(new OrcPushedExpressions(pushed), pushed, remainder);
     }
 
     @Override

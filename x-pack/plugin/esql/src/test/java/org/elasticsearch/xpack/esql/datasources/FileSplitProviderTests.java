@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -34,7 +35,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -43,8 +47,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class FileSplitProviderTests extends ESTestCase {
 
@@ -791,6 +797,349 @@ public class FileSplitProviderTests extends ESTestCase {
         return registry;
     }
 
+    // -- UNION_BY_NAME file skipping --
+
+    public void testSkipsFileWithNoProjColumnOverlap() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        StoragePath pathC = StoragePath.of("s3://b/c.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(pathA, 100, Instant.EPOCH),
+                new StorageEntry(pathB, 200, Instant.EPOCH),
+                new StorageEntry(pathC, 300, Instant.EPOCH)
+            ),
+            "s3://b/*.parquet"
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        schemaInfo.put(
+            pathB,
+            new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name"), refAttr("bonus")), null, null)
+        );
+        schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals(2, splits.size());
+        assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+        assertEquals(pathB, ((FileSplit) splits.get(1)).path());
+    }
+
+    public void testKeepsFileWithPartialOverlap() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus"), refAttr("name")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals(2, splits.size());
+        assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+        assertEquals(pathB, ((FileSplit) splits.get(1)).path());
+    }
+
+    public void testKeepsAllFilesWhenProjectedSetEmpty() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of());
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("All files retained when projected set is empty (e.g. COUNT(*))", 2, splits.size());
+    }
+
+    public void testKeepsAllFilesWhenNoSchemaInfo() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("All files retained when no schema info (FIRST_FILE_WINS)", 2, splits.size());
+    }
+
+    public void testKeepsFileWhenProjectionIsOnlyPartitionColumns() {
+        StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/year=2024/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/year=*/*.parquet"
+        );
+
+        PartitionMetadata partitions = new PartitionMetadata(
+            Map.of("year", DataType.INTEGER),
+            Map.of(pathA, Map.of("year", 2024), pathB, Map.of("year", 2024))
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(), Set.of("year"));
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("All files retained when projection is only partition columns", 2, splits.size());
+    }
+
+    public void testKeepsFileWhenSchemaInfoEntryMissing() {
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/b.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(pathA, 100, Instant.EPOCH), new StorageEntry(pathB, 200, Instant.EPOCH)),
+            "s3://b/*.parquet"
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        // pathB intentionally has no entry in schemaInfo
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("File without schema info entry is kept (conservative)", 2, splits.size());
+    }
+
+    public void testSkippingWithPartitionPruningCombined() {
+        StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/year=2024/b.parquet");
+        StoragePath pathC = StoragePath.of("s3://b/year=2023/c.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(pathA, 100, Instant.EPOCH),
+                new StorageEntry(pathB, 200, Instant.EPOCH),
+                new StorageEntry(pathC, 300, Instant.EPOCH)
+            ),
+            "s3://b/year=*/*.parquet"
+        );
+
+        PartitionMetadata partitions = new PartitionMetadata(
+            Map.of("year", DataType.INTEGER),
+            Map.of(pathA, Map.of("year", 2024), pathB, Map.of("year", 2024), pathC, Map.of("year", 2023))
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
+        schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        Expression yearFilter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            partitions,
+            List.of(yearFilter),
+            Set.of("id", "name")
+        );
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        // pathC pruned by partition filter (year=2023), pathB pruned by column skipping (only 'bonus')
+        assertEquals(1, splits.size());
+        assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+    }
+
+    // -- filter-based file skipping --
+
+    public void testSkipIfFilterOnMissingColumn_comparison() {
+        Expression filter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        assertTrue(
+            "File missing 'price' column should be skipped for price > 100",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name", "id"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_isNull() {
+        Expression filter = new IsNull(SRC, fieldAttr("price"));
+        assertFalse(
+            "IS NULL on missing column evaluates to TRUE — file should NOT be skipped",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name", "id"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_isNotNull() {
+        Expression filter = new IsNotNull(SRC, fieldAttr("price"));
+        assertTrue(
+            "IS NOT NULL on missing column evaluates to FALSE — file should be skipped",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name", "id"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_columnPresent() {
+        Expression filter = new Equals(SRC, fieldAttr("price"), intLiteral(100));
+        assertFalse(
+            "Column exists in file — should NOT be skipped",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("price", "name"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_noSchemaInfoIntegration() {
+        // When no schema info is available, discoverSplits does not call skipIfFilterOnMissingColumns
+        StoragePath pathA = StoragePath.of("s3://b/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
+
+        Expression filter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(filter));
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("File without schema info should NOT be skipped (conservative)", 1, splits.size());
+    }
+
+    public void testSkipIfFilterOnMissingColumn_literalOnlyConjunct() {
+        Expression filter = new Literal(SRC, true, DataType.BOOLEAN);
+        assertFalse(
+            "Unrecognized expression should be conservative — should NOT skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_literalOpColumn() {
+        // Literal on the left: 100 < price (equivalent to price > 100)
+        Expression filter = new GreaterThan(SRC, intLiteral(100), fieldAttr("price"), null);
+        assertTrue(
+            "Literal-op-column form with missing column should also skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_equalsMissing() {
+        Expression filter = new Equals(SRC, fieldAttr("status"), intLiteral(1));
+        assertTrue("Equals on missing column should skip", FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name")));
+    }
+
+    public void testSkipIfFilterOnMissingColumn_partitionColumnNotTreatedAsMissing() {
+        // Partition column 'year' is not in fileSchema but is in partitionValues
+        StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
+
+        PartitionMetadata partitions = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(pathA, Map.of("year", 2024)));
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        Expression yearFilter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(yearFilter), Set.of("id"));
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("Partition column should not be treated as missing — file should NOT be skipped", 1, splits.size());
+    }
+
+    public void testSkipIfFilterOnMissingColumn_inExpression() {
+        Expression filter = new In(SRC, fieldAttr("status"), List.of(intLiteral(1), intLiteral(2)));
+        assertTrue("IN on missing column should skip", FileSplitProvider.skipIfFilterOnMissingColumns(List.of(filter), Set.of("name")));
+    }
+
+    public void testSkipIfFilterOnMissingColumn_multipleConjuncts() {
+        Expression priceFilter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        Expression nameFilter = new Equals(SRC, fieldAttr("name"), new Literal(SRC, new BytesRef("test"), DataType.KEYWORD));
+        // price is missing, name is present — should skip because price > 100 is UNKNOWN → FALSE
+        assertTrue(
+            "Any conjunct on missing column should trigger skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(priceFilter, nameFilter), Set.of("name", "id"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_allConjunctsPresent() {
+        Expression priceFilter = new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null);
+        Expression nameFilter = new Equals(SRC, fieldAttr("name"), new Literal(SRC, new BytesRef("test"), DataType.KEYWORD));
+        assertFalse(
+            "All filter columns present — should NOT skip",
+            FileSplitProvider.skipIfFilterOnMissingColumns(List.of(priceFilter, nameFilter), Set.of("price", "name"))
+        );
+    }
+
+    public void testSkipIfFilterOnMissingColumn_combinedWithPartitionPruning() {
+        StoragePath pathA = StoragePath.of("s3://b/year=2024/a.parquet");
+        StoragePath pathB = StoragePath.of("s3://b/year=2024/b.parquet");
+        StoragePath pathC = StoragePath.of("s3://b/year=2023/c.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(pathA, 100, Instant.EPOCH),
+                new StorageEntry(pathB, 200, Instant.EPOCH),
+                new StorageEntry(pathC, 300, Instant.EPOCH)
+            ),
+            "s3://b/year=*/*.parquet"
+        );
+
+        PartitionMetadata partitions = new PartitionMetadata(
+            Map.of("year", DataType.INTEGER),
+            Map.of(pathA, Map.of("year", 2024), pathB, Map.of("year", 2024), pathC, Map.of("year", 2023))
+        );
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
+        schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("price")), null, null));
+        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id")), null, null));
+        schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("price")), null, null));
+        fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
+
+        // year=2024 filter prunes pathC; price > 100 filter prunes pathB (missing 'price')
+        List<Expression> filters = List.of(
+            new Equals(SRC, fieldAttr("year"), intLiteral(2024)),
+            new GreaterThan(SRC, fieldAttr("price"), intLiteral(100), null)
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, filters, Set.of("id", "price"));
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals("Only pathA should survive partition + filter-column pruning", 1, splits.size());
+        assertEquals(pathA, ((FileSplit) splits.get(0)).path());
+    }
+
     // -- helpers --
 
     private static final Source SRC = Source.EMPTY;
@@ -801,5 +1150,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static Literal intLiteral(int value) {
         return new Literal(SRC, value, DataType.INTEGER);
+    }
+
+    private static Attribute refAttr(String name) {
+        return new ReferenceAttribute(SRC, name, DataType.KEYWORD);
     }
 }

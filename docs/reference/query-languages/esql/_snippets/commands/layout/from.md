@@ -52,7 +52,7 @@ FROM employees
 
 ### Subqueries
 
-The `FROM` command supports [subqueries](/reference/query-languages/esql/_snippets/commands/layout/subquery.md),
+The `FROM` command supports [subqueries](/reference/query-languages/esql/esql-subquery.md),
 which are complete ES|QL queries wrapped in parentheses. Each subquery starts
 with a `FROM` source command followed by zero or more piped processing commands.
 Multiple subqueries and regular index patterns can be combined in a single

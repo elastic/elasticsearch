@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,6 +32,10 @@ import static java.util.Collections.emptyList;
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
 public class StddevOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StddevOverTime.class)
+        .binary(StddevOverTime::new)
+        .name("stddev_over_time");
+
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",

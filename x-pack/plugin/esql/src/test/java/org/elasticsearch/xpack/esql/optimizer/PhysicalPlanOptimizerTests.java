@@ -9173,13 +9173,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects optimized data node plan of
-     * <pre>{@code
+     * {@snippet lang="text":
      * TopN[[Order[name{r}#25,ASC,LAST], Order[emp_no{f}#14,ASC,LAST]],1000[INTEGER]]
      * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
      *   |_Project[[..., long_noidx{f}#23, salary{f}#19]]
      *   | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
@@ -10214,7 +10214,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * ProjectExec[[c{r}#4, n{r}#6]]
      * \_LimitExec[3[INTEGER],null]
      *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
@@ -10227,7 +10227,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
      *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
      * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
-     * }</pre>
+     * }
      */
     public void testInlineStatsGroupByNullFromEmployees() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());

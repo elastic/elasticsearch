@@ -38,17 +38,14 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
+    // Pre-calculate attributes for the most common move reasons
     static final Map<String, Map<String, Object>> RELOCATION_ATTRIBUTES = Map.of(
         REBALANCE_REASON,
         Map.of("es_relocation_reason", REBALANCE_REASON),
         MOVE_CANNOT_REMAIN_REASON,
         Map.of("es_relocation_reason", MOVE_CANNOT_REMAIN_REASON),
         MOVE_NOT_PREFERRED_REASON,
-        Map.of("es_relocation_reason", MOVE_NOT_PREFERRED_REASON),
-        "move",
-        Map.of("es_relocation_reason", "move"),
-        "computation",
-        Map.of("es_relocation_reason", "computation")
+        Map.of("es_relocation_reason", MOVE_NOT_PREFERRED_REASON)
     );
 
     private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {

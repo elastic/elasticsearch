@@ -18,11 +18,11 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RuleQueryBuilder.QUERY_RULES_FIX_MULTIPLE_EXCLUDE);
+        return Set.of();
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(QueryRule.NUMERIC_VALIDATION);
+        return Set.of(QueryRule.NUMERIC_VALIDATION, RuleQueryBuilder.QUERY_RULES_FIX_MULTIPLE_EXCLUDE);
     }
 }

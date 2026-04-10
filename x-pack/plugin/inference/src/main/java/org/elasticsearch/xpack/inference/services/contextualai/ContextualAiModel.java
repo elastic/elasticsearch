@@ -28,9 +28,9 @@ public abstract class ContextualAiModel extends RateLimitGroupingModel {
         this.uri = Objects.requireNonNull(uri);
     }
 
-    protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings, URI uri) {
+    protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-        this.uri = Objects.requireNonNull(uri);
+        this.uri = model.uri;
     }
 
     public URI uri() {

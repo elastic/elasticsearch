@@ -21,11 +21,11 @@ import java.util.Objects;
  */
 public class ContextualAiRerankRequestEntity implements ToXContentObject {
 
-    protected static final String MODEL_FIELD = "model";
-    protected static final String QUERY_FIELD = "query";
-    protected static final String DOCUMENTS_FIELD = "documents";
-    protected static final String TOP_N_FIELD = "top_n";
-    protected static final String INSTRUCTION_FIELD = "instruction";
+    public static final String MODEL_FIELD = "model";
+    public static final String QUERY_FIELD = "query";
+    public static final String DOCUMENTS_FIELD = "documents";
+    public static final String TOP_N_FIELD = "top_n";
+    public static final String INSTRUCTION_FIELD = "instruction";
 
     private final String query;
     private final String modelId;

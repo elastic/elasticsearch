@@ -250,7 +250,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         return Strings.toString(builder);
     }
 
-    private static HashMap<String, Object> buildTaskSettingsMap(
+    public static HashMap<String, Object> buildTaskSettingsMap(
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
         @Nullable String instruction

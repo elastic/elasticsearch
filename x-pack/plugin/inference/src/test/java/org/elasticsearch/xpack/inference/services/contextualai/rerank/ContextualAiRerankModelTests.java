@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServi
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,6 +38,28 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ContextualAiRerankModelTests extends ESTestCase {
+
+    /**
+     * Creates a {@link ContextualAiRerankModel} pointed at a custom URL (e.g. a {@code MockWebServer}),
+     * intended for use in action creator and integration-style tests.
+     */
+    public static ContextualAiRerankModel createModel(
+        String url,
+        String apiKey,
+        String modelId,
+        @Nullable Integer topN,
+        @Nullable String instruction
+    ) {
+        return new ContextualAiRerankModel(
+            TEST_INFERENCE_ENTITY_ID,
+            new ContextualAiRerankServiceSettings(
+                new ContextualAiServiceSettings.CommonSettings(modelId, new RateLimitSettings(TEST_RATE_LIMIT))
+            ),
+            new ContextualAiRerankTaskSettings(null, topN, instruction),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            URI.create(url)
+        );
+    }
 
     public void testCreateModel_FromMap_NoUrl_DefaultUrl() {
         var model = new ContextualAiRerankModel(

@@ -100,7 +100,7 @@ public class ContextualAiRerankModel extends ContextualAiModel {
     }
 
     private ContextualAiRerankModel(ContextualAiRerankModel model, ContextualAiRerankTaskSettings taskSettings) {
-        super(model, taskSettings, DEFAULT_RERANK_URI);
+        super(model, taskSettings);
     }
 
     @Override

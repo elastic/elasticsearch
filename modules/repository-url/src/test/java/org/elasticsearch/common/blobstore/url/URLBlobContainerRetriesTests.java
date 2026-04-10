@@ -76,6 +76,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     protected BlobContainer createBlobContainer(
         Integer maxRetries,
         TimeValue readTimeout,
+        TimeValue requestTimeout,
         Boolean disableChunkedEncoding,
         Integer maxConnections,
         ByteSizeValue bufferSize,

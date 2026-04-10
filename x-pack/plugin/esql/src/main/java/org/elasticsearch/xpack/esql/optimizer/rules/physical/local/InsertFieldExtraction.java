@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -54,23 +59,41 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
 
             var missing = missingAttributes(p);
 
-            // add extractor
             if (missing.isEmpty() == false) {
+                // Nullified fields (MissingEsField) don't exist in the index; materialize them as constant null columns
+                // via EvalExec rather than attempting a FieldExtractExec that would require index access.
+                List<Attribute> nullifiedFields = new ArrayList<>();
+                List<Attribute> realFields = new ArrayList<>();
+                for (Attribute attr : missing) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MissingEsField) {
+                        nullifiedFields.add(attr);
+                    } else {
+                        realFields.add(attr);
+                    }
+                }
+
                 // identify child (for binary nodes) that exports _doc and place the field extractor there
                 List<PhysicalPlan> newChildren = new ArrayList<>(p.children().size());
-                boolean found = false;
+                boolean handled = false;
                 for (PhysicalPlan child : p.children()) {
-                    if (found == false) {
-                        if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
-                            found = true;
-                            // collect source attributes and add the extractor
-                            child = new FieldExtractExec(p.source(), child, List.copyOf(missing), fieldExtractPreference);
+                    if (handled == false) {
+                        if (realFields.isEmpty() == false) {
+                            if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+                                handled = true;
+                                if (nullifiedFields.isEmpty() == false) {
+                                    child = insertNullEval(p.source(), child, nullifiedFields);
+                                }
+                                child = new FieldExtractExec(p.source(), child, realFields, fieldExtractPreference);
+                            }
+                        } else {
+                            // Only nullified fields -- no index access needed, pick first child
+                            handled = true;
+                            child = insertNullEval(p.source(), child, nullifiedFields);
                         }
                     }
                     newChildren.add(child);
                 }
-                // somehow no doc id
-                if (found == false) {
+                if (handled == false) {
                     throw new IllegalArgumentException("No child with doc id found");
                 }
                 return p.replaceChildren(newChildren);
@@ -80,6 +103,13 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         });
 
         return plan;
+    }
+
+    private static PhysicalPlan insertNullEval(Source source, PhysicalPlan child, List<Attribute> nullifiedFields) {
+        List<Alias> aliases = nullifiedFields.stream()
+            .map(a -> new Alias(a.source(), a.name(), Literal.of(a, null), a.id()))
+            .toList();
+        return new EvalExec(source, child, aliases);
     }
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {

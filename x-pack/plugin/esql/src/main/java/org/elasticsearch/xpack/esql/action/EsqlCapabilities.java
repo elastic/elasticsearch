@@ -254,6 +254,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
 
         /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -2437,12 +2443,6 @@ public class EsqlCapabilities {
          * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
-
-        /**
-         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
-         * See https://github.com/elastic/elasticsearch/issues/142616
-         */
-        FIX_NULLIFY_FLATTENED_SUBFIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

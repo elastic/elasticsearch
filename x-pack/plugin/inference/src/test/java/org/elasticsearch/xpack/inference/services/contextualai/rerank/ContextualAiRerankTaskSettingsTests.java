@@ -160,8 +160,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
             INITIAL_TEST_TOP_N,
             INITIAL_TEST_INSTRUCTION
         );
-        var overrideSettings = new ContextualAiRerankTaskSettings(null, null, null);
-        assertThat(ContextualAiRerankTaskSettings.of(originalSettings, overrideSettings), sameInstance(originalSettings));
+        assertThat(ContextualAiRerankTaskSettings.of(originalSettings, EMPTY_SETTINGS), sameInstance(originalSettings));
     }
 
     public void testOf_WhenOriginalIsEmpty_AppliesOverrideValues() {

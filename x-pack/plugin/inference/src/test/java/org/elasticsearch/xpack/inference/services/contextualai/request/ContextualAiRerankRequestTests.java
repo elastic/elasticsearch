@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.is;
 public class ContextualAiRerankRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithRequiredFieldsOnly() throws IOException {
-        var requestMap = assertCreateHttpRequest(createRequest(new ContextualAiRerankTaskSettings(null, null, null), null));
+        var requestMap = assertCreateHttpRequest(createRequest(ContextualAiRerankTaskSettings.EMPTY_SETTINGS, null));
         // Verifying that only query, documents, and model fields are present in the request when optional fields are not set
         assertThat(requestMap, aMapWithSize(3));
     }

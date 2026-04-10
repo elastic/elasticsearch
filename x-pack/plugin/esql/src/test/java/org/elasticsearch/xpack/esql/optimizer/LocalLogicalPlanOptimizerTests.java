@@ -853,7 +853,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
-    /*     * Limit[1000[INTEGER],false]
+    /*
+     * Limit[1000[INTEGER],false]
      * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
      *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */

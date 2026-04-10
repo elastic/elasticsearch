@@ -376,6 +376,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        int numVectors,
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,

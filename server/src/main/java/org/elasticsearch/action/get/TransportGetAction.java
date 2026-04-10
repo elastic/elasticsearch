@@ -128,7 +128,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            handleGetOnUnpromotableShard(request, indexShard, listener);
+            handleGetOnUnpromotableShard(request, shardId, listener);
             return;
         }
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
@@ -190,9 +190,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
     }
 
-    private void handleGetOnUnpromotableShard(GetRequest request, IndexShard indexShard, ActionListener<GetResponse> listener)
+    private void handleGetOnUnpromotableShard(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener)
         throws IOException {
-        ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
             var refreshRequest = new BasicReplicationRequest(shardId);
@@ -213,7 +212,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 logger,
                 threadPool.getThreadContext()
             );
-            getFromTranslog(request, indexShard, projectResolver.getProjectState(state), observer, listener);
+            getFromTranslog(request, shardId, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time get with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -222,14 +221,14 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     private void getFromTranslog(
         GetRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         ProjectState state,
         ClusterStateObserver observer,
         ActionListener<GetResponse> listener
     ) {
         DiscoveryNode node;
         try {
-            node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+            node = getCurrentNodeOfPrimary(state, shardId);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -247,7 +246,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        getFromTranslog(request, indexShard, state.projectState(projectId), observer, l);
+                        getFromTranslog(request, shardId, state.projectState(projectId), observer, l);
                     }
 
                     @Override
@@ -264,11 +263,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 l.onFailure(e);
             }
         });
-        tryGetFromTranslog(request, indexShard, node, retryingListener);
+        tryGetFromTranslog(request, shardId, node, retryingListener);
     }
 
-    private void tryGetFromTranslog(GetRequest request, IndexShard indexShard, DiscoveryNode node, ActionListener<GetResponse> listener) {
-        ShardId shardId = indexShard.shardId();
+    private void tryGetFromTranslog(GetRequest request, ShardId shardId, DiscoveryNode node, ActionListener<GetResponse> listener) {
         TransportGetFromTranslogAction.Request getFromTranslogRequest = new TransportGetFromTranslogAction.Request(request, shardId);
         getFromTranslogRequest.setParentTask(request.getParentTask());
         transportService.sendRequest(
@@ -295,7 +293,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll)),
                             threadPool.getThreadContext()
                         );
-                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
+                        getIndexShard(shardId).waitForPrimaryTermAndGeneration(
+                            r.primaryTerm(),
+                            r.segmentGeneration(),
+                            termAndGenerationListener
+                        );
                     }
                 }
             }), TransportGetFromTranslogAction.Response::new, getExecutor(shardId))

@@ -142,6 +142,10 @@ toc:
                   - file: esql/functions-operators/aggregation-functions/avg.md
                   - file: esql/functions-operators/aggregation-functions/count.md
                   - file: esql/functions-operators/aggregation-functions/count_distinct.md
+                  - file: esql/functions-operators/aggregation-functions/earliest.md
+                  - file: esql/functions-operators/aggregation-functions/first.md
+                  - file: esql/functions-operators/aggregation-functions/last.md
+                  - file: esql/functions-operators/aggregation-functions/latest.md
                   - file: esql/functions-operators/aggregation-functions/max.md
                   - file: esql/functions-operators/aggregation-functions/median.md
                   - file: esql/functions-operators/aggregation-functions/median_absolute_deviation.md
@@ -158,8 +162,6 @@ toc:
                   - file: esql/functions-operators/aggregation-functions/values.md
                   - file: esql/functions-operators/aggregation-functions/variance.md
                   - file: esql/functions-operators/aggregation-functions/weighted_avg.md
-                  - file: esql/functions-operators/aggregation-functions/first.md
-                  - file: esql/functions-operators/aggregation-functions/last.md
               - file: esql/functions-operators/time-series-aggregation-functions.md
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
@@ -262,7 +264,9 @@ toc:
                   - file: esql/functions-operators/spatial-functions/st_x.md
                   - file: esql/functions-operators/spatial-functions/st_y.md
                   - file: esql/functions-operators/spatial-functions/st_npoints.md
+                  - file: esql/functions-operators/spatial-functions/st_buffer.md
                   - file: esql/functions-operators/spatial-functions/st_simplify.md
+                  - file: esql/functions-operators/spatial-functions/st_simplifypreservetopology.md
                   - file: esql/functions-operators/spatial-functions/st_geometrytype.md
                   - file: esql/functions-operators/spatial-functions/st_dimension.md
                   - file: esql/functions-operators/spatial-functions/st_isempty.md
@@ -352,6 +356,7 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_contains.md
                   - file: esql/functions-operators/mv-functions/mv_count.md
                   - file: esql/functions-operators/mv-functions/mv_dedupe.md
+                  - file: esql/functions-operators/mv-functions/mv_difference.md
                   - file: esql/functions-operators/mv-functions/mv_first.md
                   - file: esql/functions-operators/mv-functions/mv_intersection.md
                   - file: esql/functions-operators/mv-functions/mv_intersects.md
@@ -372,6 +377,7 @@ toc:
         children:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
+          - file: esql/esql-subquery.md
           - hidden: esql/esql-cross-serverless-projects.md
       - file: esql/esql-advanced.md
         children:

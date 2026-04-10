@@ -281,7 +281,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(), "field", ValueOrdering.SORTED_UNIQUE, IndexVersion.current());
+        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(), "field", ValueOrdering.SORTED_UNIQUE, IndexVersion.current(), false);
 
         // then — nothing added
         assertTrue(doc.getFields().isEmpty());
@@ -293,7 +293,13 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         var nameValue = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("val"), doc);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(nameValue), "field", ValueOrdering.SORTED_UNIQUE, IndexVersion.current());
+        MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+            List.of(nameValue),
+            "field",
+            ValueOrdering.SORTED_UNIQUE,
+            IndexVersion.current(),
+            false
+        );
 
         // then — SeparateCount field and a companion count field are added
         var fields = doc.getFields("field");
@@ -313,7 +319,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         var nameValue = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("val"), doc);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(nameValue), "field", ValueOrdering.SORTED_UNIQUE, oldVersion);
+        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(nameValue), "field", ValueOrdering.SORTED_UNIQUE, oldVersion, false);
 
         // then — IntegratedCount field added, no companion count field
         var fields = doc.getFields("field");
@@ -333,7 +339,8 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
             List.of(nameValue1, nameValue2),
             "field",
             ValueOrdering.SORTED_UNIQUE,
-            IndexVersion.current()
+            IndexVersion.current(),
+            true
         );
 
         // then — both values go into a single SeparateCount field on the document
@@ -344,7 +351,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
 
         var countFields = doc.getFields("field.counts");
         assertEquals(1, countFields.size());
-        assertEquals(2L, ((NumericDocValuesField) countFields.getFirst()).numericValue().longValue());
+        assertEquals(2L, countFields.getFirst().numericValue().longValue());
     }
 
     public void testAddAllIgnoredValuesSeparateFieldsPerDoc() {
@@ -359,7 +366,8 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
             List.of(nameValue1, nameValue2),
             "field",
             ValueOrdering.SORTED_UNIQUE,
-            IndexVersion.current()
+            IndexVersion.current(),
+            true
         );
 
         // then — each document gets its own field

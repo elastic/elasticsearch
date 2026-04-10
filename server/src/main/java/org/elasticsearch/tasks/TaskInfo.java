@@ -9,12 +9,14 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,18 +47,57 @@ public record TaskInfo(
     String action,
     String description,
     Task.Status status,
-    long startTime,
+    long startTime, // In millis since the epoch
     long runningTimeNanos,
     boolean cancellable,
     boolean cancelled,
     TaskId parentTaskId,
-    Map<String, String> headers
+    Map<String, String> headers,
+    // If this task is continuing the work of another task on a node that was shut down, originalTaskId gives the ID of the original task.
+    // Otherwise, originalTaskId will be the same as taskId.
+    TaskId originalTaskId,
+    long originalStartTimeMillis // The startTime of the task given by originalTaskId
 ) implements Writeable, ToXContentFragment {
 
+    private static final TransportVersion INCLUDE_ORIGINAL_TASK = TransportVersion.fromName("task_info_include_original_task");
     static final String INCLUDE_CANCELLED_PARAM = "include_cancelled";
 
     public TaskInfo {
         assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
+    }
+
+    /// Constructor for a task which is not continuing the work of another task, so `originalTaskId == taskId` and
+    /// `originalStartTimeMillis == startTime`.
+    public TaskInfo(
+        TaskId taskId,
+        String type,
+        String node,
+        String action,
+        String description,
+        Task.Status status,
+        long startTime,
+        long runningTimeNanos,
+        boolean cancellable,
+        boolean cancelled,
+        TaskId parentTaskId,
+        Map<String, String> headers
+    ) {
+        this(
+            taskId,
+            type,
+            node,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            taskId,
+            startTime
+        );
     }
 
     /**
@@ -64,19 +105,34 @@ public record TaskInfo(
      */
     public static TaskInfo from(StreamInput in) throws IOException {
         TaskId taskId = TaskId.readFromStream(in);
+        String type = in.readString();
+        String node = in.readString();
+        String action = in.readString();
+        String description = in.readOptionalString();
+        Task.Status status = in.readOptionalNamedWriteable(Task.Status.class);
+        long startTime = in.readLong();
+        long runningTimeNanos = in.readLong();
+        boolean cancellable = in.readBoolean();
+        boolean cancelled = in.readBoolean();
+        TaskId parentTaskId = TaskId.readFromStream(in);
+        Map<String, String> headers = in.readMap(StreamInput::readString);
+        TaskId originalTaskId = in.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK) ? TaskId.readFromStream(in) : taskId;
+        long originalStartTimeMillis = in.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK) ? in.readLong() : startTime;
         return new TaskInfo(
             taskId,
-            in.readString(),
-            in.readString(),
-            in.readString(),
-            in.readOptionalString(),
-            in.readOptionalNamedWriteable(Task.Status.class),
-            in.readLong(),
-            in.readLong(),
-            in.readBoolean(),
-            in.readBoolean(),
-            TaskId.readFromStream(in),
-            in.readMap(StreamInput::readString)
+            type,
+            node,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
         );
     }
 
@@ -94,6 +150,10 @@ public record TaskInfo(
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString);
+        if (out.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK)) {
+            originalTaskId.writeTo(out);
+            out.writeLong(originalStartTimeMillis);
+        }
     }
 
     public long id() {
@@ -131,6 +191,10 @@ public record TaskInfo(
         for (Map.Entry<String, String> attribute : headers.entrySet()) {
             builder.field(attribute.getKey(), attribute.getValue());
         }
+        if (!originalTaskId.equals(taskId)) {
+            builder.field("original_task_id", originalTaskId.toString());
+            builder.timestampFieldsFromUnixEpochMillis("original_start_time_in_millis", "original_start_time", originalStartTimeMillis);
+        }
         builder.endObject();
         return builder;
     }
@@ -154,12 +218,17 @@ public record TaskInfo(
         String parentTaskIdString = (String) a[i++];
         @SuppressWarnings("unchecked")
         Map<String, String> headers = (Map<String, String>) a[i++];
+        String originalTaskIdString = (String) a[i++];
+        Long optionalOriginalStartTimeMillis = (Long) a[i++];
+
         if (headers == null) {
             // This might happen if we are reading an old version of task info
             headers = Collections.emptyMap();
         }
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
+        TaskId originalTaskId = originalTaskIdString == null ? id : new TaskId(originalTaskIdString);
+        long originalStartTimeMillis = parseOriginalStartTimeMillis(optionalOriginalStartTimeMillis, startTime, originalTaskIdString);
         return new TaskInfo(
             id,
             type,
@@ -172,7 +241,9 @@ public record TaskInfo(
             cancellable,
             cancelled,
             parentTaskId,
-            headers
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
         );
     });
 
@@ -190,6 +261,31 @@ public record TaskInfo(
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("original_task_id"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("original_start_time_in_millis"));
+    }
+
+    private static long parseOriginalStartTimeMillis(
+        @Nullable Long optionalOriginalStartTimeMillis,
+        long startTime,
+        String originalTaskIdString
+    ) {
+        if (originalTaskIdString == null) {
+            if (optionalOriginalStartTimeMillis == null) {
+                // The regular case: neither original_task_id nor original_start_time_in_millis is set.
+                // We default originalStartTimeMillis to startTime.
+                return startTime;
+            } else {
+                throw new IllegalArgumentException("Task info must not set original_start_time_in_millis if original_task_id is not set");
+            }
+        } else {
+            if (optionalOriginalStartTimeMillis != null) {
+                // This task is continuing the work of another one: both original_task_id and original_start_time_in_millis are set.
+                return optionalOriginalStartTimeMillis;
+            } else {
+                throw new IllegalArgumentException("Task info must set original_start_time_in_millis if original_task_id is set");
+            }
+        }
     }
 
     @Override

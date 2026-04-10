@@ -238,6 +238,15 @@ public class BulkByScrollTask extends CancellableTask {
         return relocatedTask;
     }
 
+    @Override
+    protected @Nullable OriginalTaskInfo getOriginalTaskInfo() {
+        if (relocatedTask) {
+            return new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis());
+        } else {
+            return null;
+        }
+    }
+
     /**
      * This class acts as a builder for {@link Status}. Once the {@link Status} object is built by calling
      * {@link #buildStatus()} it is immutable. Used by an instance of {@link ObjectParser} when parsing from

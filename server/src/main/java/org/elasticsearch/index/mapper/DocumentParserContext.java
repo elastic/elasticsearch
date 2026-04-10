@@ -49,12 +49,20 @@ public abstract class DocumentParserContext {
      */
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
-        private final boolean isWithinCopyTo; // cached to avoid method chain overhead and dynamic dispatch
+
+        // cached to avoid method chain overhead and dynamic dispatch
+        private final boolean isWithinCopyTo;
+        private final ContentPath path;
+        private final XContentParser parser;
+        private final LuceneDocument doc;
 
         private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
             this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         // Used to create a copy_to context.
@@ -63,6 +71,9 @@ public abstract class DocumentParserContext {
             super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
             this.in = in;
             this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = in.parser();
+            this.doc = in.doc();
         }
 
         @Override
@@ -77,12 +88,12 @@ public abstract class DocumentParserContext {
 
         @Override
         public ContentPath path() {
-            return in.path();
+            return path;
         }
 
         @Override
         public XContentParser parser() {
-            return in.parser();
+            return parser;
         }
 
         @Override
@@ -92,7 +103,7 @@ public abstract class DocumentParserContext {
 
         @Override
         public LuceneDocument doc() {
-            return in.doc();
+            return doc;
         }
 
         @Override

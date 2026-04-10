@@ -46,7 +46,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(ES93GenericFlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */
@@ -173,12 +173,12 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloatVectorValues(field).scorer(target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getByteVectorValues(field).scorer(target));
         }
 
         @Override

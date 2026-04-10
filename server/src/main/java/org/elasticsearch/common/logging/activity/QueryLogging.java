@@ -34,6 +34,11 @@ public interface QueryLogging {
      */
     String QUERY_FIELD_SHARDS = ES_QUERY_FIELDS_PREFIX + "shards.";
     /**
+     * Is this search only targeting system indices?
+     */
+    String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
+
+    /**
      * This is the name Log4j logger will use.
      */
     String QUERY_LOGGER_NAME = "elasticsearch.querylog";

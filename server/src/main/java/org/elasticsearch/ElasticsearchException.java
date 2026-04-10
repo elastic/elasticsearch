@@ -36,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
@@ -90,6 +91,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDE
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
+import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
@@ -2089,7 +2091,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             InvalidProjectRoutingException::new,
             192,
             INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
-        );
+        ),
+        TASK_RELOCATED_EXCEPTION(TaskRelocatedException.class, TaskRelocatedException::new, 193, TASK_RELOCATED_EXCEPTION_VERSION);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

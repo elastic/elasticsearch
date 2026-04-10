@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -84,7 +85,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.field("test", value),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1)
+            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.Bytes", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
     }
 
@@ -103,8 +107,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(value.length()),
             matchesMap().entry("test:column_at_a_time:null", 1)
                 .entry("stored_fields[requires_source:true, fields:0, sequential: false]", 1)
-                .entry("test:row_stride:BlockSourceReader.Bytes", 1)
+                .entry("test:row_stride:BlockSourceReader.Bytes", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
+    }
+
+    private static ListMatcher checkRuleNotApplied() {
+        return matchesList().item("LuceneSourceOperator")
+            .item("ValuesSourceReaderOperator")
+            .item("EvalOperator")
+            .item("AggregationOperator")
+            .item("ExchangeSinkOperator");
     }
 
     public void testMvMinToKeyword() throws IOException {
@@ -568,13 +583,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
             sig -> {
                 // There are two data node plans, one for each phase.
+                // Both phases push LENGTH into field loading, so the ProjectOperator
+                // is present to drop the temporary pushed attribute after use.
                 if (sig.contains("FilterOperator")) {
+                    // The eval and project come before the filter because the push now
+                    // happens at the physical level, preserving the original operator order.
                     assertMap(
                         sig,
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                            .item("FilterOperator")
                             .item("EvalOperator") // this one just renames the field
+                            .item("FilterOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -661,9 +680,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
-     * LENGTH not pushed when on a fork branch.
+     * LENGTH pushed when on a fork branch.
      */
-    public void testLengthNotPushedToFork() throws IOException {
+    public void testLengthPushedToFork() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
             justType("keyword"),
@@ -672,6 +691,32 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | FORK
                     (EVAL test = LENGTH(test) + 1)
                     (EVAL test = LENGTH(test) + 2)
+                """,
+            matchesList().item(List.of(value.length() + 1, value.length() + 2)),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
+     * LENGTH not pushed when on a fork branch.
+     */
+    public void testLengthNotPushedToForkWithLimit() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | FORK
+                    (EVAL test = LENGTH(test) + 1 | LIMIT 10)
+                    (EVAL test = LENGTH(test) + 2 | LIMIT 10)
                 """,
             matchesList().item(List.of(value.length() + 1, value.length() + 2)),
             matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
@@ -685,7 +730,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
-    public void testLengthNotPushedBeforeFork() throws IOException {
+    public void testLengthPushedBeforeFork() throws IOException {
         String value = "v".repeat(between(0, 256));
         test(
             justType("keyword"),
@@ -697,11 +742,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     (EVAL j = 2)
                 """,
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
             sig -> assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator")
             )
@@ -803,8 +849,11 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("parsing", matchesMap().extraOk())
+                    .entry("view_resolution", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
-                    .entry("dependency_resolution", matchesMap().extraOk())
+                    .entry("indices_resolution", matchesMap().extraOk())
+                    .entry("enrich_resolution", matchesMap().extraOk())
+                    .entry("inference_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))

@@ -17,6 +17,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -64,6 +65,21 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
                 : "ES940DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
+    }
+
+    public void testDefaultsToBBQDiskWhenLicensed() throws IOException {
+        final int dims = randomIntBetween(1, 4096);
+        MapperService mapperService = createMapperService(getVersion(), Settings.EMPTY, () -> true, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+        }));
+
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertNotNull(mapper);
+        assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
+        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 
 }

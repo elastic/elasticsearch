@@ -633,6 +633,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapping.toCompressedXContent().equals(existing.mappingSource());
     }
 
+    public MappingBuilder parseMappings(CompressedXContent mappingSource) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_UPDATE, MappingParser.convertToMap(mappingSource));
+    }
+
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingBuilder incomingBuilder;

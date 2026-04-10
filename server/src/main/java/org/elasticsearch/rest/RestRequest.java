@@ -194,11 +194,16 @@ public class RestRequest implements ToXContent.Params, Traceable {
     /**
      * Creates a new REST request.
      *
-     * @throws BadParameterException if the parameters can not be decoded
+     * @throws BadParameterException    if the parameters can not be decoded
      * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
-        RequestParams params = RequestParams.fromUri(httpRequest.uri());
+        RequestParams params;
+        try {
+            params = RequestParams.fromUri(httpRequest.uri());
+        } catch (final IllegalArgumentException e) {
+            throw new BadParameterException(e);
+        }
         return new RestRequest(
             parserConfig,
             params,

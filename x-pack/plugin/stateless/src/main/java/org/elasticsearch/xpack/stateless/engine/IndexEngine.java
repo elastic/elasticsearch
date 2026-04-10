@@ -352,6 +352,11 @@ public class IndexEngine extends InternalEngine {
         return seqNo -> {};
     }
 
+    @Override
+    protected boolean shouldRetainForPeerRecovery() {
+        return false;
+    }
+
     public LongConsumer objectStorePersistedSeqNoConsumer() {
         return seqNo -> {
             final LocalCheckpointTracker tracker = getLocalCheckpointTracker();

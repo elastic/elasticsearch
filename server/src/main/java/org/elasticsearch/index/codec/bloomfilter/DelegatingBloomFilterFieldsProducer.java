@@ -48,13 +48,13 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     };
 
     private final FieldsProducer delegate;
-    private final BloomFilter bloomFilter;
+    private final IdBloomFilterSupplier idBloomFilterSupplier;
     private final LongAdder checks;
     private final LongAdder falsePositives;
 
-    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
+    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, IdBloomFilterSupplier idBloomFilterSupplier) {
         this.delegate = delegate;
-        this.bloomFilter = bloomFilter;
+        this.idBloomFilterSupplier = idBloomFilterSupplier;
         boolean trace = logger.isTraceEnabled();
         this.checks = trace ? new LongAdder() : NO_OP;
         this.falsePositives = trace ? new LongAdder() : NO_OP;
@@ -65,6 +65,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
         if (logger.isTraceEnabled() && checks != NO_OP) {
             long totalChecks = checks.sum();
             long totalFalsePositives = falsePositives.sum();
+            var bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
             logger.trace(
                 "bloom filter [{}]: saturation={} checks={} false_positives={} fpr={}",
                 bloomFilter,
@@ -74,7 +75,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
                 totalChecks > 0 ? String.format(Locale.ROOT, "%.2e", (double) totalFalsePositives / totalChecks) : "n/a"
             );
         }
-        IOUtils.close(delegate, bloomFilter);
+        IOUtils.close(delegate, idBloomFilterSupplier);
     }
 
     @Override
@@ -91,6 +92,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     public Terms terms(String field) throws IOException {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
         final Terms terms = delegate.terms(field);
+        final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
         return new FilterLeafReader.FilterTerms(terms) {
             @Override
             public TermsEnum iterator() throws IOException {

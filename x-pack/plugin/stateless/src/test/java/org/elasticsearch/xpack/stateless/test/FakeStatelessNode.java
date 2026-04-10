@@ -17,8 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.test;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
@@ -59,6 +57,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
@@ -101,9 +100,11 @@ import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.NoWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -231,24 +232,7 @@ public class FakeStatelessNode implements Closeable {
         repoPath = LuceneTestCase.createTempDir();
         pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
         nodeSettings = nodeSettings();
-        clusterSettings = new ClusterSettings(
-            nodeSettings,
-            Set.copyOf(
-                Stream.concat(
-                    BUILT_IN_CLUSTER_SETTINGS.stream(),
-                    Stream.of(
-                        ServerlessSharedSettings.BOOST_WINDOW_SETTING,
-                        ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
-                        SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
-                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
-                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
-                        SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
-                        SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-                        SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
-                    )
-                ).toList()
-            )
-        );
+        clusterSettings = createClusterSettings(nodeSettings);
         environment = environmentSupplier.apply(nodeSettings);
         telemetryProvider = TelemetryProvider.NOOP;
 
@@ -321,7 +305,14 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            warmingService = createSharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, clusterSettings);
+            WarmingRatioProvider warmingRatioProvider = new NoWarmingRatioProviderFactory().create(clusterSettings);
+            warmingService = createSharedBlobCacheWarmingService(
+                sharedCacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider
+            );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
                 threadPool,
@@ -367,13 +358,32 @@ public class FakeStatelessNode implements Closeable {
         return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
+    protected ClusterSettings createClusterSettings(Settings settings) {
+        return new ClusterSettings(
+            settings,
+            Set.copyOf(Stream.concat(BUILT_IN_CLUSTER_SETTINGS.stream(), additionalClusterSettings().stream()).toList())
+        );
+    }
+
+    protected List<Setting<?>> additionalClusterSettings() {
+        return List.of(
+            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
+            SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
+            SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
+            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
+        );
+    }
+
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        WarmingRatioProvider warmingRatioProvider
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
     }
 
     protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {

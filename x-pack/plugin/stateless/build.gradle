@@ -60,14 +60,12 @@ dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
     compileOnly("org.elasticsearch:native")
-    compileOnly(project(":libs:serverless-shared-constants"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     internalClusterTestImplementation(xpackModule("shutdown"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
     internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
     internalClusterTestImplementation(xpackModule("esql"))
     internalClusterTestImplementation(xpackModule("esql-core"))
-    testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core:1.12.684")
     testImplementation("com.amazonaws:aws-java-sdk-s3:1.12.684")
@@ -79,7 +77,6 @@ dependencies {
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")
     testImplementation(testArtifact("org.elasticsearch:server"))
-    javaRestTestImplementation(project(":libs:serverless-shared-constants"))
 }
 
 restResources {

@@ -21,6 +21,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,13 +66,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -87,7 +93,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTest((writer, parser) -> {
 
             final var now = Instant.now();
@@ -138,7 +143,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                     assertThat(terms.size(), equalTo(-1L));
                     assertThat(terms.getSumTotalTermFreq(), equalTo(0L));
-                    assertThat(terms.getSumDocFreq(), equalTo(0L));
+                    assertThat(terms.getSumDocFreq(), equalTo((long) docsPerSegments[i]));
                     assertThat(terms.getDocCount(), equalTo(docsPerSegments[i]));
 
                     var lazyTermsEnum = terms.iterator();
@@ -196,7 +201,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeek() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
@@ -391,14 +395,169 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testSeekCeilWithShortOrEmptyTerms() throws IOException {
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+
+                final BytesRef firstTerm = finalDocs.firstKey();
+
+                // Test seekCeil with empty BytesRef - should position on first term
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(emptyTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekCeil with BytesRef shorter than minimum synthetic ID length
+                // A valid synthetic ID is at least Long.BYTES + Integer.BYTES + 1 bytes
+                {
+                    var shortTerm = new BytesRef(new byte[] { 0x00 });
+                    assertThat(shortTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(shortTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                {
+                    // Term with exactly Long.BYTES + Integer.BYTES (12 bytes) - still too short
+                    var borderlineTerm = new BytesRef(new byte[Long.BYTES + Integer.BYTES]);
+                    assertThat(syntheticIdTermsEnum.seekCeil(borderlineTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekExact with short terms - should return false
+                {
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef()), equalTo(false));
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef(new byte[] { 0x01, 0x02 })), equalTo(false));
+                }
+
+                // Test seekCeil with truncated versions of existing terms
+                {
+                    var randomDocsIds = randomNonEmptySubsetOf(finalDocs.keySet());
+                    for (var existingTerm : randomDocsIds) {
+                        // Truncate to various lengths shorter than minimum synthetic ID length
+                        var truncatedTerm = new BytesRef(
+                            existingTerm.bytes,
+                            existingTerm.offset,
+                            randomIntBetween(1, Long.BYTES + Integer.BYTES)
+                        );
+
+                        var status = syntheticIdTermsEnum.seekCeil(truncatedTerm);
+                        assertThat(status, equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                        // The positioned term should be >= truncated term
+                        var positionedTerm = syntheticIdTermsEnum.term();
+                        assertThat(positionedTerm.compareTo(truncatedTerm), greaterThanOrEqualTo(0));
+                    }
+                }
+
+                // After seekCeil on a short term, verify we can iterate through all terms
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                    // Count unique terms by iterating - finalDocs.size() is the number of unique synthetic IDs
+                    int uniqueTermCount = 1; // already positioned on first
+                    BytesRef previousTerm = BytesRef.deepCopyOf(syntheticIdTermsEnum.term());
+                    BytesRef currentTerm;
+                    while ((currentTerm = syntheticIdTermsEnum.next()) != null) {
+                        // Only count when the term changes (skip duplicate docs with same synthetic ID)
+                        if (currentTerm.equals(previousTerm) == false) {
+                            uniqueTermCount++;
+                            previousTerm = BytesRef.deepCopyOf(currentTerm);
+                        }
+                    }
+                    assertThat(uniqueTermCount, equalTo(finalDocs.size()));
+                }
+            }
+        });
+    }
+
+    public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
+        // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
+        // that are less prone to concurrency issues.
+        doTestConcurrentSeekExact(new NIOFSDirectory(createTempDir()));
+    }
+
+    public void testConcurrentSeekExactRandomDirectory() throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        doTestConcurrentSeekExact(directory);
+    }
+
+    private void doTestConcurrentSeekExact(Directory directory) throws IOException {
+        runTestWithRandomDocs(directory, 25, 100, (writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final var ids = new ArrayList<>(finalDocs.keySet());
+
+                // N threads each do terms("_id").iterator().seekExact(id), mirroring the
+                // PerThreadIDVersionAndSeqNoLookup pattern: each thread has its own TermsEnum
+                // but all share the same DelegatingBloomFilterFieldsProducer and its underlying BloomFilter.
+                final int numThreads = 16;
+                final int iterationsPerThread = 1_000;
+                final var errors = new CopyOnWriteArrayList<Throwable>();
+                final var startLatch = new CountDownLatch(1);
+                final var doneLatch = new CountDownLatch(numThreads);
+
+                for (int t = 0; t < numThreads; t++) {
+                    final int threadIdx = t;
+                    new Thread(() -> {
+                        try {
+                            final TermsEnum termsEnum = leafReader.terms(IdFieldMapper.NAME).iterator();
+                            startLatch.await();
+                            for (int i = 0; i < iterationsPerThread; i++) {
+                                final BytesRef id = ids.get((i + threadIdx) % ids.size());
+                                termsEnum.seekExact(id);
+                            }
+                        } catch (Throwable e) {
+                            logger.error("unexpected exception", e);
+                            errors.add(e);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    }, "seek-thread-" + t).start();
+                }
+
+                startLatch.countDown();
+                safeAwait(doneLatch);
+                assertThat(errors, empty());
+            }
+        });
+    }
+
     /**
      * Indexes random documents with synthetic id in a time-series Lucene index.
      *
      * See {@link #runTest(CheckedBiConsumer)}.
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        runTestWithRandomDocs(directory, test);
+    }
+
+    public static void runTestWithRandomDocs(Directory directory, CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test)
+        throws IOException {
+        runTestWithRandomDocs(directory, randomIntBetween(1, 25), randomIntBetween(1, 100), test);
+    }
+
+    private static void runTestWithRandomDocs(
+        Directory directory,
+        int maxHosts,
+        int maxMetricsPerHost,
+        CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test
+    ) throws IOException {
         final int routing = randomNonNegativeInt();
-        final int maxHosts = randomIntBetween(1, 25);
 
         // Generate a list of unique random documents
         // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
@@ -406,14 +565,13 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         for (int host = 0; host < maxHosts; host++) {
             var timestamp = Instant.now();
 
-            int maxMetricsPerHost = randomIntBetween(1, 100);
             for (int metric = 0; metric < maxMetricsPerHost; metric++) {
                 randomDocs.add(new Doc(timestamp.toEpochMilli(), "vm-prod-" + host, "cpu-load", metric, 1, routing));
                 timestamp = timestamp.plus(randomIntBetween(1, 59), randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES));
             }
         }
 
-        runTest((writer, parser) -> {
+        runTest(directory, (writer, parser) -> {
             // Last version of docs, keyed by their synthetic id term
             final var finalDocs = new TreeMap<BytesRef, Doc>();
 
@@ -469,18 +627,22 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
     private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
+        // that is not supported in TSDBSyntheticIdFieldsProducer today.
+        //
+        // TODO would be nice to enable check-index-on-close
+        directory.setCheckIndexOnClose(false);
+        runTest(directory, test);
+    }
+
+    private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
         final var documentParser = buildDocumentParser(mapperService);
 
-        try (var directory = newDirectory()) {
-            // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-            // that is not supported in TSDBSyntheticIdFieldsProducer today.
-            //
-            // TODO would be nice to enable check-index-on-close
-            directory.setCheckIndexOnClose(false);
-
+        try (directory) {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(

@@ -2400,7 +2400,7 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
-         * TSDB Temporality support which is hidden behind a feature flag.
+         * TSDB Temporality support which is guarded by a feature flag.
          */
         TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 

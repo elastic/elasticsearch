@@ -13,7 +13,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -44,7 +43,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static LogicalPlanOptimizer logicalOptimizer;
 
     protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
-    protected static LogicalPlanOptimizer optimizerWithoutForkImplicitLimit;
 
     protected static Map<String, EsField> mapping;
 
@@ -69,13 +67,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
         );
         mapping = loadMapping("mapping-basic.json");
-
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        optimizerWithoutForkImplicitLimit = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())
-        );
     }
 
     protected static TestAnalyzer analyzerWithEnrichPolicies() {
@@ -248,10 +239,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSubquery(String query) {
         return optimize(subqueryAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        return optimizerWithoutForkImplicitLimit.optimize(analyzerWithoutForkImplicitLimit().query(query));
     }
 
     @Override

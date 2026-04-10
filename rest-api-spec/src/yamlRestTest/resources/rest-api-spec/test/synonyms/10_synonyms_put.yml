@@ -91,6 +91,42 @@ setup:
   - not_exists: reload_analyzers_details
 
 ---
+"Max synonym rules limit is enforced":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: 3
+
+  - do:
+      catch: /cannot exceed 3/
+      synonyms.put_synonym:
+        id: test-limit-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "a, b"
+            - synonyms: "c, d"
+            - synonyms: "e, f"
+            - synonyms: "g, h"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-limit-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "a, b"
+            - synonyms: "c, d"
+            - synonyms: "e, f"
+
+  - match: { result: "created" }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.max_synonym_rules: null
+
+---
 "Validation fails tests":
   - do:
       catch: /\[synonyms\] field can't be empty/

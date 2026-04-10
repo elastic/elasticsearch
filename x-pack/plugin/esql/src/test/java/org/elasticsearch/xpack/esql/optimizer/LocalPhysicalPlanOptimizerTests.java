@@ -2477,7 +2477,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
             assertThat(
                 Expressions.names(readMetrics.attributesToExtract()),
-                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.PLACEHOLDER_FIELD_NAME)
+                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
             );
         } else {
             assertThat(

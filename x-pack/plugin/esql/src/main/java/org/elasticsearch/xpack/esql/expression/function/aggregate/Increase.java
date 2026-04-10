@@ -51,7 +51,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         "Increase",
         Increase::readFrom
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Increase.class).ternary(Increase::new).name("increase");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Increase.class).ternary(Increase::createWithImplicitTemporality).name("increase");
 
     private final Expression timestamp;
     private final Expression temporality;
@@ -82,10 +82,6 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         @Nullable Expression temporality
     ) {
         this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
-    }
-
-    public Increase(Source source, Expression field, Expression window, Expression timestamp) {
-        this(source, field, window, timestamp, null);
     }
 
     public static Increase createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {

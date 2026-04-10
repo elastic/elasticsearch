@@ -65,6 +65,7 @@ public abstract class ExponentialHistogramTestUtils {
                     int scale = randomIntBetween(0, MAX_SCALE);
                     long index = ExponentialScaleUtils.computeIndex(zeroThreshold, scale) - 1;
                     zeroBucket = ZeroBucket.create(index, scale, histo.zeroBucket().count());
+                    zeroThreshold = zeroBucket.zeroThreshold();
                 }
                 ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, breaker).zeroBucket(zeroBucket);
 
@@ -76,6 +77,22 @@ public abstract class ExponentialHistogramTestUtils {
                 }
                 histo = builder.build();
             }
+        }
+        if (histo.valueCount() > 0) {
+            // sanity check for min/max
+            assert histo.min() <= histo.max();
+            double estimatedMin = ExponentialHistogramUtils.estimateMin(
+                histo.zeroBucket(),
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            ).getAsDouble();
+            assert estimatedMin - histo.min() <= 0.00000001;
+            double estimatedMax = ExponentialHistogramUtils.estimateMax(
+                histo.zeroBucket(),
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            ).getAsDouble();
+            assert estimatedMax - histo.max() >= -0.00000001;
         }
         return histo;
     }

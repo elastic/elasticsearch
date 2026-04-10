@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityF
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -1759,5 +1760,135 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
         assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+    }
+
+    // Tests for ReplaceComparisonWithConstantFromMinMax
+
+    public void testComparisonAlwaysFalse() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary > 80000
+            | keep salary
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+
+        var localPlan = localPlan(plan, searchStats);
+        // PruneFilters transforms Filter(FALSE) into an empty LocalRelation
+        var localRelation = as(localPlan, LocalRelation.class);
+        // Actually, let's just assert it is a LocalRelation since we know it's EMPTY
+        // and we can also check the localSupplier
+        assertThat(localRelation.supplier(), org.hamcrest.Matchers.instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testComparisonAlwaysTrueNoNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary > 20000
+            | keep salary
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                if (field.string().equals("salary")) {
+                    return 1000; // implies no nulls
+                }
+                return super.count(field);
+            }
+        };
+
+        var localPlan = localPlan(plan, searchStats);
+        var project = as(localPlan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        // PruneFilters removes Filter(TRUE), so the child is directly EsRelation
+        var source = as(limit.child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    public void testComparisonAlwaysTrueWithNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary > 20000
+            | keep salary
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                if (field.string().equals("salary")) {
+                    return 900; // implies nulls exist
+                }
+                return super.count(field);
+            }
+        };
+
+        var localPlan = localPlan(plan, searchStats);
+        var project = as(localPlan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+    }
+
+    public void testEvalSafeguardBypass() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | eval is_high = salary > 80000
+            | keep is_high
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+
+        var localPlan = localPlan(plan, searchStats);
+        var project = as(localPlan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var greaterThan = as(alias.child(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
+    }
+
+    public void testComparisonIndeterminate() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary > 50000
+            | keep salary
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+
+        var localPlan = localPlan(plan, searchStats);
+        var project = as(localPlan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
+    }
+
+    public void testDateNanosIgnored() {
+        var plan = allTypes().coordinatorPlan("""
+              from test_all
+            | where date_nanos > "2024-01-01T00:00:00.000Z"
+            | keep date_nanos
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("date_nanos", 1000L), Map.of("date_nanos", 2000L));
+
+        var localPlan = localPlan(plan, searchStats);
+        var project = as(localPlan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("date_nanos"));
     }
 }

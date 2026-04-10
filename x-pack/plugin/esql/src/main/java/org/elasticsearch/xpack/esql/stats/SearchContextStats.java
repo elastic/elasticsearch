@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -256,7 +257,11 @@ public class SearchContextStats implements SearchStats {
                         } else {
                             byte[] minPacked = PointValues.getMinPackedValue(leafContext.reader(), field.string());
                             if (minPacked != null) {
-                                minValue = pointReader.apply(minPacked);
+                                if (ctxFieldType instanceof DateFieldType) {
+                                    minValue = LongPoint.decodeDimension(minPacked, 0);
+                                } else {
+                                    minValue = pointReader.apply(minPacked);
+                                }
                             }
                         }
                         result = nullableMin(result, minValue);
@@ -297,7 +302,11 @@ public class SearchContextStats implements SearchStats {
                         } else {
                             byte[] maxPacked = PointValues.getMaxPackedValue(leafContext.reader(), field.string());
                             if (maxPacked != null) {
-                                maxValue = pointReader.apply(maxPacked);
+                                if (ctxFieldType instanceof DateFieldType) {
+                                    maxValue = LongPoint.decodeDimension(maxPacked, 0);
+                                } else {
+                                    maxValue = pointReader.apply(maxPacked);
+                                }
                             }
                         }
                         result = nullableMax(result, maxValue);

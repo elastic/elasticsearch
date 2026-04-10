@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -26,6 +27,7 @@ import java.util.List;
  */
 public class Asin extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Asin", Asin::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Asin.class).unary(Asin::new).name("asin");
 
     @FunctionInfo(
         returnType = "double",

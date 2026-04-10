@@ -12,6 +12,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
@@ -161,7 +162,7 @@ public class APMJvmOptionsTests extends ESTestCase {
 
         assertFalse(options.isEmpty());
 
-        Properties properties = extractProperties(tempDir);
+        Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
         assertNull(properties.getProperty("disable_metrics"));
     }
@@ -179,23 +180,33 @@ public class APMJvmOptionsTests extends ESTestCase {
 
         assertFalse(options.isEmpty());
 
-        Properties properties = extractProperties(tempDir);
+        Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("0s"));
         assertThat(properties.getProperty("disable_metrics"), equalTo("*"));
     }
 
-    private static Properties extractProperties(Path tempDir) throws IOException {
+    private static Properties extractProperties(List<String> options) throws IOException {
+        Path configPath = findApmConfigPath(options);
         Properties properties = new Properties();
-        Path configPath;
-        try (var files = Files.list(tempDir)) {
-            configPath = files.filter(
-                p -> p.getFileName().toString().startsWith(".elstcapm") && p.getFileName().toString().endsWith(".tmp")
-            ).findFirst().orElseThrow(() -> new AssertionError("expected temp APM config file"));
-        }
         try (InputStream inputStream = Files.newInputStream(configPath)) {
             properties.load(inputStream);
         }
         return properties;
+    }
+
+    private static Path findApmConfigPath(List<String> options) {
+        for (String inputArgument : options) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                int configIndex = inputArgument.lastIndexOf("=c=");
+                if (configIndex > 0) {
+                    final Path apmConfig = PathUtils.get(inputArgument.substring(configIndex + 3));
+                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches(Node.APM_PROPFILE_REGEX)) {
+                        return apmConfig;
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Expected temp APM config file. Options were: " + options);
     }
 
     private Path makeFakeAgentJar() throws IOException {

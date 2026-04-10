@@ -11,10 +11,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 import java.util.List;
@@ -133,15 +133,11 @@ public class VectorScorerByteBulkBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerByteBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerByteBulkBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        String[] dims = Utils.possibleValues(VectorScorerByteBulkBenchmark.class, "dims").toArray(new String[0]);
+        String[] functions = Utils.possibleValues(VectorScorerByteBulkBenchmark.class, "function").toArray(new String[0]);
+        return () -> Arrays.stream(dims)
+            .map(Integer::parseInt)
+            .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
+            .iterator();
     }
 }

@@ -19,8 +19,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -108,8 +108,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
                 final String prefix = params.getOrDefault("prefix", "");
                 final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
                 final String delimiter = params.getOrDefault("delimiter", "");
@@ -220,8 +219,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
                 final String blobName = params.get("name");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
@@ -247,8 +245,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/" + bucket + "/o?*uploadType=resumable*", request)) {
                 // Resumable upload https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
 
                 final String contentRangeValue = requireHeader(exchange, "Content-Range");
                 final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(contentRangeValue);
@@ -288,12 +285,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String srcObject = URLDecoder.decode(matcher.group("srcObject"), UTF_8);
                 final String dstObject = URLDecoder.decode(matcher.group("dstObject"), UTF_8);
 
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final RequestParams params = RequestParams.from(exchange.getRequestURI());
                 final String rewriteToken = params.get("rewriteToken");
-                final long maxBytesRewrittenPerCall = Long.parseLong(
-                    params.getOrDefault("maxBytesRewrittenPerCall", String.valueOf(DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL))
-                );
+                final String maxBytesStr = params.get("maxBytesRewrittenPerCall");
+                final long maxBytesRewrittenPerCall = maxBytesStr != null
+                    ? Long.parseLong(maxBytesStr)
+                    : DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL;
 
                 var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
@@ -532,8 +529,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private static Long parseOptionalLongParameter(HttpExchange exchange, String parameterName) {
-        final Map<String, String> params = new HashMap<>();
-        RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+        final var params = RequestParams.from(exchange.getRequestURI());
         if (params.containsKey(parameterName)) {
             try {
                 return Long.parseLong(params.get(parameterName));

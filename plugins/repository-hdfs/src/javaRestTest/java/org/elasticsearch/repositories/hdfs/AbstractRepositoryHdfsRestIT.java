@@ -92,7 +92,7 @@ abstract class AbstractRepositoryHdfsRestIT extends ESRestTestCase {
         final var remainingSnapshots = new ArrayList<>(snapshotNames);
         Collections.sort(remainingSnapshots);
         while (remainingSnapshots.isEmpty() == false) {
-            deleteSnapshot(repoName, remainingSnapshots.removeLast(), false);
+            deleteSnapshot(repoName, remainingSnapshots.remove(remainingSnapshots.size() - 1), false);
             assertEquals(remainingSnapshots, listAllSnapshotNames(repoName).stream().sorted().toList());
         }
 
@@ -115,7 +115,7 @@ abstract class AbstractRepositoryHdfsRestIT extends ESRestTestCase {
 
         final var createSnapshotError = assertThrows(ResponseException.class, () -> createSnapshot(repoName, randomIdentifier(), true));
         assertEquals(400, createSnapshotError.getResponse().getStatusLine().getStatusCode());
-        final var deleteSnapshotError = assertThrows(ResponseException.class, () -> deleteSnapshot(repoName, snapshots.getFirst(), true));
+        final var deleteSnapshotError = assertThrows(ResponseException.class, () -> deleteSnapshot(repoName, snapshots.get(0), true));
         assertEquals(400, deleteSnapshotError.getResponse().getStatusLine().getStatusCode());
 
         deleteRepository(repoName);

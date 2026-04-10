@@ -42,6 +42,7 @@ public class RestPutSynonymsAction extends BaseRestHandler {
         PutSynonymsAction.Request request = new PutSynonymsAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.paramAsBoolean("refresh", true),
+            restRequest.paramAsBoolean("append", false),
             restRequest.content(),
             restRequest.getXContentType()
         );
@@ -54,6 +55,6 @@ public class RestPutSynonymsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return SynonymCapabilities.CAPABILITIES;
+        return SynonymCapabilities.PUT_SYNONYM_SET_CAPABILITIES;
     }
 }

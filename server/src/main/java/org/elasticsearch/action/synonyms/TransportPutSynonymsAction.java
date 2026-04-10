@@ -26,7 +26,6 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
     @Inject
     public TransportPutSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(PutSynonymsAction.NAME, transportService, actionFilters, PutSynonymsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }
 
@@ -36,6 +35,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
             request.synonymsSetId(),
             request.synonymRules(),
             request.refresh(),
+            request.append(),
             listener.map(SynonymUpdateResponse::new)
         );
     }

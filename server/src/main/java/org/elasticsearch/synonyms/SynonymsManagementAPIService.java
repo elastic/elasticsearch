@@ -428,11 +428,16 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
+        boolean append,
         ActionListener<SynonymsReloadResult> listener
     ) {
+        if (append) {
+            appendSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
+            return;
+        }
         if (synonymsSet.length > maxSynonymRules) {
             listener.onFailure(
-                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymRules)
+                new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
             );
             return;
         }
@@ -450,7 +455,6 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            // Insert as bulk requests
             bulkUpdateSynonymsSet(
                 synonymSetId,
                 synonymsSet,
@@ -480,6 +484,94 @@ public class SynonymsManagementAPIService {
                     );
                 })
             );
+        }));
+    }
+
+    /**
+     * Appends synonym rules to an existing set without deleting existing rules. If the set does not
+     * exist yet it is created. Rules whose IDs match existing rules are overwritten.
+     */
+    private void appendSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        // GET the synonym set document to determine whether this is a create or an update, and to
+        // handle the IndexNotFoundException case (index not yet created) gracefully.
+        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId).execute(ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists() == false) {
+                // New set — no existing rules; limit check is purely on the incoming batch.
+                if (synonymsSet.length > maxSynonymRules) {
+                    listener.onFailure(
+                        new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
+                    );
+                    return;
+                }
+                doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+            } else {
+                // Existing set — count current rules so we can enforce the limit on the combined total.
+                client.prepareSearch(SYNONYMS_ALIAS_NAME)
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                            .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+                    )
+                    .setSize(0)
+                    .setPreference(Preference.LOCAL.type())
+                    .setTrackTotalHits(true)
+                    .execute(listener.delegateFailureAndWrap((l, searchResponse) -> {
+                        long existingCount = searchResponse.getHits().getTotalHits().value();
+                        if (existingCount + synonymsSet.length > maxSynonymRules) {
+                            l.onFailure(
+                                new IllegalArgumentException(
+                                    "Appending "
+                                        + synonymsSet.length
+                                        + " rules would exceed the synonym set limit of "
+                                        + maxSynonymRules
+                                        + " rules"
+                                )
+                            );
+                            return;
+                        }
+                        doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.UPDATED, l);
+                    }));
+            }
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                // Index doesn't exist yet — treat as new set creation.
+                if (synonymsSet.length > maxSynonymRules) {
+                    listener.onFailure(
+                        new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
+                    );
+                    return;
+                }
+                doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
+    }
+
+    private void doAppendBulkInsert(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        UpdateSynonymsResultStatus status,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, listener.delegateFailure((l, bulkResponse) -> {
+            if (bulkResponse.hasFailures()) {
+                logUniqueFailureMessagesWithIndices(
+                    Arrays.stream(bulkResponse.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .map(BulkItemResponse::getFailure)
+                        .collect(Collectors.toList())
+                );
+                l.onFailure(new ElasticsearchException("Error updating synonyms: " + bulkResponse.buildFailureMessage()));
+                return;
+            }
+            checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
         }));
     }
 

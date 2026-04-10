@@ -91,6 +91,150 @@ setup:
   - not_exists: reload_analyzers_details
 
 ---
+"Append to non-existent set creates it":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.id: "rule-1" }
+
+---
+"Append adds rules without removing existing ones":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+            - synonyms: "bye => goodbye"
+              id: "rule-2"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "good, great"
+              id: "rule-3"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 3 }
+
+---
+"Append with matching ID overwrites existing rule":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        append: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi, hey"
+              id: "rule-1"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.synonyms: "hello, hi, hey" }
+
+---
+"Put without append replaces existing rules":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+            - synonyms: "bye => goodbye"
+              id: "rule-2"
+
+  - match: { result: "created" }
+
+  - do:
+      synonyms.put_synonym:
+        id: test-append-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "good, great"
+              id: "rule-3"
+
+  - match: { result: "updated" }
+
+  - do:
+      synonyms.get_synonym:
+        id: test-append-synonyms
+
+  - match: { count: 1 }
+  - match: { synonyms_set.0.id: "rule-3" }
+
+---
 "Validation fails tests":
   - do:
       catch: /\[synonyms\] field can't be empty/

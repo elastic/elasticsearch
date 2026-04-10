@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -46,6 +47,7 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
         "StIsEmpty",
         StIsEmpty::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StIsEmpty.class).unary(StIsEmpty::new).name("st_isempty");
 
     @FunctionInfo(
         returnType = "boolean",

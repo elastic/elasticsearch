@@ -126,6 +126,9 @@ setup:
   - requires:
       cluster_features: "gte_v8.14.0"
       reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
+  - skip:
+      cluster_features: "search.default_disk_bbq"
+      reason: 'dense_vector indexed as bbq_disk but only when under license'
   - do:
       indices.create:
         index: test_default_index_options

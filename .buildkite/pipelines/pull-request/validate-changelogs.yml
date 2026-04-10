@@ -1,3 +1,5 @@
+config:
+  auto-retry: false
 steps:
   - label: validate-changelogs
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed validateChangelogs

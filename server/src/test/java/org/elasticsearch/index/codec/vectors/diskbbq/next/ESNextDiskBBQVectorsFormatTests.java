@@ -53,6 +53,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
 
@@ -62,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import static java.lang.String.format;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
@@ -528,14 +530,19 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     public void testSlicesDense() throws IOException {
-        doTestSlices(true);
+        doTestSlices(() -> true);
     }
 
     public void testSlicesSparse() throws IOException {
-        doTestSlices(false);
+        if (rarely()) {
+            doTestSlices(() -> random().nextInt(1000) == 0);
+        } else {
+            int bound = random().nextInt(2, 50);
+            doTestSlices(() -> random().nextInt(bound) == 0);
+        }
     }
 
-    private void doTestSlices(boolean dense) throws IOException {
+    private void doTestSlices(BooleanSupplier supplier) throws IOException {
         // TODO: add test with filters
         String sliceField = "_slice";
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
@@ -565,10 +572,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(slices);
-                docsPerSlice[slice]++;
                 Document doc = new Document();
                 doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
-                if (dense || random().nextInt(10) == 0) {
+                if (supplier.getAsBoolean()) {
+                    docsPerSlice[slice]++;
                     doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
                 }
                 doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
@@ -579,6 +586,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 // force one leave so slice metadata is present
                 w.forceMerge(1);
             }
+            float[] vector = randomVector(dimensions);
             try (IndexReader reader = DirectoryReader.open(w)) {
                 for (int slice = 0; slice < slices; slice++) {
                     Query query = SortedDocValuesField.newSlowExactQuery(sliceField, new BytesRef("" + slice));
@@ -587,7 +595,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     for (int i = 0; i < reader.leaves().size(); i++) {
                         LeafReaderContext context = reader.leaves().get(i);
                         LeafReader leafReader = context.reader();
-                        float[] vector = randomVector(dimensions);
+
                         int ord = leafReader.getSortedDocValues(sliceField).lookupTerm(new BytesRef("" + slice));
                         if (ord < 0) {
                             topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
@@ -596,14 +604,18 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         ScorerSupplier scorerSupplier = weight.scorerSupplier(context);
                         DocIdSetIterator iterator = scorerSupplier.get(DocIdSetIterator.NO_MORE_DOCS).iterator();
                         int minDoc = iterator.nextDoc();
+                        if (minDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                            assertEquals(0, docsPerSlice[slice]);
+                            continue;
+                        }
                         int maxDoc = minDoc;
                         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             maxDoc = iterator.docID();
                         }
-                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new ESAcceptDocs.SliceAcceptDocs(minDoc, maxDoc);
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc);
                         ESAcceptDocs acceptDocs = new ESAcceptDocs.ESAcceptDocsAll(ord, () -> sliceAcceptDocs);
                         // we might collect the same document twice because of soar assignments
-                        KnnCollector collector = new TopKnnCollector(2 * docsPerSlice[slice], Integer.MAX_VALUE);
+                        KnnCollector collector = new TopKnnCollector(2 * Math.max(1, docsPerSlice[slice]), Integer.MAX_VALUE);
                         weight.scorer(context);
                         leafReader.searchNearestVectors("vector", vector, collector, acceptDocs);
                         TopDocs leafTopDocs = collector.topDocs();

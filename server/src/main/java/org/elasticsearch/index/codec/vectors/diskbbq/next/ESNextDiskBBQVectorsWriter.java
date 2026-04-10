@@ -313,7 +313,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
             postingsOutput.writeByte(encoding);
             if (sliceField != null) {
-                // We are not writing the docIds as we expect dense vectors in one centroid
+                // We are not writing the docIds as we know they are writing in vector ord order.
                 assert centroidSupplier.size() == 1;
                 bulkWriter.writeVectors(onHeapQuantizedVectors, null);
             } else {
@@ -613,7 +613,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             assert numberOfSlices == 0;
             metaOutput.writeInt(-1);
         } else {
-            metaOutput.writeVInt(numberOfSlices);
+            metaOutput.writeInt(numberOfSlices);
             if (numberOfSlices > 0) {
                 metaOutput.writeVInt(maxSliceSize);
             }
@@ -875,24 +875,25 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int[] sliceLengths = new int[numSlices];
             List<KMeansResult> kmeansResults = new ArrayList<>();
             for (int i = 0; i < numSlices; i++) {
-                int sliceDocStart = values.docID();
-                if (sliceDocStart == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS) {
+                if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                    // no more vectors, we are done
                     sliceLengths[i] = 0;
-                    assert i > 0;
-                    sliceOffsets[i] = sliceOffsets[i - 1];
+                    sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
                     continue;
                 }
-                assert sliceDocStart <= values.docID();
-                while (values.docID() != sliceDocStart) {
-                    values.nextDoc();
-                }
+                // get start and end of an slice
+                int sliceDocStart = values.docID();
                 while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
                     values.nextDoc();
                 }
                 int sliceDocEnd = values.docID();
-                int vectorDocStar = iterator.advance(sliceDocStart);
+                int vectorDocStar = iterator.docID();
+                if (iterator.docID() < sliceDocStart) {
+                    // advance iterator to the beginning of the slice
+                    vectorDocStar = iterator.advance(sliceDocStart);
+                }
                 KMeansResult kMeansResult;
-                if (vectorDocStar >= sliceDocEnd) {
+                if (vectorDocStar > sliceDocEnd) {
                     kMeansResult = KMeansResult.EMPTY;
                     sliceLengths[i] = 0;
                 } else {
@@ -911,11 +912,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     sliceLengths[i] = vectorOrdEnd - vectorOrdStar;
 
                 }
-                if (i == 0) {
-                    sliceOffsets[i] = kMeansResult.centroids().length;
-                } else {
-                    sliceOffsets[i] = sliceOffsets[i - 1] + kMeansResult.centroids().length;
-                }
+                sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
             }
 
             KMeansResult merged = KMeansResult.merge(kmeansResults);
@@ -951,6 +948,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         public int docID() {
             if (index == NO_MORE_DOCS) {
                 return DocIdSetIterator.NO_MORE_DOCS;
+            } else if (index == -1) {
+                return -1;
             }
             return floatVectorValues.ordToDoc(index);
         }

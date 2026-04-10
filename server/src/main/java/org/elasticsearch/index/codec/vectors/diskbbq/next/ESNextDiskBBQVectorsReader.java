@@ -185,7 +185,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
+        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1 || acceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;
@@ -266,7 +266,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (preconditionerLength > 0) {
             preconditionerOffset = input.readLong();
         }
-        int numSlices = input.readVInt();
+        int numSlices = input.readInt();
         int maxSliceSize = 0;
         if (numSlices > 0) {
             maxSliceSize = input.readVInt();
@@ -315,8 +315,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
-        protected final int numSlices;
-        protected final int maxSliceSize;
+        final int numSlices;
+        final int maxSliceSize;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -666,7 +666,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 centroids.skipBytes(tailBulkSize * centroidQuantizeSize);
             }
         }
-
     }
 
     @Override
@@ -710,31 +709,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         if (entry.numSlices == 0) {
             // should only happen in sliced flushed segments
             assert entry.numCentroids() == 1;
-            int minDoc;
-            int maxDoc;
+            int startDoc;
+            int endDoc;
             if (acceptDocs == null) {
-                minDoc = 0;
-                maxDoc = values.size() - 1;
+                startDoc = 0;
+                endDoc = values.ordToDoc(values.size() - 1);
             } else {
                 ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
-                minDoc = sliceAcceptDocs.minDoc();
-                maxDoc = sliceAcceptDocs.maxDoc();
-            }
-            KnnVectorValues.DocIndexIterator iterator = values.iterator();
-            int minOrd;
-            int maxOrd;
-            int currentMinDoc = iterator.advance(minDoc);
-            if (currentMinDoc > maxDoc) {
-                minOrd = maxOrd = 0;
-            } else {
-                minOrd = iterator.index();
-                if (maxDoc == iterator.advance(maxDoc)) {
-                    maxOrd = iterator.index();
-                } else if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
-                    maxOrd = values.size() - 1;
-                } else {
-                    maxOrd = iterator.index() - 1;
-                }
+                startDoc = sliceAcceptDocs.startDoc();
+                endDoc = sliceAcceptDocs.endDoc();
             }
             return new SlicedMemorySegmentPostingsVisitor(
                 queryQuantizer,
@@ -743,9 +726,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 entry,
                 fieldInfo,
                 needsScoring,
-                minDoc,
-                maxDoc
+                values,
+                startDoc,
+                endDoc
             );
+
         } else {
             return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, needsScoring);
         }
@@ -854,9 +839,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     private static class SlicedMemorySegmentPostingsVisitor extends MemorySegmentPostingsVisitor {
-
         final int startDocId;
         final int endDocId;
+        final FloatVectorValues floatVectorValues;
 
         SlicedMemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
@@ -865,40 +850,55 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             FieldEntry entry,
             FieldInfo fieldInfo,
             Bits acceptDocs,
+            FloatVectorValues values,
             int startDocId,
             int endDocId
         ) throws IOException {
             super(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
             this.startDocId = startDocId;
             this.endDocId = endDocId;
+            this.floatVectorValues = values;
         }
 
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             int totalVectors = super.resetPostingsScorer(metadata);
             int totalBlocks = totalVectors / BULK_SIZE;
-            assert endDocId - startDocId + 1 <= totalVectors;
-            int startBlock = (this.startDocId / BULK_SIZE);
-            int endBlock = this.endDocId / BULK_SIZE;
+            KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            if (iterator.advance(startDocId) > endDocId) {
+                this.vectors = 0;
+                return 0;
+            }
+            int minOrd = iterator.index();
+            int docId = iterator.advance(endDocId);
+            int maxOrd;
+            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                maxOrd = floatVectorValues.size() - 1;
+            } else {
+                maxOrd = iterator.index();
+            }
+            assert maxOrd - minOrd + 1 <= totalVectors;
+            int startBlock = minOrd / BULK_SIZE;
+            int endBlock = maxOrd / BULK_SIZE;
             if (endBlock == totalBlocks) {
                 this.vectors = totalVectors - startBlock * BULK_SIZE;
             } else {
                 this.vectors = (1 + endBlock - startBlock) * BULK_SIZE;
             }
             docBase = startBlock * BULK_SIZE;
-            slicePos += docBase * quantizedByteLength;
+            slicePos += startBlock * BULK_SIZE * quantizedByteLength;
             return this.vectors;
         }
 
         @Override
         protected void readDocIds(int count) {
             for (int j = 0; j < count; j++) {
-                if (docBase >= startDocId && docBase <= endDocId) {
-                    docIdsScratch[j] = docBase;
+                int docId = floatVectorValues.ordToDoc(docBase++);
+                if (docId >= startDocId && docId <= endDocId) {
+                    docIdsScratch[j] = docId;
                 } else {
                     docIdsScratch[j] = -1;
                 }
-                docBase++;
             }
         }
     }

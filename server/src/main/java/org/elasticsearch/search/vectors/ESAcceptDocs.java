@@ -88,7 +88,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    public record SliceAcceptDocs(int minDoc, int maxDoc) {}
+    public record SliceAcceptDocs(int startDoc, int endDoc) {}
 
     /** An AcceptDocs that accepts all documents. */
     public static final class ESAcceptDocsAll extends ESAcceptDocs {

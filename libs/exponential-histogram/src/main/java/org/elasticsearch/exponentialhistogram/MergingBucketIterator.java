@@ -67,41 +67,36 @@ final class MergingBucketIterator implements BucketIterator {
 
     @Override
     public void advance() {
-        do {
-            boolean hasNextA = itA.hasNext();
-            boolean hasNextB = itB.hasNext();
-            endReached = hasNextA == false && hasNextB == false;
-            if (endReached) {
-                return;
-            }
-            long idxA = 0;
-            long idxB = 0;
-            if (hasNextA) {
-                idxA = itA.peekIndex();
-            }
-            if (hasNextB) {
-                idxB = itB.peekIndex();
-            }
+        boolean hasNextA = itA.hasNext();
+        boolean hasNextB = itB.hasNext();
+        endReached = hasNextA == false && hasNextB == false;
+        if (endReached) {
+            return;
+        }
+        long idxA = 0;
+        long idxB = 0;
+        if (hasNextA) {
+            idxA = itA.peekIndex();
+        }
+        if (hasNextB) {
+            idxB = itB.peekIndex();
+        }
 
-            boolean advanceA = hasNextA && (hasNextB == false || idxA <= idxB);
-            boolean advanceB = hasNextB && (hasNextA == false || idxB <= idxA);
-            long countA = 0;
-            long countB = 0;
-            if (advanceA) {
-                currentIndex = idxA;
-                countA = itA.peekCount();
-                itA.advance();
-            }
-            if (advanceB) {
-                currentIndex = idxB;
-                countB = itB.peekCount();
-                itB.advance();
-            }
-            currentCount = countMergeOperator.applyAsLong(countA, countB);
-            assert currentCount >= 0;
-            // The merge operator might be subtracting, meaning we could end up with an empty bucket
-            // In that case we skip the bucket and move on to the next one
-        } while (currentCount == 0);
+        boolean advanceA = hasNextA && (hasNextB == false || idxA <= idxB);
+        boolean advanceB = hasNextB && (hasNextA == false || idxB <= idxA);
+        long countA = 0;
+        long countB = 0;
+        if (advanceA) {
+            currentIndex = idxA;
+            countA = itA.peekCount();
+            itA.advance();
+        }
+        if (advanceB) {
+            currentIndex = idxB;
+            countB = itB.peekCount();
+            itB.advance();
+        }
+        currentCount = countMergeOperator.applyAsLong(countA, countB);
     }
 
     @Override

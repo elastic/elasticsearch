@@ -287,6 +287,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         long prevIndex = 0;
         int overflowCount = 0;
         while (buckets.hasNext()) {
+            if (buckets.peekCount() == 0) {
+                // skip empty buckets which might occur when subtracting histograms
+                buckets.advance();
+                continue;
+            }
+
             long idx = buckets.peekIndex();
             if (collectDownScaleStatsOnNext) {
                 downscaleStats.add(prevIndex, idx);

@@ -14,13 +14,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -38,12 +41,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -323,15 +330,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double roundTo;
-            if (from != null) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
-                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
-                roundTo = pickRounding(b, f, t);
-            } else {
-                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
-            }
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
@@ -426,11 +425,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
-    private double pickRounding(int buckets, double from, double to) {
-        double precise = (to - from) / buckets;
-        double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
-        double halfPower = nextPowerOfTen / 2;
-        return precise < halfPower ? halfPower : nextPowerOfTen;
+    private double getNumberRoundTo(FoldContext foldContext) {
+        if (from != null && to != null) {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            double precise = (t - f) / b;
+            double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
+            double halfPower = nextPowerOfTen / 2;
+            return precise < halfPower ? halfPower : nextPowerOfTen;
+        } else {
+            return ((Number) buckets.fold(foldContext)).doubleValue();
+        }
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
@@ -592,5 +598,45 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Bucket other = (Bucket) obj;
 
         return configuration.equals(other.configuration) && offset == other.offset;
+    }
+
+    public interface ColumnMetadataResolver {
+        void add(NameId id, Map<String, Object> metadata);
+
+        Collection<Map<String, Object>> all();
+    }
+
+    public static ColumnMetadataResolver createColumnMetadataResolver(@Nullable LogicalPlan plan, FoldContext foldContext) {
+        var resolved = new HashMap<NameId, Map<String, Object>>();
+        if (plan != null) {
+            plan.forEachDown(LogicalPlan.class, node -> node.forEachExpressionDown(Alias.class, alias -> {
+                if (alias.child() instanceof Bucket bucket) {
+                    resolved.put(alias.id(), bucket.getIntervalMetadata(foldContext));
+                }
+            }));
+        }
+        return new ColumnMetadataResolver() {
+            @Override
+            public void add(NameId id, Map<String, Object> metadata) {
+                metadata.putAll(resolved.getOrDefault(id, Map.of()));
+            }
+
+            @Override
+            public Collection<Map<String, Object>> all() {
+                return resolved.values();
+            }
+        };
+    }
+
+    private Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+            Rounding rounding = getDateRounding(foldContext).getUnprepared();
+            return Map.of("bucket", rounding.getMetadata());
+        }
+        if (field.dataType().isNumeric()) {
+            double roundTo = getNumberRoundTo(foldContext);
+            return Map.of("bucket", Map.of("numeric_range", roundTo));
+        }
+        return null;
     }
 }

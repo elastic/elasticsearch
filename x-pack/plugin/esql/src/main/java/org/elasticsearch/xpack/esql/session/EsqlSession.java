@@ -40,7 +40,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -179,7 +178,6 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
-    private final TransportService transportService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -228,7 +226,6 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
-        this.transportService = services.transportService();
         this.projectMetadata = projectMetadata;
     }
 
@@ -374,7 +371,14 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
+                        .<Versioned<Result>>andThen(
+                            (l, r) -> l.onResponse(
+                                new Versioned<>(
+                                    new Result(plan, r.schema(), r.pages(), r.configuration(), r.completionInfo(), r.executionInfo()),
+                                    minimumVersion
+                                )
+                            )
+                        )
                         .addListener(listener);
                 }
             }
@@ -564,7 +568,6 @@ public class EsqlSession {
             // code-path to execute subplans
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
-                optimizedPlan,
                 subPlan,
                 configuration,
                 foldContext,
@@ -621,7 +624,6 @@ public class EsqlSession {
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
-        LogicalPlan optimizedPlan,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -661,6 +663,7 @@ public class EsqlSession {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             finalListener.onResponse(
                                 new Result(
+                                    null,
                                     finalResult.schema(),
                                     finalResult.pages(),
                                     configuration,
@@ -673,7 +676,6 @@ public class EsqlSession {
                 } else {// continue executing the subplans
                     executeSubPlan(
                         completionInfoAccumulator,
-                        newMainPlan,
                         newSubPlan,
                         configuration,
                         foldContext,

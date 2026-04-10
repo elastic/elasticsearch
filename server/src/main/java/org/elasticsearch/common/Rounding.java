@@ -38,6 +38,7 @@ import java.time.zone.ZoneRules;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -52,7 +53,7 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  */
-public abstract class Rounding implements Writeable {
+public sealed abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     public enum DateTimeUnit {
@@ -483,7 +484,7 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    static class TimeUnitRounding extends Rounding {
+    static final class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
         private final DateTimeUnit unit;
@@ -1021,7 +1022,7 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    static class TimeIntervalRounding extends Rounding {
+    static final class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
         private final long interval;
@@ -1393,7 +1394,7 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    static class OffsetRounding extends Rounding {
+    static final class OffsetRounding extends Rounding {
         static final byte ID = 3;
 
         private final Rounding delegate;
@@ -1561,5 +1562,18 @@ public abstract class Rounding implements Writeable {
         public Rounding getUnprepared() {
             return delegate.getUnprepared();
         }
+    }
+
+    public Map<String, Object> getMetadata() {
+        return switch (this) {
+            case Rounding.TimeIntervalRounding interval -> {
+                var timeValue = TimeValue.timeValueMillis(interval.interval);
+                yield Map.of("date_range", timeValue.toString(), "date_range_ms", timeValue.getMillis());
+            }
+            case Rounding.TimeUnitRounding unit -> unit.unit.isMillisBased
+                ? Map.of("date_range", "1 " + unit.unit.shortName, "date_range_ms", unit.unit.ratio)
+                : Map.of("date_range", "1 " + unit.unit.shortName);
+            case Rounding.OffsetRounding offset -> offset.delegate.getMetadata();
+        };
     }
 }

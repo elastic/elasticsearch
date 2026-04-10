@@ -175,6 +175,11 @@ public class ColumnInfoImpl implements ColumnInfo {
         return originalTypes;
     }
 
+    @Nullable
+    public Map<String, Object> meta() {
+        return meta;
+    }
+
     public String toString() {
         return "ColumnInfoImpl{" + "name='" + name + '\'' + ", type=" + type + ", originalTypes=" + originalTypes + '}';
     }

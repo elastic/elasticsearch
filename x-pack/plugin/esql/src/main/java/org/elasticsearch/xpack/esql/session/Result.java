@@ -19,6 +19,7 @@ import java.util.List;
 
 /**
  * Results from running a chunk of ESQL.
+ * @param plan The optimized logical plan that produced these results.
  * @param schema "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
  *               that was run. Each {@link Page} contains a {@link Block} of values for each
  *               attribute in this list.
@@ -28,6 +29,7 @@ import java.util.List;
  * @param executionInfo Metadata about the execution of this query. Used for cross cluster queries.
  */
 public record Result(
+    @Nullable LogicalPlan plan,
     List<Attribute> schema,
     List<Page> pages,
     Configuration configuration,

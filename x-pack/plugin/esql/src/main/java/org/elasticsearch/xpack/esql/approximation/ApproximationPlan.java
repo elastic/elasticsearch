@@ -89,20 +89,18 @@ public class ApproximationPlan {
      * Returns the {@code _meta} map for an approximation column, or {@code null}
      * if the column name does not match an approximation pattern.
      */
-    public static Map<String, Object> columnMetadata(Attribute column) {
+    public static void addColumnMetadata(Attribute column, Map<String, Object> metadata) {
         if (column.synthetic() == false) {
-            return null;
+            return;
         }
         String columnName = column.name();
         if (columnName.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) && columnName.endsWith(")")) {
             String sourceColumn = columnName.substring(CONFIDENCE_INTERVAL_COLUMN_PREFIX.length(), columnName.length() - 1);
-            return Map.of("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
-        }
-        if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            metadata.put("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
+        } else if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
             String sourceColumn = columnName.substring(CERTIFIED_COLUMN_PREFIX.length(), columnName.length() - 1);
-            return Map.of("approximation", Map.of("type", "certified", "column", sourceColumn));
+            metadata.put("approximation", Map.of("type", "certified", "column", sourceColumn));
         }
-        return null;
     }
 
     /**

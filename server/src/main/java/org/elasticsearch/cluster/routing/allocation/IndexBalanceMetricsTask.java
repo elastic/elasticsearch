@@ -92,14 +92,13 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, TaskParams::new)
     );
 
-    static final String[] SEVERITY_SEGMENTS = { "none", "mild", "moderate", "severe" };
     public static final String[] PRIMARY_METRIC_NAMES = buildMetricNames("primary");
     public static final String[] REPLICA_METRIC_NAMES = buildMetricNames("replica");
 
     private static String[] buildMetricNames(String tier) {
         var names = new String[IndexBalanceMetrics.BUCKET_COUNT];
         for (int i = 0; i < names.length; i++) {
-            names[i] = "es.index_imbalance." + tier + "." + SEVERITY_SEGMENTS[i] + ".indices.current";
+            names[i] = "es.index_imbalance." + tier + "." + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + ".indices.current";
         }
         return names;
     }
@@ -134,13 +133,13 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
             final int bucket = i;
             meterRegistry.registerLongGauge(
                 PRIMARY_METRIC_NAMES[i],
-                "Number of indices with " + SEVERITY_SEGMENTS[i] + " primary shard imbalance",
+                "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " primary shard imbalance",
                 "{index}",
                 () -> new LongWithAttributes(lastState.get().primaryBalanceHistogram()[bucket])
             );
             meterRegistry.registerLongGauge(
                 REPLICA_METRIC_NAMES[i],
-                "Number of indices with " + SEVERITY_SEGMENTS[i] + " replica shard imbalance",
+                "Number of indices with " + IndexBalanceMetrics.BUCKET_DEFINITIONS[i].label() + " replica shard imbalance",
                 "{index}",
                 () -> new LongWithAttributes(lastState.get().replicaBalanceHistogram()[bucket])
             );

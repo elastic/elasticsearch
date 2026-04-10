@@ -32,8 +32,17 @@ import java.util.stream.Stream;
  */
 public final class IndexBalanceMetrics {
 
-    static final double[] BUCKET_UPPER_BOUNDS = { 0.0, 0.2, 0.5, 1.0 };
-    static final int BUCKET_COUNT = BUCKET_UPPER_BOUNDS.length;
+    static final BucketDefinition[] BUCKET_DEFINITIONS = {
+        new BucketDefinition("none", 0.0),
+        new BucketDefinition("mild", 0.2),
+        new BucketDefinition("moderate", 0.5),
+        new BucketDefinition("severe", 1.0) };
+    static final int BUCKET_COUNT = BUCKET_DEFINITIONS.length;
+
+    /**
+     * Defines the label and upper bound for a balance-severity bucket.
+     */
+    public record BucketDefinition(String label, double upperBound) {}
 
     /**
      * Histogram of index balance values for primary and replica sub-groups.
@@ -147,8 +156,8 @@ public final class IndexBalanceMetrics {
         if (balance == 0.0) {
             return 0;
         }
-        for (int i = 1; i < BUCKET_UPPER_BOUNDS.length; i++) {
-            if (balance < BUCKET_UPPER_BOUNDS[i]) {
+        for (int i = 1; i < BUCKET_DEFINITIONS.length; i++) {
+            if (balance < BUCKET_DEFINITIONS[i].upperBound) {
                 return i;
             }
         }

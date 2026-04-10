@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -129,6 +128,72 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(sub2.right().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
     }
 
+    /**
+     * Verifies that the optimization fires correctly when a BY grouping is present:
+     * the shared SUM(sv)/COUNT(sv) pair is created as normal, and the grouping column
+     * passes through unchanged.
+     */
+    public void testSumOfFieldPlusConstantWithGroupBy() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2) by languages
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // Grouping column is preserved.
+        assertThat(agg.groupings(), hasSize(1));
+
+        // Internal aggregations: SUM(sv) and COUNT(sv) — same as without grouping.
+        assertThat(agg.aggregates(), hasSize(3)); // SUM, COUNT, plus the grouping attribute
+        var svSumAlias = as(agg.aggregates().get(0), Alias.class);
+        var svCountAlias = as(agg.aggregates().get(1), Alias.class);
+        as(svSumAlias.child(), Sum.class);
+        as(svCountAlias.child(), Count.class);
+
+        // Post-agg EVAL builds s1 and s2.
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(as(eval.fields().get(0), Alias.class).name(), equalTo("s1"));
+        assertThat(as(eval.fields().get(1), Alias.class).name(), equalTo("s2"));
+    }
+
+    /**
+     * Verifies that a bare {@code SUM(emp_no)} in the same STATS is not conflated with the
+     * internal {@code SUM(MvSingleValueOrNull(emp_no))} created by the rewrite.
+     * The user's SUM must remain separate; only the two SUM(field + c) expressions share
+     * the sv pair.
+     */
+    public void testBareSumOfSameFieldNotSharedWithRewrite() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), bare = sum(emp_no), s2 = sum(emp_no + 2)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // Three aggregates: internal SUM(sv) + internal COUNT(sv) + user's SUM(emp_no).
+        // The sv pair is inserted first (when the first matching SUM is processed),
+        // then the non-matching bare SUM is appended unchanged.
+        assertThat(agg.aggregates(), hasSize(3));
+        var svSumAlias = as(agg.aggregates().get(0), Alias.class);
+        var svCountAlias = as(agg.aggregates().get(1), Alias.class);
+        var bareSumAlias = as(agg.aggregates().get(2), Alias.class);
+
+        as(svSumAlias.child(), Sum.class);
+        as(svCountAlias.child(), Count.class);
+        var bareSum = as(bareSumAlias.child(), Sum.class);
+
+        // The user's bare SUM operates on emp_no directly, not through MvSingleValueOrNull.
+        assertThat(bareSum.field(), not(instanceOf(MvSingleValueOrNull.class)));
+        assertThat(bareSum.field(), not(instanceOf(ReferenceAttribute.class)));
+    }
+
     public void testDuplicateAliasNotRewritten() {
         var plan = plan("""
             from test
@@ -236,6 +301,75 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var mul = as(add.right(), Mul.class);
         // The constant (5-2) should fold to 3.
         assertThat(mul.left().fold(FoldContext.small()), equalTo(3));
+    }
+
+    /**
+     * Verifies that a foldable function call in the constant position is treated as a
+     * constant and participates in the rewrite. {@code length("abc")} folds to 3.
+     */
+    public void testSumOfFieldPlusFoldableFunctionCallConstant() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + length("abc")), s2 = sum(emp_no + 1)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // Rewrite fires: two internal aggregates.
+        assertThat(agg.aggregates(), hasSize(2));
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
+
+        // s1 uses length("abc") as its constant; it should fold to 3.
+        var s1 = as(eval.fields().get(0), Alias.class);
+        var add = as(s1.child(), Add.class);
+        var mul = as(add.right(), Mul.class);
+        assertThat(mul.left().fold(FoldContext.small()), equalTo(3));
+    }
+
+    /**
+     * Verifies that {@code SUM((emp_no + 1) + 2)} and {@code SUM((emp_no + 1) + 3)}
+     * share the same SUM/COUNT pair, because both have the same data expression
+     * ({@code emp_no + 1}) and the outermost constant differs.
+     */
+    public void testSumOfNestedArithmeticSharesSvPairOnSameBase() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1 + 2), s2 = sum(emp_no + 1 + 3)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // Exactly one shared SUM(sv)/COUNT(sv) pair.
+        assertThat(agg.aggregates(), hasSize(2));
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
+
+        assertThat(eval.fields(), hasSize(2));
+    }
+
+    /**
+     * Verifies that {@code SUM(null + 1)} is not matched: both operands of the Add are
+     * foldable (null is a foldable literal), so {@code tryMatch} returns null and the rule
+     * does not fire even when two such expressions appear.
+     */
+    public void testBothFoldableOperandsNotRewritten() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(null + 1), s2 = sum(null + 2)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        boolean hasMvSingleValueOrNull = plan.anyMatch(
+            node -> node instanceof Eval e
+                && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
+        );
+        assertFalse("SUM(null + c) should not be rewritten because null is foldable", hasMvSingleValueOrNull);
     }
 
     /**

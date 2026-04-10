@@ -101,10 +101,11 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
 
         // Pass 1: count how many SUM(field ± c) or SUM(c ± field) expressions share the same (field, summationMode).
         // Filtered aggregates are excluded because they cannot share the same base aggregation.
-        Map<Match.Key, Long> fieldMatchCount = aggregate.aggregates().stream()
-                .map(RewriteSumFieldPlusConstant::tryMatch)
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(Match::key, Collectors.counting()));
+        Map<Match.Key, Long> fieldMatchCount = aggregate.aggregates()
+            .stream()
+            .map(RewriteSumFieldPlusConstant::tryMatch)
+            .filter(Objects::nonNull)
+            .collect(Collectors.groupingBy(Match::key, Collectors.counting()));
 
         // Only rewrite fields that appear in 2 or more SUM expressions
         if (fieldMatchCount.values().stream().noneMatch(c -> c >= 2)) {

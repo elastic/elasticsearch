@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -145,6 +144,21 @@ public class MvSingleValueOrNullTests extends AbstractMultivalueFunctionTestCase
             DataType.GEOHEX,
             (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
         );
+        // Multi-valued inputs cause MvSingleValueOrNull to emit a warning
+        for (int i = 0; i < cases.size(); i++) {
+            final TestCaseSupplier original = cases.get(i);
+            cases.set(i, new TestCaseSupplier(original.name(), original.types(), () -> {
+                TestCaseSupplier.TestCase tc = original.get();
+                boolean isMultiValued = tc.getData().stream().anyMatch(td -> td.getValue() instanceof List<?> list && list.size() > 1);
+                if (isMultiValued) {
+                    tc = tc.withWarning(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                    );
+                    tc = tc.withWarning("Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
+                }
+                return tc;
+            }));
+        }
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 

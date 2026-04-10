@@ -1291,7 +1291,7 @@ public abstract class DocsV3Support {
             String exampleContent = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
-                builder.append("## Example\n\n");
+                builder.append("#### Example\n\n");
                 if (example.description().length() > 0) {
                     builder.append(example.description()).append("\n\n");
                 }

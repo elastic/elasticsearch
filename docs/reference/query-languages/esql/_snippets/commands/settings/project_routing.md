@@ -9,7 +9,7 @@ Limits the scope of a [cross-project search (CPS)](/reference/query-languages/es
 
 **Type**: `keyword`
 
-## Example
+#### Example
 
 Route a query to a specific project by alias:
 

@@ -14,7 +14,7 @@ Defines how unmapped fields are treated. Possible values are:
 
 **Type**: `keyword`
 
-## Example
+#### Example
 
 Make the field null if it is unmapped.
 

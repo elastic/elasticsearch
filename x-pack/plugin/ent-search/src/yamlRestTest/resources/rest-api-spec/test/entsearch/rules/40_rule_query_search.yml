@@ -501,10 +501,6 @@ teardown:
 
 ---
 "Perform a query that matches multiple exclude rules":
-  - requires:
-      cluster_features: [ "query_rules_fix_multiple_exclude_rules" ]
-      reason: "Fixed in 9.4"
-
   - do:
       query_rules.put_ruleset:
         ruleset_id: multiple-exclude-ruleset

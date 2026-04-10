@@ -3,7 +3,7 @@
 //
 
 basicInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
@@ -18,7 +18,7 @@ emp_no:integer | first_name:keyword
 ;
 
 basicNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
@@ -34,7 +34,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryEmptyResults
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 100000 | KEEP emp_no)
@@ -46,7 +46,7 @@ emp_no:integer
 ;
 
 notInSubqueryEmptyResults
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE salary < 10000 | KEEP emp_no)
@@ -62,7 +62,7 @@ emp_no:integer
 ;
 
 inSubqueryWithStatsInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
@@ -80,7 +80,7 @@ emp_no:integer | salary:integer | languages:integer
 ;
 
 inSubqueryWithStatsBeforeAndAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | STATS cnt = COUNT(*) BY gender
@@ -93,7 +93,7 @@ cnt:long
 ;
 
 inSubqueryWithStatsInsideAndAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
@@ -108,7 +108,7 @@ cnt:long | gender:keyword
 ;
 
 inSubqueryWithStatsAfterInSubqueryWithNull
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE first_name IN (FROM employees | KEEP first_name)
@@ -120,7 +120,7 @@ cnt:long
 ;
 
 inSubqueryWithInlineStatsInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE salary IN (FROM employees | INLINE STATS m = max(salary) by languages | KEEP m)
@@ -138,7 +138,7 @@ emp_no:integer | salary:integer
 ;
 
 inSubqueryWithInlineStatsBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | INLINE STATS cnt = COUNT(*) BY gender
@@ -159,7 +159,7 @@ Guoxiang           | 25324          | 10
 ;
 
 inSubqueryWithInlineStatsAfterInSubqueryWithNull
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE first_name IN (FROM employees | KEEP first_name)
@@ -173,7 +173,7 @@ cnt:long
 ;
 
 inSubqueryWithInlineStatsBeforeAndAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | INLINE STATS cnt1 = COUNT(*) BY gender
@@ -195,7 +195,7 @@ Guoxiang           | 25324          | 10        | 8
 ;
 
 inSubqueryWithFilterInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
@@ -215,7 +215,7 @@ emp_no:integer
 ;
 
 inSubqueryWithFilterAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 60000 | KEEP emp_no)
@@ -245,7 +245,7 @@ emp_no:integer | salary:integer
 ;
 
 inSubqueryWithEvalInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL x = emp_no | KEEP x)
@@ -265,7 +265,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryWithEvalBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | EVAL x = emp_no
@@ -286,7 +286,7 @@ x:integer | first_name:keyword
 ;
 
 inSubqueryWithEvalAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL x = emp_no | KEEP x)
@@ -307,7 +307,7 @@ x:integer | first_name:keyword
 ;
 
 inSubqueryWithFromSubqueryInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM
@@ -328,7 +328,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM 
   (FROM employees
@@ -350,7 +350,7 @@ cnt:long | languages:integer | language_name:keyword
 ;
 
 inSubqueryWithHashJoin
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM
@@ -369,7 +369,7 @@ emp_no:integer | first_name:keyword
 ;
 
 notInSubqueryHashJoin
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM
@@ -388,7 +388,7 @@ emp_no:integer | first_name:keyword
 ;
 
 nestedInSubqueryInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (
@@ -407,7 +407,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 nestedNotInSubqueryInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (
@@ -429,7 +429,7 @@ emp_no:integer | first_name:keyword
 ;
 
 fromSubqueryWithNestedInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM
   (FROM employees
@@ -454,7 +454,7 @@ emp_no:integer | first_name:keyword | salary:integer | languages:integer
 ;
 
 fromSubqueryWithNestedNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM
   (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name, salary, languages),
@@ -482,7 +482,7 @@ emp_no:integer | first_name:keyword | salary:integer | languages:integer
 ;
 
 multipleConjunctiveInSubqueries
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE languages IN (1, 2) | KEEP emp_no)
@@ -499,7 +499,7 @@ emp_no:integer | languages:integer | salary:integer
 ;
 
 multipleConjunctiveInSubqueriesInsideFromSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM 
   (FROM employees
@@ -529,7 +529,7 @@ emp_no:integer | languages:integer | salary:integer
 ;
 
 multipleDisjunctiveInSubqueries
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no)
@@ -554,7 +554,7 @@ emp_no:integer | languages:integer | salary:integer
 ;
 
 lookupJoinInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: join_lookup_v12
 
 FROM employees
@@ -579,7 +579,7 @@ emp_no:integer | first_name:keyword
 ;
 
 lookupJoinBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: join_lookup_v12
 
 FROM employees
@@ -600,7 +600,7 @@ emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
 lookupJoinAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: join_lookup_v12
 
 FROM employees
@@ -622,7 +622,7 @@ emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
 enrichBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | ENRICH languages_policy ON languages WITH language_name
@@ -641,7 +641,7 @@ emp_no:integer | language_name:keyword
 ;
 
 enrichInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE languages IN (
@@ -664,7 +664,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichInsideNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE languages NOT IN (
@@ -687,7 +687,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
@@ -707,7 +707,7 @@ emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
 grokBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
@@ -726,7 +726,7 @@ emp_no:integer | a:keyword | b:keyword
 ;
 
 grokInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE first_name IN (
@@ -749,7 +749,7 @@ emp_no:integer | first_name:keyword
 ;
 
 grokAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
@@ -769,7 +769,7 @@ emp_no:integer | a:keyword | b:keyword
 ;
 
 dissectBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | EVAL name = CONCAT(first_name, " ", last_name)
@@ -789,7 +789,7 @@ emp_no:integer | a:keyword | b:keyword
 ;
 
 dissectInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE first_name IN (
@@ -813,7 +813,7 @@ emp_no:integer | first_name:keyword
 ;
 
 dissectAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
@@ -834,7 +834,7 @@ emp_no:integer | a:keyword | b:keyword
 ;
 
 renameBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | RENAME emp_no AS id
@@ -853,7 +853,7 @@ id:integer | first_name:keyword
 ;
 
 renameInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (
@@ -875,7 +875,7 @@ emp_no:integer | first_name:keyword
 ;
 
 renameAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
@@ -894,7 +894,7 @@ emp_no:integer | a:keyword     | b:keyword
 ;
 
 mvExpandBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | MV_EXPAND job_positions
@@ -913,7 +913,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 ;
 
 mvExpandInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (
@@ -936,7 +936,7 @@ emp_no:integer | first_name:keyword
 ;
 
 mvExpandAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
@@ -956,7 +956,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 ;
 
 sampleBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: sample_v3
 
 FROM employees
@@ -974,7 +974,7 @@ emp_no:integer | first_name:keyword
 ;
 
 sampleInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: sample_v3
 
 FROM employees
@@ -996,7 +996,7 @@ emp_no:integer | first_name:keyword
 ;
 
 sampleAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: sample_v3
 
 FROM employees
@@ -1014,7 +1014,7 @@ emp_no:integer | first_name:keyword
 ;
 
 changePointBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: change_point
 
 FROM employees
@@ -1030,7 +1030,7 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 ;
 
 changePointInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: change_point
 
 FROM employees
@@ -1050,7 +1050,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 changePointAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: change_point
 
 FROM employees
@@ -1067,7 +1067,7 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 ;
 
 rerankBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
@@ -1087,7 +1087,7 @@ book_no:keyword | title:text    | _score:double
 ;
 
 rerankInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
@@ -1111,7 +1111,7 @@ book_no:keyword | title:text
 ;
 
 rerankAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
@@ -1131,7 +1131,7 @@ book_no:keyword | title:text    | _score:double
 ;
 
 matchBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: match_function
 
 FROM books
@@ -1149,7 +1149,7 @@ book_no:keyword | author:text
 ;
 
 matchInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: match_function
 
 FROM books
@@ -1171,7 +1171,7 @@ book_no:keyword | title:text
 ;
 
 matchAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: match_function
 
 FROM books
@@ -1189,7 +1189,7 @@ book_no:keyword | author:text
 ;
 
 forkAfterInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: fork_v9
 
 FROM employees
@@ -1209,7 +1209,7 @@ emp_no:integer | salary:integer | _fork:keyword
 ;
 
 forkWithInSubqueryInsideBranch
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: fork_v9
 
 FROM employees
@@ -1229,7 +1229,7 @@ emp_no:integer | salary:integer | _fork:keyword
 ;
 
 forkAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 required_capability: fork_v9
 
 FROM employees
@@ -1250,7 +1250,7 @@ emp_no:integer | salary:integer | _fork:keyword
 ;
 
 statsDateTruncBeforeInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | STATS cnt = COUNT(*) BY yr = DATE_TRUNC(1 year, hire_date)
@@ -1265,7 +1265,7 @@ cnt:long | yr:datetime
 ;
 
 statsDateTruncInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
@@ -1284,7 +1284,7 @@ cnt:long | yr:datetime
 ;
 
 statsDateTruncAfterNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no)
@@ -1308,7 +1308,7 @@ cnt:long | yr:datetime
 ;
 
 longInLong
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE avg_worked_seconds IN (FROM employees
@@ -1325,7 +1325,7 @@ emp_no:integer | gender:keyword | avg_worked_seconds:long
 ;
 
 doubleInDouble
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE height IN (FROM employees
@@ -1343,7 +1343,7 @@ emp_no:integer | gender:keyword | height:double
 ;
 
 ipNotInIp
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM sample_data
 | WHERE client_ip NOT IN (FROM sample_data
@@ -1361,7 +1361,7 @@ FROM sample_data
 ;
 
 keywordInKeyword
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | MV_EXPAND job_positions
@@ -1385,7 +1385,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 versionInVersion
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM apps
 | WHERE version IN (FROM apps
@@ -1405,7 +1405,7 @@ id:integer | name:keyword | version:version
 
 
 keywordInText
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE gender IN (FROM employees_incompatible | KEEP gender)
@@ -1421,7 +1421,7 @@ emp_no:integer | gender:keyword
 ;
 
 textInKeyword
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE gender IN (FROM employees | EVAL gender = "F" | KEEP gender)
@@ -1437,7 +1437,7 @@ emp_no:long | first_name:text | gender:text
 ;
 
 textNotInKeyword
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE gender NOT IN (FROM employees | EVAL gender = "M" | KEEP gender)
@@ -1453,7 +1453,7 @@ emp_no:long | first_name:text | gender:text
 ;
 
 keywordNotInText
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE gender NOT IN (FROM employees | WHERE gender == "M" | KEEP gender)
@@ -1469,7 +1469,7 @@ emp_no:integer | first_name:keyword | gender:keyword
 ;
 
 integerCastToLongInLong
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | EVAL id = emp_no::long
@@ -1486,7 +1486,7 @@ emp_no:integer | first_name:keyword
 ;
 
 integerCastToLongNotLong
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | EVAL id = emp_no::long
@@ -1503,7 +1503,7 @@ emp_no:integer | first_name:keyword
 ;
 
 longInIntegerCastToLong
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL emp_no = emp_no::long | KEEP emp_no)
@@ -1519,7 +1519,7 @@ emp_no:long | first_name:text
 ;
 
 dateInDate
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM sample_data
 | WHERE @timestamp IN (FROM sample_data | WHERE message == "Disconnected" | KEEP @timestamp)
@@ -1531,7 +1531,7 @@ FROM sample_data
 ;
 
 dateNotInDate
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM sample_data
 | WHERE @timestamp NOT IN (FROM sample_data | WHERE message LIKE "Connection*" | KEEP @timestamp)
@@ -1547,7 +1547,7 @@ FROM sample_data
 ;
 
 dateNanosInDateNanos
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM sample_data_ts_nanos
 | WHERE @timestamp IN (FROM sample_data_ts_nanos | WHERE message == "Disconnected" | KEEP @timestamp)
@@ -1559,7 +1559,7 @@ FROM sample_data_ts_nanos
 ;
 
 dateNanosNotInDateNanos
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM sample_data_ts_nanos
 | WHERE @timestamp NOT IN (FROM sample_data_ts_nanos | WHERE message LIKE "Connection*" | KEEP @timestamp)
@@ -1575,7 +1575,7 @@ FROM sample_data_ts_nanos
 ;
 
 unionTypeCastToLongOutsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees, employees_incompatible
 | EVAL id = emp_no::long
@@ -1593,7 +1593,7 @@ id:long | cnt:long
 ;
 
 unionTypeCastToLongOutsideNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees, employees_incompatible
 | EVAL id = emp_no::long
@@ -1611,7 +1611,7 @@ id:long | cnt:long
 ;
 
 unionTypeCastToKeywordOutsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees, employees_incompatible
 | EVAL fn = first_name::keyword
@@ -1633,7 +1633,7 @@ Valter      | 2
 ;
 
 unionTypeFromSubqueryCastToLongOutsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM
   (FROM employees | KEEP emp_no, first_name, salary),
@@ -1652,7 +1652,7 @@ salary:long | cnt:long
 ;
 
 unionTypeFromSubqueryCastToLongOutsideNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM
   (FROM employees | KEEP emp_no, first_name, salary),
@@ -1667,7 +1667,7 @@ cnt:long
 ;
 
 unionTypeCastToLongInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE emp_no IN (
@@ -1688,7 +1688,7 @@ emp_no:long | first_name:text
 ;
 
 unionTypeCastToLongInsideNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE emp_no NOT IN (
@@ -1709,7 +1709,7 @@ emp_no:long | first_name:text
 ;
 
 unionTypeCastToKeywordInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees
 | WHERE first_name IN (
@@ -1730,7 +1730,7 @@ emp_no:integer | first_name:keyword
 ;
 
 unionTypeFromSubqueryCastToKeywordInsideInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE salary IN (
@@ -1749,7 +1749,7 @@ emp_no:long | first_name:text | salary:long
 ;
 
 unionTypeFromSubqueryCastToLongInsideNotInSubquery
-required_capability: in_subquery
+required_capability: where_in_subquery
 
 FROM employees_incompatible
 | WHERE salary NOT IN (

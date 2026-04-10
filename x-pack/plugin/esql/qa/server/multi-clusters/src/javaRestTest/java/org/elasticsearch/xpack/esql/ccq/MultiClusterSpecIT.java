@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LO
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IN_SUBQUERY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
@@ -238,7 +238,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         );
         assumeFalse(
             "convertToRemoteIndices needs to be improved to support IN subquery",
-            testCase.requiredCapabilities.contains(IN_SUBQUERY.capabilityName())
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY.capabilityName())
         );
     }
 

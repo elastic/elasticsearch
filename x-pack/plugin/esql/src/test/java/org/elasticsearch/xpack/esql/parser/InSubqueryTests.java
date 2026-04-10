@@ -52,7 +52,7 @@ public class InSubqueryTests extends AbstractStatementParserTests {
 
     @Before
     public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
     }
 
     /**

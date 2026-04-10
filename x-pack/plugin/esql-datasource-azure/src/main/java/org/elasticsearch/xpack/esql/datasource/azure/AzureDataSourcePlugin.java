@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -48,17 +49,16 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                AzureConfiguration azureConfig = AzureConfiguration.fromFields(
-                    Objects.toString(config.get("connection_string"), null),
-                    Objects.toString(config.get("account"), null),
-                    Objects.toString(config.get("key"), null),
-                    Objects.toString(config.get("sas_token"), null),
-                    Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("auth"), null)
-                );
+                AzureConfiguration azureConfig = AzureConfiguration.fromMap(config);
                 return new AzureStorageProvider(azureConfig);
             }
         };
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators() {
+        DataSourceValidator v = new FileDataSourceValidator("azure_blob", AzureConfiguration::fromMap, Set.of("wasbs://", "wasb://"));
+        return Map.of(v.type(), v);
     }
 }

@@ -102,9 +102,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
 
-    private final int bulkSize = randomIntBetween(1, 5);
-    private final int requestsPerSecond = randomIntBetween(1, 5);
-    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
+    private final int bulkSize = randomIntBetween(1, 4);
+    // make sure any one slice doesn't sleep longer than shutdown timeout (10s); with this, each slice will at most sleep for 4s
+    private final int requestsPerSecond = randomIntBetween(bulkSize, 20);
+    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -137,7 +138,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             localReindexDescription(),
             slices,
             false,
-            randomIntBetween(1, 5)
+            randomIntBetween(1, 4)
         );
     }
 
@@ -148,7 +149,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             localReindexDescription(),
             slices,
             false,
-            randomIntBetween(1, 5)
+            randomIntBetween(1, 4)
         );
     }
 
@@ -159,7 +160,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             localReindexDescription(),
             slices,
             false,
-            randomIntBetween(2, 5)
+            randomIntBetween(2, 4)
         );
     }
 
@@ -182,7 +183,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                 .publishAddress()
                 .address();
             return startAsyncNonSlicedThrottledRemoteReindexOnNode(nodeBName, nodeAAddress);
-        }, remoteReindexDescription(), slices, true, randomIntBetween(1, 5));
+        }, remoteReindexDescription(), slices, true, randomIntBetween(1, 4));
     }
     // no test for remote sliced reindex since it's not allowed
 
@@ -353,7 +354,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        assertNoReindexMetricsOnNode(nodeName);
+        assertOnlyRelocationReindexMetricsOnNode(nodeName);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -694,11 +695,19 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .orElseThrow();
     }
 
-    private void assertNoReindexMetricsOnNode(final String nodeName) {
+    private void assertOnlyRelocationReindexMetricsOnNode(final String nodeName) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
         assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
+        final var relocationCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
+        assertThat("relocation metric updated", relocationCounter.size(), equalTo(1));
+        assertThat("relocation metric updated", relocationCounter.getFirst().getLong(), equalTo(1L));
+        assertThat(
+            "relocation metric was successful",
+            relocationCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE),
+            is(nullValue())
+        );
     }
 
     private void assertReindexSuccessMetricsOnNode(final String nodeName, final boolean isRemote, final int slices) {
@@ -732,6 +741,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
+        assertThat("no relocation metric", plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(), equalTo(0));
     }
 
     private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {

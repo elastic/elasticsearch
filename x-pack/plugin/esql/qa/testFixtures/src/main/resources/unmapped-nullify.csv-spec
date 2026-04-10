@@ -763,3 +763,52 @@ ROW a = 12::long
 _fork:keyword	| x:long
 fork1        	| 12     
 ;
+
+propagateNullableOrDisjunctionUnmappedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE (foo IS NOT NULL OR emp_no > 10015) AND foo IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+85
+;
+
+propagateNullableOrDisjunctionUnmappedFieldSeparateWhereClauses
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE foo IS NOT NULL OR emp_no > 10015
+| WHERE foo IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+85
+;
+
+propagateNullableOrDisjunctionUnmappedFieldEvalAlias
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL x = foo
+| WHERE (x IS NOT NULL OR emp_no > 10095) AND x IS NULL
+| SORT emp_no
+| KEEP emp_no, foo, x
+;
+
+emp_no:integer | foo:null | x:null
+10096          | null     | null
+10097          | null     | null
+10098          | null     | null
+10099          | null     | null
+10100          | null     | null
+;

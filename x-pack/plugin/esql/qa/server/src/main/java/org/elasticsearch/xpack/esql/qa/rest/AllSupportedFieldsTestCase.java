@@ -1396,7 +1396,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
             case TEXT -> syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

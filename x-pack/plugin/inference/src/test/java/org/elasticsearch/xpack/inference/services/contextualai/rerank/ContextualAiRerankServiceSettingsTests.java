@@ -60,38 +60,30 @@ public class ContextualAiRerankServiceSettingsTests extends AbstractBWCWireSeria
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
-    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
         var serviceSettings = ContextualAiRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null),
-            ConfigurationParseContext.REQUEST
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(serviceSettings, is(createRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
     }
 
-    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
-        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
-
-        var serviceSettings = ContextualAiRerankServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
-
-        assertThat(serviceSettings, is(createRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
-    }
-
-    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = ContextualAiRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
-            ConfigurationParseContext.PERSISTENT
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(serviceSettings, is(createRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
-    public void testFromMap_Persistent_NoModelId_ThrowsException() {
+    public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> ContextualAiRerankServiceSettings.fromMap(
                 buildServiceSettingsMap(null, TEST_RATE_LIMIT),
-                ConfigurationParseContext.PERSISTENT
+                randomFrom(ConfigurationParseContext.values())
             )
         );
         assertThat(
@@ -100,24 +92,10 @@ public class ContextualAiRerankServiceSettingsTests extends AbstractBWCWireSeria
         );
     }
 
-    public void testFromMap_Request_NoModelId_ThrowsException() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> ContextualAiRerankServiceSettings.fromMap(
-                buildServiceSettingsMap(null, TEST_RATE_LIMIT),
-                ConfigurationParseContext.REQUEST
-            )
-        );
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
-        );
-    }
-
-    public void testFromMap_Persistent_NoRateLimit_CreatesSettingsCorrectly() {
+    public void testFromMap_NoRateLimit_CreatesSettingsCorrectly() {
         var serviceSettings = ContextualAiRerankServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, null),
-            ConfigurationParseContext.PERSISTENT
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(serviceSettings, is(createRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));

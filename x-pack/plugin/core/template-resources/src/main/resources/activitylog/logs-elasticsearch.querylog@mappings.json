@@ -1,0 +1,185 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "elasticsearch_querylog_esql_profile_took": {
+            "path_match": "elasticsearch.querylog.esql.profile.*.took",
+            "mapping": {
+              "type": "long",
+              "index": false
+            }
+          }
+        }
+      ],
+      "properties": {
+        "event": {
+          "properties": {
+            "kind": {
+              "type": "constant_keyword",
+              "value": "event"
+            },
+            "category": {
+              "type": "constant_keyword",
+              "value": "database"
+            }
+          }
+        },
+        "elasticsearch": {
+          "properties": {
+            "task": {
+              "properties": {
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "parent": {
+              "properties": {
+                "task": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "node": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            },
+            "querylog": {
+              "properties": {
+                "clusters": {
+                  "properties": {
+                    "failed": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "partial": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "remote_count": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "remotes": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    },
+                    "running": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "skipped": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "successful": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "total": {
+                      "type": "long",
+                      "index": false
+                    }
+                  }
+                },
+                "esql": {
+                  "properties": {
+                    "profile": {
+                      "dynamic": true,
+                      "type": "object"
+                    }
+                  }
+                },
+                "dsl": {
+                  "properties": {
+                    "total_count": {
+                      "type": "long",
+                      "index": false
+                    },
+                    "total_count_partial": {
+                      "type": "boolean",
+                      "index": false
+                    }
+                  }
+                },
+                "has_aggregations": {
+                  "type": "boolean",
+                  "index": false
+                },
+                "indices": {
+                  "type": "keyword",
+                  "ignore_above": 2048
+                },
+                "is_remote": {
+                  "type": "boolean",
+                  "index": false
+                },
+                "is_system": {
+                  "type": "boolean",
+                  "index": false
+                },
+                "query": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 2147483647
+                },
+                "result_count": {
+                  "type": "long",
+                  "index": false
+                },
+                "shards": {
+                  "properties": {
+                    "failed": {
+                      "type": "integer",
+                      "index": false
+                    },
+                    "skipped": {
+                      "type": "integer",
+                      "index": false
+                    },
+                    "successful": {
+                      "type": "integer",
+                      "index": false
+                    }
+                  }
+                },
+                "timed_out": {
+                  "type": "boolean",
+                  "index": false
+                },
+                "took": {
+                  "type": "long",
+                  "index": false
+                },
+                "took_millis": {
+                  "type": "long",
+                  "index": false
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 32
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Default mappings for the Elasticsearch query logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.querylog.template.version}
+}

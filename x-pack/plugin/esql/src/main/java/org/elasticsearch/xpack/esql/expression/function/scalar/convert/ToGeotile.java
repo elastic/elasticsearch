@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -37,6 +38,7 @@ public class ToGeotile extends AbstractConvertFunction {
         "ToGeotile",
         ToGeotile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeotile.class).unary(ToGeotile::new).name("to_geotile");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOTILE, (source, fieldEval) -> fieldEval),

@@ -20,12 +20,12 @@ import java.util.List;
  * The simplest case where this can happen is when a FORK branch contains {@code WHERE false}.
  * In practice, empty FORK branches can also happen when FORK is used for conditional execution of the query
  * based on query parameters:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM my-index METADATA _score
  * | ...
  * | FORK ( SORT _score | LIMIT 10) // return top hits every time
  *        ( WHERE ?include_completion | STATS s = values(title) | COMPLETION ...)
- * }</pre>
+ * }
  */
 public class PruneEmptyForkBranches extends OptimizerRules.OptimizerRule<Fork> {
     @Override

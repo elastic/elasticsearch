@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -27,7 +27,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -46,13 +45,10 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     private final String nodeId = randomIdentifier();
 
     public void testYesWhenSimulating() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            ClusterState.EMPTY_STATE,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        ).mutableCloneForSimulation();
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(ClusterState.EMPTY_STATE)
+            .allocationDeciders(decider)
+            .build()
+            .mutableCloneForSimulation();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -66,13 +62,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNotPrimary() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            ClusterState.EMPTY_STATE,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(ClusterState.EMPTY_STATE)
+            .allocationDeciders(decider)
+            .build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -86,13 +78,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNoSnapshots() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            ClusterState.EMPTY_STATE,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(ClusterState.EMPTY_STATE)
+            .allocationDeciders(decider)
+            .build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -106,14 +94,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNoShardSnapshot() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            // snapshot in progress but not targetting this shard
-            makeClusterState(new ShardId(randomIdentifier(), randomUUID(), 0), randomFrom(SnapshotsInProgress.ShardState.values())),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(new ShardId(randomIdentifier(), randomUUID(), 0), randomFrom(SnapshotsInProgress.ShardState.values()))
+        ).allocationDeciders(decider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -127,19 +110,15 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenShardSnapshotComplete() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
             // snapshot in progress but complete
             makeClusterState(
                 shardId,
                 randomFrom(
                     Arrays.stream(SnapshotsInProgress.ShardState.values()).filter(SnapshotsInProgress.ShardState::completed).toList()
                 )
-            ),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+            )
+        ).allocationDeciders(decider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -153,13 +132,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenShardSnapshotOnDifferentNode() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            makeClusterState(shardId, randomFrom(SnapshotsInProgress.ShardState.values())),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(shardId, randomFrom(SnapshotsInProgress.ShardState.values()))
+        ).allocationDeciders(decider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -174,13 +149,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testThrottleWhenSnapshotInProgress() {
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT)
+        ).allocationDeciders(decider).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(
@@ -270,13 +241,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         // if the node is marked for shutdown then the shard can move
 
-        final var routingAllocationWithShutdownMetadata = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            ClusterState.builder(clusterStateWithShutdownMetadata).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocationWithShutdownMetadata = TestRoutingAllocationFactory.forClusterState(
+            ClusterState.builder(clusterStateWithShutdownMetadata).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build()
+        ).allocationDeciders(decider).build();
         routingAllocationWithShutdownMetadata.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decisionWithShutdownMetadata = decider.canAllocate(
@@ -290,13 +257,9 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         // if the node is not marked for shutdown then the shard is fixed in place
 
-        final var routingAllocationWithoutShutdownMetadata = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            ClusterState.builder(ClusterName.DEFAULT).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var routingAllocationWithoutShutdownMetadata = TestRoutingAllocationFactory.forClusterState(
+            ClusterState.builder(ClusterName.DEFAULT).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build()
+        ).allocationDeciders(decider).build();
         routingAllocationWithoutShutdownMetadata.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decisionWithoutShutdownMetadata = decider.canAllocate(

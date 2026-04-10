@@ -154,7 +154,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         assertThat(EMPTY_SETTINGS.getWriteableName(), is(ContextualAiRerankTaskSettings.NAME));
     }
 
-    public void testOf_KeepsOriginalWhenRequestIsEmpty() {
+    public void testOf_OverriddenWithEmptySettings_KeepsOriginalValues() {
         var originalSettings = new ContextualAiRerankTaskSettings(
             INITIAL_TEST_RETURN_DOCUMENTS,
             INITIAL_TEST_TOP_N,
@@ -163,15 +163,12 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         assertThat(ContextualAiRerankTaskSettings.of(originalSettings, EMPTY_SETTINGS), sameInstance(originalSettings));
     }
 
-    public void testOf_WhenOriginalIsEmpty_AppliesOverrideValues() {
-        var overrideSettings = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION);
-        assertThat(
-            ContextualAiRerankTaskSettings.of(EMPTY_SETTINGS, overrideSettings),
-            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION))
-        );
+    public void testOf_EmptySettingsOverridden_AllValuesUpdated() {
+        var newSettings = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION);
+        assertThat(ContextualAiRerankTaskSettings.of(EMPTY_SETTINGS, newSettings), is(newSettings));
     }
 
-    public void testOf_ReturnsOriginalInstanceWhenRequestMatchesExistingValues() {
+    public void testOf_SameSettings_ReturnsOriginalInstance() {
         var originalSettings = new ContextualAiRerankTaskSettings(
             INITIAL_TEST_RETURN_DOCUMENTS,
             INITIAL_TEST_TOP_N,
@@ -185,7 +182,20 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         assertThat(ContextualAiRerankTaskSettings.of(originalSettings, requestWithSameValues), sameInstance(originalSettings));
     }
 
-    public void testOf_PartialTopNOverride_RetainsOriginalInstruction() {
+    public void testOf_RequestOverridesReturnDocuments_KeepsOtherFieldsUnchanged() {
+        var originalSettings = new ContextualAiRerankTaskSettings(
+            INITIAL_TEST_RETURN_DOCUMENTS,
+            INITIAL_TEST_TOP_N,
+            INITIAL_TEST_INSTRUCTION
+        );
+        var requestTopNOnly = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, null, null);
+        assertThat(
+            ContextualAiRerankTaskSettings.of(originalSettings, requestTopNOnly),
+            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, INITIAL_TEST_TOP_N, INITIAL_TEST_INSTRUCTION))
+        );
+    }
+
+    public void testOf_RequestOverridesTopN_KeepsOtherFieldsUnchanged() {
         var originalSettings = new ContextualAiRerankTaskSettings(
             INITIAL_TEST_RETURN_DOCUMENTS,
             INITIAL_TEST_TOP_N,
@@ -198,29 +208,16 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testOf_PartialInstructionOverride_RetainsOriginalTopN() {
+    public void testOf_RequestOverridesInstruction_KeepsOtherFieldsUnchanged() {
         var originalSettings = new ContextualAiRerankTaskSettings(
             INITIAL_TEST_RETURN_DOCUMENTS,
             INITIAL_TEST_TOP_N,
             INITIAL_TEST_INSTRUCTION
         );
-        var requestInstructionOnly = new ContextualAiRerankTaskSettings(null, null, NEW_TEST_INSTRUCTION);
+        var requestTopNOnly = new ContextualAiRerankTaskSettings(null, null, NEW_TEST_INSTRUCTION);
         assertThat(
-            ContextualAiRerankTaskSettings.of(originalSettings, requestInstructionOnly),
+            ContextualAiRerankTaskSettings.of(originalSettings, requestTopNOnly),
             is(new ContextualAiRerankTaskSettings(INITIAL_TEST_RETURN_DOCUMENTS, INITIAL_TEST_TOP_N, NEW_TEST_INSTRUCTION))
-        );
-    }
-
-    public void testOf_UsesAllParametersOverride() {
-        var originalSettings = new ContextualAiRerankTaskSettings(
-            INITIAL_TEST_RETURN_DOCUMENTS,
-            INITIAL_TEST_TOP_N,
-            INITIAL_TEST_INSTRUCTION
-        );
-        var overrideSettings = new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION);
-        assertThat(
-            ContextualAiRerankTaskSettings.of(originalSettings, overrideSettings),
-            is(new ContextualAiRerankTaskSettings(NEW_TEST_RETURN_DOCUMENTS, NEW_TEST_TOP_N, NEW_TEST_INSTRUCTION))
         );
     }
 

@@ -183,6 +183,30 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("distances"),
         new TestDataset("addresses"),
+        new TestDataset("addresses").withIndex("addresses_no_continent")
+            .withTypeMapping(removeFields("city.country.continent"))
+            .withDynamic("false"),
+        new TestDataset("addresses").withIndex("addresses_text")
+            .withTypeMapping(
+                Map.of(
+                    "street",
+                    "text",
+                    "number",
+                    "text",
+                    "zip_code",
+                    "text",
+                    "city.name",
+                    "text",
+                    "city.country.name",
+                    "text",
+                    "city.country.continent.name",
+                    "text",
+                    "city.country.continent.planet.name",
+                    "text",
+                    "city.country.continent.planet.galaxy",
+                    "text"
+                )
+            ),
         new TestDataset("books").withSetting("books-settings.json"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
@@ -813,19 +837,30 @@ public class CsvTestsDataLoader {
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
 
         if (hasTypeMappingOverrides) {
-            ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
             for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
                 String key = entry.getKey();
                 String newType = entry.getValue();
 
+                // Navigate dotted paths to find the parent properties node and leaf field name.
+                String[] segments = key.split("\\.");
+                ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
+                for (int i = 0; i < segments.length - 1 && propertiesNode != null; i++) {
+                    JsonNode child = propertiesNode.get(segments[i]);
+                    propertiesNode = child != null ? (ObjectNode) child.path("properties") : null;
+                }
+                String leafName = segments[segments.length - 1];
+
+                if (propertiesNode == null) {
+                    continue;
+                }
                 if (newType == null) {
                     // null value means remove the field from the mapping
-                    if (propertiesNode.has(key)) {
-                        propertiesNode.remove(key);
+                    if (propertiesNode.has(leafName)) {
+                        propertiesNode.remove(leafName);
                         modified = true;
                     }
-                } else if (propertiesNode.has(key)) {
-                    ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                } else if (propertiesNode.has(leafName)) {
+                    ((ObjectNode) propertiesNode.get(leafName)).put("type", newType);
                     modified = true;
                 }
             }

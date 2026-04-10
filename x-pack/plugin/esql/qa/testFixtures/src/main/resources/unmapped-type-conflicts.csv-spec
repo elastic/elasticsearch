@@ -2327,6 +2327,133 @@ sample_data                           | 5033755.0
 sample_data                           | 8268153.0
 ;
 
+############################################
+# Deeply nested partially unmapped fields  #
+############################################
+
+// city.country.continent.name (keyword, 4-level deep) is mapped in addresses but not in addresses_no_continent.
+// city.country.continent.planet.name and city.country.continent.planet.galaxy (5-level deep) are also unmapped.
+// All fields are keyword, so they are loaded via PotentiallyUnmappedKeywordEsField.
+deeplyNestedSubfieldPartiallyUnmappedKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM addresses, addresses_no_continent METADATA _index
+| KEEP _index, city.name, city.country.name, city.country.continent.name, city.country.continent.planet.name
+| SORT _index, city.name
+;
+
+_index:keyword          | city.name:keyword | city.country.name:keyword    | city.country.continent.name:keyword | city.country.continent.planet.name:keyword
+addresses               | Amsterdam         | Netherlands                  | Europe                              | Earth
+addresses               | San Francisco     | United States of America     | North America                       | Earth
+addresses               | Tokyo             | Japan                        | Asia                                | Earth
+addresses_no_continent  | Amsterdam         | Netherlands                  | Europe                              | Earth
+addresses_no_continent  | San Francisco     | United States of America     | North America                       | Earth
+addresses_no_continent  | Tokyo             | Japan                        | Asia                                | Earth
+;
+
+// Cast city.country.continent.planet.name (keyword, 5-level deep, partially unmapped) to keyword.
+deeplyNestedSubfieldPartiallyUnmappedCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM addresses, addresses_no_continent METADATA _index
+| EVAL planet = city.country.continent.planet.name::keyword
+| KEEP _index, city.name, planet
+| SORT _index, city.name
+;
+
+_index:keyword          | city.name:keyword | planet:keyword
+addresses               | Amsterdam         | Earth
+addresses               | San Francisco     | Earth
+addresses               | Tokyo             | Earth
+addresses_no_continent  | Amsterdam         | Earth
+addresses_no_continent  | San Francisco     | Earth
+addresses_no_continent  | Tokyo             | Earth
+;
+
+// city.country.continent.planet.galaxy is keyword, 5-level deep, and sits under continent which is entirely stripped
+// from addresses_no_continent. It is loaded via PotentiallyUnmappedKeywordEsField from both indices.
+deeplyNestedSubfieldUnderPartiallyUnmappedParent
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM addresses, addresses_no_continent METADATA _index
+| KEEP _index, city.name, city.country.continent.planet.galaxy
+| SORT _index, city.name
+;
+
+_index:keyword          | city.name:keyword | city.country.continent.planet.galaxy:keyword
+addresses               | Amsterdam         | Milky Way
+addresses               | San Francisco     | Milky Way
+addresses               | Tokyo             | Milky Way
+addresses_no_continent  | Amsterdam         | Milky Way
+addresses_no_continent  | San Francisco     | Milky Way
+addresses_no_continent  | Tokyo             | Milky Way
+;
+
+// Same as above, but using addresses_text where galaxy is mapped as text (non-keyword).
+// Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
+deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM addresses_text, addresses_no_continent METADATA _index
+| KEEP _index, city.country.continent.planet.galaxy
+| SORT _index
+;
+
+_index:keyword           | city.country.continent.planet.galaxy:text
+addresses_no_continent   | null
+addresses_no_continent   | null
+addresses_no_continent   | null
+addresses_text           | Milky Way
+addresses_text           | Milky Way
+addresses_text           | Milky Way
+;
+
+// city.country.continent.name is text (non-keyword) in addresses_text, unmapped in addresses_no_continent.
+// Without a cast, it's a regular field: values from addresses_text, null from addresses_no_continent.
+// Note: city.name has a type conflict (keyword vs text) across these indices, so we avoid referencing it.
+deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM addresses_text, addresses_no_continent METADATA _index
+| KEEP _index, city.country.continent.name
+| SORT _index
+;
+
+_index:keyword           | city.country.continent.name:text
+addresses_no_continent   | null
+addresses_no_continent   | null
+addresses_no_continent   | null
+addresses_text           | North America
+addresses_text           | Asia
+addresses_text           | Europe
+;
+
+// Cast city.country.continent.name (text, partially unmapped) to keyword via MultiTypeEsField.
+deeplyNestedNonKeywordSubfieldPartiallyUnmappedCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM addresses_text, addresses_no_continent METADATA _index
+| EVAL continent = city.country.continent.name::keyword
+| KEEP _index, continent
+| SORT _index, continent
+;
+
+_index:keyword           | continent:keyword
+addresses_no_continent   | Asia
+addresses_no_continent   | Europe
+addresses_no_continent   | North America
+addresses_text           | Asia
+addresses_text           | Europe
+addresses_text           | North America
+;
+
 ############################
 # TS with partially mapped #
 ############################

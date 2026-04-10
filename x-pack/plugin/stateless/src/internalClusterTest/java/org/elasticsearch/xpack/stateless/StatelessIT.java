@@ -1046,8 +1046,10 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         assertNoFailures(bulkRequest.get());
         assertNoFailures(indicesAdmin().prepareFlush(indexName).setForce(true).get());
 
-        assertBusy(() -> assertThat(uploadedFiles.isEmpty(), is(false)));
-        assertSegmentsFilesDeletedAfterUpload(shard);
+        assertBusy(() -> {
+            assertThat(uploadedFiles.isEmpty(), is(false));
+            assertSegmentsFilesDeletedAfterUpload(shard);
+        });
 
         var numUpdates = randomIntBetween(1, 100);
         bulkRequest = client().prepareBulk();
@@ -1058,9 +1060,11 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
             );
         }
         assertNoFailures(bulkRequest.get());
-        flush(indexName);
 
-        assertSegmentsFilesDeletedAfterUpload(shard);
+        assertBusy(() -> {
+            flush(indexName);
+            assertSegmentsFilesDeletedAfterUpload(shard);
+        });
     }
 
     public void testCanRestartMasterNodes() throws Exception {
@@ -1073,14 +1077,12 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     private static void assertSegmentsFilesDeletedAfterUpload(IndexShard indexShard) throws Exception {
-        assertBusy(() -> {
-            try (var dir = Files.list(indexShard.shardPath().resolveIndex())) {
-                var files = dir.map(path -> path.getFileName().toString())
-                    .filter(fileName -> fileName.equals("write.lock") == false)
-                    .collect(Collectors.toSet());
-                assertThat("Lucene files should have been deleted from shard but got: " + files, files.isEmpty(), is(true));
-            }
-        });
+        try (var dir = Files.list(indexShard.shardPath().resolveIndex())) {
+            var files = dir.map(path -> path.getFileName().toString())
+                .filter(fileName -> fileName.equals("write.lock") == false)
+                .collect(Collectors.toSet());
+            assertThat("Lucene files should have been deleted from shard but got: " + files, files.isEmpty(), is(true));
+        }
     }
 
     protected static void indexDocumentsWithFlush(String indexName) {

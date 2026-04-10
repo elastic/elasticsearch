@@ -65,6 +65,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -118,10 +119,12 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
                 .get(TimeValue.timeValueSeconds(10));
         }
 
+        var client = client();
         for (String docId : docIds) {
-            client().prepareDelete(indexName, docId)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get(TimeValue.timeValueSeconds(10));
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            bulkRequest.add(client.prepareDelete(indexName, docId));
+            bulkRequest.add(client.prepareIndex(indexName).setId("extra-" + docId).setSource("field", randomUnicodeOfLength(50)));
+            assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
         }
 
         // Make sure the delayed release actually happen for deleting the old commit files

@@ -11,6 +11,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -22,7 +23,7 @@ import java.time.Instant;
 public class OrcStorageObjectAdapterTests extends ESTestCase {
 
     public void testNullStorageObjectThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new OrcStorageObjectAdapter(null));
+        expectThrows(QlIllegalArgumentException.class, () -> new OrcStorageObjectAdapter(null));
     }
 
     public void testGetFileStatusReturnsCorrectLength() throws IOException {

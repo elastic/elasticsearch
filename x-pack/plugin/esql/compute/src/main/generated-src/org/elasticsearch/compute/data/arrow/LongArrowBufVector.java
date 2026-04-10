@@ -24,7 +24,8 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed LongVector.
+ * Implementation of LongVector backed by an Arrow buffer holding 64 bits signed integers.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
 public final class LongArrowBufVector extends AbstractArrowBufVector<LongVector, LongBlock> implements LongVector {
@@ -56,8 +57,8 @@ public final class LongArrowBufVector extends AbstractArrowBufVector<LongVector,
     }
 
     @Override
-    public long getLong(int position) {
-        return valueBuffer.getLong((long) position * Long.BYTES);
+    public long getLong(int valueIndex) {
+        return valueBuffer.getLong((long) valueIndex * Long.BYTES);
     }
 
     @Override

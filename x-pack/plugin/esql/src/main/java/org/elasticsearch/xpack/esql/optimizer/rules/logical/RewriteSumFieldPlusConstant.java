@@ -30,9 +30,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Rewrites two or more {@code SUM(field ± c)} expressions over the same field into
- * {@code SUM(SINGLE_VALUE_OR_NULL(field)) ± c * COUNT(SINGLE_VALUE_OR_NULL(field))},
- * decomposing the per-row arithmetic into separate aggregations on the raw field:
+ * Rewrites two or more {@code SUM(x ± c)} expressions over the same non-foldable expression
+ * {@code x} into {@code SUM(SINGLE_VALUE_OR_NULL(x)) ± c * COUNT(SINGLE_VALUE_OR_NULL(x))},
+ * decomposing the per-row arithmetic into separate aggregations on the shared expression:
  * <pre>
  *     STATS s1 = SUM(x + 1), s2 = SUM(x - 2) BY g
  *     →
@@ -41,11 +41,13 @@ import java.util.stream.Collectors;
  *     | PROJECT s1, s2, g
  * </pre>
  *
- * <p>Supported {@code SUM(field ± c)} and {@code SUM(c ± field)}, where exactly one operand
- * is foldable (the constant) and the other is not (the field).</p>
+ * <p>{@code x} can be any non-foldable expression (a field reference, a function call, etc.).
+ * Two SUM expressions share a {@code SUM(sv)/COUNT(sv)} pair when their {@code x} operands are
+ * canonically equal. Supported forms: {@code SUM(x ± c)} and {@code SUM(c ± x)}, where exactly
+ * one operand is foldable (the constant {@code c}) and the other is not.</p>
  *
  * <p>This rule must run before {@link ReplaceAggregateNestedExpressionWithEval}, which would
- * extract {@code field ± c} into a pre-agg EVAL, hiding the pattern from this rule.</p>
+ * extract {@code x ± c} into a pre-agg EVAL, hiding the pattern from this rule.</p>
  */
 public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
 
@@ -64,7 +66,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
     }
 
     /**
-     * Returns a {@link Match} if {@code agg} is {@code SUM(field ± c)} or {@code SUM(c ± field)},
+     * Returns a {@link Match} if {@code agg} is {@code SUM(x ± c)} or {@code SUM(c ± x)},
      * where exactly one operand is foldable. Returns {@code null} otherwise.
      */
     private static Match tryMatch(NamedExpression agg) {

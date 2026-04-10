@@ -58,7 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -82,7 +82,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            CHUNKED_FETCH_PHASE,
+            CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
         transportService.start();
@@ -289,6 +289,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
                     BytesStreamOutput out = new BytesStreamOutput();
                     SearchHit hit = createHit(0);
+                    out.writeVInt(0);
                     hit.writeTo(out);
                     hit.decRef();
 
@@ -501,8 +502,9 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

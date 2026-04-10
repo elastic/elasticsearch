@@ -645,7 +645,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
@@ -662,7 +662,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
         }
@@ -679,7 +679,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
         }
@@ -695,7 +695,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
@@ -711,7 +711,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         TestAnalyzer ta = analyzer();
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
@@ -734,7 +734,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         TestAnalyzer ta = analyzer();
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());

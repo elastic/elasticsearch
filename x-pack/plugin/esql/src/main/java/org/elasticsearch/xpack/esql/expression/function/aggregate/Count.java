@@ -75,7 +75,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
                 `COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
                 three-valued logic ({wikipedia}/Three-valued_logic[3VL]): `TRUE OR NULL` is `TRUE`, but
-                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null") }
+                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null"),
+            @Example(
+                description = "`COUNT` can also operate on `exponential_histogram` fields, "
+                    + "returning the total number of values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "countExpHistoForDocs"
+            ) }
     )
     public Count(
         Source source,

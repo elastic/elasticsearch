@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompou
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -201,9 +202,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
-            return new NoopSharedBlobCacheWarmingService(cacheService, threadPool, clusterSettings);
+            return new NoopSharedBlobCacheWarmingService(cacheService, threadPool, clusterSettings, warmingRatioProvider);
         }
     }
 

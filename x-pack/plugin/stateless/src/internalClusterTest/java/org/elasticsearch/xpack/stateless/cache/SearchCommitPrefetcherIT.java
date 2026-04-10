@@ -797,10 +797,11 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
             // no-op the warming on shard recovery so we do not introduce noise in the testing
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
                 @Override
                 public void warmCacheForShardRecoveryOrUnhollowing(
                     Type type,

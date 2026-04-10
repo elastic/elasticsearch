@@ -17,8 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettingsExtension;
-
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -112,6 +110,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
+import org.elasticsearch.xpack.stateless.cache.NoWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -368,7 +367,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         @Override
         protected Set<Setting<?>> clusterSettings() {
             final var res = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            res.addAll(new ServerlessSharedSettingsExtension().getSettings());
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING);
             res.add(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING);
@@ -742,7 +740,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 cacheService,
                 threadPool,
                 TelemetryProvider.NOOP,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                new NoWarmingRatioProviderFactory().create(clusterService.getClusterSettings())
             ) {
                 @Override
                 public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {

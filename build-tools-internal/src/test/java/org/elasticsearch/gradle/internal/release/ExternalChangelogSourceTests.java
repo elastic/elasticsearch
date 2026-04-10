@@ -82,6 +82,8 @@ public class ExternalChangelogSourceTests {
     public void testIsShaRef() {
         assertThat(BundleChangelogsTask.isShaRef("abc1234"), equalTo(true));
         assertThat(BundleChangelogsTask.isShaRef("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"), equalTo(true));
+        assertThat(BundleChangelogsTask.isShaRef("ABC1234DEF5678"), equalTo(true));
+        assertThat(BundleChangelogsTask.isShaRef("aBc1234"), equalTo(true));
         assertThat(BundleChangelogsTask.isShaRef("main"), equalTo(false));
         assertThat(BundleChangelogsTask.isShaRef("9.3"), equalTo(false));
         assertThat(BundleChangelogsTask.isShaRef("upstream/main"), equalTo(false));
@@ -89,7 +91,7 @@ public class ExternalChangelogSourceTests {
     }
 
     @Test
-    public void testExternalChangelogSourceSerialization() {
+    public void testExternalChangelogSourceAccessors() {
         var source = new BundleChangelogsTask.ExternalChangelogSource(
             "https://github.com/elastic/ml-cpp.git",
             "elastic/ml-cpp",

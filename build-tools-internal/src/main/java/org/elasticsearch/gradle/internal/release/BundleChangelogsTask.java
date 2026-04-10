@@ -301,7 +301,7 @@ public class BundleChangelogsTask extends DefaultTask {
      * are passed through unchanged.
      */
     static boolean isShaRef(String ref) {
-        return ref.matches("^[0-9a-f]{7,40}$");
+        return ref.matches("(?i)^[0-9a-f]{7,40}$");
     }
 
     static String normalizeBranchForExternalFetch(String branchRef) {

@@ -65,7 +65,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
         if (logger.isTraceEnabled() && checks != NO_OP) {
             long totalChecks = checks.sum();
             long totalFalsePositives = falsePositives.sum();
-            var bloomFilter = idBloomFilterSupplier.getBloomFilterForId();
+            var bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
             logger.trace(
                 "bloom filter [{}]: saturation={} checks={} false_positives={} fpr={}",
                 bloomFilter,
@@ -92,7 +92,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     public Terms terms(String field) throws IOException {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
         final Terms terms = delegate.terms(field);
-        final BloomFilter bloomFilter = idBloomFilterSupplier.getBloomFilterForId();
+        final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
         return new FilterLeafReader.FilterTerms(terms) {
             @Override
             public TermsEnum iterator() throws IOException {

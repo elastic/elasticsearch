@@ -25,7 +25,7 @@ import java.io.IOException;
  *
  * <p>Thread-safety contract: {@link DocValuesProducer#getBinary} returns a new, independent
  * {@link org.apache.lucene.index.BinaryDocValues} reader on every call, each backed by its own
- * I/O buffer. Callers must therefore invoke {@link #getBloomFilterForId()} once per logical
+ * I/O buffer. Callers must therefore invoke {@link #createBloomFilterInstance()} once per logical
  * lookup context (e.g. once per {@link org.apache.lucene.index.TermsEnum} obtained via
  * {@link org.apache.lucene.index.Terms#iterator()}) and must not share the returned
  * {@link BloomFilter} across threads. Sharing a single {@link BloomFilter} across threads would
@@ -57,7 +57,7 @@ public class IdBloomFilterSupplier implements Closeable {
      * reader from the underlying {@link DocValuesProducer}. Must be called once per lookup
      * context; the returned instance must not be shared across threads.
      */
-    public BloomFilter getBloomFilterForId() throws IOException {
+    public BloomFilter createBloomFilterInstance() throws IOException {
         var binaryDocValuesProducer = docValuesProducer.getBinary(idFieldInfo);
         if (binaryDocValuesProducer instanceof BloomFilter bloomFilter) {
             return bloomFilter;

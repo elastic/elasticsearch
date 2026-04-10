@@ -9,19 +9,12 @@
 
 package org.elasticsearch.index.codec.bloomfilter;
 
-import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 
-import java.io.Closeable;
 import java.io.IOException;
 
-public interface BloomFilter extends Closeable {
+public interface BloomFilter {
     BloomFilter NO_FILTER = new BloomFilter() {
-        @Override
-        public void close() {
-
-        }
 
         @Override
         public boolean mayContainValue(String field, BytesRef term) {
@@ -60,51 +53,4 @@ public interface BloomFilter extends Closeable {
      */
     double saturation() throws IOException;
 
-    static BloomFilter getBloomFilterForId(SegmentReadState state) throws IOException {
-        var codec = state.segmentInfo.getCodec();
-        final var docValuesProducer = codec.docValuesFormat().fieldsProducer(state);
-        boolean success = false;
-        try {
-            var idFieldInfo = state.fieldInfos.fieldInfo(IdFieldMapper.NAME);
-            assert idFieldInfo != null;
-
-            var binaryDocValuesProducer = docValuesProducer.getBinary(idFieldInfo);
-            if (binaryDocValuesProducer instanceof BloomFilter bloomFilter) {
-                success = true;
-                return new BloomFilter() {
-                    @Override
-                    public boolean mayContainValue(String field, BytesRef term) throws IOException {
-                        return bloomFilter.mayContainValue(field, term);
-                    }
-
-                    @Override
-                    public long sizeInBytes() {
-                        return bloomFilter.sizeInBytes();
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        docValuesProducer.close();
-                    }
-
-                    @Override
-                    public double saturation() throws IOException {
-                        return bloomFilter.saturation();
-                    }
-
-                    @Override
-                    public String toString() {
-                        return bloomFilter.toString();
-                    }
-                };
-            } else {
-                docValuesProducer.close();
-                return BloomFilter.NO_FILTER;
-            }
-        } finally {
-            if (success == false) {
-                docValuesProducer.close();
-            }
-        }
-    }
 }

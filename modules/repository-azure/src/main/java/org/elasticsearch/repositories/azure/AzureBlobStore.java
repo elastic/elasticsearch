@@ -1050,6 +1050,16 @@ public class AzureBlobStore implements BlobStore {
             counter.operations.increment();
             counter.requests.add(requestMetrics.getRequestCount());
 
+            logger.trace(
+                () -> format(
+                    "incrementing stats for [%s], operations+=1, requests+=%d, total # of operations=%d, total # of requests=%d",
+                    statsKey,
+                    requestMetrics.getRequestCount(),
+                    counter.operations.sum(),
+                    counter.requests().sum()
+                )
+            );
+
             // range not satisfied is not retried, so we count them by checking the final response
             if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                 repositoriesMetrics.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attributes);

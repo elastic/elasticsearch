@@ -169,9 +169,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReorderLimitProjectAndOrderByGoldenTests
-  method: testLimitByAndProjectNotSwapped
-  issue: https://github.com/elastic/elasticsearch/issues/144978
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022

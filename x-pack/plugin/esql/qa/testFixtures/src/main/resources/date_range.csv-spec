@@ -443,6 +443,7 @@ FROM decades
 | EVAL max_bound = RANGE_MAX(date_range)
 | EVAL new_range = TO_DATE_RANGE(CONCAT(min_bound::keyword, "..", max_bound::keyword))
 | KEEP date_range, min_bound, max_bound, new_range
+| SORT date_range
 ;
 
 date_range:date_range  | min_bound:date           | max_bound:date           | new_range:date_range

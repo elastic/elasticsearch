@@ -51,7 +51,12 @@ public class StaleRequestException extends ElasticsearchException {
 
     public SplitShardCountSummary getStaleSummary() {
         final var shardCountMetadata = getMetadata(STALE_SUMMARY);
-        assert shardCountMetadata != null && shardCountMetadata.size() == 1;
-        return SplitShardCountSummary.fromInt(Integer.parseInt(shardCountMetadata.getFirst()));
+        // may be null if the exception was produced by a node running an older version
+        if (shardCountMetadata == null) {
+            return SplitShardCountSummary.UNSET;
+        } else {
+            assert shardCountMetadata.size() == 1;
+            return SplitShardCountSummary.fromInt(Integer.parseInt(shardCountMetadata.getFirst()));
+        }
     }
 }

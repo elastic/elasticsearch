@@ -4262,12 +4262,12 @@ FROM employees
 ;
 
 s1:long  | s2:long  | languages:integer
-null     | null     | null
-930231   | 930281   | 1
-967767   | 967827   | 2
-871184   | 871244   | 3
-843671   | 843731   | 4
-212102   | 212132   | 5
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
 ;
 
 Sum expression with constant alongside bare sum of same field
@@ -4315,12 +4315,12 @@ FROM employees
 ;
 
 s1:long  | s2:long  | l:integer
-null     | null     | null
-930231   | 930281   | 1
-967767   | 967827   | 2
-871184   | 871244   | 3
-843671   | 843731   | 4
-212102   | 212132   | 5
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
 ;
 
 Sum expression with constant count alongside

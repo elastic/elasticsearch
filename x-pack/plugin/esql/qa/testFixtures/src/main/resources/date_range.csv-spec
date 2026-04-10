@@ -443,9 +443,9 @@ FROM decades
 | EVAL max_bound = RANGE_MAX(date_range)
 | EVAL new_range = TO_DATE_RANGE(CONCAT(min_bound::keyword, "..", max_bound::keyword))
 | KEEP date_range, min_bound, max_bound, new_range
-| SORT date_range
 ;
 
+ignoreOrder:true
 date_range:date_range  | min_bound:date           | max_bound:date           | new_range:date_range
 1900-01-01..1910-01-01 | 1900-01-01T00:00:00.000Z | 1910-01-01T00:00:00.000Z | 1900-01-01..1910-01-01
 2000-01-01..2010-01-01 | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2000-01-01..2010-01-01

@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompou
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -1074,12 +1075,19 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
-                return super.createSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
+                return super.createSharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    warmingRatioProvider
+                );
             }
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
                 @Override
                 protected void warmCache(
                     Type type,

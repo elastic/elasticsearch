@@ -146,11 +146,14 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvide
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
+import org.elasticsearch.xpack.stateless.cache.NoWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -525,6 +528,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
+    private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -765,11 +769,17 @@ public class StatelessPlugin extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
+
+        final WarmingRatioProviderFactory warmingRatioProviderFactory = warmingRatioProviderFactoryRef.get() != null
+            ? warmingRatioProviderFactoryRef.get()
+            : new NoWarmingRatioProviderFactory();
+        final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
         var cacheWarmingService = createSharedBlobCacheWarmingService(
             cacheService,
             threadPool,
             services.telemetryProvider(),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            warmingRatioProvider
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var commitService = createStatelessCommitService(
@@ -1033,9 +1043,10 @@ public class StatelessPlugin extends Plugin
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        WarmingRatioProvider warmingRatioProvider
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
     }
 
     protected ReshardIndexService createMetadataReshardIndexService(
@@ -1761,6 +1772,13 @@ public class StatelessPlugin extends Plugin
             throw new IllegalStateException(SearchShardSizeCollectorProvider.class + " may not have multiple implementations");
         } else if (searchShardSizeCollectorProviders.size() == 1) {
             searchShardSizeCollectorProvider.set(searchShardSizeCollectorProviders.get(0));
+        }
+
+        var warmingRatioProviderFactories = loader.loadExtensions(WarmingRatioProviderFactory.class);
+        if (warmingRatioProviderFactories.size() > 1) {
+            throw new IllegalStateException(WarmingRatioProviderFactory.class + " may not have multiple implementations");
+        } else if (warmingRatioProviderFactories.size() == 1) {
+            warmingRatioProviderFactoryRef.set(warmingRatioProviderFactories.get(0));
         }
     }
 

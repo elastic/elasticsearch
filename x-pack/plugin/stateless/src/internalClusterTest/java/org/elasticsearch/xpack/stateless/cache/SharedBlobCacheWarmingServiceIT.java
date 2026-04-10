@@ -1290,9 +1290,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
-            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
+            return new BlockingSharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider
+            );
         }
 
         @Override
@@ -1363,9 +1370,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
-            super(cacheService, threadPool, telemetryProvider, clusterSettings);
+            super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
         }
 
         /**

@@ -161,7 +161,7 @@ public class SynonymsManagementAPIService {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_SYNONYM_RULES_SETTING, v -> this.maxSynonymRules = v);
     }
 
-    // Package-private -- tests only
+    // VisibleForTesting
     SynonymsManagementAPIService(Client client, ClusterService clusterService, int maxSynonymRules, int pitBatchSize, int bulkChunkSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.clusterService = clusterService;

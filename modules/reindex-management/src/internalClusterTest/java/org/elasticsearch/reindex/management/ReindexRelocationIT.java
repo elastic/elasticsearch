@@ -297,6 +297,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                 // expected — node may be stopped while waiting
             }
         });
+        shutdownThread.setDaemon(true);
         shutdownThread.start();
 
         // Wait for the destination's write (not deferred) to create .tasks.
@@ -493,10 +494,12 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                         final CountDownLatch latch = deferLatch;
                         if (latch != null && myNodeName.equals(deferredNodeName)) {
                             // fork to unblock the calling thread, also simulates async index write
-                            new Thread(() -> {
+                            final Thread deferThread = new Thread(() -> {
                                 safeAwait(latch);
                                 chain.proceed(task, action, request, listener);
-                            }, "deferred-.tasks-write").start();
+                            }, "deferred-.tasks-write");
+                            deferThread.setDaemon(true);
+                            deferThread.start();
                             return;
                         }
                     }

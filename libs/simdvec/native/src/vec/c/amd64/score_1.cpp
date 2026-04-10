@@ -53,9 +53,7 @@ static inline __m256 apply_base_corrections(
 // Since nodes may be arbitrary ordinals, we load corrections individually and pack into SIMD registers.
 
 static inline void bbq_load_corrections_8(
-    const int8_t* data,
-    const int32_t* nodes,
-    const int32_t pitchInBytes,
+    const void *const data,
     const int32_t vectorSizeInBytes,
     __m256& lowerInterval,
     __m256& upperInterval,
@@ -67,7 +65,7 @@ static inline void bbq_load_corrections_8(
     alignas(32) f32_t li[8], ui[8], ac[8];
     alignas(32) int32_t tcs[8];
     for (int j = 0; j < 8; ++j) {
-        const int8_t* base = data + ((long) nodes[j] * pitchInBytes + vectorSizeInBytes);
+        const int8_t* base = (const int8_t*)data + vectorSizeInBytes;
         li[j] = *(const f32_t*)base;
         ui[j] = *(const f32_t*)(base + sizeof(f32_t));
         ac[j] = *(const f32_t*)(base + 2 * sizeof(f32_t));
@@ -80,7 +78,7 @@ static inline void bbq_load_corrections_8(
 }
 
 EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
-        const int8_t* data,
+        const void* const* addresses,
         const int32_t bulkSize,
         const int32_t vectorSizeInBytes,
         const int32_t pitchInBytes,
@@ -92,7 +90,6 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
-        const int32_t* nodes,
         f32_t* scores
 ) {
     const f32_t ay = queryLowerInterval;
@@ -106,7 +103,7 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(data, nodes + i, pitchInBytes, vectorSizeInBytes,
+        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(
@@ -125,7 +122,7 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
         _mm256_storeu_ps(scores + i, res);
     }
     for (; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(data, nodes[i], pitchInBytes, vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
         f32_t score = apply_corrections_euclidean_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
@@ -139,7 +136,7 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
 }
 
 EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
-        const int8_t* data,
+        const void* const* addresses,
         const int32_t bulkSize,
         const int32_t vectorSizeInBytes,
         const int32_t pitchInBytes,
@@ -151,7 +148,6 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
-        const int32_t* nodes,
         f32_t* scores
 ) {
     const f32_t ay = queryLowerInterval;
@@ -165,7 +161,7 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(data, nodes + i, pitchInBytes, vectorSizeInBytes,
+        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(
@@ -189,7 +185,7 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
         _mm256_storeu_ps(scores + i, res);
     }
     for (; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(data, nodes[i], pitchInBytes, vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
         f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
@@ -203,7 +199,7 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
 }
 
 EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
-        const int8_t* data,
+        const void* const* addresses,
         const int32_t bulkSize,
         const int32_t vectorSizeInBytes,
         const int32_t pitchInBytes,
@@ -215,7 +211,6 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
-        const int32_t* nodes,
         f32_t* scores
 ) {
     const f32_t ay = queryLowerInterval;
@@ -229,7 +224,7 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 lowerInterval, upperInterval, additionalCorrection;
         __m256i targetComponentSum;
-        bbq_load_corrections_8(data, nodes + i, pitchInBytes, vectorSizeInBytes,
+        bbq_load_corrections_8(addresses[i], vectorSizeInBytes,
             lowerInterval, upperInterval, additionalCorrection, targetComponentSum);
 
         __m256 res = apply_base_corrections(
@@ -249,7 +244,7 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
         _mm256_storeu_ps(scores + i, res);
     }
     for (; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(data, nodes[i], pitchInBytes, vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
         f32_t score = apply_corrections_dot_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,

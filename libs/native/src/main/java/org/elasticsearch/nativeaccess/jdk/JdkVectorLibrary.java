@@ -276,7 +276,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_FLOAT,  // queryBitScale
                     JAVA_FLOAT,  // indexBitScale
                     JAVA_FLOAT,  // centroidDp
-                    ADDRESS,     // nodes
                     ADDRESS      // scores
                 );
 
@@ -834,7 +833,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
-            MemorySegment nodes,
             MemorySegment scores
         ) {
             try {
@@ -851,7 +849,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
             } catch (Throwable t) {
@@ -872,7 +869,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
-            MemorySegment nodes,
             MemorySegment scores
         ) {
             try {
@@ -889,7 +885,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
             } catch (Throwable t) {
@@ -910,7 +905,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
-            MemorySegment nodes,
             MemorySegment scores
         ) {
             try {
@@ -927,7 +921,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
             } catch (Throwable t) {
@@ -1257,7 +1250,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,          // queryBitScale
                     float.class,          // indexBitScale
                     float.class,          // centroidDp
-                    MemorySegment.class,  // nodes
                     MemorySegment.class   // scores
                 );
 

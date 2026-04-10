@@ -104,7 +104,6 @@ class ScoreCorrections {
         float queryBitScale,
         float indexBitScale,
         float centroidDp,
-        MemorySegment nodes,
         MemorySegment scores
     ) {
         try {
@@ -122,7 +121,6 @@ class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
                 case DOT_PRODUCT, COSINE -> (float) BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
@@ -138,7 +136,6 @@ class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
                 case MAXIMUM_INNER_PRODUCT -> (float) BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
@@ -154,7 +151,6 @@ class ScoreCorrections {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
-                    nodes,
                     scores
                 );
             };

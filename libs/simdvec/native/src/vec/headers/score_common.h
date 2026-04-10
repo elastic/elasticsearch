@@ -19,12 +19,10 @@ struct bbq_correction_t {
 };
 
 static inline bbq_correction_t bbq_read_corrections(
-    const int8_t* data,
-    int32_t node,
-    int32_t pitchInBytes,
+    const void *const data,
     int32_t vectorSizeInBytes
 ) {
-    const int8_t* base = data + ((long) node * pitchInBytes + vectorSizeInBytes);
+    const int8_t* base = (const int8_t*)data + vectorSizeInBytes;
     return bbq_correction_t {
         *(const f32_t*)base,
         *(const f32_t*)(base + sizeof(f32_t)),

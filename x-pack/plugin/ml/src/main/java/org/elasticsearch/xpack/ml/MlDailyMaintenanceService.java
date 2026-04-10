@@ -51,6 +51,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,6 +108,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
+    private final AnomalyDetectionAuditor auditor;
     private final MlAssignmentNotifier mlAssignmentNotifier;
 
     /**
@@ -126,13 +128,13 @@ public class MlDailyMaintenanceService implements Releasable {
     private volatile float deleteExpiredDataRequestsPerSecond;
     private volatile ByteSizeValue rolloverMaxSize;
     private volatile TimeValue idleJobAutoCloseTimeout;
-    private volatile AnomalyDetectionAuditor idleJobAuditor;
 
     MlDailyMaintenanceService(
         Settings settings,
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         MlAssignmentNotifier mlAssignmentNotifier,
         Supplier<TimeValue> schedulerProvider,
         IndexNameExpressionResolver expressionResolver,
@@ -144,6 +146,7 @@ public class MlDailyMaintenanceService implements Releasable {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.auditor = auditor;
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(schedulerProvider);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
@@ -162,6 +165,7 @@ public class MlDailyMaintenanceService implements Releasable {
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         MlAssignmentNotifier mlAssignmentNotifier,
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
@@ -174,6 +178,7 @@ public class MlDailyMaintenanceService implements Releasable {
             threadPool,
             client,
             clusterService,
+            auditor,
             mlAssignmentNotifier,
             () -> delayToNextTime(clusterName),
             expressionResolver,
@@ -660,26 +665,15 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     /**
-     * Closes anomaly detection jobs that have a configured datafeed which is stopped and have
-     * not received any data within the configured idle timeout. Jobs without a configured
-     * datafeed (e.g. those fed via the POST data API) are not affected. Disabled when the
-     * timeout is set to {@code -1}.
+     * Computes the set of open job IDs that do not have a running datafeed task, based purely
+     * on cluster state. Returns an empty set if there are no persistent tasks or no open jobs
+     * without datafeeds.
      */
-    // Visible for testing
-    public void triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener<AcknowledgedResponse> finalListener) {
-        TimeValue timeout = idleJobAutoCloseTimeout;
-        if (timeout.millis() < 0) {
-            logger.debug("[ML] idle job auto-close is disabled");
-            finalListener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        ClusterState state = clusterService.state();
+    static Set<String> collectOpenJobsWithoutRunningDatafeeds(ClusterState state) {
         ProjectMetadata project = state.getMetadata().getProject();
         PersistentTasksCustomMetadata tasks = project.custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks == null) {
-            finalListener.onResponse(AcknowledgedResponse.TRUE);
-            return;
+            return Set.of();
         }
 
         Set<String> jobsWithRunningDatafeeds = tasks.tasks()
@@ -694,7 +688,25 @@ public class MlDailyMaintenanceService implements Releasable {
             return taskState != null && taskState.getState() == JobState.OPENED;
         }).map(t -> t.getId().substring(MlTasks.JOB_TASK_ID_PREFIX.length())).collect(toSet());
 
-        Set<String> openJobsWithoutRunningDatafeeds = Sets.difference(openJobIds, jobsWithRunningDatafeeds);
+        return Sets.difference(openJobIds, jobsWithRunningDatafeeds);
+    }
+
+    /**
+     * Closes anomaly detection jobs that have a configured datafeed which is stopped and have
+     * not received any data within the configured idle timeout. Jobs without a configured
+     * datafeed (e.g. those fed via the POST data API) are not affected. Disabled when the
+     * timeout is set to {@code -1}.
+     */
+    // Visible for testing
+    public void triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener<AcknowledgedResponse> finalListener) {
+        TimeValue timeout = idleJobAutoCloseTimeout;
+        if (timeout.millis() < 0) {
+            logger.debug("[ML] idle job auto-close is disabled");
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        Set<String> openJobsWithoutRunningDatafeeds = collectOpenJobsWithoutRunningDatafeeds(clusterService.state());
         if (openJobsWithoutRunningDatafeeds.isEmpty()) {
             finalListener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -751,44 +763,57 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     private void checkAndCloseIdleJob(String jobId, long cutoffMillis, ActionListener<Tuple<String, Boolean>> listener) {
+        ActionListener<Tuple<String, Boolean>> safeListener = ActionListener.wrap(listener::onResponse, e -> {
+            logger.warn("[{}] failed to check/close idle job, skipping", jobId, e);
+            listener.onResponse(Tuple.tuple(jobId, false));
+        });
+
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName).source(
             new SearchSourceBuilder().size(1)
                 .query(new IdsQueryBuilder().addIds(DataCounts.documentId(jobId)))
                 .fetchSource(new String[] { DataCounts.LATEST_RECORD_TIME.getPreferredName() }, null)
+                .sort(DataCounts.LOG_TIME.getPreferredName(), SortOrder.DESC)
+                .sort(DataCounts.LATEST_RECORD_TIME.getPreferredName(), SortOrder.DESC)
         ).indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, sr) -> {
-            if (sr.getHits().getHits().length == 0) {
-                logger.debug("[{}] no data_counts document found, skipping auto-close", jobId);
-                l.onResponse(Tuple.tuple(jobId, false));
-                return;
-            }
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            safeListener.delegateFailureAndWrap((l, sr) -> {
+                if (sr.getHits().getHits().length == 0) {
+                    logger.debug("[{}] no data_counts document found, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
 
-            Map<String, Object> source = sr.getHits().getHits()[0].getSourceAsMap();
-            Object latestRecordTime = source.get(DataCounts.LATEST_RECORD_TIME.getPreferredName());
-            if (latestRecordTime == null) {
-                logger.debug("[{}] no latest_record_timestamp in data_counts, skipping auto-close", jobId);
-                l.onResponse(Tuple.tuple(jobId, false));
-                return;
-            }
+                Map<String, Object> source = sr.getHits().getHits()[0].getSourceAsMap();
+                Object latestRecordTime = source.get(DataCounts.LATEST_RECORD_TIME.getPreferredName());
+                if (latestRecordTime == null) {
+                    logger.debug("[{}] no latest_record_timestamp in data_counts, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
 
-            long latestRecordMillis;
-            if (latestRecordTime instanceof Number n) {
-                latestRecordMillis = n.longValue();
-            } else {
-                logger.debug("[{}] unexpected latest_record_timestamp type: {}", jobId, latestRecordTime.getClass());
-                l.onResponse(Tuple.tuple(jobId, false));
-                return;
-            }
+                long latestRecordMillis;
+                if (latestRecordTime instanceof Number n) {
+                    latestRecordMillis = n.longValue();
+                } else {
+                    logger.debug("[{}] unexpected latest_record_timestamp type: {}", jobId, latestRecordTime.getClass());
+                    l.onResponse(Tuple.tuple(jobId, false));
+                    return;
+                }
 
-            if (latestRecordMillis < cutoffMillis) {
-                closeIdleJob(jobId, l);
-            } else {
-                logger.debug("[{}] job received data recently, skipping auto-close", jobId);
-                l.onResponse(Tuple.tuple(jobId, false));
-            }
-        }));
+                if (latestRecordMillis < cutoffMillis) {
+                    closeIdleJob(jobId, l);
+                } else {
+                    logger.debug("[{}] job received data recently, skipping auto-close", jobId);
+                    l.onResponse(Tuple.tuple(jobId, false));
+                }
+            })
+        );
     }
 
     private void closeIdleJob(String jobId, ActionListener<Tuple<String, Boolean>> listener) {
@@ -810,19 +835,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void auditIdleJobClosed(String jobId, TimeValue timeout) {
         try {
-            getOrCreateAuditor().warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_IDLE_JOB_CLOSED, timeout));
+            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_IDLE_JOB_CLOSED, timeout));
         } catch (Exception e) {
             logger.warn(() -> "[" + jobId + "] failed to write audit message for idle job auto-close", e);
         }
-    }
-
-    private AnomalyDetectionAuditor getOrCreateAuditor() {
-        AnomalyDetectionAuditor existing = idleJobAuditor;
-        if (existing != null) {
-            return existing;
-        }
-        idleJobAuditor = new AnomalyDetectionAuditor(client, clusterService, expressionResolver, true);
-        return idleJobAuditor;
     }
 
     /**

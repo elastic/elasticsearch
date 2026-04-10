@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -62,11 +63,16 @@ import org.mockito.stubbing.Answer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -83,6 +89,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client client;
     private ClusterService clusterService;
+    private AnomalyDetectionAuditor auditor;
     private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
@@ -91,6 +98,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
     }
 
@@ -451,6 +459,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             threadPool,
             client,
             clusterService,
+            auditor,
             mlAssignmentNotifier,
             () -> TimeValue.timeValueDays(1),
             TestIndexNameExpressionResolver.newInstance(),
@@ -561,6 +570,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             threadPool,
             client,
             clusterService,
+            auditor,
             mlAssignmentNotifier,
             () -> TimeValue.timeValueDays(1),
             TestIndexNameExpressionResolver.newInstance(),
@@ -602,6 +612,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 threadPool,
                 client,
                 clusterService,
+                auditor,
                 mlAssignmentNotifier,
                 scheduleProvider,
                 TestIndexNameExpressionResolver.newInstance(),
@@ -614,6 +625,53 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             service.start();
             latch.await(5, TimeUnit.SECONDS);
         }
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_noTasks() {
+        ClusterState state = createClusterState(false);
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), empty());
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_openJobWithRunningDatafeed() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-1");
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), empty());
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_openJobWithoutDatafeed() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        assertThat(MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state), contains("job-1"));
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_closedJobIsExcluded() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-open", JobState.OPENED);
+        addJobTask(tasksBuilder, "job-closed", JobState.CLOSED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        Set<String> result = MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state);
+        assertThat(result, contains("job-open"));
+        assertThat(result, not(hasItem("job-closed")));
+    }
+
+    public void testCollectOpenJobsWithoutRunningDatafeeds_mixedJobs() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-with-datafeed", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-with-datafeed");
+        addJobTask(tasksBuilder, "job-without-datafeed", JobState.OPENED);
+        addJobTask(tasksBuilder, "job-closed", JobState.CLOSED);
+        ClusterState state = createClusterStateWithTasks(tasksBuilder.build());
+
+        Set<String> result = MlDailyMaintenanceService.collectOpenJobsWithoutRunningDatafeeds(state);
+        assertThat(result, contains("job-without-datafeed"));
+        assertThat(result, not(hasItem("job-with-datafeed")));
+        assertThat(result, not(hasItem("job-closed")));
     }
 
     private static ClusterState createClusterState(boolean isUpgradeMode) {

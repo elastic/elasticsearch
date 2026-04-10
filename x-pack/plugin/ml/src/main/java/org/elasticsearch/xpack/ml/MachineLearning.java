@@ -734,7 +734,7 @@ public class MachineLearning extends Plugin
         "xpack.ml.idle_job_auto_close_timeout",
         TimeValue.timeValueHours(48),
         TimeValue.MINUS_ONE,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope
     );
 
@@ -1428,6 +1428,7 @@ public class MachineLearning extends Plugin
             settings,
             threadPool,
             clusterService,
+            anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,

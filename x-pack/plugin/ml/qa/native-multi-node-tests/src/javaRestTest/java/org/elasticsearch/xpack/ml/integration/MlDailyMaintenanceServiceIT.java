@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.junit.Before;
@@ -43,7 +44,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase {
 
@@ -63,6 +63,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             threadPool,
             client(),
             mock(ClusterService.class),
+            mock(AnomalyDetectionAuditor.class),
             mock(MlAssignmentNotifier.class),
             mock(IndexNameExpressionResolver.class),
             true,
@@ -130,9 +131,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         assertThat(getJobState(idleJobId), equalTo(JobState.OPENED));
         assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
 
-        ClusterState state = client().admin().cluster().prepareState(TimeValue.timeValueSeconds(30)).get().getState();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(state);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         ThreadPool realThreadPool = new TestThreadPool("idle-job-test");
         try {
@@ -142,6 +141,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
                 realThreadPool,
                 client(),
                 clusterService,
+                mock(AnomalyDetectionAuditor.class),
                 mock(MlAssignmentNotifier.class),
                 mock(IndexNameExpressionResolver.class),
                 true,

@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -67,7 +66,6 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
@@ -105,7 +103,6 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(
             threadContext,
-            licenseState,
             auditTrailService,
             dlsFlsFeatureEnabled
         );
@@ -139,7 +136,6 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
         Authentication authentication = AuthenticationTestHelper.builder()
@@ -152,12 +148,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
-        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(
-            threadContext,
-            licenseState,
-            auditTrailService,
-            false
-        );
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, auditTrailService, false);
 
         final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {

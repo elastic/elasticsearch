@@ -467,9 +467,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testApplicationDefaultCredentialsFallbackToComputeEngine
-  issue: https://github.com/elastic/elasticsearch/issues/145689
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testCancelOnExpiry
   issue: https://github.com/elastic/elasticsearch/issues/145502

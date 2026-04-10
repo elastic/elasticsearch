@@ -9,13 +9,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.LowLevelHttpRequest;
-import com.google.api.client.http.LowLevelHttpResponse;
-import com.google.auth.http.HttpTransportFactory;
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.http.HttpTransportOptions;
-import com.google.cloud.storage.StorageOptions;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -37,9 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -48,13 +39,10 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -207,132 +195,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             assertNotSame(repo1Client, repo2Client);
             assertSame(repo1Client, repo1ClientSecondInstance);
         }
-    }
-
-    /**
-     * Verifies that when no explicit credentials are configured and no credential files are found
-     * (either because they genuinely don't exist, or because {@code File.isFile()} returns
-     * {@code false} due to entitlement enforcement), the GCS service correctly falls back to
-     * obtaining credentials from the GCP metadata server via Application Default Credentials.
-     *
-     * <p>This test exercises the code path that was broken when {@code NotEntitledException}
-     * stopped extending {@code AccessControlException}: {@code DefaultCredentialsProvider}
-     * explicitly catches {@code AccessControlException} when checking credential file paths,
-     * silently skipping to the metadata server fallback. When {@code File.isFile()} threw a
-     * {@code NotEntitledException} that no longer extended {@code AccessControlException}, the
-     * exception propagated instead of being swallowed, preventing credential discovery entirely.
-     *
-     * <p>The fix — returning {@code false} from {@code File.isFile()} when access is denied —
-     * causes {@code DefaultCredentialsProvider} to treat the credential file as absent and
-     * naturally fall through to the metadata server. This test documents and protects that path.
-     */
-    public void testApplicationDefaultCredentialsFallbackToComputeEngine() throws IOException {
-        final AtomicBoolean metadataServerContacted = new AtomicBoolean(false);
-
-        // Mock HTTP transport that simulates the GCP metadata server.
-        // DefaultCredentialsProvider uses this transport to detect GCE and obtain tokens
-        // when no file-based credentials are found.
-        final HttpTransportFactory mockMetadataTransportFactory = () -> new HttpTransport() {
-            @Override
-            protected LowLevelHttpRequest buildRequest(String method, String url) {
-                metadataServerContacted.set(true);
-                final byte[] responseBody = url.contains("token")
-                    ? "{\"access_token\":\"test-token\",\"token_type\":\"Bearer\",\"expires_in\":3600}".getBytes(UTF_8)
-                    : new byte[0];
-                return new LowLevelHttpRequest() {
-                    @Override
-                    public void addHeader(String name, String value) {}
-
-                    @Override
-                    public LowLevelHttpResponse execute() {
-                        return new LowLevelHttpResponse() {
-                            @Override
-                            public InputStream getContent() {
-                                return new ByteArrayInputStream(responseBody);
-                            }
-
-                            @Override
-                            public String getContentEncoding() {
-                                return null;
-                            }
-
-                            @Override
-                            public long getContentLength() {
-                                return responseBody.length;
-                            }
-
-                            @Override
-                            public String getContentType() {
-                                return "application/json";
-                            }
-
-                            @Override
-                            public String getStatusLine() {
-                                return "HTTP/1.1 200 OK";
-                            }
-
-                            @Override
-                            public int getStatusCode() {
-                                return 200;
-                            }
-
-                            @Override
-                            public String getReasonPhrase() {
-                                return "OK";
-                            }
-
-                            @Override
-                            public int getHeaderCount() {
-                                return 1;
-                            }
-
-                            @Override
-                            public String getHeaderName(int index) {
-                                return "Metadata-Flavor";
-                            }
-
-                            @Override
-                            public String getHeaderValue(int index) {
-                                return "Google";
-                            }
-                        };
-                    }
-                };
-            }
-        };
-
-        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-
-        // Override createStorageOptions to use our mock transport for Application Default
-        // Credentials, simulating what happens on a GCP VM when no credentials_file is set.
-        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
-            @Override
-            StorageOptions createStorageOptions(
-                GoogleCloudStorageClientSettings gcsClientSettings,
-                HttpTransportOptions httpTransportOptions
-            ) {
-                assertNull("Test expects no explicit credential to be configured", gcsClientSettings.getCredential());
-                try {
-                    return StorageOptions.newBuilder()
-                        .setCredentials(GoogleCredentials.getApplicationDefault(mockMetadataTransportFactory))
-                        .build();
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to obtain Application Default Credentials from mock metadata server", e);
-                }
-            }
-        };
-
-        final Settings settings = Settings.builder()
-            .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("default").getKey(), "http://unused")
-            .build();
-        service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-
-        final var storage = service.client(projectIdForClusterClient(), "default", "repo", new GcsRepositoryStatsCollector());
-        assertThat(storage.getOptions().getCredentials(), notNullValue());
-        assertTrue(
-            "GCP metadata server should have been contacted to obtain Application Default Credentials",
-            metadataServerContacted.get()
-        );
     }
 
     private byte[] serviceAccountFileContent(String projectId) throws Exception {

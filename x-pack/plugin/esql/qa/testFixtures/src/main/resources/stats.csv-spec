@@ -4188,7 +4188,9 @@ from employees
 null           |null           |null           |null
 ;
 
-statsWithExpressionOnMultivaluedGroupKeyFromRow
+statsOnUnrolledMultivalueNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
 ROW x=1, y=[1,2,3] | STATS y + 1 BY y | SORT y
 ;
 

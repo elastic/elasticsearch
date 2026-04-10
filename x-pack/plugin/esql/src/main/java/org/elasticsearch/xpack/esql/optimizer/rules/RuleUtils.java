@@ -77,12 +77,14 @@ public final class RuleUtils {
     }
 
     /**
-     * Collects references to foldables from the given logical plan, returning an {@link AttributeMap} that maps
-     * foldable aliases to their corresponding literal values.
+     * Collects references to foldable expressions from the given logical plan. Directly foldable aliases are folded
+     * to literal values. Aliases that become foldable only after resolving references are stored as unfolded
+     * expressions — folding them here could produce spurious warnings (e.g. for multi-valued grouping keys).
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding} will fold them later.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
-     * @return An {@link AttributeMap} containing foldable references and their literal values.
+     * @return An {@link AttributeMap} mapping foldable aliases to their literal values or resolved expressions.
      */
     public static AttributeMap<Expression> foldableReferences(LogicalPlan plan, LogicalOptimizerContext ctx) {
         AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
@@ -90,14 +92,17 @@ public final class RuleUtils {
         // collect aliases bottom-up
         plan.forEachExpressionUp(Alias.class, a -> {
             var c = a.child();
-            boolean shouldCollect = c.foldable();
-            // try to resolve the expression based on an existing foldables
-            if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
-                shouldCollect = c.foldable();
-            }
-            if (shouldCollect) {
+            if (c.foldable()) {
                 collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+                return;
+            }
+            // try to resolve the expression based on existing foldables
+            c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
+            if (c.foldable()) {
+                // Don't fold here — this is a speculative resolution, not the actual constant folding. Folding here
+                // can produce spurious warnings (e.g. when a multi-valued grouping key is resolved to its literal).
+                // Store the resolved expression; ConstantFolding will fold it later with proper warnings.
+                collectRefsBuilder.put(a.toAttribute(), c);
             }
         });
 

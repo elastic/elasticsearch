@@ -731,20 +731,22 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         }
 
         if (lastTsSec == firstTsSec) {
-            // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
+            // Check for the case where there is only one sample in state, right at the lower boundary
+            // of the time bucket towards a non-empty adjacent state.
+            // In this case we want to have a result value as the time bucket is not empty,
+            // but we already included the increase in the previous time bucket.
+            // Therefore, we return the last seen rate of the previous time bucket for rate and zero for increase
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;
                     assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
-                    final double startTs = previousState.intervals[0].t1 / dateFactor;
-                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
-                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
-                }
-                if (nextState != null) {
-                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
-                    final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
-                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
-                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
+                    if (isRateOverTime) {
+                        final double startTs = previousState.intervals[0].t1 / dateFactor;
+                        final double delta = deltaBetweenStates(previousState, state, dateFactor);
+                        return delta / (firstTsSec - startTs);
+                    } else {
+                        return 0.0;
+                    }
                 }
             }
             return Double.NaN;

@@ -40,7 +40,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      * @param startOrd        the first vector ordinal (inclusive) to process
      * @param endOrd          the last vector ordinal (exclusive) to process
      * @param centroids       the centroid vectors to compare against
-     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
+     * @param ordTranslator   translate the vector ord to the position of the vector on the result array
      * @param centroidChanged a bitset tracking which centroids had assignments change;
      *                        bits are set for both the old and new centroid when a vector is reassigned
      * @param results         input/output array indexed by document ordinal; on entry holds the
@@ -76,35 +76,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     }
 
     /**
-     * Compute the squared distances between a batch of contiguous vectors and all centroids.
-     *
-     * @param startOrd         the first vector ordinal (inclusive) to process
-     * @param endOrd           the last vector ordinal (exclusive) to process
-     * @param centroids        the centroid vectors to compare against
-     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
-     * @param squaredDistances array of distances indexed by document ordinal
-     */
-    final void computeSquaredDistances(
-        int startOrd,
-        int endOrd,
-        float[][] centroids,
-        IntToIntFunction ordTranslator,
-        float[][] squaredDistances
-    ) throws IOException {
-        for (int i = startOrd; i < endOrd; i++) {
-            float[] vector = vectorValue(i);
-            computeSquaredDistances(vector, centroids, squaredDistances[i]);
-        }
-    }
-
-    /**
      * Find the closest centroid for a batch of contiguous vectors, restricting the search to each
      * vector's current centroid and its pre-computed neighborhood of nearby centroids.
      *
-     * @param startOrd            the first vector ordinal (inclusive) to process
-     * @param endOrd              the last vector ordinal (exclusive) to process
+     * @param startOrd        the first vector ordinal (inclusive) to process
+     * @param endOrd          the last vector ordinal (exclusive) to process
      * @param centroids       the centroid vectors to compare against
-     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
+     * @param ordTranslator   translate the vector ord to the position of the vector on the result array
      * @param centroidChanged a bitset tracking which centroids had assignments change;
      *                        bits are set for both the old and new centroid when a vector is reassigned
      * @param neighborhoods   per-centroid neighborhoods; {@code neighborhoods[c]} contains the
@@ -190,6 +168,58 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                         centroid[d] /= count;
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Compute the squared distances between a batch of contiguous vectors and all centroids.
+     *
+     * @param startOrd         the first vector ordinal (inclusive) to process
+     * @param endOrd           the last vector ordinal (exclusive) to process
+     * @param centroids        the centroid vectors to compare against
+     * @param squaredDistances array of distances indexed by document ordinal
+     */
+    final void computeSquaredDistances(
+        int startOrd,
+        int endOrd,
+        float[][] centroids,
+        float[][] squaredDistances
+    ) throws IOException {
+        for (int i = startOrd; i < endOrd; i++) {
+            float[] vector = vectorValue(i);
+            computeSquaredDistances(vector, centroids, squaredDistances[i]);
+        }
+    }
+
+    /**
+     * Compute the squared distances between a batch of contiguous vectors and all centroids, restricting the search to each
+     * vector's current centroid and its pre-computed neighborhood of nearby centroids.
+     *
+     * @param startOrd         the first vector ordinal (inclusive) to process
+     * @param endOrd           the last vector ordinal (exclusive) to process
+     * @param centroids        the centroid vectors to compare against
+     * @param assigner         a function that given the vector ID, returns the vector's current centroid
+     * @param neighborhoods    per-centroid neighborhoods; {@code neighborhoods[c]} contains the
+     *                         neighboring centroid indices and maximum intra-cluster distance for centroid {@code c}
+     * @param squaredDistances array of distances indexed by document ordinal
+     */
+    final void computeSquaredDistancesFromNeighbors(
+        int startOrd,
+        int endOrd,
+        float[][] centroids,
+        IntToIntFunction assigner,
+        NeighborHood[] neighborhoods,
+        float[][] squaredDistances
+    ) throws IOException {
+        for (int i = startOrd; i < endOrd; i++) {
+            float[] vector = vectorValue(i);
+            final int bestCentroid = assigner.apply(i);
+            squaredDistances[i][0] = ESVectorUtil.squareDistance(vector, centroids[bestCentroid]);
+            int[] neighbors = neighborhoods[bestCentroid].neighbors();
+            for (int j = 0; j < neighbors.length; j++) {
+                int neigh = neighbors[j];
+                squaredDistances[i][j + 1] = ESVectorUtil.squareDistance(vector, centroids[neigh]);
             }
         }
     }

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 public class BalancedKMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
-        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(randomInt(), randomInt());
+        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(randomInt(), randomInt());
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -51,7 +51,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
         var methods = List.of(
             new LloydKMeansLocalSerial(sampleSize, maxIterations), // reference method
-            new BalancedKMeansLocalSerial(sampleSize, maxIterations)
+            new BalancedOTKMeansLocalSerial(sampleSize, maxIterations)
         );
 
         float[] inertias = new float[methods.size()];
@@ -136,7 +136,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
-        BalancedKMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
+        BalancedOTKMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -155,7 +155,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(sampleSize, maxIterations);
         kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -199,7 +199,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(sampleSize, maxIterations);
         kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -244,8 +244,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
 
             var methods = List.of(
-                new BalancedKMeansLocalSerial(nSamples / 2, maxIterations),
-                new BalancedKMeansLocalConcurrent(taskExecutor, numThreads, nSamples / 2, maxIterations)
+                new BalancedOTKMeansLocalSerial(nSamples / 2, maxIterations),
+                new BalancedOTKMeansLocalConcurrent(taskExecutor, numThreads, nSamples / 2, maxIterations)
             );
 
             double[] inertias = new double[methods.size()];

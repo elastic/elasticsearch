@@ -19,16 +19,14 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
- * with finalizing nearby pre-established clusters and generate
- * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ * concurrent implementation of mini-batch optimal transport k-means
  */
-class BalancedKMeansLocalConcurrent extends BalancedKMeansLocal {
+class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    BalancedKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+    BalancedOTKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
         super(sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
@@ -54,7 +52,8 @@ class BalancedKMeansLocalConcurrent extends BalancedKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments,
+                    neighborHoods, start, end)
             );
         }
         executor.invokeAll(runners);

@@ -15,21 +15,17 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import java.io.IOException;
 
 /**
- * Single threaded implementation of Lloyd's k-means
+ * Single threaded implementation of mini-batch optimal transport k-means
  */
-class LloydKMeansLocalSerial extends LloydKMeansLocal {
+class BalancedOTKMeansLocalSerial extends BalancedOTKMeansLocal {
 
-    LloydKMeansLocalSerial(int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
-    }
+    BalancedOTKMeansLocalSerial(int sampleSize, int maxIterations) { super(sampleSize, maxIterations); }
 
     @Override
-    protected int numWorkers() {
-        return 1;
-    }
+    protected int numWorkers() { return 1; }
 
     @Override
-    protected boolean stepLloyd(
+    protected void assign(
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,
         float[][] centroids,
@@ -38,8 +34,9 @@ class LloydKMeansLocalSerial extends LloydKMeansLocal {
         NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        return stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
+        stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
+
 
     @Override
     protected void assignSpilled(

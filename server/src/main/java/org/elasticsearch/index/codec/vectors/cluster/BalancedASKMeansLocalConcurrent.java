@@ -19,26 +19,24 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * concurrent implementation of Lloyd's k-means
+ * concurrent implementation of k-means with L2 regularization over the cluster sizes
  */
-class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
+class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    LloydKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+    BalancedASKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
         super(sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
     }
 
     @Override
-    protected int numWorkers() {
-        return numWorkers;
-    }
+    protected int numWorkers() { return numWorkers; }
 
     @Override
-    protected boolean stepLloyd(
+    protected void assign(
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,
         float[][] centroids,
@@ -54,11 +52,11 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments,
+                    neighborHoods, start, end)
             );
         }
-        final List<Boolean> hasChanges = executor.invokeAll(runners);
-        return hasChanges.stream().anyMatch(Boolean::booleanValue);
+        executor.invokeAll(runners);
     }
 
     @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
+import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,11 +22,13 @@ import java.util.Objects;
 public class HierarchicalKMeans {
 
     public static final int MAXK = 128;
-    public static final int MAX_ITERATIONS_DEFAULT = 6;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
     public static final int NO_SOAR_ASSIGNMENT = -1;
     private static final int MIN_VECTORS_PRE_THREAD = 64;
+
+    public static final boolean USE_BALANCING = true;
+    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING? 2: 6;
 
     final int dimension;
     final int maxIterations;
@@ -134,12 +137,75 @@ public class HierarchicalKMeans {
 
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+
+        int[] clusterSizes = new int[kMeansIntermediate.centroids().length];
+        int[] assignmentsTemp = kMeansIntermediate.assignments();
+        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
+            int kk = assignmentsTemp[iii];
+            clusterSizes[kk]++;
+        }
+        System.out.println("**********************************");
+        System.out.println("nVectors: " + vectors.size());
+        System.out.println("nCluster: " + kMeansIntermediate.centroids().length);
+        System.out.println("targetSize: " + targetSize);
+        System.out.println("clusterSizes min: " + Arrays.stream(clusterSizes).min().getAsInt());
+        System.out.println("clusterSizes max: " + Arrays.stream(clusterSizes).max().getAsInt());
+        System.out.println("clusterSizes STD: " + clusterSizesStandardDeviation(clusterSizes));
+        System.out.println("inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
+        System.out.println("**********************************");
+
+
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
-            KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), localSampleSize);
+            KMeansLocal kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
+
+        Arrays.fill(clusterSizes, 0);
+        assignmentsTemp = kMeansIntermediate.assignments();
+        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
+            int kk = assignmentsTemp[iii];
+            clusterSizes[kk]++;
+        }
+        assignmentsTemp = kMeansIntermediate.soarAssignments();
+        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
+            int kk = assignmentsTemp[iii];
+            if (kk >= 0) {
+                clusterSizes[kk]++;
+            }
+        }
+
+        System.out.println("----------------------------");
+        System.out.println("nVectors: " + vectors.size());
+        System.out.println("nCluster: " + kMeansIntermediate.centroids().length);
+        System.out.println("targetSize: " + targetSize);
+        System.out.println("clusterSizes min: " + Arrays.stream(clusterSizes).min().getAsInt());
+        System.out.println("clusterSizes max: " + Arrays.stream(clusterSizes).max().getAsInt());
+        System.out.println("clusterSizes STD: " + clusterSizesStandardDeviation(clusterSizes));
+        System.out.println("inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
+        System.out.println("----------------------------");
+
         return kMeansIntermediate;
+    }
+
+    static float clusterSizesStandardDeviation(int[] clusterSizes) {
+        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
+        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
+        return (float) Math.sqrt(varSize);
+    }
+
+    static float kMeansMeanInertia(ClusteringFloatVectorValues vectors, KMeansResult kMeansIntermediate) throws IOException {
+        int[] assignments = kMeansIntermediate.assignments();
+        float[][] centroids = kMeansIntermediate.centroids();
+
+        float mse = 0;
+        for (int i = 0; i < vectors.size(); i++) {
+            float[] vec = vectors.vectorValue(i);
+            float[] cent = centroids[assignments[i]];
+            float dist = VectorUtil.squareDistance(vec, cent);
+            mse += dist / vectors.size();
+        }
+        return mse;
     }
 
     private KMeansIntermediate clusterAndSplit(final ClusteringFloatVectorValues vectors, final int targetSize) throws IOException {
@@ -188,7 +254,7 @@ public class HierarchicalKMeans {
             // Give ourselves 30% margin for the target size
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c + centroidIndexOffset;
-            if (100 * count > 134 * targetSize) {
+            if (count > targetSize) {
                 final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
@@ -227,9 +293,29 @@ public class HierarchicalKMeans {
     private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize) {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
-        return executor == null || numWorkers <= 1
-            ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
-            : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        if (USE_BALANCING) {
+            return executor == null || numWorkers <= 1
+                ? new BalancedOTKMeansLocalSerial(localSampleSize, maxIterations)
+                : new BalancedOTKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        } else {
+            return executor == null || numWorkers <= 1
+                ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
+                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        }
+    }
+
+    private KMeansLocal buildKmeansLocalFinal(int numVectors, int localSampleSize) {
+        int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
+        // if there is no executor or there is no enough vectors for more than one thread, use the serial version
+        if (USE_BALANCING) {
+            return executor == null || numWorkers <= 1
+                ? new BalancedASKMeansLocalSerial(localSampleSize, maxIterations)
+                : new BalancedASKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        } else {
+            return executor == null || numWorkers <= 1
+                ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
+                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+        }
     }
 
     static ClusteringFloatVectorValues createClusterSlice(

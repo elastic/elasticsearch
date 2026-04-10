@@ -15,13 +15,11 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import java.io.IOException;
 
 /**
- * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
- * with finalizing nearby pre-established clusters and generate
- * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ * Single threaded implementation of k-means with L2 regularization over the cluster sizes
  */
-class BalancedKMeansLocalSerial extends BalancedKMeansLocal {
+class BalancedASKMeansLocalSerial extends BalancedASKMeansLocal {
 
-    BalancedKMeansLocalSerial(int sampleSize, int maxIterations) { super(sampleSize, maxIterations); }
+    BalancedASKMeansLocalSerial(int sampleSize, int maxIterations) { super(sampleSize, maxIterations); }
 
     @Override
     protected int numWorkers() { return 1; }

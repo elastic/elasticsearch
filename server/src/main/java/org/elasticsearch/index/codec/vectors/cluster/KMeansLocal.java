@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
 import java.util.Random;
@@ -157,10 +159,10 @@ abstract class KMeansLocal {
      * this also is used to generate the neighborhood aware additional (SOAR) assignments
      *
      * @param vectors the vectors to cluster
-     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
-     *                     the prior assignments of the given vectors; care should be taken in
-     *                     passing in a valid output object with a centroids array that is the size of centroids expected
-     *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids, the prior assignments of the given
+     *                           vectors; care should be taken in passing in a valid output object with a centroids array that is the size
+     *                           of centroids expected and assignments that are the same size as the vectors.
+     *                           The SOAR assignments are overwritten by this operation.
      * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
      * @param soarLambda   lambda used for SOAR assignments
      *
@@ -188,5 +190,23 @@ abstract class KMeansLocal {
     }
 
     protected abstract void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate,
-                                         NeighborHood[] clustersPerNeighborhood) throws IOException;
+                                         NeighborHood[] neighborhoods) throws IOException;
+
+    protected static void deepCopy(float[][] source, float[][] destination) {
+        for (int i = 0; i < source.length; i++) {
+            System.arraycopy(source[i], 0, destination[i], 0, source[i].length);
+        }
+    }
+
+    // Computes: (sum_i sum_j pow(vecs1[i][j] - vecs2[i][j], 2)) / (sum_i sum_j pow(vecs2[i][j], 2))
+    protected static float normalizedFrobeniusNorm(float[][] vecs1, float[][] vecs2) {
+        assert vecs1.length == vecs2.length;
+        float result = 0;
+        float norm2 = 0;
+        for (int i = 0; i < vecs1.length; i++) {
+            result += ESVectorUtil.squareDistance(vecs1[i], vecs2[i]);
+            norm2 += ESVectorUtil.dotProduct(vecs2[i], vecs2[i]);
+        }
+        return MathUtils.sqrt(result / norm2);
+    }
 }

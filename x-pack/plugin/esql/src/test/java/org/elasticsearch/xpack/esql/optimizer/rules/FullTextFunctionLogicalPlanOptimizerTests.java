@@ -82,9 +82,6 @@ public class FullTextFunctionLogicalPlanOptimizerTests extends AbstractLogicalPl
 
     public void testQueryStringFunctionQueryArgNotFoldable() {
         String functionName = randomFrom("qstr", "kql");
-        failPlan(
-            String.format(Locale.ROOT, "from test | where %s(last_name)", functionName),
-            "Query must be a constant string in"
-        );
+        failPlan(String.format(Locale.ROOT, "from test | where %s(last_name)", functionName), "Query must be a constant string in");
     }
 }

@@ -59,7 +59,7 @@ public class TimedListener<Response> {
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
             (ignored) -> notificationListener.onFailure(
-                new ElasticsearchStatusException(Strings.format("Request timed out after [%s]", timeout), RestStatus.REQUEST_TIMEOUT)
+                new ElasticsearchStatusException(Strings.format("Request timed out after [%s]", timeout), RestStatus.GATEWAY_TIMEOUT)
             )
         );
     }

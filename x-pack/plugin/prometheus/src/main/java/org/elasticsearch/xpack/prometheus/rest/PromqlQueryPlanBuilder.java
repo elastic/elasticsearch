@@ -72,26 +72,19 @@ class PromqlQueryPlanBuilder {
             stepLiteral,
             Literal.NULL,
             Literal.timeDuration(Source.EMPTY, DEFAULT_SCRAPE_INTERVAL),
-            PrometheusQueryRangeResponseListener.VALUE_COLUMN,
+            PrometheusQueryResponseListener.VALUE_COLUMN,
             new UnresolvedTimestamp(Source.EMPTY)
         );
 
         // TO_LONG converts the step datetime to epoch millis, avoiding the need to parse a date string in the response listener.
-        Alias stepAlias = new Alias(
-            Source.EMPTY,
-            PromqlCommand.STEP_COLUMN_NAME,
-            new ToLong(
-                Source.EMPTY,
-                promqlCommand.output().stream().filter(a -> a.name().equals(PromqlCommand.STEP_COLUMN_NAME)).findFirst().get()
-            )
-        );
+        Alias stepAlias = new Alias(Source.EMPTY, promqlCommand.stepColumnName(), new ToLong(Source.EMPTY, promqlCommand.stepAttribute()));
         // Eval's mergeOutputAttributes drops step(datetime) and appends step_alias(long) at the end,
         // producing [value, ...dimensions, step(long)] — the order the response listener expects.
         Eval eval = new Eval(Source.EMPTY, promqlCommand, List.of(stepAlias));
 
         // Sort by step (timestamp) ascending so Prometheus clients receive values in chronological order.
-        Attribute stepAttr = stepAlias.toAttribute();
-        Order stepOrder = new Order(Source.EMPTY, stepAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        Attribute stepOutput = stepAlias.toAttribute();
+        Order stepOrder = new Order(Source.EMPTY, stepOutput, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         OrderBy orderBy = new OrderBy(Source.EMPTY, eval, List.of(stepOrder));
 
         return new EsqlStatement(orderBy, List.of());

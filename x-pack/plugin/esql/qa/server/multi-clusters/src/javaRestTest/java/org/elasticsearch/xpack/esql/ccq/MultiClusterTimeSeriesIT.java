@@ -220,6 +220,27 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
         assertResultMap(includeCCSMetadata, multiClusterResult, singleClusterResult);
     }
 
+    /**
+     * METRICS_INFO across two indices on different clusters must return non-empty results.
+     * Before the PruneColumns fix, the optimizer could insert a Project[[]] below MetricsInfo,
+     * causing the data-node pipeline to short-circuit to an empty source.
+     */
+    public void testMetricsInfoMultiCluster() throws Exception {
+        List<String> metricsInfoCaps = List.of("ts_command_v0", "metrics_info_command");
+        assumeTrue("TS or METRICS_INFO not supported", capabilitiesSupportedNewAndOld(metricsInfoCaps));
+
+        Map<String, Object> result = run("TS hosts-local,*:hosts-remote | METRICS_INFO", false);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) result.get("values");
+        assertNotNull("METRICS_INFO should return values", values);
+        assertThat("METRICS_INFO across clusters should return at least one metric row", values.size(), greaterThanOrEqualTo(1));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
+        List<String> columnNames = columns.stream().map(c -> c.get("name")).toList();
+        assertThat(columnNames, equalTo(List.of("metric_name", "data_stream", "unit", "metric_type", "field_type", "dimension_fields")));
+    }
+
     private void createTimeSeriesIndex(RestClient client, String indexName) throws IOException {
         Request createIndex = new Request("PUT", "/" + indexName);
 

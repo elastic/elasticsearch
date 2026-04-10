@@ -591,6 +591,101 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         docs.directory.close();
     }
 
+    public void testIterateAsyncVisitsLeavesInDocIdOrder() throws Exception {
+        int docCount = 200;
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "value" + i, Field.Store.NO));
+            writer.addDocument(doc);
+            if (i % 30 == 0) {
+                writer.commit();
+            }
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        assertTrue("Need multiple leaves to test leaf ordering", reader.leaves().size() > 1);
+
+        int[] docIds = new int[] { 150, 10, 180, 50, 30, 120, 70, 160, 90, 140 };
+
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
+        AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        List<Integer> setNextReaderLeafOrdinals = new CopyOnWriteArrayList<>();
+        List<int[]> setNextReaderDocsInLeaf = new CopyOnWriteArrayList<>();
+        List<Integer> nextDocCalls = new CopyOnWriteArrayList<>();
+
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
+                setNextReaderLeafOrdinals.add(ctx.ord);
+                setNextReaderDocsInLeaf.add(docsInLeaf.clone());
+            }
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                nextDocCalls.add(doc);
+                return new SearchHit(doc);
+            }
+        };
+
+        PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+        CountDownLatch refsComplete = new CountDownLatch(1);
+        RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+
+        it.iterateAsync(createShardTarget(), reader, docIds, chunkWriter, 1024 * 1024, refs, 4, sendFailure, cancelled::get, future);
+
+        IterateResult result = future.get(10, TimeUnit.SECONDS);
+        refs.close();
+        assertTrue(refsComplete.await(10, TimeUnit.SECONDS));
+
+        for (int i = 1; i < setNextReaderLeafOrdinals.size(); i++) {
+            assertThat(
+                "Leaf ordinals must increase: " + setNextReaderLeafOrdinals,
+                setNextReaderLeafOrdinals.get(i),
+                greaterThan(setNextReaderLeafOrdinals.get(i - 1))
+            );
+        }
+
+        boolean anyMultiDoc = setNextReaderDocsInLeaf.stream().anyMatch(arr -> arr.length > 1);
+        assertTrue("At least one leaf should have multiple docs", anyMultiDoc);
+
+        for (int i = 1; i < nextDocCalls.size(); i++) {
+            assertThat("nextDoc calls must be in doc-ID order", nextDocCalls.get(i), greaterThan(nextDocCalls.get(i - 1)));
+        }
+
+        assertThat(result.lastChunkBytes, notNullValue());
+        assertThat(result.lastChunkHitCount, equalTo(docIds.length));
+
+        try (var in = result.lastChunkBytes.streamInput()) {
+            int[] positions = new int[result.lastChunkHitCount];
+            for (int i = 0; i < result.lastChunkHitCount; i++) {
+                positions[i] = in.readVInt();
+                SearchHit hit = SearchHit.readFrom(in, false);
+                hit.decRef();
+            }
+
+            boolean[] seen = new boolean[docIds.length];
+            for (int pos : positions) {
+                assertThat("Position must be in range", pos, greaterThanOrEqualTo(0));
+                assertThat("Position must be in range", pos, lessThan(docIds.length));
+                assertFalse("Each position must be unique", seen[pos]);
+                seen[pos] = true;
+            }
+        }
+
+        result.close();
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+
+        reader.close();
+        directory.close();
+    }
+
     public void testTimeoutReturnsCompactPartialResults() throws IOException {
         int docCount = 400;
         Directory directory = newDirectory();

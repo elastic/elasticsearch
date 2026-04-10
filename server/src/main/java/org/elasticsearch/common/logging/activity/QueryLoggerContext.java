@@ -9,44 +9,73 @@
 
 package org.elasticsearch.common.logging.activity;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Query loggger related context - common items for query loggers.
+ * Query logger related context — common items for query loggers.
  */
-public interface QueryLoggerContext {
+public abstract class QueryLoggerContext extends ActivityLoggerContext {
+    // Cached "isSystem" flag
+    private Boolean isSystemSearch = null;
+
+    protected QueryLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
+        super(task, type, tookInNanos, error);
+    }
+
+    protected QueryLoggerContext(Task task, String type, long tookInNanos) {
+        super(task, type, tookInNanos);
+    }
+
     /**
      * Map cluster->status (for now).
      */
-    default Map<String, String> getClusters() {
+    public Map<String, String> getClusters() {
         return Map.of();
     }
 
     /**
      * Get query text.
      */
-    String getQuery();
+    public abstract String getQuery();
 
     /**
      * Number of results.
      */
-    int getResultCount();
+    public abstract int getResultCount();
 
     /**
      * Indices used in the query.
      */
-    String[] getIndices();
+    public abstract String[] getIndices();
 
-    default Collection<String> getRemoteClusterAliases(Map<String, String> clusters) {
+    public boolean isSystemSearch(Predicate<String> systemChecker) {
+        if (systemChecker == null) {
+            return false;
+        }
+        if (isSystemSearch != null) {
+            return isSystemSearch;
+        }
+
+        final String[] indices = getIndices();
+        // Request that only asks for system indices is system search
+        isSystemSearch = indices != null && indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker);
+        return isSystemSearch;
+    }
+
+    public Collection<String> getRemoteClusterAliases(Map<String, String> clusters) {
         return clusters.keySet().stream().filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false).toList();
     }
 
-    default Map<String, Long> getCountsByStatus(Map<String, String> clusters) {
+    public Map<String, Long> getCountsByStatus(Map<String, String> clusters) {
         // Group by status and count how many statuses of each kind there are
         return clusters.values().stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }

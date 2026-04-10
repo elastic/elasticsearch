@@ -24,6 +24,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Source representing an Elasticsearch index.
+ * <p>
+ * In {@code FROM idx | ...} this corresponds to the {@code FROM}.
+ */
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
@@ -161,13 +166,12 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "]"
-            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + NodeUtils.toString(attrs, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("]");
+        if (indexMode != IndexMode.STANDARD) {
+            sb.append("[").append(indexMode.name()).append("]");
+        }
+        NodeUtils.toString(sb, attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

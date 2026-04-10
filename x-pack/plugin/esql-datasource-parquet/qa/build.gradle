@@ -31,7 +31,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
   
   // Parquet support - needed for reading test fixtures
-  javaRestTestImplementation('org.apache.parquet:parquet-hadoop-bundle:1.16.0')
+  javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
@@ -39,7 +39,8 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
-  
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+
   // The parquet datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-parquet'))
   clusterPlugins project(xpackModule('esql-datasource-http'))

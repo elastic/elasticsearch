@@ -616,7 +616,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     public void testChunkMetadata() throws IOException {
         SearchHit hit = createHit(0);
         try {
-            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hit), 1, 10, 0);
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(new SearchHit[] { hit }, 0), 1, 10, 0);
 
             assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
             assertThat(chunk.hitCount(), equalTo(1));
@@ -648,11 +648,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHit(startId + i);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -662,11 +660,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHit(startId + i);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -677,11 +673,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHitWithSourceSize(startId + i, sourceSize);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -691,11 +685,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHitWithScore(startId + i, scores[i]);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), scores.length, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), scores.length, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
+        }
+    }
+
+    private void decRefSearchHits(SearchHit[] hits) {
+        for (SearchHit hit : hits) {
+            hit.decRef();
         }
     }
 
@@ -725,10 +723,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         return hit;
     }
 
-    private BytesReference serializeHits(SearchHit... hits) throws IOException {
+    private BytesReference serializeHits(SearchHit[] hits, long sequenceStart) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt((int) (sequenceStart + i));
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

@@ -221,16 +221,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testBuildExcludedDocsQueryUsesShould() {
-        List<SpecifiedDocument> excludedDocs = List.of(
-            new SpecifiedDocument("test", "1"),
-            new SpecifiedDocument("test", "2")
-        );
+        List<SpecifiedDocument> excludedDocs = List.of(new SpecifiedDocument("test", "1"), new SpecifiedDocument("test", "2"));
 
-        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
-            new MatchAllQueryBuilder(),
-            MATCH_CRITERIA,
-            List.of("ruleset1")
-        );
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of("ruleset1"));
         QueryBuilder result = ruleQueryBuilder.buildExcludedDocsQuery(excludedDocs);
         assertThat(result, instanceOf(BoolQueryBuilder.class));
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) result;
@@ -241,16 +234,9 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     }
 
     public void testBuildExcludedDocsQueryWithoutIndicesUsesIdsQuery() {
-        List<SpecifiedDocument> excludedDocs = List.of(
-            new SpecifiedDocument(null, "1"),
-            new SpecifiedDocument(null, "2")
-        );
+        List<SpecifiedDocument> excludedDocs = List.of(new SpecifiedDocument(null, "1"), new SpecifiedDocument(null, "2"));
 
-        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(
-            new MatchAllQueryBuilder(),
-            MATCH_CRITERIA,
-            List.of("ruleset1")
-        );
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of("ruleset1"));
         QueryBuilder result = ruleQueryBuilder.buildExcludedDocsQuery(excludedDocs);
         // When all docs have no index, an IdsQuery is used directly
         assertFalse(result instanceof BoolQueryBuilder);

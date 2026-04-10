@@ -26,6 +26,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.DEFAULT_RERANK_URL;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.INITIAL_TEST_TOP_N;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.NEW_TEST_TOP_N;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_DOCUMENTS;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_INFERENCE_ENTITY_ID;
@@ -46,30 +48,25 @@ import static org.hamcrest.Matchers.is;
 public class ContextualAiRerankRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithRequiredFieldsOnly() throws IOException {
-        var requestMap = assertCreateHttpRequest(createRequest(new ContextualAiRerankTaskSettings(null, null, null), null, null));
+        var requestMap = assertCreateHttpRequest(createRequest(new ContextualAiRerankTaskSettings(null, null, null), null));
+        // Verifying that only query, documents, and model fields are present in the request when optional fields are not set
         assertThat(requestMap, aMapWithSize(3));
     }
 
-    public void testCreateRequest_WithTopNAndInstruction() throws IOException {
+    public void testCreateRequest_WithTopNAndInstructionFromTaskSettings() throws IOException {
         var requestMap = assertCreateHttpRequest(
-            createRequest(new ContextualAiRerankTaskSettings(null, null, null), TEST_TOP_N, TEST_INSTRUCTION)
+            createRequest(new ContextualAiRerankTaskSettings(null, TEST_TOP_N, TEST_INSTRUCTION), null)
         );
         assertThat(requestMap.get(TOP_N_FIELD), is(TEST_TOP_N));
         assertThat(requestMap.get(INSTRUCTION_FIELD), is(TEST_INSTRUCTION));
         assertThat(requestMap, aMapWithSize(5));
     }
 
-    public void testCreateRequest_TopNFallbackFromModelTaskSettings() throws IOException {
-        int topNFromTaskSettings = randomIntBetween(1, 1000);
-        var request = createRequest(new ContextualAiRerankTaskSettings(null, topNFromTaskSettings, null), null, null);
-        assertThat(request.getTopN(), is(topNFromTaskSettings));
-
-        var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get(TOP_N_FIELD), is(topNFromTaskSettings));
+    public void testCreateRequest_TopNFromRequestOverridesTopNFromTaskSettings() throws IOException {
+        var requestMap = assertCreateHttpRequest(
+            createRequest(new ContextualAiRerankTaskSettings(null, INITIAL_TEST_TOP_N, null), NEW_TEST_TOP_N)
+        );
+        assertThat(requestMap.get(TOP_N_FIELD), is(NEW_TEST_TOP_N));
         assertThat(requestMap, aMapWithSize(4));
     }
 
@@ -93,11 +90,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         return requestMap;
     }
 
-    private static ContextualAiRerankRequest createRequest(
-        ContextualAiRerankTaskSettings taskSettings,
-        Integer requestTopN,
-        String instruction
-    ) {
+    private static ContextualAiRerankRequest createRequest(ContextualAiRerankTaskSettings taskSettings, Integer requestTopN) {
         var model = new ContextualAiRerankModel(
             TEST_INFERENCE_ENTITY_ID,
             new ContextualAiRerankServiceSettings(
@@ -106,6 +99,6 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
             taskSettings,
             new DefaultSecretSettings(new SecureString(TEST_API_KEY.toCharArray()))
         );
-        return new ContextualAiRerankRequest(TEST_QUERY, TEST_DOCUMENTS, requestTopN, instruction, model);
+        return new ContextualAiRerankRequest(TEST_QUERY, TEST_DOCUMENTS, requestTopN, model);
     }
 }

@@ -30,20 +30,12 @@ public class ContextualAiRerankRequest implements Request {
     private final String query;
     private final List<String> documents;
     private final Integer topN;
-    private final String instruction;
     private final ContextualAiRerankModel model;
 
-    public ContextualAiRerankRequest(
-        String query,
-        List<String> documents,
-        @Nullable Integer topN,
-        @Nullable String instruction,
-        ContextualAiRerankModel model
-    ) {
+    public ContextualAiRerankRequest(String query, List<String> documents, @Nullable Integer topN, ContextualAiRerankModel model) {
         this.query = Objects.requireNonNull(query);
         this.documents = Objects.requireNonNull(documents);
         this.topN = topN;
-        this.instruction = instruction;
         this.model = Objects.requireNonNull(model);
     }
 
@@ -53,7 +45,13 @@ public class ContextualAiRerankRequest implements Request {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new ContextualAiRerankRequestEntity(model.getServiceSettings().modelId(), query, documents, getTopN(), instruction)
+                new ContextualAiRerankRequestEntity(
+                    model.getServiceSettings().modelId(),
+                    query,
+                    documents,
+                    getTopN(),
+                    model.getTaskSettings().getInstruction()
+                )
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

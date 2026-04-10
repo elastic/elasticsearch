@@ -53,7 +53,6 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
             rerankInput.getQuery(),
             rerankInput.getChunks(),
             rerankInput.getTopN(),
-            overriddenModel.getTaskSettings().getInstruction(),
             overriddenModel
         );
 

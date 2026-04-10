@@ -22,9 +22,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
-- class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
-  method: testCleanShardFollowTaskAfterDeleteFollower
-  issue: https://github.com/elastic/elasticsearch/issues/120339
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -297,12 +294,18 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
-- class: org.elasticsearch.reindex.ReindexBasicTests
-  method: testReindexFailsWhenSourceIndexIsClosed
-  issue: https://github.com/elastic/elasticsearch/issues/146031
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/146032
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster1Works
+  issue: https://github.com/elastic/elasticsearch/issues/139170
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster2Works
+  issue: https://github.com/elastic/elasticsearch/issues/139172
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWorks
+  issue: https://github.com/elastic/elasticsearch/issues/139171
 
 # Examples:
 #

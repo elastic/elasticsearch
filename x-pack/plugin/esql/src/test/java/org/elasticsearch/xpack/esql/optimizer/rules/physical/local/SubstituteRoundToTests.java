@@ -104,6 +104,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
     private static final Map<String, List<Object>> roundToAllTypes = new HashMap<>(
         Map.ofEntries(
+
             Map.entry("byte", List.of(2, 1, 3, 4)),
             Map.entry("short", List.of(1, 3, 2, 4)),
             Map.entry("integer", List.of(1, 2, 3, 4)),

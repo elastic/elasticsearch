@@ -452,6 +452,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        // Align health with async IndicesClusterStateService application.
+        // TODO: should health report green if ICSS has not yet finished?
+        // Or should this be moved to the health workflow itself?
+        safeAwait(newStateFullyAppliedListener());
         logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
     }

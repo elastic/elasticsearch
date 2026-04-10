@@ -179,18 +179,17 @@ public class ClusterStateObserver {
         }
     }
 
-    /**
-     * Waits until the applied cluster state satisfies {@code statePredicate}. If the current state already satisfies the predicate, the
-     * listener is notified immediately without requiring a higher cluster state {@link ClusterState#version()}, unlike
-     * {@link #waitForNextChange(Listener, Predicate)} which only completes on the fast path when the sampled version is strictly greater
-     * than the last observed version.
-     * Otherwise this method delegates to {@link #waitForNextChange(Listener, Predicate)}.
-     */
+    /// Waits until the applied cluster state satisfies `statePredicate`. If the current state already satisfies the predicate, the
+    /// listener is notified immediately without requiring a higher cluster state [ClusterState#version], unlike
+    /// [#waitForNextChange(Listener, Predicate)] which only completes on the fast path when the sampled version is strictly greater
+    /// than the last observed version.
+    ///
+    /// Otherwise this method delegates to [#waitForNextChange(Listener, Predicate)].
     public void waitForState(Listener listener, Predicate<ClusterState> statePredicate) {
         if (observingContext.get() != null) {
             throw new ElasticsearchException("already waiting for a cluster state change");
         }
-        ClusterState currentState = clusterApplierService.state();
+        final var currentState = clusterApplierService.state();
         if (statePredicate.test(currentState)) {
             Listener wrappedListener = new ContextPreservingListener(listener, contextHolder.newRestorableContext(false));
             lastObservedVersion = currentState.version();

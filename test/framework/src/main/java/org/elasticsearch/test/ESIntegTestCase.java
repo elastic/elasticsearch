@@ -1201,6 +1201,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             clusterHealthResponse.getStatus().value(),
             lessThanOrEqualTo(clusterHealthStatus.value())
         );
+        // Align health with async IndicesClusterStateService application.
+        // TODO: should health report green/yellow if ICSS has not yet finished?
+        // Or should this be moved to the health workflow itself?
+        safeAwait(newStateFullyAppliedListener());
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return clusterHealthResponse.getStatus();
     }

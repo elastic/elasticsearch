@@ -141,7 +141,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             }
         } else {
             List<BytesRef> encodedIgnoredValues = new ArrayList<>(ignoredFieldValues.size());
-            ;
             map = Map.of(ignoredFieldValues.iterator().next().doc(), encodedIgnoredValues);
             for (var nameValue : ignoredFieldValues) {
                 encodedIgnoredValues.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue));

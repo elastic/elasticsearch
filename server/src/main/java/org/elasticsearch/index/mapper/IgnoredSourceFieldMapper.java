@@ -220,7 +220,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         ignoredSourceFormat(context.indexSettings()).writeIgnoredFields(
             context.getIgnoredFieldValues(),
             context.indexSettings().getIndexVersionCreated(),
-            context.mappingLookup().nestedLookup().getNestedMappers().size() > 1
+            context.mappingLookup().nestedLookup().getNestedMappers().isEmpty() == false
         );
     }
 

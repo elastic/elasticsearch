@@ -19,6 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -65,6 +66,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
     static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
+    public static final NodeFeature QUERY_RULES_FIX_MULTIPLE_EXCLUDE = new NodeFeature("query_rules_fix_multiple_exclude_rules");
     public static final int MAX_NUM_RULESETS = 10;
 
     private final List<String> rulesetIds;
@@ -275,7 +277,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
         ).queryName(this.queryName);
     }
 
-    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
+    QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
         QueryBuilder excludedDocsQueryBuilder;
         if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
             // Easy case - just add an ids query
@@ -291,7 +293,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
                     excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
                 }
                 return excludeQueryBuilder;
-            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).should(excludeQueryBuilder));
         }
         return excludedDocsQueryBuilder;
     }

@@ -141,6 +141,31 @@ PUT my-image-index
     :   (Optional, object) Build the query vector by generating an embedding from input text. Refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to learn more.
         If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred.
 
+    `embedding` {applies_to}`stack: preview` {applies_to}`serverless: preview`
+    :   (Optional, object) Build the query vector using the embedding {{infer}} API at query time. This functionality is in technical preview and may be changed or removed in a future release. It depends on the embedding {{infer}} API, which is also in technical preview. The {{infer}} endpoint must be configured with the `embedding` task type.
+
+        **Parameters for `embedding`**:
+
+        `inference_id`
+        :   (Required, string) The {{infer}} endpoint ID.
+
+        `input`
+        :   (Required, string, object, or array) Multimodal input used to produce a single query vector.
+
+            **Parameters for `input`** (when `input` is an object or an array element):
+
+            `type`
+            :   (Required, string) The kind of content in `value`. For text input, use `text`. For image input, use `image`.
+
+            `format`
+            :   (Optional, string) How `value` is represented. If omitted, the default for the `type` is used. For text input, specify `text` or omit (defaults to `text`). For image input, specify `base64` or omit (defaults to `base64`).
+
+            `value`
+            :   (Required, string) The payload to run {{infer}} on. For text input, the raw text string. For image input, a base64-encoded image as a data URI (`data:<mime-type>;base64,...`).
+
+        `timeout`
+        :   (Optional, time value) Timeout for the embedding {{infer}} request.
+
 
 `k`
 :   (Optional, integer) The number of nearest neighbors to return from each shard. {{es}} collects `k` (or `k * oversample` if conditions for [`rescore_vector`](docs-content://solutions/search/vector/knn.md#the-rescore_vector-option) are met) results from each shard, then merges them to find the global top `k` results. This value must be less than or equal to `num_candidates`. Defaults to search request size.

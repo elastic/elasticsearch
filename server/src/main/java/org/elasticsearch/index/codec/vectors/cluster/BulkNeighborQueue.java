@@ -52,16 +52,10 @@ public class BulkNeighborQueue {
         QUICKSELECT
     }
 
-    private final Strategy strategy;
     private final BulkLongHeap heap;
     private final Order order;
     private final int maxSize;
     private final long sentinelWorst;
-    private long[] encodedScratch;
-
-    public BulkNeighborQueue(int maxSize, boolean maxHeap) {
-        this(maxSize, maxHeap, Strategy.BINARY);
-    }
 
     public BulkNeighborQueue(int maxSize, boolean maxHeap, Strategy strategy) {
         if (maxSize < 1) {
@@ -70,7 +64,6 @@ public class BulkNeighborQueue {
         if (strategy != Strategy.BINARY && maxHeap) {
             throw new IllegalArgumentException("Quickselect strategy requires min-heap");
         }
-        this.strategy = strategy;
         this.order = maxHeap ? Order.MAX_HEAP : Order.MIN_HEAP;
         this.maxSize = maxSize;
         this.heap = (strategy == Strategy.BINARY || strategy == Strategy.QUICKSELECT) ? new BulkLongHeap(maxSize, order) : null;
@@ -129,10 +122,7 @@ public class BulkNeighborQueue {
      * @return the number of elements that were accepted (added or replaced).
      */
     public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
-        return switch (strategy) {
-            case BINARY -> heap.insertWithOverflowBulk(docs, scores, count, bestScore);
-            case QUICKSELECT -> insertWithOverflowBulkQuickselect(docs, scores, count, bestScore);
-        };
+        return heap.insertWithOverflowBulk(docs, scores, count, bestScore);
     }
 
     /**
@@ -143,91 +133,13 @@ public class BulkNeighborQueue {
         if (count == 0) {
             return;
         }
-        long[] buffer = new long[count];
-        for (int i = 0; i < count; i++) {
-            buffer[i] = pop();
-        }
-        for (int i = count - 1; i >= 0; i--) {
-            consumer.accept(buffer[i]);
+        for (int i = 1; i <= count; i++) {
+            consumer.accept(pop());
         }
     }
 
     private long pop() {
         return heap.pop();
-    }
-
-    private int insertWithOverflowBulkQuickselect(int[] docs, float[] scores, int count, float bestScore) {
-        if (count <= 0) {
-            return 0;
-        }
-        if (heap.size() >= maxSize && bestScoreDoesNotBeatTop(bestScore)) {
-            return 0;
-        }
-        if (heap.size() == 0 && count >= maxSize) {
-            ensureEncodedScratch(count);
-            for (int i = 0; i < count; i++) {
-                encodedScratch[i] = encode(docs[i], scores[i]);
-            }
-            int start = selectTopK(encodedScratch, count, maxSize);
-            heap.resetWithEncoded(encodedScratch, start, maxSize);
-            return maxSize;
-        }
-        return heap.insertWithOverflowBulk(docs, scores, count, bestScore);
-    }
-
-    private boolean bestScoreDoesNotBeatTop(float bestScore) {
-        float topScore = decodeScore(peek());
-        if (order == Order.MIN_HEAP) {
-            return bestScore <= topScore;
-        }
-        return bestScore >= topScore;
-    }
-
-    /**
-     * Partitions the array so that the top {@code k} elements (largest values) are in the tail.
-     * @return the start index of the top-k region.
-     */
-    private static int selectTopK(long[] values, int count, int k) {
-        int target = count - k;
-        int left = 0;
-        int right = count - 1;
-        while (left < right) {
-            int pivotIndex = partition(values, left, right);
-            if (pivotIndex == target) {
-                return target;
-            } else if (pivotIndex < target) {
-                left = pivotIndex + 1;
-            } else {
-                right = pivotIndex - 1;
-            }
-        }
-        return target;
-    }
-
-    private static int partition(long[] values, int left, int right) {
-        int mid = left + ((right - left) >>> 1);
-        long pivot = values[mid];
-        swap(values, mid, right);
-        int store = left;
-        for (int i = left; i < right; i++) {
-            if (values[i] < pivot) {
-                swap(values, store++, i);
-            }
-        }
-        swap(values, store, right);
-        return store;
-    }
-
-    private static void swap(long[] values, int i, int j) {
-        long tmp = values[i];
-        values[i] = values[j];
-        values[j] = tmp;
-    }
-
-    private void ensureEncodedScratch(int count) {
-        if (encodedScratch == null || encodedScratch.length < count) {
-            encodedScratch = new long[count];
-        }
     }
 
     private static class BulkLongHeap {
@@ -265,14 +177,12 @@ public class BulkNeighborQueue {
         }
 
         private boolean insertWithOverflow(long value) {
-            if (size < maxSize) {
-                push(value);
-                return true;
-            }
-            ensureHeapified();
-            if (size > 0 && value > heap[1]) {
-                heap[1] = value;
-                downHeap(1);
+            assert size == maxSize;
+            if (size >= maxSize) {
+                if (value < heap[1]) {
+                    return false;
+                }
+                updateTop(value);
                 return true;
             }
             return false;
@@ -313,12 +223,17 @@ public class BulkNeighborQueue {
             for (int i = fill; i < count; i++) {
                 long value = encode(docs[i], scores[i]);
                 if (value > heap[1]) {
-                    heap[1] = value;
-                    downHeap(1);
+                    updateTop(value);
                     accepted++;
                 }
             }
             return accepted;
+        }
+
+        private long updateTop(long value) {
+            heap[1] = value;
+            downHeap(1);
+            return heap[1];
         }
 
         private boolean bestScoreDoesNotBeatTop(float bestScore) {
@@ -337,15 +252,6 @@ public class BulkNeighborQueue {
             return NumericUtils.sortableIntToFloat((int) (order.apply(heapValue) >> 32));
         }
 
-        private void push(long value) {
-            assert size < maxSize : "heap size exceeded maxSize";
-            size++;
-            heap[size] = value;
-            if (heapified) {
-                upHeap(size);
-            }
-        }
-
         private void heapify() {
             for (int i = size >>> 1; i >= 1; i--) {
                 downHeap(i);
@@ -353,47 +259,23 @@ public class BulkNeighborQueue {
             heapified = true;
         }
 
-        private void upHeap(int i) {
-            long value = heap[i];
-            int j = i >>> 1;
-            while (j > 0 && value < heap[j]) {
-                heap[i] = heap[j];
-                i = j;
-                j = i >>> 1;
-            }
-            heap[i] = value;
-        }
-
         private void downHeap(int i) {
-            long value = heap[i];
-            int j = i << 1;
-            while (j <= size) {
-                if (j < size && heap[j + 1] < heap[j]) {
-                    j++;
-                }
-                if (heap[j] >= value) {
-                    break;
-                }
-                heap[i] = heap[j];
+            long value = heap[i]; // save top value
+            int j = i << 1; // find smaller child
+            int k = j + 1;
+            if (k <= size && heap[k] < heap[j]) {
+                j = k;
+            }
+            while (j <= size && heap[j] < value) {
+                heap[i] = heap[j]; // shift up child
                 i = j;
                 j = i << 1;
+                k = j + 1;
+                if (k <= size && heap[k] < heap[j]) {
+                    j = k;
+                }
             }
-            heap[i] = value;
-        }
-
-        private void ensureCapacity(int targetSize) {
-            assert targetSize <= maxSize : "heap size exceeded maxSize";
-        }
-
-        private void grow() {
-            throw new IllegalStateException("heap growth is not supported");
-        }
-
-        private void resetWithEncoded(long[] encoded, int offset, int length) {
-            assert length <= maxSize : "heap size exceeded maxSize";
-            System.arraycopy(encoded, offset, heap, 1, length);
-            size = length;
-            heapify();
+            heap[i] = value; // install saved value
         }
 
         private void ensureHeapified() {

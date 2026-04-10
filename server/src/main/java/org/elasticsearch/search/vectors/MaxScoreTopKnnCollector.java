@@ -27,7 +27,7 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
         super(k, visitLimit, searchStrategy);
         this.minCompetitiveDocScore = LEAST_COMPETITIVE;
         this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
-        this.queue = new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.QUICKSELECT);
+        this.queue = new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.BINARY);
     }
 
     @Override
@@ -63,8 +63,8 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
     public TopDocs topDocs() {
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
-        int[] index = new int[1];
-        queue.drain(encoded -> { scoreDocs[index[0]++] = new ScoreDoc(queue.decodeNodeId(encoded), queue.decodeScore(encoded)); });
+        int[] index = new int[scoreDocs.length - 1];
+        queue.drain(encoded -> scoreDocs[index[0]--] = new ScoreDoc(queue.decodeNodeId(encoded), queue.decodeScore(encoded)));
         TotalHits.Relation relation = earlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO;
         return new TopDocs(new TotalHits(visitedCount(), relation), scoreDocs);
     }

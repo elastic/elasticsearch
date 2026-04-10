@@ -15,6 +15,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -129,11 +130,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
+        FieldInfo info = reader.getFieldInfos().fieldInfo(field);
+        //info.getVectorEncoding().equals(VectorEncoding.FLOAT32);
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues == null) {
-            FloatVectorValues.checkField(reader, field);
-            return NO_RESULTS;
-        }
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }

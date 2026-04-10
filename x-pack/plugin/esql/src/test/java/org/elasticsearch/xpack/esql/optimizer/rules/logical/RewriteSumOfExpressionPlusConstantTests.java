@@ -54,8 +54,8 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         assertThat(preAggEval.fields(), hasSize(1));
         var svAlias = as(preAggEval.fields().get(0), Alias.class);
         assertThat(svAlias.child(), instanceOf(MvSingleValueOrNull.class));
-        assertThat(svSum.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
-        assertThat(svCount.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
+        assertTrue(svSum.field().semanticEquals(svAlias.toAttribute()));
+        assertTrue(svCount.field().semanticEquals(svAlias.toAttribute()));
 
         var fields = eval.fields();
         assertThat(fields, hasSize(2));
@@ -64,18 +64,18 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var s1 = as(fields.get(0), Alias.class);
         assertThat(s1.name(), equalTo("s1"));
         var add1 = as(s1.child(), Add.class);
-        assertThat(add1.left().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
+        assertTrue(add1.left().semanticEquals(svSumAlias.toAttribute()));
         var mul1 = as(add1.right(), Mul.class);
-        assertThat(mul1.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
+        assertTrue(mul1.right().semanticEquals(svCountAlias.toAttribute()));
         assertThat(mul1.left().fold(FoldContext.small()), equalTo(1));
 
         // s2 = sv_sum + 2 * sv_count
         var s2 = as(fields.get(1), Alias.class);
         assertThat(s2.name(), equalTo("s2"));
         var add2 = as(s2.child(), Add.class);
-        assertThat(add2.left().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
+        assertTrue(add2.left().semanticEquals(svSumAlias.toAttribute()));
         var mul2 = as(add2.right(), Mul.class);
-        assertThat(mul2.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
+        assertTrue(mul2.right().semanticEquals(svCountAlias.toAttribute()));
         assertThat(mul2.left().fold(FoldContext.small()), equalTo(2));
     }
 
@@ -97,23 +97,23 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var fields = eval.fields();
         assertThat(fields, hasSize(2));
 
-        // s1 = sv_sum - 2 * sv_count (field - c)
+        // s1 = sv_sum - 2 * sv_count
         var s1 = as(fields.get(0), Alias.class);
         assertThat(s1.name(), equalTo("s1"));
         var sub1 = as(s1.child(), Sub.class);
-        assertThat(sub1.left().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
+        assertTrue(sub1.left().semanticEquals(svSumAlias.toAttribute()));
         var mul1 = as(sub1.right(), Mul.class);
-        assertThat(mul1.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
+        assertTrue(mul1.right().semanticEquals(svCountAlias.toAttribute()));
         assertThat(mul1.left().fold(FoldContext.small()), equalTo(2));
 
-        // s2 = 3 * sv_count - sv_sum (c - field)
+        // s2 = 3 * sv_count - sv_sum
         var s2 = as(fields.get(1), Alias.class);
         assertThat(s2.name(), equalTo("s2"));
         var sub2 = as(s2.child(), Sub.class);
         var mul2 = as(sub2.left(), Mul.class);
-        assertThat(mul2.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
+        assertTrue(mul2.right().semanticEquals(svCountAlias.toAttribute()));
         assertThat(mul2.left().fold(FoldContext.small()), equalTo(3));
-        assertThat(sub2.right().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
+        assertTrue(sub2.right().semanticEquals(svSumAlias.toAttribute()));
     }
 
     public void testSumOfFieldPlusConstantWithGroupBy() {
@@ -199,7 +199,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         // Internal SUM and COUNT share the same MvSingleValueOrNull attribute.
         assertThat(svSum.field(), instanceOf(ReferenceAttribute.class));
         assertThat(svCount.field(), instanceOf(ReferenceAttribute.class));
-        assertThat(svSum.field().semanticEquals(svCount.field()), equalTo(true));
+        assertTrue(svSum.field().semanticEquals(svCount.field()));
 
         // User's COUNT is over emp_no directly, not the sv wrapper.
         assertThat(userCount.field(), not(instanceOf(MvSingleValueOrNull.class)));
@@ -208,7 +208,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
     public void testAvgOfFieldPlusConstantNotRewrittenByRule() {
         var plan = plan("""
             from test
-            | stats a = avg(emp_no + 1)
+            | stats a = avg(emp_no + 1), b = avg(emp_no + 2)
             """, new TestSubstitutionOnlyOptimizer());
 
         boolean hasMvSingleValueOrNull = plan.anyMatch(

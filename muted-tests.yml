@@ -243,9 +243,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testApplicationDefaultCredentialsFallbackToComputeEngine
-  issue: https://github.com/elastic/elasticsearch/issues/145689
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855

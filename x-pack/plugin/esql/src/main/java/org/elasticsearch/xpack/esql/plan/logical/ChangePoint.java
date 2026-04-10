@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -56,7 +57,7 @@ public class ChangePoint extends UnaryPlan
     private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
-    private final Attribute grouping;
+    private final List<Expression> groupings;
 
     private List<Attribute> output;
 
@@ -67,14 +68,14 @@ public class ChangePoint extends UnaryPlan
         Attribute key,
         Attribute targetType,
         Attribute targetPvalue,
-        Attribute grouping
+        List<Expression> groupings
     ) {
         super(source, child);
         this.value = value;
         this.key = key;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
-        this.grouping = grouping;
+        this.groupings = groupings;
     }
 
     @Override
@@ -89,12 +90,12 @@ public class ChangePoint extends UnaryPlan
 
     @Override
     protected NodeInfo<ChangePoint> info() {
-        return NodeInfo.create(this, ChangePoint::new, child(), value, key, targetType, targetPvalue, grouping);
+        return NodeInfo.create(this, ChangePoint::new, child(), value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new ChangePoint(source(), newChild, value, key, targetType, targetPvalue, grouping);
+        return new ChangePoint(source(), newChild, value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
@@ -121,23 +122,23 @@ public class ChangePoint extends UnaryPlan
         return targetPvalue;
     }
 
-    public Attribute grouping() {
-        return grouping;
+    public List<Expression> groupings() {
+        return groupings;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return grouping == null ? Expressions.references(List.of(key, value)) : Expressions.references(List.of(key, value, grouping));
+        return Expressions.references(List.of(key, value)).combine(Expressions.references(groupings));
     }
 
     @Override
     public boolean expressionsResolved() {
-        return value.resolved() && key.resolved() && (grouping == null || grouping.resolved());
+        return value.resolved() && key.resolved() && groupings.stream().allMatch(Expression::resolved);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue, grouping);
+        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
@@ -147,15 +148,20 @@ public class ChangePoint extends UnaryPlan
             && Objects.equals(key, ((ChangePoint) other).key)
             && Objects.equals(targetType, ((ChangePoint) other).targetType)
             && Objects.equals(targetPvalue, ((ChangePoint) other).targetPvalue)
-            && Objects.equals(grouping, ((ChangePoint) other).grouping);
+            && Objects.equals(groupings, ((ChangePoint) other).groupings);
     }
 
     private List<Order> orders() {
         var keyOrder = new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        if (grouping != null) {
-            return List.of(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST), keyOrder);
+        if (groupings.isEmpty()) {
+            return List.of(keyOrder);
         }
-        return List.of(keyOrder);
+        var orders = new java.util.ArrayList<Order>(groupings.size() + 1);
+        for (Expression grouping : groupings) {
+            orders.add(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        }
+        orders.add(keyOrder);
+        return orders;
     }
 
     @Override
@@ -164,14 +170,14 @@ public class ChangePoint extends UnaryPlan
         Literal limitPlusOne = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER);
         Literal limitExact = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER);
         // The first Limit of N+1 data points is necessary to generate a possible warning.
-        LogicalPlan limited = grouping == null
+        LogicalPlan limited = groupings.isEmpty()
             ? new Limit(source(), limitPlusOne, orderBy)
-            : new LimitBy(source(), limitPlusOne, orderBy, List.of(grouping));
-        ChangePoint changePoint = new ChangePoint(source(), limited, value, key, targetType, targetPvalue, grouping);
+            : new LimitBy(source(), limitPlusOne, orderBy, groupings);
+        ChangePoint changePoint = new ChangePoint(source(), limited, value, key, targetType, targetPvalue, groupings);
         // The second Limit of N data points is to truncate the output.
-        return grouping == null
+        return groupings.isEmpty()
             ? new Limit(source(), limitExact, changePoint)
-            : new LimitBy(source(), limitExact, changePoint, List.of(grouping));
+            : new LimitBy(source(), limitExact, changePoint, groupings);
     }
 
     @Override
@@ -181,8 +187,8 @@ public class ChangePoint extends UnaryPlan
         if (DataType.isSortable(type) == false) {
             failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), type));
         }
-        // Grouping must be sortable
-        if (grouping != null) {
+        // All groupings must be sortable
+        for (Expression grouping : groupings) { // TODO for removal? Does OrderBy accept unsortable types?
             type = grouping.dataType();
             if (DataType.isSortable(type) == false) {
                 failures.add(

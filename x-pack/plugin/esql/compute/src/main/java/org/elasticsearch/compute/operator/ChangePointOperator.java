@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -24,9 +26,9 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Find spikes, dips and change point in a list of values.
@@ -41,33 +43,32 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
     private record DetectedChangePoint(int index, ChangeType type) {}
 
-    public record Factory(int channel, Integer groupingChannel, WarningSourceLocation source) implements OperatorFactory {
+    public record Factory(int channel, List<Integer> groupingChannels, WarningSourceLocation source) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ChangePointOperator(driverContext, channel, groupingChannel, source);
+            int[] channels = groupingChannels.stream().mapToInt(Integer::intValue).toArray();
+            return new ChangePointOperator(driverContext, channel, channels, source);
         }
 
         @Override
         public String describe() {
-            return groupingChannel == null
-                ? Strings.format("ChangePointOperator[channel=%d]", channel)
-                : Strings.format("ChangePointOperator[channel=%d, groupingChannel=%d]", channel, groupingChannel);
+            return Strings.format("ChangePointOperator[channel=%d, groupingChannels=%s]", channel, groupingChannels);
         }
     }
 
     private final DriverContext driverContext;
     private final int channel;
-    private final Integer groupChannel;
+    private final int[] groupingChannels;
     private final WarningSourceLocation source;
 
     private final Deque<Page> outputPages;
     private Warnings warnings;
 
-    public ChangePointOperator(DriverContext driverContext, int channel, Integer groupingChannel, WarningSourceLocation source) {
+    public ChangePointOperator(DriverContext driverContext, int channel, int[] groupingChannels, WarningSourceLocation source) {
         this.driverContext = driverContext;
         this.channel = channel;
-        this.groupChannel = groupingChannel;
+        this.groupingChannels = groupingChannels;
         this.source = source;
 
         outputPages = new ArrayDeque<>();
@@ -95,9 +96,19 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         ArrayDeque<DetectedChangePoint> detectedChangePoints = new ArrayDeque<>();
         int valuesIndex = 0;
         int currentGroupRowCount = 0;
-        Object previousGroupKey = groupChannel != null && inputPages.isEmpty() == false
-            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0)
-            : null;
+
+        GroupKeyEncoder encoder = null;
+        BytesRef previousGroupKey = null;
+        if (groupingChannels.length > 0 && inputPages.isEmpty() == false) {
+            Page firstPage = inputPages.peek();
+            List<ElementType> elementTypes = new ArrayList<>(firstPage.getBlockCount());
+            for (int i = 0; i < firstPage.getBlockCount(); i++) {
+                elementTypes.add(firstPage.getBlock(i).elementType());
+            }
+            var scratch = new BreakingBytesRefBuilder(driverContext.blockFactory().breaker(), "change-point-group-key");
+            encoder = new GroupKeyEncoder(groupingChannels, elementTypes, scratch);
+            previousGroupKey = BytesRef.deepCopyOf(encoder.encode(firstPage, 0));
+        }
 
         boolean hasNulls = false;
         boolean hasMultivalued = false;
@@ -105,66 +116,71 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         boolean tooManyValues = false;
         boolean lastGroupHasRows = false;
         String indeterminableChangePointReason = "";
-        for (Page inputPage : inputPages) {
-            Block inputBlock = inputPage.getBlock(channel);
-            Block groupBlock = groupChannel != null ? inputPage.getBlock(groupChannel) : null;
-            for (int i = 0; i < inputBlock.getPositionCount(); i++) {
-                if (groupBlock != null) {
-                    Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
-                    if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
-                        if (values.isEmpty() == false || lastGroupHasRows) {
-                            var changeType = detectChangePoint(values, bucketIndexes);
-                            var changePointIndex = changeType.changePoint();
-                            if (changePointIndex >= 0) {
-                                detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
+        try {
+            for (Page inputPage : inputPages) {
+                Block inputBlock = inputPage.getBlock(channel);
+                for (int i = 0; i < inputBlock.getPositionCount(); i++) {
+                    if (encoder != null) {
+                        BytesRef currentGroupKey = encoder.encode(inputPage, i);
+                        if (currentGroupKey.equals(previousGroupKey) == false) {
+                            if (values.isEmpty() == false || lastGroupHasRows) {
+                                var changeType = detectChangePoint(values, bucketIndexes);
+                                var changePointIndex = changeType.changePoint();
+                                if (changePointIndex >= 0) {
+                                    detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
+                                }
+                                if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+                                    hasIndeterminableChangePoint = true;
+                                    indeterminableChangePointReason = indeterminable.getReason();
+                                }
+                                values.clear();
+                                bucketIndexes.clear();
+                                lastGroupHasRows = false;
                             }
-                            if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-                                hasIndeterminableChangePoint = true;
-                                indeterminableChangePointReason = indeterminable.getReason();
-                            }
-                            values.clear();
-                            bucketIndexes.clear();
-                            lastGroupHasRows = false;
+                            previousGroupKey = BytesRef.deepCopyOf(currentGroupKey);
+                            currentGroupRowCount = 0;
                         }
-                        previousGroupKey = currentGroupKey;
-                        currentGroupRowCount = 0;
+                    }
+
+                    if (currentGroupRowCount >= INPUT_VALUE_COUNT_LIMIT) {
+                        tooManyValues = true;
+                        valuesIndex++;
+                        continue;
+                    }
+
+                    Object value = BlockUtils.toJavaObject(inputBlock, i);
+                    lastGroupHasRows = true;
+                    currentGroupRowCount++;
+                    if (value == null) {
+                        hasNulls = true;
+                        valuesIndex++;
+                    } else if (value instanceof List<?>) {
+                        hasMultivalued = true;
+                        valuesIndex++;
+                    } else {
+                        values.add(((Number) value).doubleValue());
+                        bucketIndexes.add(valuesIndex++);
                     }
                 }
+            }
 
-                if (currentGroupRowCount >= INPUT_VALUE_COUNT_LIMIT) {
-                    tooManyValues = true;
-                    valuesIndex++;
-                    continue;
+            // flush last (or only) group; for "non-grouped" or "all-null" input this still
+            // runs to produce an "indeterminable" warning.
+            // Use groupingChannels.length == 0 (not encoder == null) to test for non-grouped mode:
+            // encoder is also null in grouped mode when inputPages is empty, which must not trigger the flush.
+            if (values.isEmpty() == false || groupingChannels.length == 0 || lastGroupHasRows) {
+                var changeType = detectChangePoint(values, bucketIndexes);
+                var changePointIndex = changeType.changePoint();
+                if (changePointIndex >= 0) {
+                    detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
                 }
-
-                Object value = BlockUtils.toJavaObject(inputBlock, i);
-                lastGroupHasRows = true;
-                currentGroupRowCount++;
-                if (value == null) {
-                    hasNulls = true;
-                    valuesIndex++;
-                } else if (value instanceof List<?>) {
-                    hasMultivalued = true;
-                    valuesIndex++;
-                } else {
-                    values.add(((Number) value).doubleValue());
-                    bucketIndexes.add(valuesIndex++);
+                if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+                    hasIndeterminableChangePoint = true;
+                    indeterminableChangePointReason = indeterminable.getReason();
                 }
             }
-        }
-
-        // flush last (or only) group; for "non-grouped" or "all-null" input this still
-        // runs to produce an "indeterminable" warning.
-        if (values.isEmpty() == false || groupChannel == null || lastGroupHasRows) {
-            var changeType = detectChangePoint(values, bucketIndexes);
-            var changePointIndex = changeType.changePoint();
-            if (changePointIndex >= 0) {
-                detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
-            }
-            if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-                hasIndeterminableChangePoint = true;
-                indeterminableChangePointReason = indeterminable.getReason();
-            }
+        } finally {
+            Releasables.closeExpectNoException(encoder);
         }
 
         buildOutputPages(detectedChangePoints);
@@ -274,11 +290,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
     @Override
     public String toString() {
-        if (groupChannel == null) {
-            return "ChangePointOperator[channel=" + channel + "]";
-        } else {
-            return "ChangePointOperator[channel=" + channel + ", groupChannel=" + groupChannel + "]";
-        }
+        return "ChangePointOperator[channel=" + channel + ", groupingChannels=" + Arrays.toString(groupingChannels) + "]";
     }
 
     private Warnings warnings(boolean onlyWarnings) {

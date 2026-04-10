@@ -315,7 +315,7 @@ changePointCommand
 changePointConfiguration
     : ON key=qualifiedName
     | AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
-    | {this.isDevVersion()}? BY grouping=qualifiedName
+    | {this.isDevVersion()}? BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*
     ;
 
 forkCommand

@@ -795,13 +795,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
-        UnresolvedAttribute groupingColumn = visitChangePointBy(ctx.changePointConfiguration(), src);
+        List<Expression> groupingColumns = visitChangePointBy(ctx.changePointConfiguration(), src);
 
         Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
         Attribute targetType = asAttributes.v1();
         Attribute targetPvalue = asAttributes.v2();
 
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue, groupingColumn);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue, groupingColumns);
     }
 
     private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
@@ -809,7 +809,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
             if (changePointContext.key != null) {
                 if (key != null) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause"); // TODO this will reverted in main...
                 }
                 key = visitQualifiedName(changePointContext.key);
             }
@@ -817,20 +817,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
     }
 
-    private UnresolvedAttribute visitChangePointBy(
+    private List<Expression> visitChangePointBy(
         List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
         Source src
     ) {
-        UnresolvedAttribute key = null;
+        List<Expression> groupings = null;
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
-            if (changePointContext.grouping != null) {
-                if (key != null) {
-                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one BY clause");
+            if (changePointContext.groupings.isEmpty() == false) {
+                if (groupings != null) {
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one BY clause"); // TODO this will be removed...
                 }
-                key = visitQualifiedName(changePointContext.grouping);
+                groupings = changePointContext.groupings.stream().map(this::expression).toList();
             }
         }
-        return key;
+        return groupings == null ? List.of() : groupings;
     }
 
     private Tuple<Attribute, Attribute> visitChangePointAs(

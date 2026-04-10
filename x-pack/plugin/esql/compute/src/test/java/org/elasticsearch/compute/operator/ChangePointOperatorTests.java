@@ -77,17 +77,17 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new ChangePointOperator.Factory(0, null, new TestWarningsSource(null));
+        return new ChangePointOperator.Factory(0, List.of(), new TestWarningsSource(null));
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("ChangePointOperator[channel=0]");
+        return equalTo("ChangePointOperator[channel=0, groupingChannels=[]]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("ChangePointOperator[channel=0]");
+        return equalTo("ChangePointOperator[channel=0, groupingChannels=[]]");
     }
 
     @Override
@@ -193,7 +193,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         List<Page> inputPages = buildPages(blockFactory, List.of(), nCopies(30, null));
-        List<Page> outputPages = invokeChangePoint(ctx, inputPages, 0, null);
+        List<Page> outputPages = invokeChangePoint(ctx, inputPages, 0, (Integer) null);
 
         try {
             assertThat(outputPages, hasSize(1));
@@ -217,7 +217,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     public void testNoInputPagesProducesWarning() {
         DriverContext ctx = driverContext();
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 0, null);
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 0, (Integer) null);
 
         assertThat(outputPages, hasSize(0));
         assertWarnings(
@@ -333,6 +333,50 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         assertThat(outputPages, hasSize(0));
     }
 
+    public void testMultipleGroupingKeys() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // 4 groups: (us,web), (us,db), (eu,web), (eu,db)
+        // Each group: [0×13, 1×12] -> step change at row 13 within the group
+        int groupSize = 25;
+        List<String> regionsColumn = Stream.of(
+            nCopies(groupSize, "us"),
+            nCopies(groupSize, "us"),
+            nCopies(groupSize, "eu"),
+            nCopies(groupSize, "eu")
+        ).flatMap(List::stream).toList();
+        List<String> servicesColumn = Stream.of(
+            nCopies(groupSize, "web"),
+            nCopies(groupSize, "db"),
+            nCopies(groupSize, "web"),
+            nCopies(groupSize, "db")
+        ).flatMap(List::stream).toList();
+        List<Long> valuesColumn = Stream.of(
+            nCopies(13, 0L), nCopies(12, 1L),
+            nCopies(13, 0L), nCopies(12, 1L),
+            nCopies(13, 0L), nCopies(12, 1L),
+            nCopies(13, 0L), nCopies(12, 1L)
+        ).flatMap(List::stream).toList();
+
+        Page inputPage = buildPage(blockFactory, valuesColumn, regionsColumn, servicesColumn);
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(inputPage), 2, new int[] { 0, 1 });
+        try {
+            assertThat(outputPages, hasSize(1));
+            BytesRefBlock typeBlock = outputPages.get(0).getBlock(3);
+            DoubleBlock pvalueBlock = outputPages.get(0).getBlock(4);
+
+            for (int g = 0; g < 4; g++) {
+                int stepAt = g * groupSize + 13;
+                assertThat("expected change type at " + stepAt, typeBlock.isNull(stepAt), equalTo(false));
+                assertThat(typeBlock.getBytesRef(stepAt, new BytesRef()).utf8ToString(), equalTo("step_change"));
+                assertThat("expected pvalue at " + stepAt, pvalueBlock.isNull(stepAt), equalTo(false));
+            }
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testGroupedTwoChangepointsOnSinglePage() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
@@ -420,21 +464,6 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         return pages;
     }
 
-    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn, List<String> groupsColumn) {
-        try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(groupsColumn.size());
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(valuesColumn.size())
-        ) {
-            for (int i = 0; i < groupsColumn.size(); i++) {
-                g.appendBytesRef(new BytesRef(groupsColumn.get(i)));
-                Long val = valuesColumn.get(i);
-                if (val == null) v.appendNull();
-                else v.appendLong(val);
-            }
-            return new Page(g.build(), v.build());
-        }
-    }
-
     private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn) {
         try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(valuesColumn.size())) {
             for (Long val : valuesColumn) {
@@ -445,8 +474,31 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
+    @SafeVarargs
+    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn, List<String>... groupColumns) {
+        int size = valuesColumn.size();
+        Block[] blocks = new Block[groupColumns.length + 1];
+        for (int g = 0; g < groupColumns.length; g++) {
+            assert groupColumns[g].size() == size;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(size)) {
+                for (String val : groupColumns[g]) {
+                    builder.appendBytesRef(new BytesRef(val));
+                }
+                blocks[g] = builder.build();
+            }
+        }
+        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(size)) {
+            for (Long val : valuesColumn) {
+                if (val == null) v.appendNull();
+                else v.appendLong(val);
+            }
+            blocks[groupColumns.length] = v.build();
+        }
+        return new Page(blocks);
+    }
+
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages) {
-        try (ChangePointOperator op = new ChangePointOperator(ctx, 1, 0, new TestWarningsSource(null))) {
+        try (ChangePointOperator op = new ChangePointOperator(ctx, 1, new int[] { 0 }, new TestWarningsSource(null))) {
             for (Page page : inputPages) {
                 op.addInput(page);
             }
@@ -461,7 +513,12 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, Integer groupingChannel) {
-        try (ChangePointOperator op = new ChangePointOperator(ctx, keyChannel, groupingChannel, new TestWarningsSource(null))) {
+        int[] channels = groupingChannel == null ? new int[0] : new int[] { groupingChannel };
+        return invokeChangePoint(ctx, inputPages, keyChannel, channels);
+    }
+
+    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, int[] groupingChannels) {
+        try (ChangePointOperator op = new ChangePointOperator(ctx, keyChannel, groupingChannels, new TestWarningsSource(null))) {
             for (Page page : inputPages) {
                 op.addInput(page);
             }

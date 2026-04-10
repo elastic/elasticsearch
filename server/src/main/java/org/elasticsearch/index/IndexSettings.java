@@ -1987,16 +1987,7 @@ public final class IndexSettings {
      * Returns the merge policy that should be used for this index.
      */
     public MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
-        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex, false);
-    }
-
-    /**
-     * Returns the merge policy that should be used for this index, considering whether the index has DiskBBQ vector fields.
-     * When the merge policy type is not explicitly set and the index has DiskBBQ fields, the merge-to-largest policy
-     * is automatically used to enable cheaper INSERTION clustering during merges.
-     */
-    public MergePolicy getMergePolicy(boolean isTimeBasedIndex, boolean hasDiskBBQFields) {
-        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex, hasDiskBBQFields);
+        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex);
     }
 
     public <T> T getValue(Setting<T> setting) {

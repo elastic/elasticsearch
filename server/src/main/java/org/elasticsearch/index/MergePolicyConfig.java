@@ -110,12 +110,6 @@ public final class MergePolicyConfig {
      * turn, this creates segments that have non-overlapping @timestamp ranges if data gets ingested in order.
      */
     private final LogByteSizeMergePolicy timeBasedMergePolicy = new LogByteSizeMergePolicy();
-    /**
-     * A merge policy that favors merging small segments into large segments. This is useful when
-     * the merge cost is asymmetric (e.g., IVF/DiskBBQ indices where centroid reuse is cheap,
-     * or HNSW indices where insertions are expensive but copies are cheap).
-     */
-    private final TieredMergeToLargestPolicy mergeToLargestPolicy = new TieredMergeToLargestPolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
     private volatile Type mergePolicyType;
@@ -309,8 +303,6 @@ public final class MergePolicyConfig {
         setSegmentsPerTier(segmentsPerTier);
         setMergeFactor(mergeFactor);
         setDeletesPctAllowed(deletesPctAllowed);
-        // Configure mergeToLargestPolicy with the same base settings
-        configureMergeToLargestPolicy(floorSegment, maxMergeAtOnce, maxMergedSegment, segmentsPerTier, deletesPctAllowed);
         logger.trace(
             "using merge policy with expunge_deletes_allowed[{}], floor_segment[{}],"
                 + " max_merge_at_once[{}], max_merged_segment[{}], segments_per_tier[{}],"
@@ -367,30 +359,11 @@ public final class MergePolicyConfig {
     void setCompoundFormatThreshold(CompoundFileThreshold compoundFileThreshold) {
         compoundFileThreshold.configure(tieredMergePolicy);
         compoundFileThreshold.configure(timeBasedMergePolicy);
-        compoundFileThreshold.configure(mergeToLargestPolicy);
     }
 
     void setDeletesPctAllowed(Double deletesPctAllowed) {
         tieredMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
         // LogByteSizeMergePolicy doesn't have a similar configuration option
-    }
-
-    private void configureMergeToLargestPolicy(
-        ByteSizeValue floorSegment,
-        int maxMergeAtOnce,
-        ByteSizeValue maxMergedSegment,
-        double segmentsPerTier,
-        double deletesPctAllowed
-    ) {
-        mergeToLargestPolicy.setFloorSegmentMB(floorSegment.getMbFrac());
-        mergeToLargestPolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        if (maxMergedSegment.getBytes() == 0) {
-            mergeToLargestPolicy.setMaxMergedSegmentMB(defaultMaxMergedSegment.getMbFrac());
-        } else {
-            mergeToLargestPolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
-        }
-        mergeToLargestPolicy.setSegmentsPerTier(segmentsPerTier);
-        mergeToLargestPolicy.setDeletesPctAllowed(deletesPctAllowed);
     }
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
@@ -413,22 +386,11 @@ public final class MergePolicyConfig {
     }
 
     @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy(boolean isTimeBasedIndex, boolean hasDiskBBQFields) {
+    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
         if (mergesEnabled == false) {
             return NoMergePolicy.INSTANCE;
         }
-        // When the merge policy type is not explicitly set and the index has DiskBBQ vector fields,
-        // automatically use the merge-to-largest policy. This creates a dominant segment during merges,
-        // which enables the cheaper INSERTION clustering strategy in DiskBBQ instead of WARM_START.
-        if (hasDiskBBQFields && mergePolicyType == Type.UNSET) {
-            return mergeToLargestPolicy;
-        }
         return mergePolicyType.getMergePolicy(this, isTimeBasedIndex);
-    }
-
-    @SuppressForbidden(reason = "we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
-    MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
-        return getMergePolicy(isTimeBasedIndex, false);
     }
 
     private static CompoundFileThreshold parseCompoundFormat(String noCFSRatio) {

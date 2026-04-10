@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -61,7 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * here focus on verifying the stats API fields, multi-cluster visibility, and the
  * stop/reconfigure/restart lifecycle.
  *
- * <h2>CCS versus true CPS mode</h2>
+ * <h2>CCS versus CPS mode</h2>
  *
  * These tests use standard CCS (cross-cluster search via {@code cluster.remote.*} settings)
  * rather than true CPS mode. The {@code serverless.cross_project.enabled} feature flag changes
@@ -69,8 +70,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * {@code (local)} in the {@code _clusters} metadata and makes {@code skip_unavailable} default
  * to true for all remotes. However, {@code DatafeedConfig}
  * currently rejects {@code resolveCrossProjectIndexExpression} in its indices options, so
- * true CPS mode is not yet available for ML datafeeds. The CPS runbook's loopback setup
- * (linked projects via operator settings) exercises a different infrastructure path than the
+ * true CPS mode is not yet available for ML datafeeds. The loopback setup for linked
+ * projects (via operator settings) exercises a different infrastructure path than the
  * CCS-based tests here.
  *
  * <h2>Wildcard resolution after cluster removal</h2>
@@ -153,7 +154,7 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
 
     /**
      * Verifies the end-to-end pipeline: a CCS datafeed searching a remote cluster
-     * produces cross_project_stats in the datafeed stats API response with the correct
+     * produces remote_cluster_stats in the datafeed stats API response with the correct
      * project counts after baseline establishment, and the field disappears after stopping.
      */
     @SuppressWarnings("unchecked")
@@ -171,57 +172,62 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("running_state"));
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("running_state"));
 
-            Map<String, Object> runningState = (Map<String, Object>) stats.get("running_state");
-            assertThat(runningState.get("real_time_configured"), equalTo(true));
+                Map<String, Object> runningState = (Map<String, Object>) stats.get("running_state");
+                assertThat(runningState.get("real_time_configured"), equalTo(true));
 
-            assertThat("cross_project_stats should be present for CPS datafeed after baseline", stats, hasKey("cross_project_stats"));
+                assertThat("remote_cluster_stats should be present for CPS datafeed after baseline", stats, hasKey("remote_cluster_stats"));
 
-            Map<String, Object> cpsStats = (Map<String, Object>) stats.get("cross_project_stats");
+                Map<String, Object> cpsStats = (Map<String, Object>) stats.get("remote_cluster_stats");
 
-            // The CCS search targets "project_a:<index>" so the response should include at least
-            // the remote cluster ("project_a") and the local/coordinating cluster.
-            int totalProjects = (int) cpsStats.get("total_clusters");
-            assertThat(totalProjects, greaterThanOrEqualTo(1));
+                // The CCS search targets "project_a:<index>" so the response should include at least
+                // the remote cluster ("project_a") and the local/coordinating cluster.
+                int totalClusters = (int) cpsStats.get("total_clusters");
+                assertThat(totalClusters, greaterThanOrEqualTo(1));
 
-            int availableProjects = (int) cpsStats.get("available_clusters");
-            assertThat(availableProjects, greaterThanOrEqualTo(1));
-            assertThat("available should be <= total", availableProjects, greaterThanOrEqualTo(1));
+                int availableClusters = (int) cpsStats.get("available_clusters");
+                assertThat(availableClusters, greaterThanOrEqualTo(1));
+                assertThat("available should be <= total", availableClusters, lessThanOrEqualTo(totalClusters));
 
-            int skippedProjects = (int) cpsStats.get("skipped_clusters");
-            assertThat("no clusters should be skipped when both are up", skippedProjects, equalTo(0));
+                int skippedClusters = (int) cpsStats.get("skipped_clusters");
+                assertThat("no clusters should be skipped when both are up", skippedClusters, equalTo(0));
 
-            double availabilityRatio = (double) cpsStats.get("availability_ratio");
-            assertThat("all projects available → ratio should be 1.0", availabilityRatio, closeTo(1.0, 0.001));
+                double availabilityRatio = (double) cpsStats.get("availability_ratio");
+                assertThat("all projects available → ratio should be 1.0", availabilityRatio, closeTo(1.0, 0.001));
 
-            List<String> stabilizedAliases = (List<String>) cpsStats.get("stabilized_cluster_aliases");
-            assertThat(stabilizedAliases, notNullValue());
-            assertThat("stabilized aliases should include at least one project", stabilizedAliases.size(), greaterThanOrEqualTo(1));
+                List<String> stabilizedAliases = (List<String>) cpsStats.get("stabilized_cluster_aliases");
+                assertThat(stabilizedAliases, notNullValue());
+                assertThat("stabilized aliases should include at least one project", stabilizedAliases.size(), greaterThanOrEqualTo(1));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cpsStats.get("per_cluster_consecutive_skips");
-            assertThat(consecutiveSkips, notNullValue());
-            for (var entry : consecutiveSkips.entrySet()) {
-                assertThat("consecutive skips for " + entry.getKey() + " should be 0", (int) entry.getValue(), equalTo(0));
-            }
-        }, 60, TimeUnit.SECONDS);
+                Map<String, Object> consecutiveSkips = (Map<String, Object>) cpsStats.get("per_cluster_consecutive_skips");
+                assertThat(consecutiveSkips, notNullValue());
+                for (var entry : consecutiveSkips.entrySet()) {
+                    assertThat("consecutive skips for " + entry.getKey() + " should be 0", (int) entry.getValue(), equalTo(0));
+                }
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
+            stopDatafeed(datafeedId);
 
-        Map<String, Object> stoppedStats = getDatafeedStats(datafeedId);
-        assertThat(stoppedStats.get("state"), equalTo("stopped"));
-        assertThat("running_state should be absent after stop", stoppedStats, not(hasKey("running_state")));
-        assertThat("cross_project_stats should be absent after stop", stoppedStats, not(hasKey("cross_project_stats")));
+            Map<String, Object> stoppedStats = getDatafeedStats(datafeedId);
+            assertThat(stoppedStats.get("state"), equalTo("stopped"));
+            assertThat("running_state should be absent after stop", stoppedStats, not(hasKey("running_state")));
+            assertThat("remote_cluster_stats should be absent after stop", stoppedStats, not(hasKey("remote_cluster_stats")));
 
-        closeJob(jobId);
+            closeJob(jobId);
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+        }
     }
 
     /**
      * Verifies that a datafeed searching only local indices (no CCS) does NOT
-     * produce cross_project_stats, even when the cluster has remote connections configured.
+     * produce remote_cluster_stats, even when the cluster has remote connections configured.
      */
     public void testLocalOnlyDatafeedHasNoCrossProjectStats() throws Exception {
         String localIndex = "local_test_data";
@@ -235,20 +241,22 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("running_state"));
-            assertThat("cross_project_stats should be absent for local-only datafeed", stats, not(hasKey("cross_project_stats")));
-        }, 60, TimeUnit.SECONDS);
-
-        stopDatafeed(datafeedId);
-        closeJob(jobId);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("running_state"));
+                assertThat("remote_cluster_stats should be absent for local-only datafeed", stats, not(hasKey("remote_cluster_stats")));
+            }, 60, TimeUnit.SECONDS);
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+        }
     }
 
     /**
      * Verifies that when two remote clusters are pre-configured and searched via a
-     * wildcard CCS pattern, the cross_project_stats correctly reflects both clusters
+     * wildcard CCS pattern, the remote_cluster_stats correctly reflects both clusters
      * with detailed per-project fields including stabilized aliases and skip counts.
      */
     @SuppressWarnings("unchecked")
@@ -277,40 +285,46 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
 
-            int totalProjects = (int) cps.get("total_clusters");
-            assertThat("should include at least project_a and project_b", totalProjects, greaterThanOrEqualTo(2));
+                int totalClusters = (int) cps.get("total_clusters");
+                assertThat("should include project_a and project_b", totalClusters, equalTo(2));
 
-            int availableProjects = (int) cps.get("available_clusters");
-            assertThat(availableProjects, greaterThanOrEqualTo(2));
+                int availableClusters = (int) cps.get("available_clusters");
+                assertThat(availableClusters, equalTo(2));
 
-            assertThat((int) cps.get("skipped_clusters"), equalTo(0));
-            assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
+                assertThat((int) cps.get("skipped_clusters"), equalTo(0));
+                assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
 
-            List<String> stabilizedAliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat("stabilized aliases should include both", stabilizedAliases.size(), greaterThanOrEqualTo(2));
-            assertThat(stabilizedAliases, hasItem("project_a"));
-            assertThat(stabilizedAliases, hasItem("project_b"));
+                List<String> stabilizedAliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat("stabilized aliases should include both", stabilizedAliases.size(), greaterThanOrEqualTo(2));
+                assertThat(stabilizedAliases, hasItem("project_a"));
+                assertThat(stabilizedAliases, hasItem("project_b"));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
-            assertThat(consecutiveSkips, notNullValue());
-            assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
-            assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
-        }, 60, TimeUnit.SECONDS);
+                Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
+                assertThat(consecutiveSkips, notNullValue());
+                assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
+                assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
-        closeJob(jobId);
-        removeRemoteCluster("project_b");
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
     }
 
     /**
      * Verifies that stopping a CPS datafeed, updating its indices to target a different
-     * set of remote clusters, and restarting it produces updated cross_project_stats
+     * set of remote clusters, and restarting it produces updated remote_cluster_stats
      * reflecting the new cluster configuration.
      */
     @SuppressWarnings("unchecked")
@@ -339,42 +353,52 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat(aliases, not(hasItem("project_b")));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, not(hasItem("project_b")));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
+            stopDatafeed(datafeedId);
+        } finally {
+            stopDatafeed(datafeedId);
+        }
 
         // Phase 2: Update indices to include project_b, restart
         updateDatafeedIndices(datafeedId, "project_a:" + remoteIndex + ",project_b:" + remoteIndex);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_clusters");
-            assertThat("should now include both clusters", total, greaterThanOrEqualTo(2));
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat(aliases, hasItem("project_b"));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                int total = (int) cps.get("total_clusters");
+                assertThat("should now include both clusters", total, greaterThanOrEqualTo(2));
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, hasItem("project_b"));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
-        closeJob(jobId);
-        removeRemoteCluster("project_b");
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
     }
 
     /**
      * Verifies that explicit CCS indices (project_a:index, project_b:index) produce
-     * correct cross_project_stats with both clusters tracked, and that the stats
+     * correct remote_cluster_stats with both clusters tracked, and that the stats
      * contain per-project consecutive skip counts of zero when both clusters are healthy.
      */
     @SuppressWarnings("unchecked")
@@ -402,40 +426,46 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
 
-            int totalProjects = (int) cps.get("total_clusters");
-            assertThat("should include both clusters", totalProjects, greaterThanOrEqualTo(2));
+                int totalClusters = (int) cps.get("total_clusters");
+                assertThat("should include both clusters", totalClusters, equalTo(2));
 
-            assertThat((int) cps.get("available_clusters"), greaterThanOrEqualTo(2));
-            assertThat((int) cps.get("skipped_clusters"), equalTo(0));
-            assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
+                assertThat((int) cps.get("available_clusters"), equalTo(2));
+                assertThat((int) cps.get("skipped_clusters"), equalTo(0));
+                assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
 
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat(aliases, hasItem("project_b"));
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, hasItem("project_b"));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
-            assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
-            assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
-        }, 60, TimeUnit.SECONDS);
+                Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
+                assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
+                assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
+            stopDatafeed(datafeedId);
 
-        Map<String, Object> stoppedStats = getDatafeedStats(datafeedId);
-        assertThat(stoppedStats.get("state"), equalTo("stopped"));
-        assertThat("cross_project_stats should be absent after stop", stoppedStats, not(hasKey("cross_project_stats")));
+            Map<String, Object> stoppedStats = getDatafeedStats(datafeedId);
+            assertThat(stoppedStats.get("state"), equalTo("stopped"));
+            assertThat("remote_cluster_stats should be absent after stop", stoppedStats, not(hasKey("remote_cluster_stats")));
 
-        closeJob(jobId);
-        removeRemoteCluster("project_b");
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
     }
 
     /**
-     * Simulates the dynamic config change from the CPS runbook (section 7.2 "link a project"):
+     * Simulates the dynamic config change when linking a new project:
      * a datafeed using a wildcard CCS pattern picks up a newly added remote cluster after
      * being stopped and restarted, without any change to its own configuration.
      *
@@ -464,17 +494,21 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat("project_b should not be present yet", aliases, not(hasItem("project_b")));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat("project_b should not be present yet", aliases, not(hasItem("project_b")));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
+            stopDatafeed(datafeedId);
+        } finally {
+            stopDatafeed(datafeedId);
+        }
 
         // Phase 2: add project_b while datafeed is stopped — no datafeed config change
         addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
@@ -486,30 +520,36 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         // Restart the same datafeed with the same *: pattern
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_clusters");
-            assertThat("*: should now resolve to both clusters", total, greaterThanOrEqualTo(2));
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat(aliases, hasItem("project_b"));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                int total = (int) cps.get("total_clusters");
+                assertThat("*: should now resolve to both clusters", total, greaterThanOrEqualTo(2));
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, hasItem("project_b"));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
-        closeJob(jobId);
-        removeRemoteCluster("project_b");
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
     }
 
     /**
      * Tests scope contraction: the datafeed configuration is narrowed from searching two
      * remote clusters to searching only one. After the stop/reconfigure/restart cycle, the
-     * cross_project_stats baseline is re-established with the reduced set.
+     * remote_cluster_stats baseline is re-established with the reduced set.
      *
-     * <p>This mirrors the operational scenario where a linked project is removed (section 7.2
-     * of the CPS runbook) and the datafeed's index pattern is updated to reflect the reduced
+     * <p>This mirrors the operational scenario where a linked project is removed
+     * and the datafeed's index pattern is updated to reflect the reduced
      * scope. The remote cluster itself remains configured — only the datafeed's target
      * indices change — avoiding interference from cluster teardown timing.
      */
@@ -539,45 +579,49 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         openJob(jobId);
         startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat(aliases, hasItem("project_b"));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat(aliases, hasItem("project_b"));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId);
-        deleteDatafeed(datafeedId);
-        closeJob(jobId);
+            stopDatafeed(datafeedId);
+        } finally {
+            stopDatafeed(datafeedId);
+        }
 
-        // Phase 2: recreate the datafeed targeting project_a only (project_b cluster stays
-        // configured but the new datafeed does not reference it). Delete + recreate instead
-        // of updating ensures there is no stale state from the previous Phase 1 run.
-        deleteJob(jobId);
-        String jobId2 = jobId + "-p2";
-        String datafeedId2 = jobId2 + "-datafeed";
-        createAnomalyDetectorWithDatafeed(jobId2, datafeedId2, "project_a:" + sharedIndex);
-        openJob(jobId2);
-        startDatafeed(datafeedId2);
+        // Phase 2: update the datafeed to target project_a only (project_b cluster stays
+        // configured but the datafeed no longer references it). This mirrors the real-world
+        // operation of updating a datafeed's indices rather than delete+recreate.
+        updateDatafeedIndices(datafeedId, "project_a:" + sharedIndex);
+        startDatafeed(datafeedId);
 
-        assertBusy(() -> {
-            Map<String, Object> stats = getDatafeedStats(datafeedId2);
-            assertThat(stats.get("state"), equalTo("started"));
-            assertThat(stats, hasKey("cross_project_stats"));
-            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_clusters");
-            assertThat("should now track only one project", total, equalTo(1));
-            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
-            assertThat(aliases, hasItem("project_a"));
-            assertThat("project_b should no longer appear", aliases, not(hasItem("project_b")));
-        }, 60, TimeUnit.SECONDS);
+        try {
+            assertBusy(() -> {
+                Map<String, Object> stats = getDatafeedStats(datafeedId);
+                assertThat(stats.get("state"), equalTo("started"));
+                assertThat(stats, hasKey("remote_cluster_stats"));
+                Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
+                int total = (int) cps.get("total_clusters");
+                assertThat("should now track only one project", total, equalTo(1));
+                List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
+                assertThat(aliases, hasItem("project_a"));
+                assertThat("project_b should no longer appear", aliases, not(hasItem("project_b")));
+            }, 60, TimeUnit.SECONDS);
 
-        stopDatafeed(datafeedId2);
-        closeJob(jobId2);
-        removeRemoteCluster("project_b");
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        } finally {
+            stopDatafeed(datafeedId);
+            closeJob(jobId);
+            removeRemoteCluster("project_b");
+        }
     }
 
     private void addRemoteCluster(String alias, String transportEndpoint) throws IOException {

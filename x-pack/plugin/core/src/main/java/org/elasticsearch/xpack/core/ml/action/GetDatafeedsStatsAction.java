@@ -52,7 +52,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
     private static final String TIMING_STATS = "timing_stats";
     private static final String RUNNING_STATE = "running_state";
-    private static final String CROSS_PROJECT_STATS = "cross_project_stats";
+    private static final String REMOTE_CLUSTER_STATS = "remote_cluster_stats";
 
     private GetDatafeedsStatsAction() {
         super(NAME);
@@ -220,7 +220,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
                     if (runningState.getCrossClusterStats() != null) {
-                        builder.field(CROSS_PROJECT_STATS, runningState.getCrossClusterStats());
+                        builder.field(REMOTE_CLUSTER_STATS, runningState.getCrossClusterStats());
                     }
                 }
                 builder.endObject();

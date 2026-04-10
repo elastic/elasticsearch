@@ -528,7 +528,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         startRealtime(jobId);
 
-        // While the datafeed is running, cross_project_stats should be null for a non-CPS datafeed
+        // While the datafeed is running, remote_cluster_stats should be null for a non-CPS datafeed
         assertBusy(() -> {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
@@ -541,7 +541,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         StopDatafeedAction.Response stopResponse = stopDatafeed(datafeedId);
         assertTrue(stopResponse.isStopped());
 
-        // After stopping, running_state and cross_project_stats should both be absent
+        // After stopping, running_state and remote_cluster_stats should both be absent
         assertBusy(() -> {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();

@@ -266,17 +266,17 @@ setup:
   - match: { datafeeds.1.state: "stopped"}
 
 ---
-"Test cross_project_stats absent for stopped non-CPS datafeed":
+"Test remote_cluster_stats absent for stopped non-CPS datafeed":
 
   - do:
       ml.get_datafeed_stats:
         datafeed_id: datafeed-1
   - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
   - match:  { datafeeds.0.state: "stopped"}
-  - is_false: datafeeds.0.cross_project_stats
+  - is_false: datafeeds.0.remote_cluster_stats
 
 ---
-"Test cross_project_stats absent for running non-CPS datafeed":
+"Test remote_cluster_stats absent for running non-CPS datafeed":
 
   - do:
       ml.open_job:
@@ -292,7 +292,7 @@ setup:
         datafeed_id: datafeed-1
   - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
   - match:  { datafeeds.0.state: "started"}
-  - is_false: datafeeds.0.cross_project_stats
+  - is_false: datafeeds.0.remote_cluster_stats
 
 ---
 "Test get datafeed stats when total_search_time_ms mapping is missing":

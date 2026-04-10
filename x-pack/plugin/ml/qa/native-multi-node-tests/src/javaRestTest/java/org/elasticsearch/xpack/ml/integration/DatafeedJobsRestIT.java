@@ -1560,7 +1560,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response response = client().performRequest(startRequest);
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
 
-        // While running: running_state should be present but cross_project_stats should be absent
+        // While running: running_state should be present but remote_cluster_stats should be absent
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(
@@ -1569,7 +1569,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 String body = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(body, containsString("\"real_time_configured\":true"));
                 assertThat(body, containsString("\"running_state\""));
-                assertFalse("cross_project_stats should not appear for non-CPS datafeed", body.contains("cross_project_stats"));
+                assertFalse("remote_cluster_stats should not appear for non-CPS datafeed", body.contains("remote_cluster_stats"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1580,13 +1580,13 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         );
         assertThat(EntityUtils.toString(stopResponse.getEntity()), equalTo("{\"stopped\":true}"));
 
-        // After stopping: neither running_state nor cross_project_stats should appear
+        // After stopping: neither running_state nor remote_cluster_stats should appear
         Response stoppedStatsResponse = client().performRequest(
             new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
         );
         String stoppedBody = EntityUtils.toString(stoppedStatsResponse.getEntity());
         assertThat(stoppedBody, containsString("\"state\":\"stopped\""));
-        assertFalse("cross_project_stats should not appear for stopped non-CPS datafeed", stoppedBody.contains("cross_project_stats"));
+        assertFalse("remote_cluster_stats should not appear for stopped non-CPS datafeed", stoppedBody.contains("remote_cluster_stats"));
 
         client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
     }

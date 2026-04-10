@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -28,7 +27,7 @@ public record CrossClusterSearchStatsSnapshot(
     int totalClusters,
     int availableClusters,
     int skippedClusters,
-    double availabilityRatio,
+    Double availabilityRatio,
     Set<String> stabilizedClusterAliases,
     Map<String, Integer> perClusterConsecutiveSkips
 ) implements Writeable, ToXContentObject {
@@ -65,30 +64,5 @@ public record CrossClusterSearchStatsSnapshot(
         builder.field("per_cluster_consecutive_skips", new TreeMap<>(perClusterConsecutiveSkips));
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CrossClusterSearchStatsSnapshot that = (CrossClusterSearchStatsSnapshot) o;
-        return totalClusters == that.totalClusters
-            && availableClusters == that.availableClusters
-            && skippedClusters == that.skippedClusters
-            && Double.compare(availabilityRatio, that.availabilityRatio) == 0
-            && Objects.equals(stabilizedClusterAliases, that.stabilizedClusterAliases)
-            && Objects.equals(perClusterConsecutiveSkips, that.perClusterConsecutiveSkips);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            totalClusters,
-            availableClusters,
-            skippedClusters,
-            availabilityRatio,
-            stabilizedClusterAliases,
-            perClusterConsecutiveSkips
-        );
     }
 }

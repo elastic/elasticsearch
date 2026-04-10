@@ -166,9 +166,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
-- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
-  method: testForceSleepsProfile {SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/144619
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
@@ -214,9 +211,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testCancelOnExpiry
-  issue: https://github.com/elastic/elasticsearch/issues/145502
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/145519
@@ -270,9 +264,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
-  method: testFromStatsProjectAgg
-  issue: https://github.com/elastic/elasticsearch/issues/145927
 - class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
   method: testWatcher
   issue: https://github.com/elastic/elasticsearch/issues/145928

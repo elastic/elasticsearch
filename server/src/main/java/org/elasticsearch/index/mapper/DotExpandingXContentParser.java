@@ -39,10 +39,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        private XContentParser delegate; // cached top of stack — avoids peek() on every delegate() call
 
         WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
             this.contentPath = contentPath;
             parsers.push(in);
+            this.delegate = in;
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
@@ -56,12 +58,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
+            while ((token = (this.delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
+                    this.delegate = null;
                     return null;
                 }
             }
@@ -147,7 +149,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+            var expanded = new DotExpandingXContentParser(subParser, subpaths, location, contentPath);
+            parsers.push(expanded);
+            this.delegate = expanded;
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -178,7 +182,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         protected XContentParser delegate() {
-            return parsers.peek();
+            return delegate;
         }
 
         /*

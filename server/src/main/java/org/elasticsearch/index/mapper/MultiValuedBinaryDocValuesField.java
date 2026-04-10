@@ -20,6 +20,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -110,6 +111,48 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             SeparateCount.addToDoc(doc, fieldName, value, ordering);
         } else {
             IntegratedCount.addToDoc(doc, fieldName, value, ordering);
+        }
+    }
+
+    /**
+     * Adds all ignored values from the given collection of ignored field values to their respective
+     * document fields, encoded based on the specified index version and ordered according to the provided
+     * value ordering. The method determines whether to use {@link IntegratedCount} or {@link SeparateCount}
+     * format for field representation based on the index version, and updates the fields in the
+     * corresponding documents accordingly.
+     *
+     * @param ignoredFieldValues A collection of {@link IgnoredSourceFieldMapper.NameValue} objects containing
+     *                           the documents and field values to be ignored.
+     * @param fieldName The name of the field to which the ignored values will be added.
+     * @param ordering The {@link ValueOrdering} that determines how the values should be ordered.
+     * @param indexVersion The {@link IndexVersion} specifying the version of the index, used to determine
+     *                     the count format (integrated or separate).
+     */
+    public static void addAllIgnoredValues(
+        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        String fieldName,
+        ValueOrdering ordering,
+        IndexVersion indexVersion
+    ) {
+        // Nested docs store their own NameValue:
+        var map = new IdentityHashMap<LuceneDocument, List<BytesRef>>();
+        for (var nameValue : ignoredFieldValues) {
+            List<BytesRef> values = map.computeIfAbsent(nameValue.doc(), d -> new ArrayList<>(4));
+            values.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue));
+        }
+
+        boolean useIntegratedCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        for (var entry : map.entrySet()) {
+            var ignoredSourceField = useIntegratedCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
+            for (BytesRef value : entry.getValue()) {
+                ignoredSourceField.add(value);
+            }
+            entry.getKey().add(ignoredSourceField);
+            if (useIntegratedCount) {
+                String countFieldName = fieldName + SeparateCount.COUNT_FIELD_SUFFIX;
+                var countField = NumericDocValuesField.indexedField(countFieldName, ignoredSourceField.count());
+                entry.getKey().add(countField);
+            }
         }
     }
 

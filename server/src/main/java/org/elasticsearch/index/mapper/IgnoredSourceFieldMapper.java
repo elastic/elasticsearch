@@ -559,15 +559,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion) {
-                for (NameValue nameValue : ignoredFieldValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        nameValue.doc(),
-                        NAME,
-                        SingularIgnoredSourceEncoding.encode(nameValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
-                        indexVersion
-                    );
-                }
+                MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+                    ignoredFieldValues,
+                    NAME,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                    indexVersion
+                );
             }
 
             @Override

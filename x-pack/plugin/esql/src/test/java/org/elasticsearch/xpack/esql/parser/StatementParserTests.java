@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -95,7 +97,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -107,6 +108,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -125,7 +128,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -135,6 +137,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1080,6 +1083,105 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY hostname, @timestamp / 10
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings().size(), equalTo(2));
+        assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
+        assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
+        assertThat(divExpr.right(), instanceOf(Literal.class));
+        assertThat(((Literal) divExpr.right()).value(), equalTo(10));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByQualifiedName() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY [foo].[hostname]
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limitBy.groupings().getFirst();
+        assertThat(groupKey.qualifier(), equalTo("foo"));
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+    }
+
+    public void testLimitByExpressionForN() {
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {
@@ -3137,11 +3239,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
-            String error = command.getValue();
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
-            );
+            query(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"));
         }
     }
 
@@ -3766,7 +3864,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
@@ -3782,7 +3880,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant("queryText", "statement text"), paramAsConstant("inferenceId", "reranker"))
         );
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery(
+                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
+                queryParams
+            ),
             Rerank.class
         );
 
@@ -3865,13 +3966,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
             "Option [task_settings] must be a map, found [3]"
-        );
-    }
-
-    public void testCompletionTaskSettingsNull() {
-        expectError(
-            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
-            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
         );
     }
 
@@ -3958,7 +4052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -3971,7 +4065,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 
@@ -4040,6 +4134,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
+    }
+
+    public void testChangePointAsBeforeOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointOnBeforeAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointDuplicateOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
+    }
+
+    public void testChangePointDuplicateOnWithAsInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
+            "line 1:56: CHANGE_POINT supports only one ON clause"
+        );
+    }
+
+    public void testChangePointDuplicateAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
+    }
+
+    public void testChangePointDuplicateAsWithOnInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
+            "line 1:71: CHANGE_POINT supports only one AS clause"
+        );
+    }
+
+    public void testChangePointMissingFieldAfterOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
+    }
+
+    public void testChangePointAsWithOnlyOneArgument() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
     }
 
     public void testValidFuse() {
@@ -4307,7 +4457,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
      * builds a little json report of the valid types.
      */
     public void testInlineCast() throws IOException {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
             .resolve("query-languages")
             .resolve("esql")
@@ -4328,7 +4478,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.parseQuery("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
@@ -4395,79 +4545,68 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithLimitOnly() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
+        assertEquals(integer(10), mmrCmd.limit());
         assertNull(mmrCmd.queryVector());
-        verifyMMRLambdaValue(mmrCmd, null);
+        assertNull(mmrCmd.options());
     }
 
     public void testMMRCommandWithLimitAndLambda() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         assertNull(mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithConstantQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(0.5, 0.4, 0.3, 0.2));
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithByteVectorQuery() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArray.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArray, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArray.queryVector(), List.of(17, 48, 56));
+        assertEquals(integer(10), mmrByteArray.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrByteArray.options());
+        assertEquals(integers(17, 48, 56), mmrByteArray.queryVector());
 
-        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 50 with { \"lambda\": 0.8 }"), MMR.class);
         assertThat(mmrByteArrayString.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArrayString.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArrayString, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArrayString.queryVector(), List.of(), "113038");
+        assertEquals(integer(50), mmrByteArrayString.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.8)), mmrByteArrayString.options());
+        assertEquals(literalString("113038"), mmrByteArrayString.queryVector());
     }
 
     public void testMMRCommandWithFieldQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        var queryVectorParam = List.of(0.5, 0.4, 0.3, 0.2);
 
-        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", queryVectorParam)));
         var mmrCmd = as(
-            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(), "[0.5, 0.4, 0.3, 0.2]");
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrCmd = as(
             processingCommand(
                 "mmr TEXT_EMBEDDING(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
@@ -4477,8 +4616,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
@@ -4489,71 +4628,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    private void verifyMMRLimitValue(Expression expression, int limit) {
-        assertThat(expression.dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) expression).value());
-        assertEquals(limit, limitValue);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected) {
-        verifyMMRQueryVectorValue(expression, expected, null);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected, @Nullable String expectedString) {
-        if (expression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            }
-        } else if (expression instanceof ToDenseVector asDenseVector) {
-            var thisValue = ((Literal) asDenseVector.field()).value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            } else if (thisValue instanceof BytesRef bytesRef && expectedString != null) {
-                assertEquals(new BytesRef(expectedString), bytesRef);
-                return;
-            }
-        }
-
-        fail("query vector expression [" + expression + "] is not a valid dense vector convertable type");
-    }
-
-    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
-        if (value == null) {
-            assertNull(mmrCmd.options());
-            return;
-        }
-
-        assertTrue(mmrCmd.options() instanceof MapExpression);
-        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
-    }
-
-    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
-        if (options == null) {
-            return null;
-        }
-
-        Map<String, Expression> optionsMap = options.keyFoldedMap();
-
-        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        assertNotNull(lambdaValueExpression);
-        Literal litLambdaValue = (Literal) lambdaValueExpression;
-        assertNotNull(litLambdaValue);
-        assertEquals(DOUBLE, litLambdaValue.dataType());
-        return (Double) litLambdaValue.value();
-    }
-
     public void testInvalidMMRCommands() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(
             "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
+        expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
     }
 
     public void testInvalidSample() {
@@ -4608,4 +4690,66 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    public void testUserAgentCommand() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertFalse(ua.extractDeviceType());
+        assertEquals("_default_", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .filter(name -> name.equals("device.type") == false)
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithOptions() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"custom\", \"extract_device_type\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertTrue(ua.extractDeviceType());
+        assertEquals("custom", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithProperties() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\", \"os\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
+
+        List<String> expectedFieldNames = List.of("ua.name", "ua.os.name", "ua.os.version", "ua.os.full");
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandInvalidOption() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"unknown_option\": \"value\" }",
+            "Invalid option [unknown_option] in USER_AGENT"
+        );
+    }
+
+    public void testUserAgentCommandOriginalIgnored() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
 }

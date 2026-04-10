@@ -14,7 +14,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -55,6 +56,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         "StEnvelope",
         StEnvelope::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StEnvelope.class).unary(StEnvelope::new).name("st_envelope");
     private static final SpatialEnvelopeResults<BytesRefBlock.Builder> geoResults = new SpatialEnvelopeResults<>(
         SpatialCoordinateTypes.GEO,
         new GeoPointVisitor(WRAP)
@@ -116,7 +118,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // Create the results-builder as a factory, so thread-local instances can be used in evaluators
         var resultsBuilder = isSpatialGeo(spatialField().dataType())
             ? new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))

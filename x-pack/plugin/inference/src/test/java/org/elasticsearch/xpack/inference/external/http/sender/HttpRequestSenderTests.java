@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -322,7 +323,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
             var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
-            assertThat(authResponse.getAuthorizedEndpoints(), is(elserResponse.responseEntity().getAuthorizedEndpoints()));
+            assertThat(authResponse.authorizedEndpoints(), is(elserResponse.responseEntity().authorizedEndpoints()));
         }
     }
 
@@ -373,7 +374,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }
 
@@ -400,7 +401,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }
 
@@ -428,7 +429,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }
 

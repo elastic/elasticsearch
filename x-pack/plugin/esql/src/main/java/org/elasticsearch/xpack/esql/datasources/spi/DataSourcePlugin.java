@@ -56,17 +56,11 @@ public interface DataSourcePlugin {
     }
 
     /**
-     * Format names this plugin provides (e.g. "csv", "parquet").
-     * Keys must match {@link #formatReaders(Settings)} keys.
+     * Format descriptors this plugin provides. Each {@link FormatSpec} pairs a logical
+     * format name with the file extensions that select it. Format names must match
+     * the keys returned by {@link #formatReaders(Settings)}.
      */
-    default Set<String> supportedFormats() {
-        return Set.of();
-    }
-
-    /**
-     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
-     */
-    default Set<String> supportedExtensions() {
+    default Set<FormatSpec> formatSpecs() {
         return Set.of();
     }
 

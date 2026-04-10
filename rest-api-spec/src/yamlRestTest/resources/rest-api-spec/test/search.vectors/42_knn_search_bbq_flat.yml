@@ -113,7 +113,9 @@ setup:
           path: /_search
           capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
-      features: "headers"
+      features:
+       - headers
+       - close_to
 
   # Rescore
   - do:

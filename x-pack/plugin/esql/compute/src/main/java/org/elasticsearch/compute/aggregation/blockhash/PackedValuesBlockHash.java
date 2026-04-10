@@ -265,7 +265,7 @@ final class PackedValuesBlockHash extends BlockHash {
                         ords.appendInt(Math.toIntExact(found));
                         count++;
                         if (count > Block.MAX_LOOKUP) {
-                            // TODO replace this with a warning and break
+                            // TODO replace this with a warning and break and remove the accepted error from GenerativeRestTest
                             throw new IllegalArgumentException("Found a single entry with " + count + " entries");
                         }
                     }
@@ -363,27 +363,29 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        int size = Math.toIntExact(bytesRefHash.size());
+    public Block[] getKeys(IntVector selected) {
+        int positions = selected.getPositionCount();
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
         try {
             for (int g = 0; g < builders.length; g++) {
                 ElementType elementType = specs.get(g).elementType();
                 decoders[g] = BatchEncoder.decoder(elementType);
-                builders[g] = elementType.newBlockBuilder(size, blockFactory);
+                builders[g] = elementType.newBlockBuilder(positions, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[Math.min(100, Math.toIntExact(bytesRefHash.size()))];
-            BytesRef[] nulls = new BytesRef[values.length];
-            for (int offset = 0; offset < values.length; offset++) {
-                values[offset] = new BytesRef();
-                nulls[offset] = new BytesRef();
-                nulls[offset].length = nullTrackingBytes;
+            int batchSize = Math.min(100, positions);
+            BytesRef[] values = new BytesRef[batchSize];
+            BytesRef[] nulls = new BytesRef[batchSize];
+            for (int b = 0; b < batchSize; b++) {
+                values[b] = new BytesRef();
+                nulls[b] = new BytesRef();
+                nulls[b].length = nullTrackingBytes;
             }
             int offset = 0;
-            for (int i = 0; i < bytesRefHash.size(); i++) {
-                values[offset] = bytesRefHash.get(i, values[offset]);
+            for (int i = 0; i < positions; i++) {
+                int groupId = selected.getInt(i);
+                values[offset] = bytesRefHash.get(groupId, values[offset]);
 
                 // Reference the null bytes in the nulls array and values in the values
                 nulls[offset].bytes = values[offset].bytes;
@@ -392,7 +394,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 values[offset].length -= nullTrackingBytes;
 
                 offset++;
-                if (offset == values.length) {
+                if (offset == batchSize) {
                     readKeys(decoders, builders, nulls, values, offset);
                     offset = 0;
                 }

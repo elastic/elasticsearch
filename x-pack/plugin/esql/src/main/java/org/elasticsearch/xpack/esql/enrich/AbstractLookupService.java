@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -37,11 +38,14 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
+import org.elasticsearch.compute.operator.lookup.BulkLookupSingleValued;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
@@ -103,7 +107,7 @@ import java.util.stream.IntStream;
  * </p>
  * <p>
  * The join process spawns a {@link Driver} per incoming page which runs in
- * two or three stages:
+ * two, three or four stages:
  * </p>
  * <p>
  * Stage 1: Finding matching document IDs for the input page. This stage is done
@@ -116,7 +120,11 @@ import java.util.stream.IntStream;
  * {@code [DocVector, IntBlock: positions, Block: field1, Block: field2,...]}.
  * </p>
  * <p>
- * Stage 3: Optionally this combines the extracted values based on positions and filling
+ * Stage 3: Optionally the BulkLookupMvFilterOperator removes false-positive
+ * multivalue matches when the {@link BulkKeywordLookup} optimization is active.
+ * </p>
+ * <p>
+ * Stage 4: Optionally this combines the extracted values based on positions and filling
  * nulls for positions without matches. This is done by {@link MergePositionsOperator}.
  * The output page is represented as {@code [Block: field1, Block: field2,...]}.
  * </p>
@@ -400,6 +408,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(finishPages);
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, request.source);
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);
+
+            // Stage 1
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
@@ -413,6 +423,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             );
             releasables.add(queryOperator);
 
+            // Stage 2
             List<Operator> operators = new ArrayList<>();
             if (request.extractFields.isEmpty() == false) {
                 var extractFieldsOperator = extractFieldsOperator(
@@ -424,6 +435,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
             }
+
+            // Stage 3
+            Operator bulkLookupMvFilterOperator = bulkLookupMvFilterOperator(queryList, driverContext, warnings);
+            if (bulkLookupMvFilterOperator != null) {
+                operators.add(bulkLookupMvFilterOperator);
+            }
+
+            // Stage 4
             operators.add(finishPages);
 
             /*
@@ -501,6 +520,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE,
                 null,
+                null,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -509,7 +529,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     fieldName,
                     PlannerUtils.toElementType(extractField.dataType()),
                     false,
-                    shardIdx -> {
+                    (ctx, shardIdx) -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
@@ -531,7 +551,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             ),
             true,
             0,
-            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
     }
 
@@ -559,6 +580,27 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             projection.add(i);
         }
         return new ProjectOperator(projection);
+    }
+
+    /**
+     * Returns an operator to remove false-positive multivalue matches from
+     * BulkKeywordLookup or null when that optimization is not used.
+     */
+    private static Operator bulkLookupMvFilterOperator(
+        LookupEnrichQueryGenerator queryList,
+        DriverContext driverContext,
+        Warnings warnings
+    ) {
+        final BulkKeywordLookup bulkLookup = queryList.getBulkKeywordLookup();
+        if (bulkLookup != null) {
+
+            // at this point the output page [DocVector, IntBlock: positions, Block: field1, Block: field2,...]
+            // get the channel ignoring the DocVector and IntBlock
+            //
+            final int channelOffset = 2 + bulkLookup.getExtractChannelOffset();
+            return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
+        }
+        return null;
     }
 
     protected Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
@@ -765,7 +807,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         static LookupShardContextFactory fromSearchService(SearchService searchService) {
             return shardId -> {
-                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+                // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
+                // doesn't matter.
+                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                    shardId,
+                    0,
+                    AliasFilter.EMPTY,
+                    null,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 return LookupShardContext.fromSearchContext(
                     searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
                 );

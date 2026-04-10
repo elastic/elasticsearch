@@ -17,6 +17,10 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,6 +83,12 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         Translog.Location expectedLocation = null;
         final IndexShard primary = mock(IndexShard.class);
         when(primary.shardId()).thenReturn(shardRequest.shardId());
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        when(primary.indexSettings()).thenReturn(new IndexSettings(indexMetadata, Settings.EMPTY));
 
         long translogGen = 0;
         long translogOffset = 0;

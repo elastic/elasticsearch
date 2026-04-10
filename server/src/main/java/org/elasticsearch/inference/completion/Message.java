@@ -25,33 +25,50 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ROLE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CALLS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CALL_ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALLS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALL_ID_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public record Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls)
-    implements
-        Writeable,
-        ToXContentObject {
+public record Message(
+    @Nullable Content content,
+    String role,
+    @Nullable String toolCallId,
+    @Nullable List<ToolCall> toolCalls,
+    @Nullable String reasoning,
+    @Nullable List<ReasoningDetail> reasoningDetails
+) implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
         Message.class.getSimpleName(),
-        args -> new Message((Content) args[0], (String) args[1], (String) args[2], (List<ToolCall>) args[3])
+        args -> new Message(
+            (Content) args[0],
+            (String) args[1],
+            (String) args[2],
+            (List<ToolCall>) args[3],
+            (String) args[4],
+            (List<ReasoningDetail>) args[5]
+        )
     );
 
     static {
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseContent(p),
-            new ParseField("content"),
+            new ParseField(CONTENT_FIELD),
             ObjectParser.ValueType.VALUE_ARRAY
         );
-        PARSER.declareString(constructorArg(), new ParseField("role"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));
-        PARSER.declareObjectArray(optionalConstructorArg(), ToolCall.PARSER::apply, new ParseField("tool_calls"));
+        PARSER.declareString(constructorArg(), new ParseField(ROLE_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(TOOL_CALL_ID_FIELD));
+        PARSER.declareObjectArray(optionalConstructorArg(), ToolCall.PARSER::apply, new ParseField(TOOL_CALLS_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
+        PARSER.declareObjectArray(optionalConstructorArg(), ReasoningDetail.REQUEST_PARSER::apply, new ParseField(REASONING_DETAILS_FIELD));
     }
 
     private static Content parseContent(XContentParser parser) throws IOException {
@@ -66,12 +83,20 @@ public record Message(Content content, String role, @Nullable String toolCallId,
         throw new XContentParseException("Expected an array start token or a value string token but found token [" + token + "]");
     }
 
+    public Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls) {
+        this(content, role, toolCallId, toolCalls, null, null);
+    }
+
     public Message(StreamInput in) throws IOException {
         this(
             in.readOptionalNamedWriteable(Content.class),
             in.readString(),
             in.readOptionalString(),
-            in.readOptionalCollectionAsList(ToolCall::new)
+            in.readOptionalCollectionAsList(ToolCall::new),
+            in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
+            in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                ? in.readOptionalNamedWriteableCollectionAsList(ReasoningDetail.class)
+                : null
         );
     }
 
@@ -81,6 +106,10 @@ public record Message(Content content, String role, @Nullable String toolCallId,
         out.writeString(role);
         out.writeOptionalString(toolCallId);
         out.writeOptionalCollection(toolCalls);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+            out.writeOptionalString(reasoning);
+            out.writeOptionalNamedWriteableCollection(reasoningDetails);
+        }
     }
 
     @Override
@@ -96,6 +125,12 @@ public record Message(Content content, String role, @Nullable String toolCallId,
         }
         if (toolCalls != null) {
             builder.field(TOOL_CALLS_FIELD, toolCalls);
+        }
+        if (reasoning != null) {
+            builder.field(REASONING_FIELD, reasoning);
+        }
+        if (reasoningDetails != null && reasoningDetails.isEmpty() == false) {
+            builder.field(REASONING_DETAILS_FIELD, reasoningDetails);
         }
 
         return builder.endObject();

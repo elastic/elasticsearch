@@ -14,13 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -47,6 +48,9 @@ public class DateTrunc extends EsqlConfigurationFunction {
         "DateTrunc",
         DateTrunc::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateTrunc.class)
+        .binaryConfig(DateTrunc::new)
+        .name("date_trunc");
 
     @FunctionalInterface
     public interface DateTruncFactoryProvider {
@@ -81,7 +85,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
-            description = "Interval; expressed using the timespan literal syntax."
+            description = "Interval; [time span](/reference/query-languages/esql/esql-time-spans.md) (DATE_PERIOD or TIME_DURATION)."
         ) Expression interval,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,
         Configuration configuration
@@ -168,15 +172,19 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max) {
+        return createRounding(interval, timeZone, min, max, 0L);
+    }
+
+    public static Rounding.Prepared createRounding(final Object interval, final ZoneId timeZone, Long min, Long max, long offset) {
         if (interval instanceof Period period) {
-            return createRounding(period, timeZone, min, max);
+            return createRounding(period, timeZone, min, max, offset);
         } else if (interval instanceof Duration duration) {
-            return createRounding(duration, timeZone, min, max);
+            return createRounding(duration, timeZone, min, max, offset);
         }
         throw new IllegalArgumentException("Time interval is not supported");
     }
 
-    private static Rounding.Prepared createRounding(final Period period, final ZoneId timeZone, Long min, Long max) {
+    private static Rounding.Prepared createRounding(final Period period, final ZoneId timeZone, Long min, Long max, long offset) {
         // Zero or negative intervals are not supported
         if (period == null || period.isNegative() || period.isZero()) {
             throw new IllegalArgumentException("Zero or negative time interval is not supported");
@@ -217,6 +225,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         }
 
         rounding.timeZone(timeZone);
+        rounding.offset(offset);
         if (min != null && max != null && tryPrepareWithMinMax) {
             // Multiple quantities calendar interval - day/week/month/quarter/year is not supported by PreparedRounding.maybeUseArray,
             // which is called by prepare(min, max), as it may hit an assert. Call prepare(min, max) only for single calendar interval.
@@ -225,7 +234,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         return rounding.build().prepareForUnknown();
     }
 
-    private static Rounding.Prepared createRounding(final Duration duration, final ZoneId timeZone, Long min, Long max) {
+    private static Rounding.Prepared createRounding(final Duration duration, final ZoneId timeZone, Long min, Long max, long offset) {
         // Zero or negative intervals are not supported
         if (duration == null || duration.isNegative() || duration.isZero()) {
             throw new IllegalArgumentException("Zero or negative time interval is not supported");
@@ -233,6 +242,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
 
         final Rounding.Builder rounding = new Rounding.Builder(TimeValue.timeValueMillis(duration.toMillis()));
         rounding.timeZone(timeZone);
+        rounding.offset(offset);
         if (min != null && max != null) {
             return rounding.build().prepare(min, max);
         }

@@ -31,13 +31,13 @@ public final class AnyFloatAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public AnyFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyFloatAggregatorFunction.create(driverContext, channels);
+    return new AnyFloatAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AnyFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyFloatGroupingAggregatorFunction.create(channels, driverContext);
+    return new AnyFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

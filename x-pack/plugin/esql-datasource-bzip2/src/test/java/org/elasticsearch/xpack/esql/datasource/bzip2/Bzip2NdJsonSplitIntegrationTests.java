@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,14 +48,9 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
         }
     }
 
-    public void testFullDecompressionMatchesStandard() throws IOException {
+    public void testFullDecompressionMatchesOriginal() throws IOException {
         String data = "line1\nline2\nline3\n";
         byte[] compressed = bzip2(data.getBytes(StandardCharsets.UTF_8), BZip2CompressorOutputStream.MIN_BLOCKSIZE);
-
-        String standard;
-        try (InputStream stream = new BZip2CompressorInputStream(new ByteArrayInputStream(compressed))) {
-            standard = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        }
 
         Bzip2DecompressionCodec codec = new Bzip2DecompressionCodec();
         String codecResult;
@@ -64,7 +58,7 @@ public class Bzip2NdJsonSplitIntegrationTests extends ESTestCase {
             codecResult = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        assertEquals("Codec decompression should match standard", standard, codecResult);
+        assertEquals("Codec decompression should match original data", data, codecResult);
     }
 
     public void testSplitDecompressionMatchesFullDecompression() throws IOException {

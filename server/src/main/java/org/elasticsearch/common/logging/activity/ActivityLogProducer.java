@@ -30,6 +30,9 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
     String TRACE_ID_FIELD = "trace.id";
+    String TASK_ID_FIELD = "elasticsearch.task.id";
+    String PARENT_TASK_ID_FIELD = "elasticsearch.parent.task.id";
+    String PARENT_NODE_ID_FIELD = "elasticsearch.parent.node.id";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
@@ -57,6 +60,11 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         fields.field(prefix + "took", tookInNanos);
         fields.field(prefix + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         fields.field(prefix + "type", context.getType());
+        fields.field(TASK_ID_FIELD, context.getTaskId());
+        context.getParentTaskId().ifPresent(taskId -> {
+            fields.field(PARENT_TASK_ID_FIELD, taskId.getId());
+            fields.field(PARENT_NODE_ID_FIELD, taskId.getNodeId());
+        });
         if (context.isSuccess() == false) {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());

@@ -2422,6 +2422,8 @@ emp_no:integer |  c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: inline_stats
+required_capability: keywords_mv_count_as_single_value_fix
+
 from employees
 | inline stats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -3498,7 +3500,7 @@ client_ip:ip | event_duration:long |    message:keyword    |count:long|    @time
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlinestats 
+multiIndexIndirectUseOfUnionTypesInInlineStatsGrouping
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long
@@ -4180,12 +4182,13 @@ FROM languages_lookup_non_unique_key
 | EVAL language_code = null::integer
 | INLINE STATS MAX(language_code) BY language_code
 | SORT country
-| LIMIT 5
+| LIMIT 6
 ;
 
 country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
 Atlantis          |null                  |null                       |null
 [Austria, Germany]|German                |null                       |null
+[Belgium, Germany]|German                |null                       |null
 Canada            |English               |null                       |null
 Mv-Land           |Mv-Lang               |null                       |null
 Mv-Land2          |Mv-Lang2              |null                       |null
@@ -4642,7 +4645,7 @@ emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | langu
 10058          |Berhard           |38376          |3                     |Spanish                |17             |3
 ;
 
-inlineStatsAfterSortDropped
+inlineStatsAfterSortDroppedWithLimit
 required_capability: inline_stats_preceeded_by_sort
 
 FROM employees

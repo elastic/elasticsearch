@@ -37,13 +37,13 @@ public final class TopDoubleIntAggregatorFunctionSupplier implements AggregatorF
   @Override
   public TopDoubleIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopDoubleIntAggregatorFunction.create(driverContext, channels, limit, ascending);
+    return new TopDoubleIntAggregatorFunction(driverContext, channels, limit, ascending);
   }
 
   @Override
   public TopDoubleIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopDoubleIntGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+    return new TopDoubleIntGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

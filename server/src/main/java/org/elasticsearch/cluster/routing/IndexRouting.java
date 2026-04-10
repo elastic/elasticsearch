@@ -41,6 +41,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -180,6 +181,11 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
+    /// Returns a predicate that given the document id and a routing value
+    /// returns `true` if the document routes to the provided shard.
+    /// This API is specifically used by [ShardSplittingQuery].
+    public abstract BiPredicate<String, String> shardMatcherForSplit(int shardId);
+
     /**
      * If this index is in the process of resharding, and the shard to which this request is being routed,
      * is a target shard that is not yet in HANDOFF state, then route it to the source shard.
@@ -284,6 +290,16 @@ public abstract class IndexRouting {
             if (routingRequired && routing == null) {
                 throw new RoutingMissingException(indexName, id);
             }
+        }
+
+        @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            return (id, routing) -> {
+                // Note that we intentionally do not apply any adjustments for resharding.
+                // These adjustments are introduced for coordinator nodes and `ShardSplittingQuery` does not need them.
+                int routedToShardId = shardId(id, routing);
+                return routedToShardId == shardId;
+            };
         }
     }
 
@@ -463,6 +479,12 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            // Splits of time series indices are not supported, see `checkIndexSplitAllowed()`.
+            throw new UnsupportedOperationException(error("index-split"));
+        }
+
+        @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             throw new IllegalArgumentException(error("searching with a specified routing"));
         }
@@ -559,7 +581,7 @@ public abstract class IndexRouting {
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
-                return b.buildTsid();
+                return b.buildTsid(creationVersion);
             }
         }
     }

@@ -15,9 +15,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -47,11 +49,17 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
  */
 public class JsonExtract extends EsqlScalarFunction {
+    private static final BytesRef TRUE_BYTES = new BytesRef("true");
+    private static final BytesRef FALSE_BYTES = new BytesRef("false");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
         JsonExtract::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(JsonExtract.class)
+        .binary(JsonExtract::new)
+        .name("json_extract");
 
     private final Expression str;
     private final Expression path;
@@ -207,7 +215,7 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef path) {
+    public static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef path) {
         doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
     }
 
@@ -226,7 +234,11 @@ public class JsonExtract extends EsqlScalarFunction {
             if (parser.nextToken() == null) {
                 throw new IllegalArgumentException("empty JSON input");
             }
-            extractValue(builder, parser, path.segments(), 0, path.originalPath());
+            // For JSON input, pass the raw bytes so extractCurrentValue can byte-slice
+            // instead of re-serializing via copyCurrentStructure.
+            byte[] rawBytes = type == XContentType.JSON ? str.bytes : null;
+            int rawOffset = type == XContentType.JSON ? str.offset : 0;
+            extractValue(builder, parser, path.segments(), 0, path.originalPath(), rawBytes, rawOffset);
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
         }
@@ -237,60 +249,54 @@ public class JsonExtract extends EsqlScalarFunction {
         XContentParser parser,
         List<JsonPath.Segment> segments,
         int depth,
-        String originalPath
+        String originalPath,
+        byte[] rawBytes,
+        int rawOffset
     ) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-
         if (depth == segments.size()) {
-            extractCurrentValue(builder, parser);
+            extractCurrentValue(builder, parser, rawBytes, rawOffset);
             return;
         }
 
+        XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT && segments.get(depth) instanceof JsonPath.Segment.Key key) {
-            navigateObject(builder, parser, segments, depth, originalPath, key);
-        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
-            navigateArray(builder, parser, segments, depth, originalPath, idx);
+            navigateToField(parser, key, originalPath);
+            extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
+        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index index) {
+            navigateToIndex(parser, index);
+            extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
         } else {
             throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
         }
     }
 
-    private static void navigateObject(
-        BytesRefBlock.Builder builder,
-        XContentParser parser,
-        List<JsonPath.Segment> segments,
-        int depth,
-        String originalPath,
-        JsonPath.Segment.Key key
-    ) throws IOException {
+    /**
+     * Advances the parser to the value of the named field within the current object.
+     * After return, the parser's current token is the value token of the matching field.
+     */
+    private static void navigateToField(XContentParser parser, JsonPath.Segment.Key key, String originalPath) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
                 parser.nextToken(); // advance to the field's value
                 if (fieldName.equals(key.name())) {
-                    extractValue(builder, parser, segments, depth + 1, originalPath);
                     return;
-                } else {
-                    parser.skipChildren();
                 }
+                parser.skipChildren();
             }
         }
         throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
     }
 
-    private static void navigateArray(
-        BytesRefBlock.Builder builder,
-        XContentParser parser,
-        List<JsonPath.Segment> segments,
-        int depth,
-        String originalPath,
-        JsonPath.Segment.Index idx
-    ) throws IOException {
+    /**
+     * Advances the parser to the element at the given index within the current array.
+     * After return, the parser's current token is the value token of the matching element.
+     */
+    private static void navigateToIndex(XContentParser parser, JsonPath.Segment.Index index) throws IOException {
         int currentIndex = 0;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (currentIndex == idx.index()) {
-                extractValue(builder, parser, segments, depth + 1, originalPath);
+            if (currentIndex == index.index()) {
                 return;
             }
             parser.skipChildren();
@@ -299,22 +305,59 @@ public class JsonExtract extends EsqlScalarFunction {
         throw new IllegalArgumentException("array index out of bounds");
     }
 
-    private static void extractCurrentValue(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+    private static void extractCurrentValue(BytesRefBlock.Builder builder, XContentParser parser, byte[] rawBytes, int rawOffset)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
 
         switch (token) {
-            case VALUE_STRING, VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
-            case VALUE_BOOLEAN -> builder.appendBytesRef(new BytesRef(Boolean.toString(parser.booleanValue())));
+            case VALUE_STRING -> builder.appendBytesRef(new BytesRef(parser.text()));
+            case VALUE_NUMBER -> {
+                if (rawBytes != null) {
+                    // Byte-slice the number literal directly from the input — avoids parser.text() + String allocation.
+                    XContentLocation tokenLocation = parser.getTokenLocation();
+                    XContentLocation currentLocation = parser.getCurrentLocation();
+                    if (tokenLocation.hasValidByteOffset() && currentLocation.hasValidByteOffset()) {
+                        int start = (int) tokenLocation.byteOffset() + rawOffset;
+                        int end = (int) currentLocation.byteOffset() + rawOffset;
+                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
+                    } else {
+                        builder.appendBytesRef(new BytesRef(parser.text()));
+                    }
+                } else {
+                    builder.appendBytesRef(new BytesRef(parser.text()));
+                }
+            }
+            case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
             case VALUE_NULL -> builder.appendNull();
             case START_OBJECT, START_ARRAY -> {
-                // TODO: Replace with zero-copy byte slicing once XContentParser exposes byte offsets.
-                // See https://github.com/elastic/elasticsearch/issues/142873
-                try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                    jsonBuilder.copyCurrentStructure(parser);
-                    builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+                if (rawBytes != null) {
+                    // Zero-copy byte slicing: grab the byte range directly from the input.
+                    // getTokenLocation() points to the opening { or [, getCurrentLocation() after
+                    // skipChildren() points just past the closing } or ].
+                    XContentLocation startLocation = parser.getTokenLocation();
+                    parser.skipChildren();
+                    XContentLocation endLocation = parser.getCurrentLocation();
+                    if (startLocation.hasValidByteOffset() && endLocation.hasValidByteOffset()) {
+                        int start = (int) startLocation.byteOffset() + rawOffset;
+                        int end = (int) endLocation.byteOffset() + rawOffset;
+                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
+                    } else {
+                        // Fallback if offsets are unavailable (shouldn't happen for JSON)
+                        copyCurrentStructureFallback(builder, parser);
+                    }
+                } else {
+                    // Non-JSON format (SMILE/CBOR/YAML) — must re-serialize to JSON
+                    copyCurrentStructureFallback(builder, parser);
                 }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
+        }
+    }
+
+    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            jsonBuilder.copyCurrentStructure(parser);
+            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
         }
     }
 

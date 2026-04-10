@@ -13,10 +13,9 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -93,8 +92,9 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
-                            var sourceField = new FieldAttribute(
+                        if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+                            var withoutFields = timeSeriesMetadataAttribute.withoutFields();
+                            var sourceField = new TimeSeriesMetadataAttribute(
                                 dimensionField.source(),
                                 null,
                                 dimensionField.qualifier(),
@@ -108,9 +108,12 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false)
+                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
                                 ),
-                                true
+                                dimensionField.nullable(),
+                                null,
+                                true,
+                                withoutFields
                             );
                             aliases.add(new Alias(agg.source(), agg.name(), sourceField, oldAttr.id()));
                         } else {
@@ -142,7 +145,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             oldAgg.getMode(),
             newIntermediates,
             oldAgg.estimatedRowSize(),
-            oldAgg.timeBucket()
+            oldAgg.timeBucket(),
+            oldAgg.outputTimeBucket()
         );
         final EvalExec evalExec;
         if (dimensionFields.isEmpty()) {
@@ -161,7 +165,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
         if (af instanceof DimensionValues values && values.hasFilter() == false && values.field() instanceof Attribute attr) {
-            if (inputAttributes.contains(attr) == false || MetadataAttribute.isTimeSeriesAttribute(attr)) {
+            if (inputAttributes.contains(attr) == false || attr instanceof TimeSeriesMetadataAttribute) {
                 return attr;
             }
         }
@@ -171,4 +175,5 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
     private static int intermediateStateSize(AggregateFunction af) {
         return AggregateMapper.intermediateStateDesc(af, true).size();
     }
+
 }

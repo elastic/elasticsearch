@@ -16,29 +16,23 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -58,9 +52,21 @@ public class StSimplify extends SpatialDocValuesFunction {
         "StSimplify",
         StSimplify::new
     );
-    private static final BlockProcessor processor = new BlockProcessor(UNSPECIFIED);
-    private static final BlockProcessor geoProcessor = new BlockProcessor(GEO);
-    private static final BlockProcessor cartesianProcessor = new BlockProcessor(CARTESIAN);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplify.class)
+        .binary(StSimplify::new)
+        .name("st_simplify");
+    private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
+        UNSPECIFIED,
+        DouglasPeuckerSimplifier::simplify
+    );
+    private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(
+        GEO,
+        DouglasPeuckerSimplifier::simplify
+    );
+    private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
+        CARTESIAN,
+        DouglasPeuckerSimplifier::simplify
+    );
     private final Expression geometry;
     private final Expression tolerance;
 
@@ -130,7 +136,7 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StSimplify(source(), geometry, tolerance, true);
+        return new StSimplify(source(), geometry, tolerance, useDocValues);
     }
 
     @Override
@@ -161,8 +167,8 @@ public class StSimplify extends SpatialDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
 
         if (tolerance.foldable() == false) {
             throw new IllegalArgumentException("tolerance must be foldable");
@@ -195,13 +201,12 @@ public class StSimplify extends SpatialDocValuesFunction {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);
-        if (input instanceof List<?> list) {
-            return processor.processSingleGeometry(processor.asJtsGeometry(list), inputTolerance);
-        } else if (input instanceof BytesRef inputGeometry) {
-            return processor.processSingleGeometry(inputGeometry, inputTolerance);
-        } else {
-            throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
-        }
+        return switch (input) {
+            case null -> null;
+            case List<?> list -> processor.processSingleGeometry(processor.asJtsGeometry(list), inputTolerance);
+            case BytesRef inputGeometry -> processor.processSingleGeometry(inputGeometry, inputTolerance);
+            default -> throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
+        };
     }
 
     @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
@@ -227,7 +232,7 @@ public class StSimplify extends SpatialDocValuesFunction {
         geoProcessor.processPoints(builder, p, point, tolerance);
     }
 
-    private static double getInputTolerance(Object toleranceExpression) {
+    static double getInputTolerance(Object toleranceExpression) {
         double inputTolerance;
 
         if (toleranceExpression instanceof Number number) {
@@ -253,99 +258,5 @@ public class StSimplify extends SpatialDocValuesFunction {
         @Fixed double tolerance
     ) throws IOException {
         cartesianProcessor.processPoints(builder, p, left, tolerance);
-    }
-
-    private static class BlockProcessor {
-        private final SpatialCoordinateTypes spatialCoordinateType;
-        private final GeometryFactory geometryFactory = new GeometryFactory();
-
-        BlockProcessor(SpatialCoordinateTypes spatialCoordinateType) {
-            this.spatialCoordinateType = spatialCoordinateType;
-        }
-
-        private BytesRef processSingleGeometry(BytesRef inputGeometry, double inputTolerance) {
-            if (inputGeometry == null) {
-                return null;
-            }
-            try {
-                return processSingleGeometry(UNSPECIFIED.wkbToJtsGeometry(inputGeometry), inputTolerance);
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("could not parse the geometry expression: " + e);
-            }
-        }
-
-        private BytesRef processSingleGeometry(Geometry jtsGeometry, double inputTolerance) {
-            Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
-            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
-        }
-
-        private void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double tolerance) throws IOException {
-            if (left.getValueCount(p) < 1) {
-                builder.appendNull();
-            } else {
-                final Geometry jtsGeometry = asJtsMultiPoint(left, p, spatialCoordinateType::longAsPoint);
-                Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, tolerance);
-                builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry));
-            }
-        }
-
-        private void processGeometries(BytesRefBlock.Builder builder, int p, BytesRefBlock left, double tolerance) {
-            if (left.getValueCount(p) < 1) {
-                builder.appendNull();
-            } else {
-                final Geometry jtsGeometry = asJtsGeometry(left, p);
-                Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, tolerance);
-                builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry));
-            }
-        }
-
-        private Geometry asJtsMultiPoint(LongBlock valueBlock, int position, Function<Long, Point> decoder) {
-            final int firstValueIndex = valueBlock.getFirstValueIndex(position);
-            final int valueCount = valueBlock.getValueCount(position);
-            if (valueCount == 1) {
-                Point point = decoder.apply(valueBlock.getLong(firstValueIndex));
-                return geometryFactory.createPoint(new Coordinate(point.getX(), point.getY()));
-            }
-            final Coordinate[] coordinates = new Coordinate[valueCount];
-            for (int i = 0; i < valueCount; i++) {
-                Point point = decoder.apply(valueBlock.getLong(firstValueIndex + i));
-                coordinates[i] = new Coordinate(point.getX(), point.getY());
-            }
-            return geometryFactory.createMultiPointFromCoords(coordinates);
-        }
-
-        private Geometry asJtsGeometry(BytesRefBlock valueBlock, int position) {
-            try {
-                final int firstValueIndex = valueBlock.getFirstValueIndex(position);
-                final int valueCount = valueBlock.getValueCount(position);
-                BytesRef scratch = new BytesRef();
-                if (valueCount == 1) {
-                    return UNSPECIFIED.wkbToJtsGeometry(valueBlock.getBytesRef(firstValueIndex, scratch));
-                }
-                final Geometry[] geometries = new Geometry[valueCount];
-                for (int i = 0; i < valueCount; i++) {
-                    geometries[i] = UNSPECIFIED.wkbToJtsGeometry(valueBlock.getBytesRef(firstValueIndex, scratch));
-                }
-                return geometryFactory.createGeometryCollection(geometries);
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("could not parse the geometry expression: " + e);
-            }
-        }
-
-        private Geometry asJtsGeometry(List<?> values) {
-            try {
-                final Geometry[] geometries = new Geometry[values.size()];
-                for (int i = 0; i < values.size(); i++) {
-                    if (values.get(i) instanceof BytesRef inputGeometry) {
-                        geometries[i] = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
-                    } else {
-                        throw new IllegalArgumentException("unsupported list element type: " + values.get(i).getClass().getSimpleName());
-                    }
-                }
-                return geometryFactory.createGeometryCollection(geometries);
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("could not parse the geometry expression: " + e);
-            }
-        }
     }
 }

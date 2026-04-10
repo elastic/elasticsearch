@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToIntBinarySearchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntBinarySearchEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final int[] points;
 
@@ -35,8 +35,8 @@ public final class RoundToIntBinarySearchEvaluator implements EvalOperator.Expre
 
   private Warnings warnings;
 
-  public RoundToIntBinarySearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      int[] points, DriverContext driverContext) {
+  public RoundToIntBinarySearchEvaluator(Source source, ExpressionEvaluator field, int[] points,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.points = points;
@@ -109,14 +109,14 @@ public final class RoundToIntBinarySearchEvaluator implements EvalOperator.Expre
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final int[] points;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int[] points) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, int[] points) {
       this.source = source;
       this.field = field;
       this.points = points;

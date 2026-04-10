@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Requ
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
+        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false, new TransformParsingContext(false));
     }
 
     @Override
@@ -193,7 +194,12 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             )
         ) {
 
-            Request request = Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
+            Request request = Request.fromXContent(
+                parser,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                false,
+                new TransformParsingContext(false)
+            );
             assertThat(request.getConfig().getId(), is(equalTo(expectedTransformId)));
             assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
             assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));

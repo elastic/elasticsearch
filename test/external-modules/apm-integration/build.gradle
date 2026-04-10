@@ -25,10 +25,12 @@ tasks.named("test").configure {
 }
 
 tasks.named('javaRestTest').configure {
+  def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')
+  javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
 }

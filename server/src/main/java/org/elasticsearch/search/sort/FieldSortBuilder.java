@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
@@ -619,9 +618,8 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         FieldSortBuilder sortBuilder,
         String fieldName
     ) throws IOException {
-        IndexSearcher searcher = new IndexSearcher(reader);
-        long min = DocValuesSkipper.globalMinValue(searcher, fieldName);
-        long max = DocValuesSkipper.globalMaxValue(searcher, fieldName);
+        long min = DocValuesSkipper.globalMinValue(reader, fieldName);
+        long max = DocValuesSkipper.globalMaxValue(reader, fieldName);
         if (min == Long.MIN_VALUE || max == Long.MAX_VALUE || min > max) {
             // Skipper not available for some segments, or no data
             return null;

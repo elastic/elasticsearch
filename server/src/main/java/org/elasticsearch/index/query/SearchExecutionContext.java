@@ -90,6 +90,12 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  *
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
+ *
+ * The context is not designed to be thread-safe and is not expected to be
+ * shared between multiple threads. The exception is the Percolator that
+ * runs multiple queries simultaneously with the same context and will mutate
+ * elements of the context that are not threadsafe. Percolator makes copies of
+ * the context before executing each query.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 
@@ -435,7 +441,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
                 mapperMetrics.sourceFieldMetrics(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
         return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
@@ -736,6 +742,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     public ShardSearchStats stats() {
         return shardSearchStats;
+    }
+
+    /**
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     /**

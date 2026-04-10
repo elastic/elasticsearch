@@ -207,7 +207,7 @@ public class RecordingInstruments {
         public RecordingLongGauge(String name, Supplier<Collection<LongWithAttributes>> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
-                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
+                return observation.stream().filter(Objects::nonNull).map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
             }, recorder);
         }
     }

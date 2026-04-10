@@ -34,13 +34,13 @@ public final class StdDevDoubleAggregatorFunctionSupplier implements AggregatorF
   @Override
   public StdDevDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevDoubleAggregatorFunction.create(driverContext, channels, stdDev);
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, stdDev);
   }
 
   @Override
   public StdDevDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevDoubleGroupingAggregatorFunction.create(channels, driverContext, stdDev);
+    return new StdDevDoubleGroupingAggregatorFunction(channels, driverContext, stdDev);
   }
 
   @Override

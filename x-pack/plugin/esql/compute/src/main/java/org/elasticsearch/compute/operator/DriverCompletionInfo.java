@@ -52,6 +52,7 @@ public record DriverCompletionInfo(
         String clusterName,
         String nodeName,
         String planTree,
+        String logicalPlanTree,
         PlanTimeProfile planTimeProfile
     ) {
         long documentsFound = 0;
@@ -69,7 +70,7 @@ public record DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree, planTimeProfile))
+            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile))
         );
     }
 

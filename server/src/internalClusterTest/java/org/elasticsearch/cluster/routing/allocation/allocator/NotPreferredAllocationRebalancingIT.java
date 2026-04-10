@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 
@@ -81,7 +83,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         final String sourceNode = internalCluster().startNode(settings);
         final String sourceNodeId = getNodeId(sourceNode);
 
-        final int numberOfNodes = randomIntBetween(5, 20);
+        final int numberOfNodes = randomIntBetween(5, 10);
         final int numberOfIndices = numberOfNodes * 2;
         final int numberOfNotPreferredNodes = randomIntBetween(2, numberOfNodes - 2);
 
@@ -147,6 +149,13 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             // wait until at least half of the shards have been moved off the source node
             return countOnPreferred > numberOfIndices / 2.0;
         });
+
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setWaitForGreenStatus()
+            .get();
+        assertThat(response.isTimedOut(), equalTo(false));
     }
 
     public static class TestPlugin extends Plugin implements ClusterPlugin {

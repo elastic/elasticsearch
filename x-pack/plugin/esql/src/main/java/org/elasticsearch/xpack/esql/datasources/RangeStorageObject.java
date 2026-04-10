@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 
 /**
@@ -47,6 +48,14 @@ class RangeStorageObject implements StorageObject {
     @Override
     public InputStream newStream(long position, long rangeLength) throws IOException {
         return delegate.newStream(Math.addExact(offset, position), rangeLength);
+    }
+
+    @Override
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        if (position >= length) {
+            return -1;
+        }
+        return delegate.readBytes(Math.addExact(offset, position), target);
     }
 
     @Override

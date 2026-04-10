@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.theInstance;
@@ -48,7 +50,18 @@ public class TransportRethrottleActionTests extends ESTestCase {
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap(), false);
+        task = new BulkByScrollTask(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorkerCount(slices);
     }
 
@@ -132,7 +145,11 @@ public class TransportRethrottleActionTests extends ESTestCase {
         for (int i = 0; i < succeeded; i++) {
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
             task.getLeaderState()
-                .onSliceResponse(neverCalled(), i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
+                .onSliceResponse(
+                    neverCalledListener(),
+                    i,
+                    new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false)
+                );
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         List<TaskInfo> tasks = new ArrayList<>();
@@ -167,7 +184,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
+            ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
             task.getLeaderState()
                 .onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
@@ -222,20 +239,6 @@ public class TransportRethrottleActionTests extends ESTestCase {
 
     private BulkByScrollTask.Status believeableCompletedStatus(Integer sliceId) {
         return new BulkByScrollTask.Status(sliceId, 10, 10, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
-    }
-
-    private <T> ActionListener<T> neverCalled() {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T response) {
-                throw new RuntimeException("Expected no interactions but got [" + response + "]");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException("Expected no interations but was received a failure", e);
-            }
-        };
     }
 
     private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {

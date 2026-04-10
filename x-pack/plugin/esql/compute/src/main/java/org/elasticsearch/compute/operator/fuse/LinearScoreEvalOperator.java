@@ -38,7 +38,7 @@ import java.util.Map;
  *
  * Updates the score column in two stages:
  * 1. Normalizes the scores using the normalization method specified in the config. Each row belongs
- * to a result group that is specified by the discriminator column. Scores are normalized for each result group.
+ * to a result group which is specified by the discriminator column. Scores are normalized for each result group.
  * 2. Multiplies the normalized score by the weight specified in the config. The config contains the weights that
  * we need to apply for each result group.
  *
@@ -209,35 +209,8 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
     }
 
     @Override
-    public boolean isFinished() {
-        return finished && outputPages.isEmpty();
-    }
-
-    @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
         return outputPages.isEmpty() == false;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (finished == false || outputPages.isEmpty()) {
-            return null;
-        }
-
-        Page page = outputPages.removeFirst();
-        rowsEmitted += page.getPositionCount();
-
-        return page;
-    }
-
-    @Override
-    public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
-        for (Page page : outputPages) {
-            page.releaseBlocks();
-        }
     }
 
     @Override

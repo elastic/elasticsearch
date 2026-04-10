@@ -202,8 +202,8 @@ public class ClusterStateTests extends ESTestCase {
             meta data version: 86
                coordination_metadata:
                   term: 22
-                  last_committed_config: VotingConfiguration{node01}
-                  last_accepted_config: VotingConfiguration{}
+                  last_committed_config: VotingConfiguration[node01]
+                  last_accepted_config: VotingConfiguration[]
                   voting tombstones: []
             """));
 

@@ -17,17 +17,17 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Left}.
+ * {@link ExpressionEvaluator} implementation for {@link Left}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class LeftEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LeftEvaluator.class);
 
   private final Source source;
@@ -36,17 +36,16 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final UnicodeUtil.UTF8CodePoint cp;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator length;
+  private final ExpressionEvaluator length;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public LeftEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
-      EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
-      DriverContext driverContext) {
+      ExpressionEvaluator str, ExpressionEvaluator length, DriverContext driverContext) {
     this.source = source;
     this.out = out;
     this.cp = cp;
@@ -143,21 +142,20 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BytesRef> out;
 
     private final Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory length;
+    private final ExpressionEvaluator.Factory length;
 
     public Factory(Source source, Function<DriverContext, BytesRef> out,
-        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp,
-        EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory length) {
+        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory length) {
       this.source = source;
       this.out = out;
       this.cp = cp;

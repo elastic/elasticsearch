@@ -8,7 +8,7 @@
 /**
  * Functions that take a row of data and produce a row of data without holding
  * any state between rows. This includes both the {@link org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction}
- * subclass to link into the ESQL core infrastructure and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ * subclass to link into the ESQL core infrastructure and the {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  * implementation to run the actual function.
  *
  * <h2>Guide to adding new function</h2>
@@ -20,14 +20,14 @@
  *     <li>Fork the <a href="github.com/elastic/elasticsearch">Elasticsearch repo</a>.</li>
  *     <li>Clone your fork locally.</li>
  *     <li>Add Elastic’s remote, it should look a little like:
- *         <pre>{@code
+ *         {@snippet lang="gitconfig" :
  * [remote "elastic"]
  * url = git@github.com:elastic/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/elastic/*
  * [remote "nik9000"]
  * url = git@github.com:nik9000/elasticsearch.git
  * fetch = +refs/heads/*:refs/remotes/nik9000/*
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Feel free to use {@code git} as a scratch pad. We're going to squash all commits
@@ -72,7 +72,7 @@
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. They are usually named
  *         "process" or "processInts" or "processBar". Modify those to look right and run the {@code CsvTests}
- *         again. This should generate an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         again. This should generate an {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  *         implementation calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
  *.        To make it work with IntelliJ, also click {@code Build->Recompile 'FunctionName.java'}.
  *         Please commit the generated evaluator before submitting your PR.
@@ -82,7 +82,7 @@
  *             {@link org.elasticsearch.compute.ann.MvEvaluator} instead of
  *             {@link org.elasticsearch.compute.ann.Evaluator}. Those do similar things and the
  *             instructions should still work for you regardless. If your function contains an implementation
- *             of {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} written by
+ *             of {@link org.elasticsearch.compute.expression.ExpressionEvaluator} written by
  *             hand then please stop and ask for help. This is not a good first function.
  *         </p>
  *         <p>
@@ -104,7 +104,9 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code META FUNCTIONS}.
+ *         This links it into the language and {@code META FUNCTIONS}. See
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#def} for
+ *         building a {@code DEFINITION}
  *     </li>
  *     <li>
  *         Implement serialization for your function by implementing
@@ -178,17 +180,17 @@
  *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It’s just
  *             running your new unit test. You should see something like:
  *         </p>
- *         <pre>{@code
+ *         {@snippet lang="text" :
  *              > Task :x-pack:plugin:esql:test
  *              ESQL Docs: Only files related to [sin.md], patching them into place
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         Install the docs-builder binary from <a href="https://github.com/elastic/docs-builder">https://github.com/elastic/docs-builder</a>,
  *         then build the docs locally by running the command below from the elasticsearch directory:
- *          <pre>{@code
+ *          {@snippet lang="bash" :
  * docs-builder serve
- *          }</pre>
+ *          }
  *     </li>
  *     <li>
  *         You can now browse the docs at <a href="http://localhost:3000">http://localhost:3000</a>. Or you can go directly to
@@ -196,14 +198,28 @@
  *         function in the list and follow its link to get to the page you built. Make sure it looks ok.
  *     </li>
  *     <li>
+ *         You automatically got usage telemetry for your new function. Rejoice! Now add an assertion to
+ *         {@code 60_usage.yml} around {@snippet lang=yaml :
+ *          - exists: esql.functions.delay} to prove it.
+ *         Then run the tests with:
+ *         {@snippet lang = shell:
+ *         ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *             -Dtests.method='*60*'
+ *         }
+ *     </li>
+ *     <li>
  *         Let’s finish up the code by making the tests backwards compatible. Since this is a new
  *         feature we just have to convince the tests not to run in a cluster that includes older
  *         versions of Elasticsearch. We do that with a {@link org.elasticsearch.rest.RestHandler#supportedCapabilities capability}
- *         on the REST handler. ESQL has a <strong>ton</strong> of capabilities so we list them
- *         all in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}. Add a new one
- *         for your function. Now add something like {@code required_capability: my_function}
- *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
- *         check that they run on the main branch.
+ *         on the REST handler. Your new function automatically created a capability when it was
+ *         registered in the {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ *         It has the format {@code fn_my_function}. So you can add {@code required_capability: fn_my_function}
+ *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to
+ *         double-check that they run on the main branch.
+ *         <br><br>
+ *         NOTE: When you fix bug in your function, use
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.Builder#capabilities}
+ *         to make capabilities to mark the fix.
  *         <br><br>
  *         NOTE: You may notice tests gated based on Elasticsearch version. This was the old way
  *         of doing things. Now, we use specific capabilities for each function.
@@ -221,14 +237,19 @@
  *             <li>The class that implements your new functions has the right annotations.</li>
  *         </ul>
  *
- *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at existing snapshot functions and
- *         Git history.
+ *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at
+ *         existing snapshot functions and Git history.
  *
  *         If your function should be available in snapshot <strong>only</strong>, add it to the list in
- *         {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/60_usage.yml} around
- *         {@code not_exists: esql.functions.delay}. The release build will fail if this function is
- *         available. Check out the instructions for running a release build in {@code testing.asciidoc}
- *         if you want to test this, but it's generally enough to let CI do it.
+ *         {@code 60_usage.yml} around {@snippet lang=yaml :
+ *         - not_exists: esql.functions.delay}. The release build will fail if this function is
+ *         available. Run these tests with:
+ *         {@snippet lang = shell:
+ *         ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *             -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *             -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *             -Dtests.method='*60*'
+ *         }
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn
@@ -241,9 +262,9 @@
  *     <li>
  *         CI might fail for random looking reasons. The first thing you should do is merge {@code main}
  *         into your PR branch. That’s usually just:
- *         <pre>{@code
+ *         {@snippet lang="bash" :
  * git checkout main && git pull elastic main && git checkout mybranch && git merge main
- *         }</pre>
+ *         }
  *         Don’t worry about the commit message. It'll get squashed away in the merge.
  *     </li>
  * </ol>

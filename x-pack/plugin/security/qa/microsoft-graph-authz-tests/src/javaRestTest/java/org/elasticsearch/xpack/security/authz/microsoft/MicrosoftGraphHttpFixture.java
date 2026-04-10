@@ -18,8 +18,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.rules.ExternalResource;
@@ -32,7 +32,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -104,7 +103,9 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
     }
 
     public String getBaseUrl() {
-        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        InetSocketAddress address = server.getAddress();
+        // Use "localhost" for the hostname to match SSL certificate SANs (works for both IPv4 and IPv6)
+        return "https://localhost:" + address.getPort();
     }
 
     private void registerGetAccessTokenHandler() {
@@ -123,8 +124,7 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
             }
 
             final var requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), Charset.defaultCharset()));
-            final var formFields = new HashMap<String, String>();
-            RestUtils.decodeQueryString(requestBody, 0, formFields);
+            final var formFields = RequestParams.fromQueryString(requestBody);
 
             if (formFields.get("grant_type").equals("client_credentials") == false) {
                 graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));

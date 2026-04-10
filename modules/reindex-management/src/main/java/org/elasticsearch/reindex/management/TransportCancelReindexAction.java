@@ -98,7 +98,7 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
                         cancelListener.delegateFailureAndWrap(
                             (l, getResp) -> l.onResponse(
                                 // return cancelled=true. GET will return false since it's not *currently* cancelled.
-                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getTaskResult()))
+                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getOriginalTask()))
                             )
                         )
                     );
@@ -126,7 +126,10 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
 
         final GetReindexResponse completedReindexResponse = tasks.isEmpty()
             ? null
-            : tasks.getFirst().getCompletedTaskResult().map(GetReindexResponse::new).orElse(null);
+            : tasks.getFirst()
+                .getCompletedTaskResult()
+                .map(t -> new GetReindexResponse(new RelocatableReindexResult(t, null)))
+                .orElse(null);
         final var response = new CancelReindexResponse(taskFailures, nodeExceptions, completedReindexResponse);
         response.rethrowFailures("cancel_reindex"); // if we haven't handled any exception already, throw here
         if (tasks.isEmpty()) {

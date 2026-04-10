@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 
 import java.util.List;
@@ -94,12 +95,14 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
     private final ThreadContext threadContext;
+    private final SystemIndices systemIndices;
     private final boolean isEnabled;
     private final boolean isStateless;
     private volatile Set<Pattern> ignoredIndexPatterns;
 
-    public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService) {
+    public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService, SystemIndices systemIndices) {
         this.threadContext = threadContext;
+        this.systemIndices = systemIndices;
         this.isEnabled = VALIDATE_DOT_PREFIXES.get(clusterService.getSettings());
         this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
         this.ignoredIndexPatterns = IGNORED_INDEX_PATTERNS_SETTING.get(clusterService.getSettings())
@@ -139,10 +142,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                     if (c == '.') {
                         final String strippedName = stripDateMath(index);
                         if (IGNORED_INDEX_NAMES.contains(strippedName)) {
-                            return;
+                            continue;
+                        }
+                        if (systemIndices.isSystemName(strippedName)) {
+                            continue;
                         }
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
-                            return;
+                            continue;
                         }
                         if (isStateless) {
                             throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");

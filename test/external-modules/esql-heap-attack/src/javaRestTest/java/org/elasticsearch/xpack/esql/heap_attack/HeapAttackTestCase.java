@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,7 +88,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         while (attempt <= MAX_ATTEMPTS) {
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
-                logger.warn("{}: should circuit broken but got {}", attempt, response);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
                 attempt++;
             } catch (ResponseException e) {
                 Map<?, ?> map = responseAsMap(e.getResponse());
@@ -96,6 +97,52 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             }
         }
         fail("giving up circuit breaking after " + attempt + " attempts");
+    }
+
+    /**
+     * Asserts that the given operation eventually trips the circuit breaker via the expected code
+     * path, as confirmed by all {@code classes} appearing in the exception's stack trace.
+     * <p>
+     * Unlike {@link #assertCircuitBreaks} which stops on the first circuit-breaking exception
+     * regardless of origin, this method continues to the next attempt if the exception came from
+     * a different part of the pipeline (e.g. an upstream operator tripping before the operator
+     * under test). Each attempt scales the load, so a later attempt is more likely to reach the
+     * operator under test.
+     */
+    protected void assertCircuitBreaksVia(TryCircuitBreaking tryBreaking, String... classNames) throws IOException {
+        List<String> expected = Arrays.asList(classNames);
+        int attempt = 1;
+        while (attempt <= MAX_ATTEMPTS) {
+            logger.info("Attempt {} to circuit break via {}", attempt, expected);
+            try {
+                Map<String, Object> response = tryBreaking.attempt(attempt);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
+            } catch (ResponseException e) {
+                Map<?, ?> map = responseAsMap(e.getResponse());
+                Object error = map.get("error");
+                if (error instanceof Map<?, ?> errorMap
+                    && "circuit_breaking_exception".equals(errorMap.get("type"))
+                    && errorMap.get("stack_trace") instanceof String stackTrace) {
+                    if (expected.stream().allMatch(stackTrace::contains)) {
+                        assertMap(
+                            map,
+                            matchesMap().entry("status", 429)
+                                .entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                        );
+                        return;
+                    } else {
+                        logger.warn(
+                            "{}: circuit broke but not via expected classes {}. The stacktrace was: {}",
+                            attempt,
+                            expected,
+                            stackTrace
+                        );
+                    }
+                }
+            }
+            attempt++;
+        }
+        fail("giving up after " + (attempt - 1) + " attempts waiting for circuit break via " + expected);
     }
 
     protected Response query(String query, String filterPath) throws IOException {
@@ -323,6 +370,100 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         StringBuilder query = new StringBuilder();
         query.append("{\"query\":\"");
         return query;
+    }
+
+    /**
+     * Loads {@code countPerLong^5} documents into the {@code manylongs} index with fields
+     * {@code a, b, c, d, e ∈ [0, countPerLong-1]}, one document per unique combination.
+     */
+    protected void initManyLongs(int countPerLong) throws IOException {
+        logger.info("loading many documents with longs");
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        long numLongs = (long) countPerLong * countPerLong * countPerLong * countPerLong * countPerLong;
+        for (int a = 0; a < countPerLong; a++) {
+            for (int b = 0; b < countPerLong; b++) {
+                for (int c = 0; c < countPerLong; c++) {
+                    for (int d = 0; d < countPerLong; d++) {
+                        for (int e = 0; e < countPerLong; e++) {
+                            bulk.append(String.format(Locale.ROOT, """
+                                {"create":{}}
+                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d}
+                                """, a, b, c, d, e));
+                            flush++;
+                            if (flush % 10_000 == 0) {
+                                bulk("manylongs", bulk.toString());
+                                bulk.setLength(0);
+                                logger.info("flushing {}/{} to manylongs", flush, numLongs);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        initIndex("manylongs", bulk.toString());
+    }
+
+    /**
+     * Like {@link #initManyLongs} but also adds a keyword field {@code f} containing a string
+     * of the given length. This produces wide group keys without needing many EVAL columns.
+     */
+    protected void initManyLongsAndString(int countPerLong, int stringLength) throws IOException {
+        logger.info("loading many documents with longs and a {}-char string", stringLength);
+        String f = "x".repeat(stringLength);
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        long numDocs = (long) countPerLong * countPerLong * countPerLong * countPerLong * countPerLong;
+        for (int a = 0; a < countPerLong; a++) {
+            for (int b = 0; b < countPerLong; b++) {
+                for (int c = 0; c < countPerLong; c++) {
+                    for (int d = 0; d < countPerLong; d++) {
+                        for (int e = 0; e < countPerLong; e++) {
+                            bulk.append(String.format(Locale.ROOT, """
+                                {"create":{}}
+                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d,"f":"%s"}
+                                """, a, b, c, d, e, f));
+                            flush++;
+                            if (flush % 10_000 == 0) {
+                                bulk("manylongsandstring", bulk.toString());
+                                bulk.setLength(0);
+                                logger.info("flushing {}/{} to manylongsandstring", flush, numDocs);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        initIndex("manylongsandstring", bulk.toString());
+    }
+
+    /**
+     * Builds a query preamble that EVALs {@code count} computed long columns
+     * ({@code i0, i1, ..., i(count-1)}) as running sums over {@code a} and {@code b}.
+     */
+    protected static StringBuilder makeManyLongs(int count) {
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
+        for (int i = 2; i < count; i++) {
+            query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
+        }
+        return query.append("\\n");
+    }
+
+    protected void initSingleDocIndex() throws IOException {
+        logger.info("loading a single document");
+        initIndex("single", """
+            {"create":{}}
+            {"a":1}
+            """);
+    }
+
+    protected void setRequestBreakerLimit(String limit) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
+        );
+        adminClient().performRequest(request);
     }
 
     protected static boolean isServerless() throws IOException {

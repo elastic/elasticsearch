@@ -160,7 +160,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .matchClosed(request.indicesOptions().expandWildcardsClosed())
                 .build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            IndicesOptions.CrossProjectModeOptions.DEFAULT
+            IndicesOptions.CrossProjectModeOptions.DEFAULT,
+            IndicesOptions.IndexAbstractionOptions.DEFAULT
         );
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
@@ -257,7 +258,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            IndicesOptions.CrossProjectModeOptions.DEFAULT
+            IndicesOptions.CrossProjectModeOptions.DEFAULT,
+            IndicesOptions.IndexAbstractionOptions.DEFAULT
         );
         // Make sure to recombine any selectors on the stats request
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.combined())

@@ -9,9 +9,13 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -20,10 +24,11 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
-    private static final String SYNTHETIC_ID_PLACEHOLDER = "$SYNTHETIC_ID_SETTING";
+    private static final String EXTRA_INDEX_SETTINGS_PLACEHOLDER = "$SYNTHETIC_ID_SETTING";
     // Do not access directly, use getTemplate(Boolean useSyntheticId)
     private static final String TEMPLATE = """
         {
@@ -83,15 +88,21 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
                 }
             }
         }
-        """.formatted(SYNTHETIC_ID_PLACEHOLDER);
+        """.formatted(EXTRA_INDEX_SETTINGS_PLACEHOLDER);
 
     /**
      * Returns the template with optional synthetic_id setting. When {@code useSyntheticId} is null the setting is omitted;
      * when true/false, adds {@code "mapping": { "synthetic_id": true/false }} to index settings.
      */
-    static String getTemplate(Boolean useSyntheticId) {
-        String replacement = useSyntheticId == null ? "" : ", \"mapping\": { \"synthetic_id\": " + useSyntheticId + " }";
-        return TEMPLATE.replace(SYNTHETIC_ID_PLACEHOLDER, replacement);
+    static String getTemplate(Boolean useSyntheticId, Boolean disableSeqNo) {
+        StringBuilder replacement = new StringBuilder();
+        if (useSyntheticId != null) {
+            replacement.append(", \"mapping\": { \"synthetic_id\": ").append(useSyntheticId).append(" }");
+        }
+        if (disableSeqNo != null) {
+            replacement.append(", \"disable_sequence_numbers\": ").append(disableSeqNo);
+        }
+        return TEMPLATE.replace(EXTRA_INDEX_SETTINGS_PLACEHOLDER, replacement);
     }
 
     private static final String BULK =
@@ -133,8 +144,8 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        boolean hasSupport = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID);
-        Boolean useSyntheticId = hasSupport ? randomBoolean() : null;
+        Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
+        Boolean disableSeqNo = oldClusterHasFeature(IndexFeatures.TIME_SERIES_NO_SEQNO) ? randomBoolean() : null;
 
         String dataStreamName = "k8s";
         final String INDEX_TEMPLATE = """
@@ -148,7 +159,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         String templateName = "1";
         var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
         putIndexTemplateRequest.setJsonEntity(
-            INDEX_TEMPLATE.replace("$TEMPLATE", getTemplate(useSyntheticId)).replace("$PATTERN", dataStreamName)
+            INDEX_TEMPLATE.replace("$TEMPLATE", getTemplate(useSyntheticId, disableSeqNo)).replace("$PATTERN", dataStreamName)
         );
         assertOK(client().performRequest(putIndexTemplateRequest));
 
@@ -170,6 +181,10 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
         assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
         indexDoc(dataStreamName);
+        // maybe force merge
+        if (randomBoolean()) {
+            forceMerge(dataStreamName);
+        }
         assertSearch(dataStreamName, 10);
         closeIndex(firstBackingIndex);
         closeIndex(secondBackingIndex);
@@ -182,6 +197,21 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
                 throw new AssertionError(e);
             }
         });
+    }
+
+    private static void forceMerge(String dataStreamName) throws IOException {
+        // maybe force merge
+        if (randomBoolean()) {
+            Request forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+            Response forceMergeResponse = client().performRequest(forceMergeRequest);
+            assertThat(forceMergeResponse.getStatusLine().getStatusCode(), is(200));
+            var responseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(forceMergeResponse.getEntity()),
+                false
+            );
+            assertThat(((Map) responseMap.get("_shards")).get("failed"), equalTo(0));
+        }
     }
 
     private static void performMixedClusterOperations(String dataStreamName, boolean isFirstMixedCluster) throws IOException {

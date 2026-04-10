@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -213,11 +213,12 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
-                return typedData.withAppliesTo(histogramAppliesTo);
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
             }
             return typedData;
         }).toList()));
@@ -294,9 +295,9 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout layout = builder.build();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
-            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+            public ExpressionEvaluator.Factory apply(Expression expression) {
                 if (expression == evil) {
-                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    return dvrCtx -> new ExpressionEvaluator() {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
@@ -320,7 +321,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             }
         };
         try (
-            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
+            ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
             Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
@@ -379,10 +380,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 );
                 blocksIndex++;
             }
-            try (
-                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, blocks))
-            ) {
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(positions, blocks))) {
                 assertThat(block.getPositionCount(), is(positions));
                 assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
                 assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));

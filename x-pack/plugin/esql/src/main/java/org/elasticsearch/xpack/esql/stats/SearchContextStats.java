@@ -18,11 +18,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -305,12 +306,12 @@ public class SearchContextStats implements SearchStats {
 
     // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
     private static Long docValuesSkipperMinValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMinValue(new IndexSearcher(leafContext.reader()), field);
+        long value = DocValuesSkipper.globalMinValue(leafContext.reader(), field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 
     private static Long docValuesSkipperMaxValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMaxValue(new IndexSearcher(leafContext.reader()), field);
+        long value = DocValuesSkipper.globalMaxValue(leafContext.reader(), field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 
@@ -380,7 +381,7 @@ public class SearchContextStats implements SearchStats {
         } else if (fieldType instanceof KeywordFieldType) {
             tester = lr -> {
                 Terms terms = lr.terms(name);
-                return terms == null || terms.size() == terms.getDocCount();
+                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
             };
         }
 
@@ -535,5 +536,19 @@ public class SearchContextStats implements SearchStats {
             shards.putIfAbsent(shardId, indexMetadata);
         }
         return shards;
+    }
+
+    @Override
+    public boolean canPartitionByTsidPrefix() {
+        try {
+            for (SearchExecutionContext context : contexts) {
+                if (PartitionedDocValues.canPartitionByTsidPrefix(context.searcher()) == false) {
+                    return false;
+                }
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException("failed to read time-series partition", ex);
+        }
+        return true;
     }
 }

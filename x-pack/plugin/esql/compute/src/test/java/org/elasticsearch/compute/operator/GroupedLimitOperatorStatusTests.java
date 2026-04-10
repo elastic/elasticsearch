@@ -18,8 +18,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GroupedLimitOperatorStatusTests extends AbstractWireSerializingTestCase<GroupedLimitOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(new GroupedLimitOperator.Status(10, 5, 3, 111, 222)), equalTo("""
-            {"limit_per_group":10,"group_count":5,"pages_processed":3,"rows_received":111,"rows_emitted":222}"""));
+        assertThat(Strings.toString(new GroupedLimitOperator.Status(10, 5, 3, 111, 222, 4096)), equalTo("""
+            {"limit_per_group":10,"group_count":5,"pages_processed":3,"rows_received":111,"rows_emitted":222,\
+            "ram_bytes_used":4096,"ram_used":"4kb"}"""));
     }
 
     @Override
@@ -34,6 +35,7 @@ public class GroupedLimitOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -45,14 +47,16 @@ public class GroupedLimitOperatorStatusTests extends AbstractWireSerializingTest
         int pagesProcessed = instance.pagesProcessed();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
-        switch (between(0, 4)) {
+        long ramBytesUsed = instance.ramBytesUsed();
+        switch (between(0, 5)) {
             case 0 -> limitPerGroup = randomValueOtherThan(limitPerGroup, ESTestCase::randomNonNegativeInt);
             case 1 -> groupCount = randomValueOtherThan(groupCount, ESTestCase::randomNonNegativeInt);
             case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
             case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
             case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 5 -> ramBytesUsed = randomValueOtherThan(ramBytesUsed, ESTestCase::randomNonNegativeLong);
             default -> throw new IllegalArgumentException();
         }
-        return new GroupedLimitOperator.Status(limitPerGroup, groupCount, pagesProcessed, rowsReceived, rowsEmitted);
+        return new GroupedLimitOperator.Status(limitPerGroup, groupCount, pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed);
     }
 }

@@ -22,7 +22,8 @@ import java.util.concurrent.Executor;
 /**
  * Wraps a {@link StorageObject} with retry logic for transient storage failures.
  * Retries are applied to all I/O operations (stream open, metadata, async reads)
- * using exponential backoff with jitter.
+ * using exponential backoff with jitter. Throttling errors (429/503) get a higher
+ * retry budget than other transient errors.
  */
 class RetryableStorageObject implements StorageObject {
 
@@ -73,19 +74,61 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        readBytesAsyncWithRetry(position, length, executor, listener, 0);
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        int savedPosition = target.position();
+        return retryPolicy.execute(() -> {
+            target.position(savedPosition);
+            return delegate.readBytes(position, target);
+        }, "readBytes", delegate.path());
     }
 
-    private void readBytesAsyncWithRetry(long position, long length, Executor executor, ActionListener<ByteBuffer> listener, int attempt) {
-        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(listener::onResponse, e -> {
-            if (retryPolicy.isRetryable(e) && attempt < retryPolicy.maxRetries()) {
-                long delay = retryPolicy.delayMillis(attempt);
+    @Override
+    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        readBytesAsyncWithRetry(position, length, executor, listener, 0, System.nanoTime());
+    }
+
+    private void readBytesAsyncWithRetry(
+        long position,
+        long length,
+        Executor executor,
+        ActionListener<ByteBuffer> listener,
+        int attempt,
+        long startNanos
+    ) {
+        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
+            retryPolicy.notifySuccess();
+            listener.onResponse(result);
+        }, e -> {
+            boolean isThrottle = RetryPolicy.isThrottlingError(e);
+            int effectiveMaxRetries = isThrottle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
+
+            if (isThrottle) {
+                retryPolicy.notifyThrottled();
+            }
+
+            if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
+                long delay = retryPolicy.delayMillis(attempt, isThrottle);
+                long budgetMs = retryPolicy.maxTotalDurationMs();
+                if (budgetMs > 0) {
+                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                    if (elapsedMs + delay > budgetMs) {
+                        logger.debug(
+                            "aborting async retry for [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
+                            delegate.path(),
+                            elapsedMs,
+                            delay,
+                            budgetMs
+                        );
+                        listener.onFailure(e);
+                        return;
+                    }
+                }
                 logger.debug(
-                    "retrying async read for [{}] after transient failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                    "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
                     delegate.path(),
+                    isThrottle ? "throttle" : "transient",
                     attempt + 1,
-                    retryPolicy.maxRetries(),
+                    effectiveMaxRetries,
                     delay,
                     e.getMessage()
                 );
@@ -97,7 +140,7 @@ class RetryableStorageObject implements StorageObject {
                         listener.onFailure(new IOException("Retry interrupted", ie));
                         return;
                     }
-                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1);
+                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
                 });
             } else {
                 listener.onFailure(e);

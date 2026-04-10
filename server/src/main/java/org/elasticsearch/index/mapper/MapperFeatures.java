@@ -14,6 +14,8 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
@@ -72,11 +74,17 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.keyword.high_cardinality_length_function_fuse_to_load"
     );
     static final NodeFeature MV_MIN_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_min_function_fuse_to_load");
+    static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE = new NodeFeature("mapper.doc_values.multi_value");
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_nested_object_fix"
+    );
+    public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -129,9 +137,15 @@ public class MapperFeatures implements FeatureSpecification {
             STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
             HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
             MV_MIN_FUNCTION_FUSE_TO_LOAD,
+            MV_MAX_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
             TEXT_FIELD_DOC_VALUES,
-            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
+            DOC_VALUES_MULTI_VALUE,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            ES940_DISK_BBQ,
+            FLATTENED_PASSTHROUGH_FEATURE
         );
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.LastExponentialHistogramByTimestamp
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -47,23 +49,36 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         "LastOverTime",
         LastOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
+        .ternary(LastOverTime::new)
+        .name("last_over_time");
 
     private final Expression timestamp;
 
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram" },
+        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
     public LastOverTime(
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid", "exponential_histogram" },
+            type = {
+                "counter_long",
+                "counter_integer",
+                "counter_double",
+                "long",
+                "integer",
+                "double",
+                "_tsid",
+                "exponential_histogram",
+                "tdigest" },
             description = "the metric field to calculate the latest value for"
         ) Expression field,
         @Param(
@@ -123,7 +138,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             field(),
             dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
                 || dt == DataType.TSID_DATA_TYPE
-                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -144,6 +160,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
             case TSID_DATA_TYPE -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
+            case TDIGEST -> new LastTDigestByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -20,14 +20,14 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.completion.Goog
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.DESCRIPTION_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MESSAGES_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.NAME_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CHOICE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOP_P_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MAX_TOKENS_FIELD;
 
 /**

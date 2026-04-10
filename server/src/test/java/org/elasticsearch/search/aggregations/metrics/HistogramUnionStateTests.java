@@ -185,6 +185,17 @@ public class HistogramUnionStateTests extends ESTestCase {
         }
     }
 
+    public void testEmptySingletonWriteToReadRoundTripEquals() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        HistogramUnionState.EMPTY.writeTo(out);
+
+        try (HistogramUnionState roundTripped = HistogramUnionState.read(breaker(), out.bytes().streamInput())) {
+            assertThat(roundTripped, equalTo(HistogramUnionState.EMPTY));
+            assertThat(HistogramUnionState.EMPTY, equalTo(roundTripped));
+            assertThat(roundTripped.hashCode(), equalTo(HistogramUnionState.EMPTY.hashCode()));
+        }
+    }
+
     public void testPureTDigestSerializationCompatibility() throws IOException {
         try (RandomState state = randomState(false)) {
 

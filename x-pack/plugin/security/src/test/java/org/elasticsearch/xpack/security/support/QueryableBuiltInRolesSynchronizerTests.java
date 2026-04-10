@@ -544,13 +544,20 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
-        final ClusterState cs = clusterStateBuilder.build();
-        return ClusterState.builder(cs)
-            .routingTable(
+        return markShardsAvailable(clusterStateBuilder.build());
+    }
+
+    private static ClusterState.Builder markShardsAvailable(ClusterState cs) {
+        final var csBuilder = ClusterState.builder(cs);
+        cs.forEachProject(
+            project -> csBuilder.putRoutingTable(
+                project.projectId(),
                 SecurityTestUtils.buildIndexRoutingTable(
-                    cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
+                    project.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
                 )
-            );
+            )
+        );
+        return csBuilder;
     }
 
     @SuppressWarnings("unchecked")
@@ -780,7 +787,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private static ClusterState.Builder createClusterState(String indexName, String aliasName, IndexMetadata.State state) {
         @FixForMultiProject(description = "randomize project-id")
-        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Metadata metadata = Metadata.builder()
             .put(
                 SecurityIndexManagerTests.createProjectMetadata(

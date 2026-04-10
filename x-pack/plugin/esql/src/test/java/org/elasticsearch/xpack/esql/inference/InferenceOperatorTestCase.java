@@ -26,7 +26,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
@@ -214,8 +214,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         assertBlockContentEquals(input, result, (BytesRefBlock b, Integer pos) -> b.getBytesRef(pos, readBuffer), BytesRefBlock.class);
     }
 
-    protected EvalOperator.ExpressionEvaluator.Factory evaluatorFactory(int channel) {
-        return context -> new EvalOperator.ExpressionEvaluator() {
+    protected ExpressionEvaluator.Factory evaluatorFactory(int channel) {
+        return context -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block b = page.getBlock(channel);

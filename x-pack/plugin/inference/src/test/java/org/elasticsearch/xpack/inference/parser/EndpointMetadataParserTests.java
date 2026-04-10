@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -37,7 +38,9 @@ public class EndpointMetadataParserTests extends ESTestCase {
     private static final String OTHER_KEY = "other";
     private static final String VALUE = "value";
     private static final String DISPLAY_NAME = "Display Name";
+    private static final String DISPLAY_MODEL_CREATOR = "Display Model Creator";
     private static final String MY_ENDPOINT = "My Endpoint";
+    private static final String MY_ENDPOINT_CREATOR = "My Creator";
     private static final String INVALID_STATUS = "invalid_status";
     private static final String NOT_A_DATE = "not-a-date";
     private static final String FINGERPRINT_ABC = "abc";
@@ -91,6 +94,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var displayMap = new HashMap<String, Object>();
         displayMap.put(NAME_FIELD, MY_ENDPOINT);
+        displayMap.put(MODEL_CREATOR_FIELD, MY_ENDPOINT_CREATOR);
 
         var metadataMap = new HashMap<String, Object>();
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
@@ -110,7 +114,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result.internal().fingerprint(), equalTo(FINGERPRINT_FP123));
         assertThat(result.internal().version(), equalTo(version));
 
-        assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT)));
+        assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT, MY_ENDPOINT_CREATOR)));
     }
 
     public void testFromMap_ParsesPartialMetadata() {
@@ -220,16 +224,17 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(EndpointMetadataParser.displayFromMap(Map.of(), ROOT), sameInstance(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
-    public void testDisplayFromMap_ParsesName() {
+    public void testDisplayFromMap_ParsesAllFields() {
         var map = new HashMap<String, Object>();
         map.put(NAME_FIELD, DISPLAY_NAME);
+        map.put(MODEL_CREATOR_FIELD, DISPLAY_MODEL_CREATOR);
 
         var result = EndpointMetadataParser.displayFromMap(map, ROOT);
 
-        assertThat(result, equalTo(new EndpointMetadata.Display(DISPLAY_NAME)));
+        assertThat(result, equalTo(new EndpointMetadata.Display(DISPLAY_NAME, DISPLAY_MODEL_CREATOR)));
     }
 
-    public void testDisplayFromMap_ReturnsEmpty_WhenNameIsMissing() {
+    public void testDisplayFromMap_ReturnsEmpty_WhenDisplayIsMissing() {
         var map = new HashMap<String, Object>();
 
         var result = EndpointMetadataParser.displayFromMap(map, ROOT);
@@ -237,9 +242,10 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result, sameInstance(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
-    public void testDisplayFromMap_ReturnsEmpty_WhenNameIsNull() {
+    public void testDisplayFromMap_ReturnsEmpty_WhenAllFieldsAreNull() {
         var map = new HashMap<String, Object>();
         map.put(NAME_FIELD, null);
+        map.put(MODEL_CREATOR_FIELD, null);
 
         var result = EndpointMetadataParser.displayFromMap(map, ROOT);
 
@@ -252,6 +258,16 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.displayFromMap(map, ROOT));
         assertThat(e.getMessage(), containsString(NAME_FIELD));
+        assertThat(e.getMessage(), containsString(String.valueOf(WRONG_TYPE_DISPLAY)));
+        assertThat(e.getMessage(), containsString(STRING_CLASS_FAILURE));
+    }
+
+    public void testDisplayFromMap_Throws_WhenModelCreatorWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(MODEL_CREATOR_FIELD, WRONG_TYPE_DISPLAY);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.displayFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(MODEL_CREATOR_FIELD));
         assertThat(e.getMessage(), containsString(String.valueOf(WRONG_TYPE_DISPLAY)));
         assertThat(e.getMessage(), containsString(STRING_CLASS_FAILURE));
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -131,6 +132,13 @@ public class GoogleCloudStorageClientSettings {
         (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
     );
 
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    static final Setting.AffixSetting<Long> MEGABYTES_COPIED_PER_CHUNK_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "megabytes_copied_per_chunk",
+        (key) -> Setting.longSetting(key, ByteSizeValue.ofGb(5).getMb(), 1L, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -157,6 +165,9 @@ public class GoogleCloudStorageClientSettings {
 
     private final int maxRetries;
 
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    private final long megabytesCopiedPerChunk;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -166,7 +177,8 @@ public class GoogleCloudStorageClientSettings {
         final String applicationName,
         final URI tokenUri,
         final Proxy proxy,
-        final int maxRetries
+        final int maxRetries,
+        final long megabytesCopiedPerChunk
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -177,6 +189,7 @@ public class GoogleCloudStorageClientSettings {
         this.tokenUri = tokenUri;
         this.proxy = proxy;
         this.maxRetries = maxRetries;
+        this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -216,6 +229,10 @@ public class GoogleCloudStorageClientSettings {
         return maxRetries;
     }
 
+    public long getMegabytesCopiedPerChunk() {
+        return megabytesCopiedPerChunk;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -228,12 +245,24 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(applicationName, that.applicationName)
             && Objects.equals(tokenUri, that.tokenUri)
             && Objects.equals(proxy, that.proxy)
-            && maxRetries == that.maxRetries;
+            && maxRetries == that.maxRetries
+            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy, maxRetries);
+        return Objects.hash(
+            credential,
+            endpoint,
+            projectId,
+            connectTimeout,
+            readTimeout,
+            applicationName,
+            tokenUri,
+            proxy,
+            maxRetries,
+            megabytesCopiedPerChunk
+        );
     }
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
@@ -270,7 +299,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             proxy,
-            getConfigValue(settings, clientName, MAX_RETRIES_SETTING)
+            getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING)
         );
     }
 

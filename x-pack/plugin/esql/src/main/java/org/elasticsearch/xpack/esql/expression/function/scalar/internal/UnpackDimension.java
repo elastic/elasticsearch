@@ -11,7 +11,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -60,9 +61,9 @@ public final class UnpackDimension extends UnaryScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(resultType)) {
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case BYTES_REF -> ctx -> new UnpackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.unpackBytesValues(ctx, block)
@@ -83,9 +84,7 @@ public final class UnpackDimension extends UnaryScalarFunction {
         };
     }
 
-    record UnpackValuesEvaluator(EvalOperator.ExpressionEvaluator field, Function<BytesRefBlock, Block> unpack)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    record UnpackValuesEvaluator(ExpressionEvaluator field, Function<BytesRefBlock, Block> unpack) implements ExpressionEvaluator {
         static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(UnpackValuesEvaluator.class);
 
         @Override

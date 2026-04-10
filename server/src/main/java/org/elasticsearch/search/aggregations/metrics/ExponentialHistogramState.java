@@ -105,11 +105,6 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         mergedHistograms.add(histogram);
     }
 
-    public void addWithoutUpscaling(ExponentialHistogram histogram) {
-        initMergedHistograms();
-        mergedHistograms.addWithoutUpscaling(histogram);
-    }
-
     private void initMergedHistograms() {
         if (mergedHistograms == null) {
             mergedHistograms = ExponentialHistogramMerger.create(
@@ -117,7 +112,7 @@ public class ExponentialHistogramState implements Releasable, Accountable {
                 new ElasticCircuitBreakerWrapper(circuitBreaker)
             );
             if (deserializedHistogram != null) {
-                mergedHistograms.addWithoutUpscaling(deserializedHistogram);
+                mergedHistograms.add(deserializedHistogram);
                 deserializedHistogram.close();
                 deserializedHistogram = null;
             }

@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -218,6 +219,30 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testPitClosedOnAbort() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
+            });
+
+            assertEquals(1L, client.getPitContextCounter());
+
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+
+            // calling onAbort again should be a no-op
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+        }
+    }
+
     public void testPitInjectionIfPitNotSupported() throws InterruptedException {
         // pit must be enabled, otherwise take a random config
         TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
@@ -272,44 +297,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var client = new PitMockClient(threadPool, true);
-            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
-                mock(ThreadPool.class),
-                mock(ClusterService.class),
-                mock(IndexNameExpressionResolver.class),
-                mock(TransformExtension.class),
-                new TransformServices(
-                    mock(IndexBasedTransformConfigManager.class),
-                    mock(TransformCheckpointService.class),
-                    mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
-                ),
-                mock(CheckpointProvider.class),
-                new AtomicReference<>(IndexerState.STOPPED),
-                null,
-                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
-                mock(TransformIndexerStats.class),
-                config,
-                null,
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    0L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    2L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-                mock(TransformContext.class),
-                false
-            );
+            var indexer = createIndexer(client, config);
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {
@@ -337,62 +325,118 @@ public class ClientTransformIndexerTests extends ESTestCase {
             // Remote index is configured within source
             .setSource(new SourceConfig("remote-cluster:remote-index"))
             .build();
-        boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(config.getSettings()) == false;
 
         try (var threadPool = createThreadPool()) {
             final var client = new PitMockClient(threadPool, true);
-            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
-                mock(ThreadPool.class),
-                mock(ClusterService.class),
-                mock(IndexNameExpressionResolver.class),
-                mock(TransformExtension.class),
+            MockClientTransformIndexer indexer = createIndexer(client, config);
+            assertPitIsNeverUsed(indexer);
+        }
+    }
+
+    private MockClientTransformIndexer createIndexer(Client client, TransformConfig config) {
+        return createIndexer(
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
+            ),
+            client,
+            config
+        );
+    }
+
+    private MockClientTransformIndexer createIndexer(TransformServices services, Client client, TransformConfig config) {
+        return new MockClientTransformIndexer(
+            mock(ThreadPool.class),
+            mock(ClusterService.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(TransformExtension.class),
+            services,
+            mock(CheckpointProvider.class),
+            new AtomicReference<>(IndexerState.STOPPED),
+            null,
+            new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+            mock(TransformIndexerStats.class),
+            config,
+            null,
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+            mock(TransformContext.class),
+            false
+        );
+    }
+
+    private void assertPitIsNeverUsed(MockClientTransformIndexer indexer) throws InterruptedException {
+        boolean pitEnabled = TransformEffectiveSettings.isPitDisabled(indexer.getConfig().getSettings()) == false;
+        // we expect PIT *not* being used regardless the transform settings
+        this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> assertNull(response.pointInTimeId()));
+
+        // reverse the setting
+        indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
+
+        // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+        this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> assertNull(response.pointInTimeId()));
+    }
+
+    public void testDisablePitWhenCrossProjectSearchIsEnabled() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSource(
+            new SourceConfig("remote-index")
+        ).build();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createIndexer(
                 new TransformServices(
                     mock(IndexBasedTransformConfigManager.class),
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    crossProjectModeDecider,
+                    projectId -> true
                 ),
-                mock(CheckpointProvider.class),
-                new AtomicReference<>(IndexerState.STOPPED),
-                null,
-                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
-                mock(TransformIndexerStats.class),
-                config,
-                null,
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    0L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    2L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-                mock(TransformContext.class),
-                false
+                client,
+                config
             );
 
-            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> assertNull(response.pointInTimeId())
+            assertPitIsNeverUsed(indexer);
+        }
+    }
+
+    public void testPitRemainsEnabledWhenCrossProjectEnabledButNoLinkedProjects() throws InterruptedException {
+        var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+
+        TransformConfig config = newPitEnabledConfigWithSource(new SourceConfig("local-index"));
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createIndexer(
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class),
+                    crossProjectModeDecider,
+                    projectId -> false
+                ),
+                client,
+                config
             );
 
-            // reverse the setting
-            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
-
-            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
             this.<SearchResponse>assertAsync(
                 listener -> indexer.doNextSearch(0, listener),
-                response -> assertNull(response.pointInTimeId())
+                response -> assertNotNull(response.pointInTimeId())
             );
         }
     }
@@ -558,7 +602,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -715,7 +760,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             // copy the pit from the request
                             searchRequest.pointInTimeBuilder() != null
                                 ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null
+                                : null,
+                            null
                         )
                     );
 
@@ -770,7 +816,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

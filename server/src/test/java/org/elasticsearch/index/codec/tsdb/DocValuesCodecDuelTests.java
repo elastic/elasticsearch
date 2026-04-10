@@ -26,7 +26,7 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -56,7 +56,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
             var contenderConf = newIndexWriterConfig();
             contenderConf.setMergePolicy(mergePolicy);
-            Codec codec = new Elasticsearch92Lucene103Codec() {
+            Codec codec = new Elasticsearch93Lucene104Codec() {
 
                 final DocValuesFormat docValuesFormat = randomBoolean()
                     ? new ES819Version3TSDBDocValuesFormat(
@@ -65,7 +65,8 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                         random().nextBoolean(),
                         ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
                         random().nextBoolean(),
-                        ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
+                        ES819TSDBDocValuesFormatTests.randomNumericBlockSize(),
+                        randomBoolean()
                     )
                     : new TestES87TSDBDocValuesFormat();
 
@@ -463,7 +464,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
-                if (baselineTarget != NO_MORE_DOCS) {
+                if (baselineTarget == NO_MORE_DOCS) {
                     break;
                 }
                 assertEquals(baseline.binaryValue(), contender.binaryValue());

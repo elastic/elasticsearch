@@ -37,6 +37,11 @@ public class LocalStateView extends LocalStateCompositeXPackPlugin {
             protected XPackLicenseState getLicenseState() {
                 return LocalStateView.this.getLicenseState();
             }
+
+            @Override
+            public void loadExtensions(ExtensionLoader loader) {
+                // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+            }
         });
     }
 

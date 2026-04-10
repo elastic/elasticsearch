@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143696
+summary: Enable distributed pipeline breakers for external sources via `FragmentExec`
+type: enhancement

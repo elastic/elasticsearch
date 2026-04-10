@@ -245,6 +245,14 @@ public interface BlockLoader {
             boolean toInt,
             boolean binaryMultiValuedFormat
         ) throws IOException;
+
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose value contains the given term,
+         * or {@code null} if this optimization is not supported by the underlying data.
+         */
+        default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
     }
 
     /**
@@ -283,7 +291,7 @@ public interface BlockLoader {
          * @return a {@link DocIdSetIterator} to iterate over documents matching the specified length value.
          * @throws IOException if an I/O error occurs while reading the length values.
          */
-        default DocIdSetIterator lengthIterator(int length) throws IOException {
+        default DocIdSetIterator tryLengthIterator(int length) throws IOException {
             NumericDocValues lengthReader = toLengthValues();
             assert lengthReader != null;
             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(lengthReader) {

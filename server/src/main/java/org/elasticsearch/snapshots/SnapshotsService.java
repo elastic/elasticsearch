@@ -948,9 +948,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
                         : entry.shardId(repoShardId);
                     shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
-                } else if (state.completed() == false) {
-                    assert entry.isClone() == false : "a finalizing clone has unexpected shard state " + entry;
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(repoShardId), "skipped"));
                 } else {
                     assert state == ShardState.SUCCESS;
                 }

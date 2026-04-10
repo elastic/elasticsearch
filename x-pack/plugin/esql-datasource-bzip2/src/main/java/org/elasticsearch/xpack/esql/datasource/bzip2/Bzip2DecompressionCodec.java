@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -48,7 +47,14 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw) throws IOException {
-        return new BZip2CompressorInputStream(raw);
+        // Skip the 2-byte 'BZ' file header; CBZip2InputStream expects the stream
+        // to start right after it (at the 'h' + block-size digit).
+        int b1 = raw.read();
+        int b2 = raw.read();
+        if (b1 != 'B' || b2 != 'Z') {
+            throw new IOException("Not a bzip2 stream: expected 'BZ' header, got [" + b1 + ", " + b2 + "]");
+        }
+        return new CBZip2InputStream(raw, CBZip2InputStream.ReadMode.CONTINUOUS);
     }
 
     @Override

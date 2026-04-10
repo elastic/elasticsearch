@@ -21,8 +21,8 @@
 package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
+import org.apache.lucene.codecs.Impact;
 import org.apache.lucene.codecs.MultiLevelSkipListWriter;
-import org.apache.lucene.index.Impact;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;

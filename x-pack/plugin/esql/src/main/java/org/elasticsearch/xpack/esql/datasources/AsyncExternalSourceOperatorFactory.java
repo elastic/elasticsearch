@@ -9,18 +9,33 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,10 +76,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int maxBufferSize;
     private final int rowLimit;
     private final Executor executor;
-    private final FileSet fileSet;
+    private final FileList fileList;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
+    private final ErrorPolicy errorPolicy;
+    private final int parsingParallelism;
+    private final TimeValue drainTimeout;
+    private final List<Expression> pushedExpressions;
+    private final FilterPushdownSupport pushdownSupport;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -75,10 +95,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy,
+        int parsingParallelism,
+        TimeValue drainTimeout,
+        @Nullable List<Expression> pushedExpressions,
+        @Nullable FilterPushdownSupport pushdownSupport
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -110,10 +135,161 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
-        this.fileSet = fileSet;
+        this.fileList = fileList;
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
+        this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
+        this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.drainTimeout = drainTimeout != null ? drainTimeout : ExternalSourceDrainUtils.DEFAULT_DRAIN_TIMEOUT;
+        this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
+        this.pushdownSupport = pushdownSupport;
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy,
+        int parsingParallelism,
+        TimeValue drainTimeout
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            errorPolicy,
+            parsingParallelism,
+            drainTimeout,
+            null,
+            null
+        );
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy,
+        int parsingParallelism
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            errorPolicy,
+            parsingParallelism,
+            null,
+            null,
+            null
+        );
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            errorPolicy,
+            1,
+            null,
+            null,
+            null
+        );
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            null,
+            1,
+            null,
+            null,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -124,7 +300,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int batchSize,
         int maxBufferSize,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue
@@ -138,37 +314,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
-            sliceQueue
-        );
-    }
-
-    public AsyncExternalSourceOperatorFactory(
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        StoragePath path,
-        List<Attribute> attributes,
-        int batchSize,
-        int maxBufferSize,
-        Executor executor,
-        FileSet fileSet,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues
-    ) {
-        this(
-            storageProvider,
-            formatReader,
-            path,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            FormatReader.NO_LIMIT,
-            executor,
-            fileSet,
-            partitionColumnNames,
-            partitionValues,
+            sliceQueue,
+            null,
+            1,
+            null,
+            null,
             null
         );
     }
@@ -181,7 +334,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int batchSize,
         int maxBufferSize,
         Executor executor,
-        FileSet fileSet
+        FileList fileList,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues
     ) {
         this(
             storageProvider,
@@ -192,7 +347,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
-            fileSet,
+            fileList,
+            partitionColumnNames,
+            partitionValues,
+            null,
+            null,
+            1,
+            null,
+            null,
+            null
+        );
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor,
+        FileList fileList
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            FormatReader.NO_LIMIT,
+            executor,
+            fileList,
+            null,
+            null,
+            null,
+            null,
+            1,
             null,
             null,
             null
@@ -220,18 +411,24 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             null,
+            null,
+            null,
+            1,
+            null,
+            null,
             null
         );
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
+        long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
 
         if (sliceQueue != null) {
             startSliceQueueRead(buffer, driverContext);
-        } else if (fileSet != null && fileSet.isResolved()) {
+        } else if (fileList != null && fileList.isResolved()) {
             VirtualColumnInjector injector = buildInjector(driverContext);
             List<String> projectedColumns = projectedColumns(injector);
             startMultiFileRead(projectedColumns, buffer, driverContext, injector);
@@ -267,6 +464,77 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return cols;
     }
 
+    private CloseableIterator<Page> adaptSchema(
+        CloseableIterator<Page> pages,
+        SchemaReconciliation.ColumnMapping mapping,
+        DriverContext driverContext
+    ) {
+        if (mapping == null || mapping.isIdentity()) {
+            return pages;
+        }
+        List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
+        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
+    }
+
+    /**
+     * Returns a format reader with an adapted pushed filter for this file, or the original reader
+     * if no adaptation is needed. Adaptation is needed when the file has missing columns and
+     * pushed expressions reference those columns.
+     */
+    private FormatReader readerForFile(FileSplit fileSplit) {
+        if (pushedExpressions.isEmpty() || pushdownSupport == null) {
+            return formatReader;
+        }
+        SchemaReconciliation.ColumnMapping mapping = fileSplit.columnMapping();
+        if (mapping == null || (mapping.hasMissingColumns() == false && mapping.hasCasts() == false)) {
+            return formatReader;
+        }
+        Set<String> fileColumnNames = new LinkedHashSet<>();
+        Map<String, DataType> fileColumnTypes = new HashMap<>();
+        assert mapping.columnCount() <= attributes.size()
+            : "column mapping count [" + mapping.columnCount() + "] exceeds attributes size [" + attributes.size() + "]";
+        for (int i = 0; i < mapping.columnCount(); i++) {
+            if (mapping.localIndex(i) != -1) {
+                String name = attributes.get(i).name();
+                fileColumnNames.add(name);
+                DataType castTarget = mapping.cast(i);
+                if (castTarget != null) {
+                    DataType fileType = inferFileType(attributes.get(i).dataType(), castTarget);
+                    if (fileType != null) {
+                        fileColumnTypes.put(name, fileType);
+                    }
+                }
+            }
+        }
+        List<Expression> adapted = FilterAdaptation.adaptFilterForFile(pushedExpressions, fileColumnNames, fileColumnTypes);
+        if (adapted.isEmpty()) {
+            return formatReader.withPushedFilter(null);
+        }
+        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
+        if (result.hasPushedFilter()) {
+            return formatReader.withPushedFilter(result.pushedFilter());
+        }
+        return formatReader.withPushedFilter(null);
+    }
+
+    /**
+     * Infers the file's native type from the unified attribute type and the cast target.
+     * The cast target is the unified (wider) type; the file has the narrower type.
+     */
+    /**
+     * Infers the file's native type from the cast target. Only returns a narrower type when
+     * the adaptation is safe for integral comparisons (LONG→INTEGER). DOUBLE→INTEGER narrowing
+     * is not supported because literal truncation can cause incorrect predicate semantics.
+     */
+    private static DataType inferFileType(DataType unifiedType, DataType castTarget) {
+        if (castTarget == DataType.LONG) {
+            return DataType.INTEGER;
+        }
+        // DOUBLE→INTEGER narrowing is intentionally not supported: Number.longValue() truncates
+        // fractional values, which can change comparison semantics (e.g., col < 2.7 vs col < 2).
+        return null;
+    }
+
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         executor.execute(() -> {
             try {
@@ -291,25 +559,46 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                 );
                             }
                             List<String> cols = projectedColumns(injector);
-                            StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                            boolean skipFirstLine = false;
-                            boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                            if (fileSplit.offset() > 0) {
-                                obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                skipFirstLine = isFirstSplit == false;
-                            }
-                            try (
-                                CloseableIterator<Page> pages = formatReader.readSplit(
-                                    obj,
+
+                            FormatReader fileReader = readerForFile(fileSplit);
+                            boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+                            CloseableIterator<Page> pages;
+                            if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
+                                String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
+                                StorageObject fullObj = fileLengthStr != null
+                                    ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
+                                    : storageProvider.newObject(fileSplit.path());
+                                long rangeEnd = fileSplit.offset() + fileSplit.length();
+                                pages = rangeReader.readRange(
+                                    fullObj,
                                     cols,
                                     batchSize,
-                                    skipFirstLine,
-                                    lastSplit,
-                                    attributes
-                                )
-                            ) {
-                                int consumed = drainPagesWithBudget(pages, buffer, injector);
+                                    fileSplit.offset(),
+                                    rangeEnd,
+                                    attributes,
+                                    errorPolicy
+                                );
+                            } else {
+                                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                                boolean firstSplit = true;
+                                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                                if (fileSplit.offset() > 0) {
+                                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
+                                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                                }
+                                FormatReadContext ctx = FormatReadContext.builder()
+                                    .projectedColumns(cols)
+                                    .batchSize(batchSize)
+                                    .rowLimit(FormatReader.NO_LIMIT)
+                                    .errorPolicy(errorPolicy)
+                                    .firstSplit(firstSplit)
+                                    .lastSplit(lastSplit)
+                                    .build();
+                                pages = fileReader.read(obj, ctx);
+                            }
+                            CloseableIterator<Page> adaptedPages = adaptSchema(pages, fileSplit.columnMapping(), driverContext);
+                            try (adaptedPages) {
+                                int consumed = drainPagesWithBudget(adaptedPages, buffer, injector);
                                 if (rowLimit != FormatReader.NO_LIMIT) {
                                     rowsRemaining -= consumed;
                                 }
@@ -328,23 +617,65 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         });
     }
 
+    /**
+     * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
+     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
+     * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
+     */
     private void startMultiFileRead(
         List<String> projectedColumns,
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
+
         executor.execute(() -> {
             try {
                 int rowsRemaining = rowLimit;
-                for (StorageEntry entry : fileSet.files()) {
+                boolean useParallel = rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader;
+                for (int i = 0; i < fileList.fileCount(); i++) {
                     if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
                         break;
                     }
-                    StorageObject obj = storageProvider.newObject(entry.path(), entry.length(), entry.lastModified());
-                    int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
-                    try (CloseableIterator<Page> pages = formatReader.read(obj, projectedColumns, batchSize, fileBudget)) {
-                        int consumed = drainPagesWithBudget(pages, buffer, injector);
+                    StorageObject obj = storageProvider.newObject(
+                        fileList.path(i),
+                        fileList.size(i),
+                        Instant.ofEpochMilli(fileList.lastModifiedMillis(i))
+                    );
+                    CloseableIterator<Page> pages;
+                    if (useParallel) {
+                        pages = ParallelParsingCoordinator.parallelRead(
+                            (SegmentableFormatReader) formatReader,
+                            obj,
+                            projectedColumns,
+                            batchSize,
+                            parsingParallelism,
+                            executor,
+                            errorPolicy
+                        );
+                    } else {
+                        int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
+                        FormatReadContext ctx = FormatReadContext.builder()
+                            .projectedColumns(projectedColumns)
+                            .batchSize(batchSize)
+                            .rowLimit(fileBudget)
+                            .errorPolicy(errorPolicy)
+                            .build();
+                        pages = formatReader.read(obj, ctx);
+                    }
+
+                    SchemaReconciliation.ColumnMapping mapping = null;
+                    if (schemaInfo != null) {
+                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(fileList.path(i));
+                        if (info != null) {
+                            mapping = info.mapping();
+                        }
+                    }
+                    CloseableIterator<Page> adaptedPages = adaptSchema(pages, mapping, driverContext);
+
+                    try (adaptedPages) {
+                        int consumed = drainPagesWithBudget(adaptedPages, buffer, injector);
                         if (rowLimit != FormatReader.NO_LIMIT) {
                             rowsRemaining -= consumed;
                         }
@@ -366,7 +697,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        formatReader.readAsync(storageObject, projectedColumns, batchSize, rowLimit, executor, ActionListener.wrap(iterator -> {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .rowLimit(rowLimit)
+            .errorPolicy(errorPolicy)
+            .build();
+        formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
             consumePagesInBackground(iterator, buffer, driverContext, injector);
         }, e -> {
             buffer.onFailure(e);
@@ -384,7 +721,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         executor.execute(() -> {
             CloseableIterator<Page> pages = null;
             try {
-                pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit);
+                if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {
+                    pages = ParallelParsingCoordinator.parallelRead(
+                        segmentable,
+                        storageObject,
+                        projectedColumns,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        errorPolicy
+                    );
+                } else {
+                    FormatReadContext ctx = FormatReadContext.builder()
+                        .projectedColumns(projectedColumns)
+                        .batchSize(batchSize)
+                        .rowLimit(rowLimit)
+                        .errorPolicy(errorPolicy)
+                        .build();
+                    pages = formatReader.read(storageObject, ctx);
+                }
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {
                 buffer.onFailure(e);
@@ -420,17 +775,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, VirtualColumnInjector injector) {
         if (injector != null && injector.hasPartitionColumns()) {
-            ExternalSourceDrainUtils.drainPages(new InjectingIterator(pages, injector), buffer);
+            ExternalSourceDrainUtils.drainPages(new InjectingIterator(pages, injector), buffer, drainTimeout);
         } else {
-            ExternalSourceDrainUtils.drainPages(pages, buffer);
+            ExternalSourceDrainUtils.drainPages(pages, buffer, drainTimeout);
         }
     }
 
     private int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, VirtualColumnInjector injector) {
         if (injector != null && injector.hasPartitionColumns()) {
-            return ExternalSourceDrainUtils.drainPagesWithBudget(new InjectingIterator(pages, injector), buffer);
+            return ExternalSourceDrainUtils.drainPagesWithBudget(
+                new InjectingIterator(pages, injector),
+                buffer,
+                FormatReader.NO_LIMIT,
+                drainTimeout
+            );
         } else {
-            return ExternalSourceDrainUtils.drainPagesWithBudget(pages, buffer);
+            return ExternalSourceDrainUtils.drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT, drainTimeout);
         }
     }
 
@@ -492,7 +852,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     @Override
     public String describe() {
-        String asyncMode = formatReader.supportsNativeAsync() ? "native-async" : "sync-wrapper";
+        String asyncMode;
+        if (formatReader instanceof RangeAwareFormatReader) {
+            asyncMode = "range-split";
+        } else if (formatReader instanceof SegmentableFormatReader && parsingParallelism > 1) {
+            asyncMode = "parallel-parse(" + parsingParallelism + ")";
+        } else if (formatReader.supportsNativeAsync()) {
+            asyncMode = "native-async";
+        } else {
+            asyncMode = "sync-wrapper";
+        }
         return "AsyncExternalSourceOperator["
             + "storage="
             + storageProvider.getClass().getSimpleName()
@@ -504,8 +873,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             + path
             + ", batchSize="
             + batchSize
-            + ", maxBufferSize="
-            + maxBufferSize
+            + ", maxBufferBytes="
+            + ((long) maxBufferSize * Operator.TARGET_PAGE_SIZE)
             + "]";
     }
 
@@ -541,8 +910,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return executor;
     }
 
-    public FileSet fileSet() {
-        return fileSet;
+    public FileList fileList() {
+        return fileList;
     }
 
     public Set<String> partitionColumnNames() {
@@ -555,5 +924,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public ExternalSliceQueue sliceQueue() {
         return sliceQueue;
+    }
+
+    public ErrorPolicy errorPolicy() {
+        return errorPolicy;
+    }
+
+    public int parsingParallelism() {
+        return parsingParallelism;
+    }
+
+    public TimeValue drainTimeout() {
+        return drainTimeout;
     }
 }

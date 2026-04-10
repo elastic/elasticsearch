@@ -160,7 +160,7 @@ public class AnyBooleanAggregator {
             ByteArray observed = null;
             try {
                 // Initialize observed
-                observed = bigArrays.newByteArray(1, false);
+                observed = bigArrays.newByteArray(1, true);
                 observed.set(0, (byte) -1);
                 this.observed = observed;
 
@@ -224,7 +224,6 @@ public class AnyBooleanAggregator {
             Releasables.close(observed, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); ++p) {

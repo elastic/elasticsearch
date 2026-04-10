@@ -48,6 +48,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean apmServerEnabled = false;
 
+    private Boolean usingOtelSdk = false;
+
     private String apmServerMetrics = null;
 
     private String apmServerTransactions = null;
@@ -128,6 +130,21 @@ public abstract class RunTask extends DefaultTestClustersTask {
     @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
     public void setApmServerEnabled(Boolean apmServerEnabled) {
         this.apmServerEnabled = apmServerEnabled;
+    }
+
+    @Input
+    public Boolean getUsingOtelSdk() {
+        return usingOtelSdk;
+    }
+
+    @Option(
+        option = "using-otel-sdk",
+        description = "Use the OTel SDK for metrics export instead of the APM agent. "
+            + "Can be combined with --with-apm-server (uses built-in mock server) or alone, manually "
+            + "setting telemetry.otel.metrics.endpoint."
+    )
+    public void setUsingOtelSdk(Boolean usingOtelSdk) {
+        this.usingOtelSdk = usingOtelSdk;
     }
 
     @Option(option = "apm-metrics", description = "Metric wildcard filter for APM server")
@@ -282,13 +299,21 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
+                if (usingOtelSdk) {
+                    node.systemProperty("telemetry.otel.metrics.enabled", "true");
+                    node.setting("telemetry.metrics.enabled", "true");
+                }
                 if (mockServer != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
-                    node.setting("telemetry.agent.transaction_sample_rate", "1.0");
-                    node.setting("telemetry.agent.transaction_max_spans", "100");
-                    node.setting("telemetry.agent.metrics_interval", "10s");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    if (usingOtelSdk) {
+                        node.setting("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + mockServer.getPort() + "/v1/metrics");
+                    } else {
+                        node.setting("telemetry.agent.transaction_sample_rate", "1.0");
+                        node.setting("telemetry.agent.transaction_max_spans", "100");
+                        node.setting("telemetry.agent.metrics_interval", "10s");
+                    }
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

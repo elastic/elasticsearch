@@ -95,7 +95,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
@@ -168,6 +167,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(1, statsResponse.getResponse().results().size());
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
+
+        // Ensure all nodes have a consistent view of the cluster state before cleanup
+        // runs, otherwise the stop-datafeed request during cleanup may be routed to a
+        // node that hasn't yet received the state update showing the datafeed as started.
+        // See https://github.com/elastic/elasticsearch/issues/82591
+        waitNoPendingTasksOnAll();
     }
 
     public void testJobAutoClose() throws Exception {

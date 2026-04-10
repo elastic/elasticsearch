@@ -16,6 +16,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -995,6 +996,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
+    /**
+     * Make a helper for building tests for unary functions.
+     */
+    public static UnaryTestCaseHelper unary() {
+        return new UnaryTestCaseHelper();
+    }
+
     public static void unary(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1010,7 +1018,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 var expectedValue = expectedValueMapper.apply(value);
                 logger.info("Value is " + value + " of type " + value.getClass());
                 logger.info("expectedValue is " + expectedValue);
-                var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
+                Matcher<?> matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
                 TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, matcher);
                 for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
@@ -1018,7 +1026,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return testCase;
             }));
         }
-
     }
 
     public static void unary(
@@ -1819,7 +1826,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
-        TestCase(
+        public TestCase(
             Source source,
             Configuration configuration,
             List<TypedData> data,
@@ -2001,7 +2008,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
-        public TestCase withWarnings(Collection<String> warnings) {
+        public TestCase withWarnings(@Nullable Collection<String> warnings) {
             return new TestCase(
                 source,
                 configuration,
@@ -2009,7 +2016,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 evaluatorToString,
                 expectedType,
                 matcher,
-                warnings == null ? null : warnings.toArray(new String[0]),
+                warnings == null || warnings.isEmpty() ? null : warnings.toArray(new String[0]),
                 expectedBuildEvaluatorWarnings,
                 foldingExceptionClass,
                 foldingExceptionMessage,

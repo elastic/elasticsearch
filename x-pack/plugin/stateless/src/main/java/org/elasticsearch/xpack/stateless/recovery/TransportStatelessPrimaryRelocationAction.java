@@ -639,10 +639,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         ActionListener.run(
-            ActionListener.releaseAfter(
-                listener,
-                Releasables.wrap(cleanUpStatelessCommitService, recoveryRef.target().disableRecoveryMonitor(), recoveryRef)
-            ),
+            ActionListener.releaseAfter(listener, Releasables.wrap(cleanUpStatelessCommitService, recoveryRef)),
             l -> indexShard.preRecovery(l.map(ignored -> {
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
                 indexShard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);

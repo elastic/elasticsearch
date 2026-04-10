@@ -1469,24 +1469,27 @@ public class Security extends Plugin
     private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("build_roles", allocatedProcessors, threadPool.generic());
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
+        return r -> {
+            final Runnable preserved = threadPool.getThreadContext().preserveContext(r);
+            throttledTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        preserved.run();
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
+                @Override
+                public void onFailure(Exception e) {
+                    if (r instanceof AbstractRunnable abstractRunnable) {
+                        abstractRunnable.onFailure(e);
+                    }
+                    // should be impossible, GENERIC pool doesn't reject anything
+                    logger.error("unexpected failure running " + r, e);
+                    assert false : new AssertionError("unexpected failure running " + r, e);
                 }
-                // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running " + r, e);
-                assert false : new AssertionError("unexpected failure running " + r, e);
-            }
-        });
+            });
+        };
     }
 
     private AuthorizationEngine getAuthorizationEngine() {

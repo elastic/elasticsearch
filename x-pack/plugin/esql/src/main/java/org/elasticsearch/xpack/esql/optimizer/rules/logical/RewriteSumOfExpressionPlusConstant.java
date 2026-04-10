@@ -49,9 +49,9 @@ import java.util.stream.Collectors;
  * <p>This rule must run before {@link ReplaceAggregateNestedExpressionWithEval}, which would
  * extract {@code x ± c} into a pre-agg EVAL, hiding the pattern from this rule.</p>
  */
-public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
+public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
 
-    public RewriteSumFieldPlusConstant() {
+    public RewriteSumOfExpressionPlusConstant() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
@@ -98,7 +98,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
         // Pass 1: count matches per (expression, summationMode) key.
         Map<Match.Key, Long> exprMatchCount = aggregate.aggregates()
             .stream()
-            .map(RewriteSumFieldPlusConstant::tryMatch)
+            .map(RewriteSumOfExpressionPlusConstant::tryMatch)
             .filter(Objects::nonNull)
             .collect(Collectors.groupingBy(Match::key, Collectors.counting()));
 

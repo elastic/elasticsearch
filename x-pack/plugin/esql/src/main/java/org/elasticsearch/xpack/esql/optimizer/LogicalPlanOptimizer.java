@@ -72,7 +72,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumFieldPlusConstant;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
@@ -171,7 +171,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneUnusedIndexMode(),
             // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
             // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
-            new RewriteSumFieldPlusConstant(),
+            new RewriteSumOfExpressionPlusConstant(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level

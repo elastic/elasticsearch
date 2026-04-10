@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimizerTests {
+public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testSumOfFieldPlusConstant() {
         var plan = plan("""
@@ -176,7 +176,7 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
             node -> node instanceof Eval e
                 && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
         );
-        assertFalse("Duplicate alias should not be rewritten by RewriteSumFieldPlusConstant", hasMvSingleValueOrNull);
+        assertFalse("Duplicate alias should not be rewritten by RewriteSumOfExpressionPlusConstant", hasMvSingleValueOrNull);
         assertWarnings("Line 2:9: Field 's' shadowed by field at line 2:30");
     }
 
@@ -215,7 +215,7 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
             node -> node instanceof Eval e
                 && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
         );
-        assertFalse("AVG should not be rewritten by RewriteSumFieldPlusConstant", hasMvSingleValueOrNull);
+        assertFalse("AVG should not be rewritten by RewriteSumOfExpressionPlusConstant", hasMvSingleValueOrNull);
     }
 
     public void testSumOfFieldPlusFoldableConstantExpression() {
@@ -365,7 +365,7 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
 
         // After RemoveStatsOverride drops c = sum(emp_no), s1 and s2 still satisfy the 2-match threshold.
         assertTrue(
-            "Expected RewriteSumFieldPlusConstant to fire after shadowing removes c = sum(emp_no)",
+            "Expected RewriteSumOfExpressionPlusConstant to fire after shadowing removes c = sum(emp_no)",
             plan.anyMatch(
                 node -> node instanceof Eval e
                     && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
@@ -387,7 +387,7 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
             """, new TestSubstitutionOnlyOptimizer());
 
         assertTrue(
-            "Expected RewriteSumFieldPlusConstant to fire for INLINE STATS",
+            "Expected RewriteSumOfExpressionPlusConstant to fire for INLINE STATS",
             plan.anyMatch(
                 node -> node instanceof Eval e
                     && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
 
-public class RewriteSumFieldPlusConstantGoldenTests extends GoldenTestCase {
+public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 

@@ -1135,6 +1135,36 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    /**
+     * An EVAL referencing both a partially unmapped non-keyword field and a field with a genuine type conflict
+     * should report errors for both fields.
+     */
+    public void testDisallowLoadWithPartialNonKeywordAndTypeConflictInSameEval() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var conflicted = new InvalidMappedField(
+            "conflicted",
+            Map.of(DataType.LONG.typeName(), Set.of("idx_a"), DataType.DOUBLE.typeName(), Set.of("idx_b"))
+        );
+        var merged = new EsIndex(
+            "idx*",
+            Map.of("partial_long", longField("partial_long"), "conflicted", conflicted),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD, "idx_unmapped", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Map.of("partial_long", Set.of("idx_unmapped"))
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex("idx*", IndexResolution.valid(merged)),
+            "FROM idx* | EVAL x = partial_long + 1, y = conflicted + 1",
+            allOf(
+                containsString("Found 2 problems"),
+                partiallyUnmappedNonKeywordError("partial_long"),
+                containsString("Cannot use field [conflicted]")
+            )
+        );
+    }
+
     public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 

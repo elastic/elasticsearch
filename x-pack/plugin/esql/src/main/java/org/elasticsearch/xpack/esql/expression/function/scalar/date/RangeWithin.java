@@ -63,7 +63,9 @@ public class RangeWithin extends EsqlScalarFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the first argument is within the second argument (WITHIN semantics). "
+        description = "Returns true if the first argument is "
+            + "[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) "
+            + "the second argument. "
             + "Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.",
         examples = @Example(file = "date_range", tag = "rangeWithin", explanation = "Filter events within a specific date range")
     )

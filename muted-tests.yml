@@ -187,9 +187,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
-  method: testRetriesAndOperationsAreTrackedSeparately
-  issue: https://github.com/elastic/elasticsearch/issues/145281
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
@@ -294,6 +291,9 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
+- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
+  method: testIterateAsyncVisitsLeavesInDocIdOrder
+  issue: https://github.com/elastic/elasticsearch/issues/146078
 
 # Examples:
 #

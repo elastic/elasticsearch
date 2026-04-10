@@ -177,18 +177,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .addSpatialLookup();
     }
 
-    protected static TestAnalyzer analyzerWithoutForkImplicitLimit() {
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        return analyzerWithEnrichPolicies().configuration(config)
-            .addEmployees("test")
-            .addEmployees()
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addSpatialLookup();
-    }
-
     protected LogicalPlan optimize(LogicalPlan plan) {
         return logicalOptimizer.optimize(plan);
     }

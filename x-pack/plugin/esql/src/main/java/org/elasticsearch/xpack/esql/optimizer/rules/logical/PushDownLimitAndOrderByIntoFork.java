@@ -38,13 +38,6 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
 
     @Override
     protected LogicalPlan rule(Limit limit, LogicalOptimizerContext context) {
-        // if the implicit limit is added to the FORK branches, we can do an early return
-        // since we know the FORK branches will contain at least one pipeline breaker (the implicit LIMIT)
-        // and we won't push down Limit + OrderBy into any branch
-        if (context.configuration().pragmas().forkImplicitLimit()) {
-            return limit;
-        }
-
         if (limit.child() instanceof OrderBy == false) {
             return limit;
         }

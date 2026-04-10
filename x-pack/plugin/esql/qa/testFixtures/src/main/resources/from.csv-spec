@@ -134,9 +134,8 @@ c:l | name:k
 // this is only for documentation purposes, it can't run as is in Stateful
 // (project_routing setting is only allowed in Serverless)
 projectRouting_docsOnly-Ignore
-
 // tag::project-routing[]
-SET project_routing="_alias:my-project";
+SET project_routing="_alias:my-project"\;
 FROM logs*
 | STATS COUNT(*)
 // end::project-routing[]

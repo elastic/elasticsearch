@@ -10024,6 +10024,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals(new BytesRef("last_name:Doe"), queryLiteral.value());
     }
 
+    public void testFullTextFunctionQueryArgNotFoldable() {
+        String functionName = randomFrom("match", "match_phrase");
+        failPlan(
+            String.format(Locale.ROOT, "from test | where %s(last_name, first_name)", functionName),
+            "Query must be a valid string in"
+        );
+    }
+
+    public void testQueryStringFunctionQueryArgNotFoldable() {
+        String functionName = randomFrom("qstr", "kql");
+        failPlan(
+            String.format(Locale.ROOT, "from test | where %s(last_name)", functionName),
+            "Query must be a valid string in"
+        );
+    }
+
     /**
      * {@snippet lang="text":
      * Project[[id{r}#15, $$languages$converted_to$keyword{f$}#16 AS languages#9]]

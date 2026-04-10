@@ -646,6 +646,34 @@ colors         | null
 colors         | null
 ;
 
+typeConflictLongNonExistentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, colors METADATA _index
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+| LIMIT 15
+;
+
+_index:keyword | event_duration:long
+sample_data    | 725448
+sample_data    | 1232382
+sample_data    | 1756467
+sample_data    | 2764889
+sample_data    | 3450233
+sample_data    | 5033755
+sample_data    | 8268153
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+;
+
 typeConflictLongNonExistentCastToKeyword
 required_capability: optional_fields_v5
 
@@ -830,6 +858,39 @@ sample_data_ts_long    | 1698069235832
 sample_data_ts_long    | 1698069301543
 ;
 
+typeConflictLongDateUnmappedNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, @timestamp
+| SORT _index
+;
+
+_index:keyword         | @timestamp:unsupported
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+;
+
 typeConflictLongDateUnmappedCastToDouble
 required_capability: optional_fields_v5
 
@@ -943,6 +1004,44 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ###############################
 # Mapped x 2 and non-existent #
 ###############################
+
+typeConflictLongDateNonExistentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_long, sample_data, colors METADATA _index
+| KEEP _index, @timestamp
+| SORT _index DESC
+| LIMIT 25
+;
+
+_index:keyword      | @timestamp:unsupported
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data_ts_long | null
+sample_data         | null
+sample_data         | null
+sample_data         | null
+sample_data         | null
+sample_data         | null
+sample_data         | null
+sample_data         | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+;
 
 typeConflictLongDateNonExistentCastToKeyword
 required_capability: optional_fields_v5
@@ -1064,6 +1163,49 @@ colors              | null
 ##########################################
 # Mapped x 2, unmapped, and non-existent #
 ##########################################
+
+typeConflictLongDateUnmappedNonExistentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
+| KEEP _index, @timestamp
+| SORT _index DESC
+| LIMIT 30
+;
+
+_index:keyword         | @timestamp:unsupported
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data_ts_long    | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+;
 
 typeConflictLongDateUnmappedNonExistentCastToKeyword
 required_capability: optional_fields_v5

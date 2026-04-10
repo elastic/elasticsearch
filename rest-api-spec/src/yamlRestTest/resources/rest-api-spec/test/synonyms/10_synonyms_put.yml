@@ -92,6 +92,14 @@ setup:
 
 ---
 "Max synonym rules limit is enforced":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{synonymsSet}
+          capabilities: [ synonyms_max_synonym_rules_setting ]
+      reason: "synonyms_max_synonym_rules_setting capability needed"
+
   - do:
       cluster.put_settings:
         body:

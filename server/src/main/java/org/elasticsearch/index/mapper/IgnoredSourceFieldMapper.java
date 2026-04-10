@@ -216,6 +216,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             assert context.getIgnoredFieldValues().isEmpty();
             return;
         }
+        if (context.getIgnoredFieldValues().isEmpty()) {
+            return;
+        }
 
         ignoredSourceFormat(context.indexSettings()).writeIgnoredFields(
             context.getIgnoredFieldValues(),

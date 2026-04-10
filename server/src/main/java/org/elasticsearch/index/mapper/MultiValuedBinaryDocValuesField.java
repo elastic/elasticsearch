@@ -125,10 +125,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         IndexVersion indexVersion,
         boolean hasNestedDocs
     ) {
-        if (ignoredFieldValues.isEmpty()) {
-            return;
-        }
-
         final boolean useIntegratedCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
 
         // Nested docs store their own NameValue:

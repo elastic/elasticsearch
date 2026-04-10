@@ -14,27 +14,10 @@ Known issues are significant defects or limitations that may impact your impleme
 
   The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.3.4.
 
-  Possible workarounds include:
-  * Downgrade to 9.3.2.
-  * Patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
 
     ```
     -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjMuMwpwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
-    ```
-
-    Where the policy is the base64 encoding of:
-
-    ```yaml
-    versions:
-      - 9.3.3
-    policy:
-      ALL-UNNAMED:
-        - set_https_connection_properties
-        - outbound_network
-        - files:
-            - relative_path: ".config/gcloud"
-              relative_to: home
-              mode: read
     ```
 
 ## 9.3.1 [elasticsearch-9.3.1-known-issues]
@@ -67,27 +50,10 @@ Known issues are significant defects or limitations that may impact your impleme
 
   The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.2.9.
 
-  Possible workarounds include:
-  * Downgrade to 9.2.7.
-  * Patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
 
     ```
     -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjIuOApwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
-    ```
-
-    Where the policy is the base64 encoding of:
-
-    ```yaml
-    versions:
-      - 9.2.8
-    policy:
-      ALL-UNNAMED:
-        - set_https_connection_properties
-        - outbound_network
-        - files:
-            - relative_path: ".config/gcloud"
-              relative_to: home
-              mode: read
     ```
 
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]

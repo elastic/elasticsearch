@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * Pushes down any Filter that appears immediately after a FORK if at least one of the FORK branches does not have a pipeline breaker.
- * This increases the likelihood that any pipeline breaker such as Limit or TopN that appears after FORK will be pushed down into FORK branches.
+ * This increases the chances that any pipeline breaker such as Limit or TopN that appears after FORK will be pushed down into FORK.
  */
 public class PushDownFiltersIntoFork extends OptimizerRules.OptimizerRule<Filter> {
     public PushDownFiltersIntoFork() {

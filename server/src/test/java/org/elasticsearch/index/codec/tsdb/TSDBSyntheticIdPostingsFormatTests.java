@@ -481,8 +481,20 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
-    public void testConcurrentSeekExact() throws IOException {
-        runTestWithRandomDocs(new NIOFSDirectory(createTempDir()), 25, 100, (writer, finalDocs) -> {
+    public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
+        // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
+        // that are less prone to concurrency issues.
+        doTestConcurrentSeekExact(new NIOFSDirectory(createTempDir()));
+    }
+
+    public void testConcurrentSeekExactRandomDirectory() throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        doTestConcurrentSeekExact(directory);
+    }
+
+    private void doTestConcurrentSeekExact(Directory directory) throws IOException {
+        runTestWithRandomDocs(directory, 25, 100, (writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.leaves(), hasSize(1));
                 final var leafReader = reader.leaves().getFirst().reader();

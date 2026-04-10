@@ -91,6 +91,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -258,9 +259,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         public NoopSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
-            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings);
+            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, warmingRatioProvider);
         }
 
         @Override

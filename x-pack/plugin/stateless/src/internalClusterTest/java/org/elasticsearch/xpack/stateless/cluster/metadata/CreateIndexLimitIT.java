@@ -17,8 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.cluster.metadata;
 
-import co.elastic.elasticsearch.serverless.constants.ProjectType;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -65,7 +63,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.monitor.metrics.IndicesMetrics.USER_INDEX_TOTAL_METRIC_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -285,9 +282,8 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testCreateIndexLimit() throws Exception {
-        final var projectType = randomFrom(ProjectType.values());
-        startMasterAndIndexNode(Settings.builder().put(PROJECT_TYPE.getKey(), projectType).build());
-        startSearchNode(Settings.builder().put(PROJECT_TYPE.getKey(), projectType).build());
+        startMasterAndIndexNode();
+        startSearchNode();
         ensureStableCluster(2);
 
         final String indexName = randomIndexName();

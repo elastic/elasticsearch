@@ -17,8 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -261,21 +258,22 @@ public class SharedBlobCacheWarmingService {
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
-    private volatile int minSearchPower;
     private volatile boolean searchOfflineWarmingEnabled;
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile double idLookupPrewarmRatio;
-    private volatile TimeValue boostWindow;
     private volatile long maxUploadPrewarmSize;
+    private final WarmingRatioProvider warmingRatioProvider;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        WarmingRatioProvider warmingRatioProvider
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
+        this.warmingRatioProvider = warmingRatioProvider;
         this.fetchExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
         this.uploadPrewarmFetchExecutor = threadPool.executor(StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL);
 
@@ -300,8 +298,6 @@ public class SharedBlobCacheWarmingService {
             SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             value -> this.prefetchCommitsForSearchShardRecovery = value
         );
-        clusterSettings.initializeAndWatch(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING, value -> this.minSearchPower = value);
-        clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
         clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> this.searchOfflineWarmingEnabled = value);
         clusterSettings.initializeAndWatch(UPLOAD_PREWARM_MAX_SIZE_SETTING, value -> this.maxUploadPrewarmSize = value.getBytes());
         clusterSettings.initializeAndWatch(
@@ -663,53 +659,7 @@ public class SharedBlobCacheWarmingService {
         ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCompoundCommit,
         long nowMillis
     ) {
-        final var timestampFieldValueRange = referencedCompoundCommit.statelessCompoundCommitReference()
-            .compoundCommit()
-            .getTimestampFieldValueRange();
-        long commitMillis;
-        if (timestampFieldValueRange != null) {
-            commitMillis = timestampFieldValueRange.minMillis() + (timestampFieldValueRange.maxMillis() - timestampFieldValueRange
-                .minMillis()) / 2;
-        } else {
-            // if we don't have a timestamp range for the compound commit, use a timestamp in the middle of the boost window
-            commitMillis = nowMillis - boostWindow.getMillis() / 2;
-        }
-
-        return calculateWarmingRatio(nowMillis, commitMillis, boostWindow.getMillis(), minSearchPower);
-    }
-
-    /**
-     * Calculates the warming ratio for a compound commit based on its timestamp relative to now and the boost window.
-     * The ratio determines what fraction of the commit's data should be warmed in cache.
-     *
-     * <p>The formula combines a recency term with an age term that activates when {@code SP > 100}.
-     * It creates a plateau for older-but-still-in-window commits. For example, with {@code SP=150}, there
-     * is a slope (of -SP/100/bw per millisecond of timestamp) between the 1.0 and 0.5 ((SP - 100)/100) warming ratio values:
-     *
-     * <pre>
-     * ratio
-     * 1.0 +---------\
-     *     |              \
-     * 0.5 |                   +---------+
-     *     |                             |
-     *   0 +---------+---------+---------+
-     *     now       now-bw/3  now-2bw/3 now-bw
-     *                   timestamp
-     * </pre>
-     *
-     * <p>For {@code SP >= 200} the warming ratio is fixed at 1.0 across the boost window timestamp range.
-     */
-    protected static double calculateWarmingRatio(long nowMillis, long timestampMillis, long boostWindowMillis, int searchPower) {
-        // anything outside the boost window is not warmed
-        if (timestampMillis < nowMillis - boostWindowMillis) {
-            return 0;
-        }
-        // warming ratio is highest for more recent commits
-        final double recencyTerm = (double) (timestampMillis - nowMillis + boostWindowMillis) / boostWindowMillis * searchPower;
-        // at some point, for older commits (but still inside the boost window), the warming ratio stabilizes to SP-100
-        final double ageTerm = (double) (nowMillis - timestampMillis) / boostWindowMillis * searchPower;
-        final double ratio = Math.min(recencyTerm, 100) + Math.max(ageTerm - 100, 0);
-        return Math.max(ratio, 0) / 100;
+        return warmingRatioProvider.getWarmingRatio(referencedCompoundCommit, nowMillis);
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {

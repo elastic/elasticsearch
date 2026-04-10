@@ -360,10 +360,11 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            ClusterSettings clusterSettings
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
                 @Override
                 public void warmCacheForShardRecoveryOrUnhollowing(
                     Type type,

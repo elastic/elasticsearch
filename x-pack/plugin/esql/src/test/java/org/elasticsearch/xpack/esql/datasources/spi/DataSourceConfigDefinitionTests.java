@@ -63,4 +63,13 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         Map<String, DataSourceConfigDefinition> map = DataSourceConfigDefinition.mapOf(DataSourceConfigDefinition.plaintext("a"));
         expectThrows(UnsupportedOperationException.class, () -> map.put("x", DataSourceConfigDefinition.plaintext("x")));
     }
+
+    public void testMapOfRejectsDuplicateNames() {
+        // Collectors.toUnmodifiableMap throws on duplicate keys without a merger — locks in fail-fast
+        // behavior so a plugin author can't accidentally register the same field name twice with
+        // different sensitivity classifications.
+        DataSourceConfigDefinition first = DataSourceConfigDefinition.plaintext("region");
+        DataSourceConfigDefinition second = DataSourceConfigDefinition.secret("region");
+        expectThrows(IllegalStateException.class, () -> DataSourceConfigDefinition.mapOf(first, second));
+    }
 }

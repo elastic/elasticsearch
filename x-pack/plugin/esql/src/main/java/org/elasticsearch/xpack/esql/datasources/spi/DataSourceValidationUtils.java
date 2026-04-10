@@ -60,12 +60,12 @@ public final class DataSourceValidationUtils {
         Map<String, Object> result,
         String field,
         E[] values,
-        Function<String, ?> parser,
+        Function<String, ? extends E> parser,
         ValidationException errors
     ) {
         Object value = settings.get(field);
         if (value != null) {
-            Object parsed;
+            E parsed;
             try {
                 parsed = parser.apply(value.toString());
             } catch (IllegalArgumentException e) {

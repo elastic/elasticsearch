@@ -50,7 +50,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, DataSourceValidator> datasourceValidators() {
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }

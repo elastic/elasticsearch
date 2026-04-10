@@ -15,9 +15,11 @@ import java.util.Map;
  * Validates and normalizes datasource and dataset settings at CRUD time.
  *
  * <p>Each storage plugin provides a stateless singleton implementation. Despite the name,
- * implementations do more than just validate: they parse the raw REST input, normalize
- * values (e.g., case-insensitive enum-like fields), reject unknown fields, and wrap the
- * result in the canonical cluster-state shape.
+ * implementations do more than just validate: they parse the raw REST input, reject unknown
+ * fields, and wrap the result in the canonical cluster-state shape. Datasource fields marked
+ * {@link DataSourceConfigDefinition#caseInsensitive() caseInsensitive} are also lowercased
+ * on input. Dataset enum fields are validated against their parser (typically case-insensitive)
+ * but the original input case is preserved in the stored value.
  *
  * <p>Two methods, two scopes:
  * <ul>

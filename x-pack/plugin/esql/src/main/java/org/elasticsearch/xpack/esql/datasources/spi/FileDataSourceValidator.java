@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -111,8 +112,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
         }
         if (schemeMatch == false) {
+            String supportedPrefixes = supportedSchemes.stream().map(s -> s + "://").collect(Collectors.joining(", ", "[", "]"));
             errors.addValidationError(
-                "[resource] must use one of the supported URI schemes " + supportedSchemes + " but was [" + resource + "]"
+                "[resource] must use one of the supported URI schemes " + supportedPrefixes + " but was [" + resource + "]"
             );
         }
     }

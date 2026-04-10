@@ -20,83 +20,10 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.3.2 [elasticsearch-9.3.2-release-notes]
-```{applies_to}
-stack: ga 9.3.2
-```
-
-### Features and enhancements [elasticsearch-9.3.2-features-enhancements]
-
-Authentication:
-* Bump Kiota Libs [#143556](https://github.com/elastic/elasticsearch/pull/143556)
-
-Authorization:
-* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140049](https://github.com/elastic/elasticsearch/pull/140049)
-* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. [#142648](https://github.com/elastic/elasticsearch/pull/142648)
-
-Monitoring:
-* Apm-server: update monitor mappings to include new TBS metrics [#140700](https://github.com/elastic/elasticsearch/pull/140700)
-
-Search:
-* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings [#143733](https://github.com/elastic/elasticsearch/pull/143733) (issue: [#143732](https://github.com/elastic/elasticsearch/issues/143732))
-
-Transform:
-* Skip checkpoint query filter when `runtime_mappings` are present [#142452](https://github.com/elastic/elasticsearch/pull/142452)
-
-
-### Fixes [elasticsearch-9.3.2-fixes]
-
-Aggregations:
-* Fix `ClassCastException` when merging `TopHits` with mixed sort field types [#141919](https://github.com/elastic/elasticsearch/pull/141919) (issue: [#141714](https://github.com/elastic/elasticsearch/issues/141714))
-
-CCS:
-* Fix: `_resolve/index API` should be able to accept an empty body [#143159](https://github.com/elastic/elasticsearch/pull/143159)
-
-Data streams:
-* Apm-data: explicit map of `timestamp.us` to long [#143173](https://github.com/elastic/elasticsearch/pull/143173)
-* Expand DLM user to allow interaction with .workflows-events [#143958](https://github.com/elastic/elasticsearch/pull/143958)
-
-ES|QL:
-* Account for missing `StubRelation` due to `SurrogateExpressions` replacement [#142882](https://github.com/elastic/elasticsearch/pull/142882) (issue: [#142219](https://github.com/elastic/elasticsearch/issues/142219))
-* ESQL - enable zero_terms_query option in MATCH function [#143668](https://github.com/elastic/elasticsearch/pull/143668) (issue: [#143070](https://github.com/elastic/elasticsearch/issues/143070))
-* Fix KQL/QSTR with unmapped fields in NULLIFY mode [#143399](https://github.com/elastic/elasticsearch/pull/143399) (issues: [#142968](https://github.com/elastic/elasticsearch/issues/142968), [#142959](https://github.com/elastic/elasticsearch/issues/142959))
-* Fix incorrect nullify with unmapped fields [#142300](https://github.com/elastic/elasticsearch/pull/142300) (issue: [#141870](https://github.com/elastic/elasticsearch/issues/141870))
-* Fix nullify where in stats [#144029](https://github.com/elastic/elasticsearch/pull/144029) (issue: [#143991](https://github.com/elastic/elasticsearch/issues/143991))
-* Fix unresolved name pattern [#143210](https://github.com/elastic/elasticsearch/pull/143210)
-* Promptly clean up CCS exchange sinks [#143325](https://github.com/elastic/elasticsearch/pull/143325)
-* Skip nullifying aliases for Aggregate groups. [#141340](https://github.com/elastic/elasticsearch/pull/141340)
-* TS command ignores aliases in BY [#143489](https://github.com/elastic/elasticsearch/pull/143489)
-
-Highlighting:
-* Fix `UnsupportedOperationException` when using a `plain` highlighter with a query on a field used for index sorting (`index.sort.*`).  [#143680](https://github.com/elastic/elasticsearch/pull/143680)
-
-Machine Learning:
-* Fix Duplicate ML Model Allocations on Same Node [#142872](https://github.com/elastic/elasticsearch/pull/142872)
-* Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation [#143077](https://github.com/elastic/elasticsearch/pull/143077) (issue: [#107831](https://github.com/elastic/elasticsearch/issues/107831))
-
-Mapping:
-* Apply the source filter on metadata field mappers when loading from synthetic source [#143726](https://github.com/elastic/elasticsearch/pull/143726) (issue: [#143464](https://github.com/elastic/elasticsearch/issues/143464))
-
-Search:
-* Add circuit breaker for query construction to prevent OOM from automaton-based queries [#142150](https://github.com/elastic/elasticsearch/pull/142150)
-* Add timeout support for KNN searches in the DFS phase [#142925](https://github.com/elastic/elasticsearch/pull/142925)
-
-Security:
-* Disable CAE in microsoft-graph-authz plugin [#142848](https://github.com/elastic/elasticsearch/pull/142848) (issue: [#142743](https://github.com/elastic/elasticsearch/issues/142743))
-* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle [#143134](https://github.com/elastic/elasticsearch/pull/143134)
-
-Snapshot/Restore:
-* Fix cancellation race in `CancellableRateLimitedFluxIterator` [#141974](https://github.com/elastic/elasticsearch/pull/141974)
-
-Transform:
-* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
-
-Vector Search:
-* Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
-
-
-
 ## 9.3.3 [elasticsearch-9.3.3-release-notes]
+```{applies_to}
+stack: ga 9.3.3
+```
 
 ### Features and enhancements [elasticsearch-9.3.3-features-enhancements]
 
@@ -168,6 +95,131 @@ Vector Search:
 * Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
 
 
+## 9.2.8 [elasticsearch-9.2.8-release-notes]
+
+### Features and enhancements [elasticsearch-9.2.8-features-enhancements]
+
+Authentication:
+* Improve SAML error handling by adding metadata [#137598](https://github.com/elastic/elasticsearch/pull/137598) (issue: [#128179](https://github.com/elastic/elasticsearch/issues/128179))
+* In-response-to in saml successful response [#137599](https://github.com/elastic/elasticsearch/pull/137599) (issue: [#128179](https://github.com/elastic/elasticsearch/issues/128179))
+
+Security:
+* Skip automaton construction for literal resource strings in application privilege checks [#144685](https://github.com/elastic/elasticsearch/pull/144685)
+
+
+### Fixes [elasticsearch-9.2.8-fixes]
+
+CAT APIs:
+* Fix `ArrayIndexOutOfBoundsException` in cat nodes for partial load average arrays [#144859](https://github.com/elastic/elasticsearch/pull/144859)
+
+CCR:
+* CCR follower index needs to copy transport version from CCR leader index [#145035](https://github.com/elastic/elasticsearch/pull/145035)
+
+ES|QL:
+* Cancel async query on expiry [#143016](https://github.com/elastic/elasticsearch/pull/143016) (issue: [#142662](https://github.com/elastic/elasticsearch/issues/142662))
+* Reduce `LuceneOperator.Status` memory consumption with large QueryDSL queries [#143175](https://github.com/elastic/elasticsearch/pull/143175) (issue: [#143164](https://github.com/elastic/elasticsearch/issues/143164))
+
+FIPS:
+* Fix createLDAPCertStore failing in FIPS mode [#144453](https://github.com/elastic/elasticsearch/pull/144453) (issues: [#144376](https://github.com/elastic/elasticsearch/issues/144376), [#144377](https://github.com/elastic/elasticsearch/issues/144377))
+
+Geo:
+* Fix `geo_centroid` over `geo_shape` merging multiple shards [#144637](https://github.com/elastic/elasticsearch/pull/144637) (issue: [#144504](https://github.com/elastic/elasticsearch/issues/144504))
+
+Infra/Core:
+* Fix system index mapping update for reindexed indices after migration [#144782](https://github.com/elastic/elasticsearch/pull/144782) (issue: [#144764](https://github.com/elastic/elasticsearch/issues/144764))
+
+Machine Learning:
+* Fix anomaly detection jobs stuck in opening by continously retrying to set the state to opened. [#139668](https://github.com/elastic/elasticsearch/pull/139668)
+* [Inference API] Support chunking settings for sparse embeddings in custom service [#138776](https://github.com/elastic/elasticsearch/pull/138776)
+
+Search:
+* Fix `ArrayIndexOutOfBoundsException` in fetch phase with partial results [#144385](https://github.com/elastic/elasticsearch/pull/144385) (issue: [#140495](https://github.com/elastic/elasticsearch/issues/140495))
+* Fix circuit breaker leak in percolator query construction [#144827](https://github.com/elastic/elasticsearch/pull/144827)
+* Fix request cache invalidation to use ES cache helper consistently [#144581](https://github.com/elastic/elasticsearch/pull/144581)
+* Fix wrong return value in `ContextIndexSearcher.totalTermFreq` [#144333](https://github.com/elastic/elasticsearch/pull/144333)
+
+Snapshot/Restore:
+* Fix up exception messages in `AzureBlobStore` [#144654](https://github.com/elastic/elasticsearch/pull/144654)
+
+Vector Search:
+* [DiskBBQ] Fix index sorting on flush [#144938](https://github.com/elastic/elasticsearch/pull/144938)
+* [DiskBBQ] Fix index sorting on flush (2nd attempt) [#145076](https://github.com/elastic/elasticsearch/pull/145076)
+
+Watcher:
+* Validate Watcher Proxy Allowlist [#144759](https://github.com/elastic/elasticsearch/pull/144759)
+
+
+
+## 9.3.2 [elasticsearch-9.3.2-release-notes]
+
+### Features and enhancements [elasticsearch-9.3.2-features-enhancements]
+
+Authentication:
+* Bump Kiota Libs [#143556](https://github.com/elastic/elasticsearch/pull/143556)
+
+Authorization:
+* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140049](https://github.com/elastic/elasticsearch/pull/140049)
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. [#142648](https://github.com/elastic/elasticsearch/pull/142648)
+
+Monitoring:
+* Apm-server: update monitor mappings to include new TBS metrics [#140700](https://github.com/elastic/elasticsearch/pull/140700)
+
+Search:
+* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings [#143733](https://github.com/elastic/elasticsearch/pull/143733) (issue: [#143732](https://github.com/elastic/elasticsearch/issues/143732))
+
+Transform:
+* Skip checkpoint query filter when `runtime_mappings` are present [#142452](https://github.com/elastic/elasticsearch/pull/142452)
+
+
+### Fixes [elasticsearch-9.3.2-fixes]
+
+Aggregations:
+* Fix `ClassCastException` when merging `TopHits` with mixed sort field types [#141919](https://github.com/elastic/elasticsearch/pull/141919) (issue: [#141714](https://github.com/elastic/elasticsearch/issues/141714))
+
+CCS:
+* Fix: `_resolve/index API` should be able to accept an empty body [#143159](https://github.com/elastic/elasticsearch/pull/143159)
+
+Data streams:
+* Apm-data: explicit map of `timestamp.us` to long [#143173](https://github.com/elastic/elasticsearch/pull/143173)
+* Expand DLM user to allow interaction with .workflows-events [#143958](https://github.com/elastic/elasticsearch/pull/143958)
+
+ES|QL:
+* Account for missing `StubRelation` due to `SurrogateExpressions` replacement [#142882](https://github.com/elastic/elasticsearch/pull/142882) (issue: [#142219](https://github.com/elastic/elasticsearch/issues/142219))
+* ESQL - enable zero_terms_query option in MATCH function [#143668](https://github.com/elastic/elasticsearch/pull/143668) (issue: [#143070](https://github.com/elastic/elasticsearch/issues/143070))
+* Fix KQL/QSTR with unmapped fields in NULLIFY mode [#143399](https://github.com/elastic/elasticsearch/pull/143399) (issues: [#142968](https://github.com/elastic/elasticsearch/issues/142968), [#142959](https://github.com/elastic/elasticsearch/issues/142959))
+* Fix incorrect nullify with unmapped fields [#142300](https://github.com/elastic/elasticsearch/pull/142300) (issue: [#141870](https://github.com/elastic/elasticsearch/issues/141870))
+* Fix nullify where in stats [#144029](https://github.com/elastic/elasticsearch/pull/144029) (issue: [#143991](https://github.com/elastic/elasticsearch/issues/143991))
+* Fix unresolved name pattern [#143210](https://github.com/elastic/elasticsearch/pull/143210)
+* Promptly clean up CCS exchange sinks [#143325](https://github.com/elastic/elasticsearch/pull/143325)
+* Skip nullifying aliases for Aggregate groups. [#141340](https://github.com/elastic/elasticsearch/pull/141340)
+* TS command ignores aliases in BY [#143489](https://github.com/elastic/elasticsearch/pull/143489)
+
+Highlighting:
+* Fix `UnsupportedOperationException` when using a `plain` highlighter with a query on a field used for index sorting (`index.sort.*`).  [#143680](https://github.com/elastic/elasticsearch/pull/143680)
+
+Machine Learning:
+* Fix Duplicate ML Model Allocations on Same Node [#142872](https://github.com/elastic/elasticsearch/pull/142872)
+* Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation [#143077](https://github.com/elastic/elasticsearch/pull/143077) (issue: [#107831](https://github.com/elastic/elasticsearch/issues/107831))
+
+Mapping:
+* Apply the source filter on metadata field mappers when loading from synthetic source [#143726](https://github.com/elastic/elasticsearch/pull/143726) (issue: [#143464](https://github.com/elastic/elasticsearch/issues/143464))
+
+Search:
+* Add circuit breaker for query construction to prevent OOM from automaton-based queries [#142150](https://github.com/elastic/elasticsearch/pull/142150)
+* Add timeout support for KNN searches in the DFS phase [#142925](https://github.com/elastic/elasticsearch/pull/142925)
+
+Security:
+* Disable CAE in microsoft-graph-authz plugin [#142848](https://github.com/elastic/elasticsearch/pull/142848) (issue: [#142743](https://github.com/elastic/elasticsearch/issues/142743))
+* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle [#143134](https://github.com/elastic/elasticsearch/pull/143134)
+
+Snapshot/Restore:
+* Fix cancellation race in `CancellableRateLimitedFluxIterator` [#141974](https://github.com/elastic/elasticsearch/pull/141974)
+
+Transform:
+* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
+
+Vector Search:
+* Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
 
 ## 9.2.7 [elasticsearch-9.2.7-release-notes]
 

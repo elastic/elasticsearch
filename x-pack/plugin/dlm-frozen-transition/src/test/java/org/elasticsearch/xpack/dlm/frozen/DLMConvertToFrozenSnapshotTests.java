@@ -479,7 +479,8 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+        converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName);
+        converter.createSnapshot(indexName, REPO_NAME, snapshotName);
 
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
@@ -493,10 +494,10 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
 
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            () -> converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName)
-        );
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
+            converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName);
+            converter.createSnapshot(indexName, REPO_NAME, snapshotName);
+        });
         assertThat(e.getMessage(), containsString("Failed to acknowledge delete"));
     }
 
@@ -508,7 +509,8 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+        converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName);
+        converter.createSnapshot(indexName, REPO_NAME, snapshotName);
 
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
@@ -609,7 +611,65 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    // todo: add integ test for handleInProgressSnapshot when snapshot is within timeout
+    public void testWaitForSnapshotCompletion_snapshotAlreadyComplete_succeeds() {
+        // Set up cluster state with NO in-progress snapshot so the predicate is immediately true
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+
+        // Mock getSnapshot to return a successful snapshot
+        SnapshotInfo successSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(successSnapshot));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        long snapshotStartTime = clock.millis() - TimeValue.timeValueMinutes(5).millis();
+
+        // Should complete without error — predicate satisfied immediately, then getSnapshot validates
+        converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime);
+
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
+
+    public void testWaitForSnapshotCompletion_snapshotDisappeared_throws() {
+        // No in-progress snapshot — predicate immediately satisfied
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+
+        // Mock getSnapshot to return no results (snapshot disappeared)
+        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        long snapshotStartTime = clock.millis() - TimeValue.timeValueMinutes(5).millis();
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime)
+        );
+        assertThat(e.getMessage(), containsString("disappeared while waiting for completion"));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
+
+    public void testWaitForSnapshotCompletion_snapshotFailed_throws() {
+        // No in-progress snapshot — predicate immediately satisfied
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+
+        // Mock getSnapshot to return a failed snapshot
+        SnapshotInfo failedSnapshot = createSnapshotInfo(SnapshotState.FAILED, 1);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(failedSnapshot));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        long snapshotStartTime = clock.millis() - TimeValue.timeValueMinutes(5).millis();
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime)
+        );
+        assertThat(e.getMessage(), containsString("failed shards"));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
 
     // --- maybeTakeSnapshot tests ---
 

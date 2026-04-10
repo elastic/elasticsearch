@@ -30,8 +30,8 @@ import java.util.Optional;
  * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
  * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
  * SourceTaskResult contains the result of the source task, and it is passed through relocation. The destination task persists this result
- * in .tasks to ensure the relocation chain is maintained even if the source task fails to store its result. This prevents an orphan
- * destination task not reachable through relocation chain.
+ * in .tasks to ensure the relocation chain is maintained even if the source task fails to store its result. This prevents the
+ * destination task from becoming orphaned and unreachable through the relocation chain.
  * <p>
  * Note: For sliced tasks, resume info must include all slices, including those that are already completed. This ensures that the final
  * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried

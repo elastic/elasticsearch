@@ -228,9 +228,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145519
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
-  method: testTopNByKeyEncoderTooMuchMemory
-  issue: https://github.com/elastic/elasticsearch/issues/145627
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/145654
@@ -303,12 +300,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145963
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
-  method: testTopNByManySortColumns
-  issue: https://github.com/elastic/elasticsearch/issues/145965
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
-  method: testTopNByManyGroupsSmallTopCount
-  issue: https://github.com/elastic/elasticsearch/issues/145970
 
 # Examples:
 #

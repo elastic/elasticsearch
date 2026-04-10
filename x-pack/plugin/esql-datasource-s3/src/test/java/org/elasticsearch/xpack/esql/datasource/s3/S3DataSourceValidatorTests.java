@@ -16,11 +16,7 @@ import java.util.Set;
 
 public class S3DataSourceValidatorTests extends ESTestCase {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator(
-        "s3",
-        S3Configuration::fromMap,
-        Set.of("s3://", "s3a://", "s3n://")
-    );
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
 
     public void testType() {
         assertEquals("s3", validator.type());
@@ -131,6 +127,21 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasetAllSchemes() {
         for (String uri : new String[] { "s3://b/p", "s3a://b/p", "s3n://b/p" }) {
+            assertNotNull(validator.validateDataset(Map.of(), uri, Map.of()));
+        }
+    }
+
+    public void testValidateDatasetRejectsSchemePrefixCollision() {
+        // The validator must compare against the full "scheme://" form, not just the scheme name,
+        // so that resources whose names begin with a known scheme but are not actually that scheme
+        // (e.g. "s3foo://...") are correctly rejected.
+        for (String uri : new String[] { "s3foo://b/p", "s3abc://b/p", "s3n123://b/p" }) {
+            expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), uri, Map.of()));
+        }
+    }
+
+    public void testValidateDatasetSchemeIsCaseInsensitive() {
+        for (String uri : new String[] { "S3://b/p", "S3A://b/p", "S3N://b/p", "S3a://b/p" }) {
             assertNotNull(validator.validateDataset(Map.of(), uri, Map.of()));
         }
     }

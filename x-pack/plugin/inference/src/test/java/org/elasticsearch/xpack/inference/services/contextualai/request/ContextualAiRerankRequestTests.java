@@ -49,7 +49,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithRequiredFieldsOnly() throws IOException {
         var requestMap = assertCreateHttpRequest(createRequest(ContextualAiRerankTaskSettings.EMPTY_SETTINGS, null));
-        // Verifying that only query, documents, and model fields are present in the request when optional fields are not set
+        // Verifying that only query, documents, and model fields are present in the request
         assertThat(requestMap, aMapWithSize(3));
     }
 
@@ -59,6 +59,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         );
         assertThat(requestMap.get(TOP_N_FIELD), is(TEST_TOP_N));
         assertThat(requestMap.get(INSTRUCTION_FIELD), is(TEST_INSTRUCTION));
+        // Verifying that only query, documents, model, topN and instruction fields are present in the request
         assertThat(requestMap, aMapWithSize(5));
     }
 
@@ -67,6 +68,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
             createRequest(new ContextualAiRerankTaskSettings(null, INITIAL_TEST_TOP_N, null), NEW_TEST_TOP_N)
         );
         assertThat(requestMap.get(TOP_N_FIELD), is(NEW_TEST_TOP_N));
+        // Verifying that only query, documents, model, topN fields are present in the request
         assertThat(requestMap, aMapWithSize(4));
     }
 

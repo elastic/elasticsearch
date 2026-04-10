@@ -218,8 +218,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap, aMapWithSize(5));
             // Validate that no unexpected fields are sent
+            assertThat(requestMap, aMapWithSize(5));
             assertThat(requestMap.get(QUERY_FIELD), is(TEST_QUERY));
             assertThat(requestMap.get(DOCUMENTS_FIELD), is(TEST_DOCUMENTS));
             assertThat(requestMap.get(MODEL_FIELD), is(TEST_MODEL_ID));

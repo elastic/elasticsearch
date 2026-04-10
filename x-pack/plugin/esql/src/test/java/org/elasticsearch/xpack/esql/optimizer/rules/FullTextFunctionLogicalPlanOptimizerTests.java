@@ -76,7 +76,7 @@ public class FullTextFunctionLogicalPlanOptimizerTests extends AbstractLogicalPl
         String functionName = randomFrom("match", "match_phrase");
         failPlan(
             String.format(Locale.ROOT, "from test | where %s(last_name, first_name)", functionName),
-            "Query must be a valid string in"
+            "Query must be a constant string in"
         );
     }
 
@@ -84,7 +84,7 @@ public class FullTextFunctionLogicalPlanOptimizerTests extends AbstractLogicalPl
         String functionName = randomFrom("qstr", "kql");
         failPlan(
             String.format(Locale.ROOT, "from test | where %s(last_name)", functionName),
-            "Query must be a valid string in"
+            "Query must be a constant string in"
         );
     }
 }

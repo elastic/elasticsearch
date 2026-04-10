@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -67,8 +68,11 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
+import static org.mockito.Mockito.mock;
 
 public class ClusterModuleTests extends ModuleTestCase {
+    private final Client client = mock(Client.class);
+
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
     private ClusterService clusterService;
     private static ThreadPool threadPool;
@@ -170,7 +174,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                client
             )
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
@@ -189,7 +194,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            client
         );
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
@@ -207,7 +213,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            client
         );
     }
 
@@ -243,7 +250,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                client
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -309,7 +317,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            client
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
@@ -325,7 +334,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            client
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }

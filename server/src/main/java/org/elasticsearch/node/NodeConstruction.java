@@ -829,7 +829,8 @@ class NodeConstruction {
             systemIndices,
             projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings(), clusterInfoService),
-            telemetryProvider
+            telemetryProvider,
+            client
         );
         modules.add(clusterModule);
 

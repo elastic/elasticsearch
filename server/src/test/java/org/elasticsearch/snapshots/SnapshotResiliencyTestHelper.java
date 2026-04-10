@@ -988,7 +988,7 @@ public class SnapshotResiliencyTestHelper {
                         transportService,
                         clusterService,
                         threadPool,
-                        new MetadataDeleteIndexService(settings, clusterService, allocationService),
+                        new MetadataDeleteIndexService(settings, clusterService, allocationService, client),
                         actionFilters,
                         projectResolver,
                         indexNameExpressionResolver,

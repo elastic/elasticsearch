@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -71,7 +72,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         service = new MetadataDeleteIndexService(
             Settings.EMPTY,
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
-            allocationService
+            allocationService,
+            mock(Client.class)
         );
     }
 

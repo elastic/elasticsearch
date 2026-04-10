@@ -120,8 +120,8 @@ public class PropagateNullableTests extends ESTestCase {
             EMPTY,
             new And(
                 EMPTY,
-                greaterThanOf(new Div(EMPTY, new Add(EMPTY, nullInt, ONE, TEST_CFG), TWO), ONE),
-                greaterThanOf(new Add(EMPTY, nullInt, TWO, TEST_CFG), ONE)
+                greaterThanOf(new Div(EMPTY, new Add(EMPTY, nullInt, ONE), TWO), ONE),
+                greaterThanOf(new Add(EMPTY, nullInt, TWO), ONE)
             ),
             kept
         );
@@ -254,13 +254,13 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fb = getFieldAttribute("b");
         var isNull = new IsNull(EMPTY, fa);
 
-        var addExpr = new Add(EMPTY, fb, fa, TEST_CFG);
+        var addExpr = new Add(EMPTY, fb, fa);
         var coalesce = new Coalesce(EMPTY, fa, List.of(addExpr));
         var and = new And(EMPTY, coalesce, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        var expectedAdd = new Add(EMPTY, fb, nullOf(INTEGER), TEST_CFG);
+        var expectedAdd = new Add(EMPTY, fb, nullOf(INTEGER));
         var expectedCoalesce = new Coalesce(EMPTY, expectedAdd, List.of());
         assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
     }

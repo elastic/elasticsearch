@@ -60,6 +60,114 @@ static inline int64_t dotd1q4_inner_avx512(const int8_t* a, const int8_t* q, con
     return sum;
 }
 
+// Packed bulk: process 4 vectors at a time for length=16 (dims=128)
+static inline void dotd1q4_bulk_packed4(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    constexpr int query_bits = 4;
+    constexpr int vecs_per_reg = 4;
+
+    // Broadcast each query bit plane to fill a full 512-bit register
+    __m512i bq[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        bq[I] = _mm512_broadcast_i32x4(_mm_loadu_si128((const __m128i*)(query + I * length)));
+    });
+
+    int c = 0;
+    for (; c + vecs_per_reg - 1 < count; c += vecs_per_reg) {
+        // Load 4 contiguous doc vectors in one 512-bit load
+        __m512i docs = _mm512_loadu_si512((const __m512i_u*)(a + (int64_t)c * length));
+
+        // Prefetch next batch
+        if (c + 2 * vecs_per_reg - 1 < count) {
+            prefetch(a + (int64_t)(c + vecs_per_reg) * length, 1);
+        }
+
+        // Accumulate across all 4 query bit planes with bit-plane shifting
+        __m512i acc = _mm512_setzero_si512();
+        apply_indexed<query_bits>([&](auto I) {
+            __m512i res = _mm512_popcnt_epi64(_mm512_and_si512(docs, bq[I]));
+            acc = _mm512_add_epi64(acc, _mm512_slli_epi64(res, I));
+        });
+
+        // Reduce adjacent 64-bit lane pairs to get per-vector results
+        // acc = [v0a, v0b, v1a, v1b, v2a, v2b, v3a, v3b]
+        __m512i swapped = _mm512_permutex_epi64(acc, _MM_SHUFFLE(2, 3, 0, 1));
+        __m512i summed = _mm512_add_epi64(acc, swapped);
+        // summed = [v0, v0, v1, v1, v2, v2, v3, v3] (results at even positions)
+
+        // Extract 4 results and store as f32
+        results[c + 0] = (f32_t)_mm256_extract_epi64(_mm512_castsi512_si256(summed), 0);
+        results[c + 1] = (f32_t)_mm256_extract_epi64(_mm512_castsi512_si256(summed), 2);
+        results[c + 2] = (f32_t)_mm256_extract_epi64(_mm512_extracti64x4_epi64(summed, 1), 0);
+        results[c + 3] = (f32_t)_mm256_extract_epi64(_mm512_extracti64x4_epi64(summed, 1), 2);
+    }
+
+    // Tail: remaining vectors
+    for (; c < count; c++) {
+        results[c] = (f32_t)dotd1q4_inner_avx512(a + (int64_t)c * length, query, length);
+    }
+}
+
+// Packed bulk: process 2 vectors at a time for length=32 (dims=256)
+static inline void dotd1q4_bulk_packed2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    constexpr int query_bits = 4;
+    constexpr int vecs_per_reg = 2;
+
+    // Broadcast each query bit plane to fill a full 512-bit register
+    __m512i bq[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        bq[I] = _mm512_broadcast_i64x4(_mm256_loadu_si256((const __m256i_u*)(query + I * length)));
+    });
+
+    int c = 0;
+    for (; c + vecs_per_reg - 1 < count; c += vecs_per_reg) {
+        // Load 2 contiguous doc vectors in one 512-bit load
+        __m512i docs = _mm512_loadu_si512((const __m512i_u*)(a + (int64_t)c * length));
+
+        // Prefetch next batch
+        if (c + 2 * vecs_per_reg - 1 < count) {
+            prefetch(a + (int64_t)(c + vecs_per_reg) * length, 1);
+        }
+
+        // Accumulate across all 4 query bit planes with bit-plane shifting
+        __m512i acc = _mm512_setzero_si512();
+        apply_indexed<query_bits>([&](auto I) {
+            __m512i res = _mm512_popcnt_epi64(_mm512_and_si512(docs, bq[I]));
+            acc = _mm512_add_epi64(acc, _mm512_slli_epi64(res, I));
+        });
+
+        // Reduce groups of 4 lanes to get per-vector results
+        // acc = [v0a, v0b, v0c, v0d, v1a, v1b, v1c, v1d]
+        // Step 1: reduce pairs
+        __m512i swapped1 = _mm512_permutex_epi64(acc, _MM_SHUFFLE(2, 3, 0, 1));
+        __m512i sum1 = _mm512_add_epi64(acc, swapped1);
+        // sum1 = [v0ab, *, v0cd, *, v1ab, *, v1cd, *]
+        // Step 2: reduce across 128-bit halves
+        __m512i swapped2 = _mm512_shuffle_i64x2(sum1, sum1, _MM_SHUFFLE(2, 3, 0, 1));
+        __m512i sum2 = _mm512_add_epi64(sum1, swapped2);
+        // Results at positions 0 and 4
+
+        results[c + 0] = (f32_t)_mm256_extract_epi64(_mm512_castsi512_si256(sum2), 0);
+        results[c + 1] = (f32_t)_mm256_extract_epi64(_mm512_extracti64x4_epi64(sum2, 1), 0);
+    }
+
+    // Tail: remaining vector
+    for (; c < count; c++) {
+        results[c] = (f32_t)dotd1q4_inner_avx512(a + (int64_t)c * length, query, length);
+    }
+}
+
 EXPORT int64_t vec_dotd1q4_2(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
@@ -74,7 +182,13 @@ EXPORT void vec_dotd1q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<int8_t, sequential_mapper, dotd1q4_inner_avx512>(a, query, length, length, NULL, count, results);
+    if (length == 16) {
+        dotd1q4_bulk_packed4(a, query, length, count, results);
+    } else if (length == 32) {
+        dotd1q4_bulk_packed2(a, query, length, count, results);
+    } else {
+        dotd1q4_inner_bulk<int8_t, sequential_mapper, dotd1q4_inner_avx512>(a, query, length, length, NULL, count, results);
+    }
 }
 
 EXPORT void vec_dotd1q4_bulk_offsets_2(

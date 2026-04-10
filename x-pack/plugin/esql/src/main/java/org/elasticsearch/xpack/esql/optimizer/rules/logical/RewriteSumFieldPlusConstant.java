@@ -55,23 +55,17 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
 
     private record SvPair(Attribute sum, Attribute count) {}
 
-    /**
-     * A matched {@code SUM(field ± c)} expression.
-     */
     private record Match(Alias alias, Expression dataExpr, Expression constant, Sum sum, boolean isSubtraction, boolean fieldIsLeft) {
         Key key() {
             return new Key(dataExpr.canonical(), sum.summationMode().canonical());
         }
 
-        /**
-         * Can share SUM/COUNT if expressions are over the same field and the sum uses the same summation mode.
-         */
         private record Key(Expression field, Expression summationMode) {}
     }
 
     /**
-     * Returns a {@link Match} if agg is of the form SUM(field ± c) or SUM(c ± field), where
-     * one operand is a constant and one is a field. Otherwise, returns null
+     * Returns a {@link Match} if {@code agg} is {@code SUM(field ± c)} or {@code SUM(c ± field)},
+     * where exactly one operand is foldable. Returns {@code null} otherwise.
      */
     private static Match tryMatch(NamedExpression agg) {
         // Every aggregate output is wrapped in an Alias. Filtered aggregates are excluded because
@@ -99,8 +93,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
     protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext context) {
         var source = aggregate.source();
 
-        // Pass 1: count how many SUM(field ± c) or SUM(c ± field) expressions share the same (field, summationMode).
-        // Filtered aggregates are excluded because they cannot share the same base aggregation.
+        // Pass 1: count matches per (field, summationMode) key.
         Map<Match.Key, Long> fieldMatchCount = aggregate.aggregates()
             .stream()
             .map(RewriteSumFieldPlusConstant::tryMatch)

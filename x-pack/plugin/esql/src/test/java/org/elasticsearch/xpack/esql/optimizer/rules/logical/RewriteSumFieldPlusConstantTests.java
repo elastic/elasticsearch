@@ -30,10 +30,6 @@ import static org.hamcrest.Matchers.not;
 
 public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimizerTests {
 
-    /**
-     * Verify that a query with two sums of a field with constants is broken into
-     * separate sum and count columns which are reused.
-     */
     public void testSumOfFieldPlusConstant() {
         var plan = plan("""
             from test
@@ -45,7 +41,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // The aggregate should contain exactly two entries: SUM(sv) and COUNT(sv).
         assertThat(agg.aggregates(), hasSize(2));
         var svSumAlias = as(agg.aggregates().get(0), Alias.class);
         var svSum = as(svSumAlias.child(), Sum.class);
@@ -53,9 +48,8 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var svCountAlias = as(agg.aggregates().get(1), Alias.class);
         var svCount = as(svCountAlias.child(), Count.class);
 
-        // ReplaceAggregateNestedExpressionWithEval (which runs after our rule in substitutions())
-        // extracts MvSingleValueOrNull(emp_no) from inside SUM/COUNT into a pre-agg EVAL.
-        // Both SUM and COUNT reference the same extracted attribute.
+        // ReplaceAggregateNestedExpressionWithEval extracts MvSingleValueOrNull(emp_no)
+        // into a pre-agg EVAL; both SUM and COUNT then reference the same attribute.
         var preAggEval = as(agg.child(), Eval.class);
         assertThat(preAggEval.fields(), hasSize(1));
         var svAlias = as(preAggEval.fields().get(0), Alias.class);
@@ -63,7 +57,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(svSum.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
         assertThat(svCount.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
 
-        // The eval should derive s1 and s2 from the shared sv_sum and sv_count.
         var fields = eval.fields();
         assertThat(fields, hasSize(2));
 
@@ -86,10 +79,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(mul2.left().fold(FoldContext.small()), equalTo(2));
     }
 
-    /**
-     * Verifies SUM(field - c) and SUM(c - field) sharing the same sv_sum/sv_count pair,
-     * and that the generated expressions have the correct operand order.
-     */
     public void testSumOfFieldMinusConstant() {
         var plan = plan("""
             from test
@@ -101,7 +90,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Single shared SUM(sv)/COUNT(sv) pair for both expressions.
         assertThat(agg.aggregates(), hasSize(2));
         var svSumAlias = as(agg.aggregates().get(0), Alias.class);
         var svCountAlias = as(agg.aggregates().get(1), Alias.class);
@@ -128,11 +116,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(sub2.right().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
     }
 
-    /**
-     * Verifies that the optimization fires correctly when a BY grouping is present:
-     * the shared SUM(sv)/COUNT(sv) pair is created as normal, and the grouping column
-     * passes through unchanged.
-     */
     public void testSumOfFieldPlusConstantWithGroupBy() {
         var plan = plan("""
             from test
@@ -144,28 +127,18 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Grouping column is preserved.
         assertThat(agg.groupings(), hasSize(1));
-
-        // Internal aggregations: SUM(sv) and COUNT(sv) — same as without grouping.
-        assertThat(agg.aggregates(), hasSize(3)); // SUM, COUNT, plus the grouping attribute
+        assertThat(agg.aggregates(), hasSize(3)); // SUM(sv), COUNT(sv), grouping attribute
         var svSumAlias = as(agg.aggregates().get(0), Alias.class);
         var svCountAlias = as(agg.aggregates().get(1), Alias.class);
         as(svSumAlias.child(), Sum.class);
         as(svCountAlias.child(), Count.class);
 
-        // Post-agg EVAL builds s1 and s2.
         assertThat(eval.fields(), hasSize(2));
         assertThat(as(eval.fields().get(0), Alias.class).name(), equalTo("s1"));
         assertThat(as(eval.fields().get(1), Alias.class).name(), equalTo("s2"));
     }
 
-    /**
-     * Verifies that a bare {@code SUM(emp_no)} in the same STATS is not conflated with the
-     * internal {@code SUM(MvSingleValueOrNull(emp_no))} created by the rewrite.
-     * The user's SUM must remain separate; only the two SUM(field + c) expressions share
-     * the sv pair.
-     */
     public void testBareSumOfSameFieldNotSharedWithRewrite() {
         var plan = plan("""
             from test
@@ -177,9 +150,7 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Three aggregates: internal SUM(sv) + internal COUNT(sv) + user's SUM(emp_no).
-        // The sv pair is inserted first (when the first matching SUM is processed),
-        // then the non-matching bare SUM is appended unchanged.
+        // SUM(sv) and COUNT(sv) are inserted first; the bare SUM is appended unchanged.
         assertThat(agg.aggregates(), hasSize(3));
         var svSumAlias = as(agg.aggregates().get(0), Alias.class);
         var svCountAlias = as(agg.aggregates().get(1), Alias.class);
@@ -189,7 +160,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         as(svCountAlias.child(), Count.class);
         var bareSum = as(bareSumAlias.child(), Sum.class);
 
-        // The user's bare SUM operates on emp_no directly, not through MvSingleValueOrNull.
         assertThat(bareSum.field(), not(instanceOf(MvSingleValueOrNull.class)));
         assertThat(bareSum.field(), not(instanceOf(ReferenceAttribute.class)));
     }
@@ -201,28 +171,13 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
             | limit 10
             """, new TestSubstitutionOnlyOptimizer());
 
-        // RemoveStatsOverride drops the first s, leaving one SUM — below the 2-match threshold.
-        // The rule must not fire, so no MvSingleValueOrNull should appear in the plan.
+        // After shadowing, only one SUM remains — below the 2-match threshold.
         boolean hasMvSingleValueOrNull = plan.anyMatch(
             node -> node instanceof Eval e
                 && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
         );
         assertFalse("Duplicate alias should not be rewritten by RewriteSumFieldPlusConstant", hasMvSingleValueOrNull);
         assertWarnings("Line 2:9: Field 's' shadowed by field at line 2:30");
-    }
-
-    public void testSingleSumNotRewritten() {
-        var plan = plan("""
-            from test
-            | stats s = sum(emp_no + 1)
-            """, new TestSubstitutionOnlyOptimizer());
-
-        // The rule should not fire; no MvSingleValueOrNull should appear.
-        boolean hasMvSingleValueOrNull = plan.anyMatch(
-            node -> node instanceof Eval e
-                && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
-        );
-        assertFalse("A single SUM(field + c) should not be rewritten", hasMvSingleValueOrNull);
     }
 
     public void testCountAlreadyInQueryNotReused() {
@@ -236,37 +191,26 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Four aggregates: user's COUNT(emp_no) + internal SUM(sv) + internal COUNT(sv).
         assertThat(agg.aggregates(), hasSize(3));
         var userCount = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
         var svSum = as(Alias.unwrap(agg.aggregates().get(1)), Sum.class);
         var svCount = as(Alias.unwrap(agg.aggregates().get(2)), Count.class);
 
-        // The internal SUM and COUNT wrap MvSingleValueOrNull(emp_no).
+        // Internal SUM and COUNT share the same MvSingleValueOrNull attribute.
         assertThat(svSum.field(), instanceOf(ReferenceAttribute.class));
         assertThat(svCount.field(), instanceOf(ReferenceAttribute.class));
-
-        // The internal SUM and COUNT reference the same MvSingleValueOrNull attribute.
         assertThat(svSum.field().semanticEquals(svCount.field()), equalTo(true));
 
-        // The user's COUNT is over emp_no directly (not MvSingleValueOrNull-wrapped).
+        // User's COUNT is over emp_no directly, not the sv wrapper.
         assertThat(userCount.field(), not(instanceOf(MvSingleValueOrNull.class)));
     }
 
-    /**
-     * Confirm that AVG(field + c) is not matched by RewriteSumFieldPlusConstant.
-     * Though it would be ideal to also handle AVG, this does not work because
-     * SubstituteSurrogateAggregations is run after RewriteSumFieldPlusConstant.
-     * TODO maybe this can be improved.
-     */
     public void testAvgOfFieldPlusConstantNotRewrittenByRule() {
         var plan = plan("""
             from test
             | stats a = avg(emp_no + 1)
             """, new TestSubstitutionOnlyOptimizer());
 
-        // After substitutions, AVG(emp_no+1) is rewritten to SUM/COUNT by SubstituteSurrogateAggregations,
-        // but NOT by RewriteSumFieldPlusConstant. The plan should NOT contain an MvSingleValueOrNull wrapper.
         boolean hasMvSingleValueOrNull = plan.anyMatch(
             node -> node instanceof Eval e
                 && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
@@ -274,10 +218,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertFalse("AVG should not be rewritten by RewriteSumFieldPlusConstant", hasMvSingleValueOrNull);
     }
 
-    /**
-     * Verifies that when the constant in SUM(field + c) is itself a foldable expression,
-     * the rewrite correctly uses it as the constant multiplier.
-     */
     public void testSumOfFieldPlusFoldableConstantExpression() {
         var plan = plan("""
             from test
@@ -289,24 +229,18 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Two internal aggregates: SUM(sv) and COUNT(sv).
         assertThat(agg.aggregates(), hasSize(2));
         as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
         as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
 
-        // The eval expression for s1: s1 = $$sv_sum + (5-2) * $$sv_count
         assertThat(eval.fields(), hasSize(2));
         var s1 = as(eval.fields().get(0), Alias.class);
         var add = as(s1.child(), Add.class);
         var mul = as(add.right(), Mul.class);
-        // The constant (5-2) should fold to 3.
         assertThat(mul.left().fold(FoldContext.small()), equalTo(3));
     }
 
-    /**
-     * Verifies that a foldable function call in the constant position is treated as a
-     * constant and participates in the rewrite. {@code length("abc")} folds to 3.
-     */
+    // length("abc") is foldable, so it is treated as the constant — folds to 3.
     public void testSumOfFieldPlusFoldableFunctionCallConstant() {
         var plan = plan("""
             from test
@@ -318,23 +252,17 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Rewrite fires: two internal aggregates.
         assertThat(agg.aggregates(), hasSize(2));
         as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
         as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
 
-        // s1 uses length("abc") as its constant; it should fold to 3.
         var s1 = as(eval.fields().get(0), Alias.class);
         var add = as(s1.child(), Add.class);
         var mul = as(add.right(), Mul.class);
         assertThat(mul.left().fold(FoldContext.small()), equalTo(3));
     }
 
-    /**
-     * Verifies that {@code SUM((emp_no + 1) + 2)} and {@code SUM((emp_no + 1) + 3)}
-     * share the same SUM/COUNT pair, because both have the same data expression
-     * ({@code emp_no + 1}) and the outermost constant differs.
-     */
+    // Both expressions have the same inner expression (emp_no + 1), so they share one sv pair.
     public void testSumOfNestedArithmeticSharesSvPairOnSameBase() {
         var plan = plan("""
             from test
@@ -346,7 +274,6 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         var eval = as(project.child(), Eval.class);
         var agg = as(eval.child(), Aggregate.class);
 
-        // Exactly one shared SUM(sv)/COUNT(sv) pair.
         assertThat(agg.aggregates(), hasSize(2));
         as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
         as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
@@ -354,11 +281,47 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(eval.fields(), hasSize(2));
     }
 
-    /**
-     * Verifies that {@code SUM(null + 1)} is not matched: both operands of the Add are
-     * foldable (null is a foldable literal), so {@code tryMatch} returns null and the rule
-     * does not fire even when two such expressions appear.
-     */
+    public void testThreeSumsShareOneSvPair() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2), s3 = sum(emp_no + 3)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // All three share one SUM(sv)/COUNT(sv) pair.
+        assertThat(agg.aggregates(), hasSize(2));
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
+
+        assertThat(eval.fields(), hasSize(3));
+    }
+
+    public void testTwoFieldsGetIndependentSvPairs() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2), s3 = sum(salary + 1), s4 = sum(salary + 2)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        // Two fields → two independent SUM(sv)/COUNT(sv) pairs.
+        assertThat(agg.aggregates(), hasSize(4));
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(1)), Count.class);
+        as(Alias.unwrap(agg.aggregates().get(2)), Sum.class);
+        as(Alias.unwrap(agg.aggregates().get(3)), Count.class);
+
+        assertThat(eval.fields(), hasSize(4));
+    }
+
+    // null is foldable, so both operands of the Add are foldable — tryMatch returns null.
     public void testBothFoldableOperandsNotRewritten() {
         var plan = plan("""
             from test
@@ -372,19 +335,13 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertFalse("SUM(null + c) should not be rewritten because null is foldable", hasMvSingleValueOrNull);
     }
 
-    /**
-     * Verifies that {@code INLINE STATS} with two {@code SUM(field + c)} is also rewritten
-     * by {@code RewriteSumFieldPlusConstant}.
-     */
+    // INLINE STATS wraps the Aggregate in an InlineJoin, but the rule still visits it.
     public void testInlineStatsWithSumOfFieldPlusConstant() {
-        // INLINE STATS places the aggregate inside an InlineJoin, but the Aggregate node
-        // is still visited by the rule. Verify the query produces correct results end-to-end.
         var plan = plan("""
             from test
             | inline stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2)
             """, new TestSubstitutionOnlyOptimizer());
 
-        // Verify MvSingleValueOrNull is injected, confirming the rule fired.
         assertTrue(
             "Expected RewriteSumFieldPlusConstant to fire for INLINE STATS",
             plan.anyMatch(

@@ -4197,6 +4197,15 @@ s1:long  | s2:long
 4824955  | 4825055
 ;
 
+Sum expression with constant three clauses share one sv pair
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), s3 = SUM(salary + 3)
+;
+
+s1:long  | s2:long  | s3:long
+4824955  | 4825055  | 4825155
+;
+
 Sum expression with constant multiple clauses only single valued
 FROM employees
 | WHERE mv_count(salary_change) == 1
@@ -4261,9 +4270,6 @@ null     | null     | null
 212102   | 212132   | 5
 ;
 
-// When a bare SUM(field) appears alongside SUM(field + c) expressions, the rewrite
-// creates an internal SUM(MvSingleValueOrNull(field)) for the constant clauses, while
-// the user's bare SUM runs separately against the raw field.
 Sum expression with constant alongside bare sum of same field
 FROM employees
 | STATS s1 = SUM(salary + 1), bare = SUM(salary), s2 = SUM(salary + 2)
@@ -4273,8 +4279,6 @@ s1:long  | bare:long | s2:long
 4824955  | 4824855   | 4825055
 ;
 
-// When a duplicate alias shadows the first SUM(field + c), only one match remains and
-// the rule must not fire (single-match threshold).
 Sum expression with constant duplicate alias shadowing
 FROM employees
 | STATS s = SUM(salary + 1), s = SUM(salary + 2)
@@ -4285,8 +4289,6 @@ s:long
 4825055
 ;
 
-// A foldable type-cast expression in the constant position is treated as a constant.
-// TO_INTEGER("2") folds to 2, so this is equivalent to SUM(salary + 2).
 Sum expression with constant foldable cast in constant position
 FROM employees
 | STATS s1 = SUM(salary + TO_INTEGER("1")), s2 = SUM(salary + TO_INTEGER("2"))

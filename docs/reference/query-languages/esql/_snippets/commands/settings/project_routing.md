@@ -3,6 +3,7 @@
 ### `project_routing` [esql-project_routing]
 ```{applies_to}
 serverless: preview
+stack: unavailable
 ```
 Limits the scope of a [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md) to specific projects before query execution, based on a [Lucene query expression](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) evaluated against project tags. Excluded projects are not queried, which can reduce cost and latency. 
 

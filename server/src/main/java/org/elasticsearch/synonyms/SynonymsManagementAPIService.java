@@ -569,16 +569,16 @@ public class SynonymsManagementAPIService {
                     } else if (synonymsSetSize >= PRE_LARGE_SETS_LIMIT
                         && clusterService != null
                         && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "Cannot write more than "
-                                    + PRE_LARGE_SETS_LIMIT
-                                    + " synonym rules until all nodes in the cluster have been upgraded"
-                            )
-                        );
-                    } else {
-                        indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
-                    }
+                            listener.onFailure(
+                                new IllegalStateException(
+                                    "Cannot write more than "
+                                        + PRE_LARGE_SETS_LIMIT
+                                        + " synonym rules until all nodes in the cluster have been upgraded"
+                                )
+                            );
+                        } else {
+                            indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
+                        }
                 }));
         }));
     }

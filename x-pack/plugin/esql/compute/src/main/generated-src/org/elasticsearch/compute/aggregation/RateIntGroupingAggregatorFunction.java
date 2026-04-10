@@ -369,10 +369,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                     timestamps.beginPositionEntry();
                     values.beginPositionEntry();
                     for (Interval interval : state.intervals) {
-                        timestamps.appendLong(interval.t1);
-                        timestamps.appendLong(interval.t2);
-                        values.appendInt(interval.v1);
-                        values.appendInt(interval.v2);
+                        timestamps.appendLong(interval.lastTs);
+                        timestamps.appendLong(interval.firstTs);
+                        values.appendInt(interval.lastValue);
+                        values.appendInt(interval.firstValue);
                     }
                     timestamps.endPositionEntry();
                     values.endPositionEntry();
@@ -580,8 +580,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                     for (int i = 1; i < intervals.length; i++) {
                         Interval next = intervals[i - 1]; // reversed
                         Interval prev = intervals[i];
-                        if (prev.v1 > next.v2) {
-                            state.resets += prev.v1;
+                        if (prev.lastValue > next.firstValue) {
+                            state.resets += prev.lastValue;
                         }
                     }
                 }
@@ -633,10 +633,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         return sb.toString();
     }
 
-    record Interval(long t1, int v1, long t2, int v2) implements Comparable<Interval> {
+    record Interval(long lastTs, int lastValue, long firstTs, int firstValue) implements Comparable<Interval> {
         @Override
         public int compareTo(Interval other) {
-            return Long.compare(other.t1, t1); // want most recent first
+            return Long.compare(other.lastTs, lastTs); // want most recent first
         }
     }
 
@@ -644,6 +644,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         private static final Interval[] EMPTY_INTERVALS = new Interval[0];
         long samples;
         double resets;
+        // Once sorted, the intervals will be stored in reverse chronological order (highest timestamp first)
         Interval[] intervals = EMPTY_INTERVALS;
 
         void appendInterval(Interval interval) {
@@ -675,10 +676,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         if (state.samples < 2) {
             return Double.NaN;
         }
-        final long firstTS = state.intervals[state.intervals.length - 1].t2;
-        final long lastTS = state.intervals[0].t1;
-        double firstValue = state.intervals[state.intervals.length - 1].v2;
-        double lastValue = state.intervals[0].v1 + state.resets;
+        final long firstTS = state.intervals[state.intervals.length - 1].firstTs;
+        final long lastTS = state.intervals[0].lastTs;
+        double firstValue = state.intervals[state.intervals.length - 1].firstValue;
+        double lastValue = state.intervals[0].lastValue + state.resets;
         if (isRateOverTime) {
             return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
@@ -708,8 +709,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].t1 / dateFactor;
-                firstValue = state.intervals[0].v1;
+                firstTsSec = state.intervals[0].lastTs / dateFactor;
+                firstValue = state.intervals[0].lastValue;
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -721,8 +722,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
-                lastTsSec = state.intervals[0].t1 / dateFactor;
-                lastValue = state.intervals[0].v1;
+                lastTsSec = state.intervals[0].lastTs / dateFactor;
+                lastValue = state.intervals[0].lastValue;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
@@ -739,9 +740,9 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;
-                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
+                    assert state.intervals[0].lastTs == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].lastTs;
                     if (isRateOverTime) {
-                        final double startTs = previousState.intervals[0].t1 / dateFactor;
+                        final double startTs = previousState.intervals[0].lastTs / dateFactor;
                         final double delta = deltaBetweenStates(previousState, state, dateFactor);
                         return delta / (firstTsSec - startTs);
                     } else {
@@ -773,10 +774,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startTs = state.intervals[state.intervals.length - 1].t2 / dateFactor;
-        final double startValue = state.intervals[state.intervals.length - 1].v2;
-        final double endTs = state.intervals[0].t1 / dateFactor;
-        final double endValue = state.intervals[0].v1 + state.resets;
+        final double startTs = state.intervals[state.intervals.length - 1].firstTs / dateFactor;
+        final double startValue = state.intervals[state.intervals.length - 1].firstValue;
+        final double endTs = state.intervals[0].lastTs / dateFactor;
+        final double endValue = state.intervals[0].lastValue + state.resets;
         final double sampleTsSec = endTs - startTs;
         final double averageSampleInterval = sampleTsSec / state.samples;
         final double slope = (endValue - startValue) / sampleTsSec;
@@ -820,10 +821,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startValue = lowerState.intervals[0].v1;
-        final double startTs = lowerState.intervals[0].t1 / dateFactor;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
-        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+        final double startValue = lowerState.intervals[0].lastValue;
+        final double startTs = lowerState.intervals[0].lastTs / dateFactor;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
+        final double endTs = upperState.intervals[upperState.intervals.length - 1].firstTs / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
@@ -840,10 +841,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     }
 
     private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
-        final double startValue = lowerState.intervals[0].v1;
-        final double startTs = lowerState.intervals[0].t1 / dateFactor;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
-        final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
+        final double startValue = lowerState.intervals[0].lastValue;
+        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
 
         // If the end value is smaller than the start value, a counter reset occurred.
         // In this case, the delta is considered equal to the end value.

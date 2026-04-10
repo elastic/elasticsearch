@@ -138,7 +138,6 @@ public class SnapshotShardContextHelper {
         } else {
             assert snapshotStatus != null : "only snapshot running locally can receive concurrent abort notification at this stage";
             maybeEnsureNotAborted(snapshotStatus);
-            assert false : shardId + " commit released earlier with status " + snapshotStatus;
             throw new IndexShardSnapshotFailedException(shardId, "commit released while starting snapshot " + snapshotId);
         }
     }

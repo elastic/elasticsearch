@@ -8,6 +8,18 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.3.3 [elasticsearch-9.3.3-known-issues]
+
+* GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.3.3 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.3.4.
+
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+
+    ```
+    -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjMuMwpwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
+    ```
+
 ## 9.3.1 [elasticsearch-9.3.1-known-issues]
 
 * On multi-node clusters where one or more nodes do not have a GPU, the GPU stats collection for `_xpack/usage` triggers repeated WARN-level log messages from `OutboundHandler`:
@@ -31,6 +43,18 @@ Known issues are significant defects or limitations that may impact your impleme
 
   This bug is fixed in version 9.3.2.
 
+
+## 9.2.8 [elasticsearch-9.2.8-known-issues]
+
+* GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.2.8 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.2.9.
+
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+
+    ```
+    -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjIuOApwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
+    ```
 
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]
 

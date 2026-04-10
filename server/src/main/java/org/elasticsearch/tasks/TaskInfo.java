@@ -191,11 +191,11 @@ public record TaskInfo(
         for (Map.Entry<String, String> attribute : headers.entrySet()) {
             builder.field(attribute.getKey(), attribute.getValue());
         }
+        builder.endObject();
         if (!originalTaskId.equals(taskId)) {
             builder.field("original_task_id", originalTaskId.toString());
             builder.timestampFieldsFromUnixEpochMillis("original_start_time_in_millis", "original_start_time", originalStartTimeMillis);
         }
-        builder.endObject();
         return builder;
     }
 

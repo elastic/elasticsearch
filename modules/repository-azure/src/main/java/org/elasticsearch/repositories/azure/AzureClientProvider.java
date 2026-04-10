@@ -56,6 +56,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
@@ -369,7 +370,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                         metrics.throttleCount++;
                     }
                     logger.trace(
-                        () -> String.format(
+                        () -> format(
                             "Unsuccessful response [%s]: statusCode=[%s], errorCount=%d, throttleCount=%d",
                             response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
                             response.getStatusCode(),
@@ -379,7 +380,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                     );
                 } else {
                     logger.trace(
-                        () -> String.format(
+                        () -> format(
                             "Successful response [%s]: statusCode=[%s]",
                             response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
                             response.getStatusCode()

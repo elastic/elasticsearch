@@ -23,6 +23,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Queue;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
+
 @SuppressForbidden(reason = "We use HttpServer for the fixtures")
 public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryIntegTestCase.DelegatingHttpHandler {
 
@@ -39,12 +41,12 @@ public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryInt
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         logger.trace(
-            () -> String.format("Handling request x-ms-client-request-id=%s", exchange.getRequestHeaders().get("x-ms-client-request-id"))
+            () -> format("Handling request x-ms-client-request-id=%s", exchange.getRequestHeaders().get("x-ms-client-request-id"))
         );
 
         RequestHandler nextHandler = requestHandlerQueue.peek();
         if (nextHandler != null && nextHandler.matchesRequest(exchange)) {
-            logger.trace(() -> String.format("Using injected requestHandler %s", nextHandler.getClass().getSimpleName()));
+            logger.trace(() -> format("Using injected requestHandler %s", nextHandler.getClass().getSimpleName()));
             requestHandlerQueue.poll().writeResponse(exchange, delegate);
         } else {
             delegate.handle(exchange);

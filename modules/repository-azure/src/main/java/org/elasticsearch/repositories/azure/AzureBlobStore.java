@@ -1051,7 +1051,7 @@ public class AzureBlobStore implements BlobStore {
             counter.requests.add(requestMetrics.getRequestCount());
 
             logger.trace(
-                () -> String.format(
+                () -> format(
                     "incrementing stats for [%s], operations+=1, requests+=%d, total # of operations=%d, total # of requests=%d",
                     statsKey,
                     requestMetrics.getRequestCount(),

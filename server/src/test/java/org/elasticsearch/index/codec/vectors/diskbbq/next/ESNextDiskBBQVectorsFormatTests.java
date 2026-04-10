@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -51,10 +50,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorScorer;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
@@ -672,7 +670,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     /**
-     * An {@link ES920DiskBBQVectorsFormat} subclass that produces a reader with a configurable
+     * An {@link ESNextDiskBBQVectorsFormat} subclass that produces a reader with a configurable
      * prefetch depth, allowing tests to verify that different depths yield identical results.
      */
     private static class PrefetchDepthOverrideFormat extends ESNextDiskBBQVectorsFormat {
@@ -685,8 +683,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
         @Override
         public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-            var float32Fmt = new DirectIOCapableLucene99FlatVectorsFormat(ES93FlatVectorScorer.INSTANCE);
-            var bfloat16Fmt = new ES93BFloat16FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
+            var float32Fmt = new DirectIOCapableLucene99FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+            var bfloat16Fmt = new ES93BFloat16FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
             var formats = Map.of(float32Fmt.getName(), float32Fmt, bfloat16Fmt.getName(), bfloat16Fmt);
             return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
                 var fmt = formats.get(f);
@@ -700,7 +698,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     int initialCentroidBatchSize,
                     int ringPrefetchDepth
                 ) throws IOException {
-                    // Match legacy PrefetchingCentroidIterator-only tests: vary ring depth, no initial centroid batch.
+                    // match PrefetchingCentroidIterator-only behavior: vary ring depth, no initial centroid batch.
                     return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, 0, prefetchDepth);
                 }
             };

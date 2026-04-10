@@ -12,7 +12,6 @@ package org.elasticsearch.synonyms;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,7 +46,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         maxSynonymRules = randomIntBetween(100, 1000);
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymRules);
+        synonymsManagementAPIService = new SynonymsManagementAPIService(
+            client(),
+            null,
+            maxSynonymRules,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
     }
 
     public void testCreateManySynonyms() throws Exception {
@@ -104,7 +109,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int pitBatchSize = randomIntBetween(2, 5);
         int rulesNumber = pitBatchSize * randomIntBetween(3, 6);
         int maxRules = randomBoolean() ? rulesNumber : Integer.MAX_VALUE;
-        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), maxRules, pitBatchSize);
+        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
+            client(),
+            null,
+            maxRules,
+            pitBatchSize,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
 
         String synonymSetId = randomIdentifier();
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
@@ -124,13 +135,19 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int pitBatchSize = randomIntBetween(2, 5);
         int maxRules = pitBatchSize * randomIntBetween(2, 4);
         int rulesNumber = maxRules + randomIntBetween(1, pitBatchSize);
-        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), maxRules, pitBatchSize);
+        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
+            client(),
+            null,
+            maxRules,
+            pitBatchSize,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
 
         String synonymSetId = randomIdentifier();
         // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
-        PlainActionFuture<BulkResponse> putFuture = new PlainActionFuture<>();
+        PlainActionFuture<Void> putFuture = new PlainActionFuture<>();
         synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), putFuture);
-        assertFalse(putFuture.actionGet().hasFailures());
+        putFuture.actionGet();
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
             mockLog.addExpectation(
@@ -321,7 +338,13 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     public void testCreateSynonymsWithYellowSynonymsIndex() throws Exception {
 
         // Override health method check to simulate a timeout in checking the synonyms index
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client()) {
+        synonymsManagementAPIService = new SynonymsManagementAPIService(
+            client(),
+            null,
+            100_000,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        ) {
             @Override
             void checkSynonymsIndexHealth(ActionListener<ClusterHealthResponse> listener) {
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();

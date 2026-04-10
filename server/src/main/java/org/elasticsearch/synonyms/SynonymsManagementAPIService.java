@@ -161,21 +161,7 @@ public class SynonymsManagementAPIService {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_SYNONYM_RULES_SETTING, v -> this.maxSynonymRules = v);
     }
 
-    public SynonymsManagementAPIService(Client client) {
-        this(client, null, MAX_SYNONYM_RULES, PIT_BATCH_SIZE, BULK_CHUNK_SIZE);
-    }
-
-    // Used for testing, so we don't need to test for MAX_SYNONYM_RULES and put unnecessary memory pressure on the test cluster
-    SynonymsManagementAPIService(Client client, int maxSynonymRules) {
-        this(client, null, maxSynonymRules, PIT_BATCH_SIZE, BULK_CHUNK_SIZE);
-    }
-
-    // Used for testing PIT pagination behavior with a small batch size to force multiple iterations
-    SynonymsManagementAPIService(Client client, int maxSynonymRules, int pitBatchSize) {
-        this(client, null, maxSynonymRules, pitBatchSize, BULK_CHUNK_SIZE);
-    }
-
-    // Used for testing bulk chunking behavior with a small chunk size to force multiple requests
+    // Package-private -- tests only
     SynonymsManagementAPIService(Client client, ClusterService clusterService, int maxSynonymRules, int pitBatchSize, int bulkChunkSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.clusterService = clusterService;
@@ -463,7 +449,7 @@ public class SynonymsManagementAPIService {
     ) {
         if (synonymsSet.length > maxSynonymRules) {
             listener.onFailure(
-                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymRules)
+                new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
             );
             return;
         }
@@ -533,7 +519,7 @@ public class SynonymsManagementAPIService {
             listener.onFailure(ex);
             return;
         }
-        // Only request a refresh on the last chunk so the full write is visible atomically
+        // Refresh only on the last chunk so all rules become visible on the same forced refresh.
         WriteRequest.RefreshPolicy refreshPolicy = isLastChunk ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE;
         bulkRequestBuilder.setRefreshPolicy(refreshPolicy).execute(ActionListener.wrap(response -> {
             if (response.hasFailures()) {
@@ -578,7 +564,17 @@ public class SynonymsManagementAPIService {
                     long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
                     if (synonymsSetSize >= maxSynonymRules) {
                         listener.onFailure(
-                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymRules)
+                            new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
+                        );
+                    } else if (synonymsSetSize >= PRE_LARGE_SETS_LIMIT
+                        && clusterService != null
+                        && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "Cannot write more than "
+                                    + PRE_LARGE_SETS_LIMIT
+                                    + " synonym rules until all nodes in the cluster have been upgraded"
+                            )
                         );
                     } else {
                         indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);

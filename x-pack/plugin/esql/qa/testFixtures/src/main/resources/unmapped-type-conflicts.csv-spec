@@ -652,9 +652,10 @@ required_capability: optional_fields_v5
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
 | KEEP _index, event_duration
-| SORT _index DESC, event_duration
+| SORT _index DESC
 | LIMIT 15
 ;
+ignoreOrder:true
 
 _index:keyword | event_duration:long
 sample_data    | 725448
@@ -784,40 +785,6 @@ heights        | null
 heights        | null
 heights        | null
 heights        | null
-;
-
-typeConflictDateNanosDateUnmappedCastToDate
-required_capability: optional_fields_v5
-
-SET unmapped_fields="load"\;
-FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index
-| EVAL ts = @timestamp::date
-| KEEP _index, ts
-| SORT _index, ts
-;
-
-_index:keyword         | ts:datetime
-no_mapping_sample_data | 2024-10-23T12:15:03.360Z
-no_mapping_sample_data | 2024-10-23T12:27:28.948Z
-no_mapping_sample_data | 2024-10-23T13:33:34.937Z
-no_mapping_sample_data | 2024-10-23T13:51:54.732Z
-no_mapping_sample_data | 2024-10-23T13:52:55.015Z
-no_mapping_sample_data | 2024-10-23T13:53:55.832Z
-no_mapping_sample_data | 2024-10-23T13:55:01.543Z
-sample_data            | 2023-10-23T12:15:03.360Z
-sample_data            | 2023-10-23T12:27:28.948Z
-sample_data            | 2023-10-23T13:33:34.937Z
-sample_data            | 2023-10-23T13:51:54.732Z
-sample_data            | 2023-10-23T13:52:55.015Z
-sample_data            | 2023-10-23T13:53:55.832Z
-sample_data            | 2023-10-23T13:55:01.543Z
-sample_data_ts_nanos   | 2023-10-23T12:15:03.360Z
-sample_data_ts_nanos   | 2023-10-23T12:27:28.948Z
-sample_data_ts_nanos   | 2023-10-23T13:33:34.937Z
-sample_data_ts_nanos   | 2023-10-23T13:51:54.732Z
-sample_data_ts_nanos   | 2023-10-23T13:52:55.015Z
-sample_data_ts_nanos   | 2023-10-23T13:53:55.832Z
-sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
 ;
 
 ###########################
@@ -1001,6 +968,142 @@ sample_data_ts_long    | 2023-10-23T13:53:55.832Z
 sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ;
 
+typeConflictDateNanosDateUnmappedNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, @timestamp
+| SORT _index
+;
+
+_index:keyword         | @timestamp:unsupported
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+;
+
+typeConflictDateNanosDateUnmappedCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::keyword
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:keyword
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543123456Z
+;
+
+
+typeConflictDateNanosDateUnmappedCastToDate
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:datetime
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
+;
+
+typeConflictDateNanosDateUnmappedCastToDateNanos
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date_nanos
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:date_nanos
+no_mapping_sample_data | 2024-10-23T12:15:03.360000000Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948000000Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937000000Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732000000Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015000000Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832000000Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543000000Z
+sample_data            | 2023-10-23T12:15:03.360000000Z
+sample_data            | 2023-10-23T12:27:28.948000000Z
+sample_data            | 2023-10-23T13:33:34.937000000Z
+sample_data            | 2023-10-23T13:51:54.732000000Z
+sample_data            | 2023-10-23T13:52:55.015000000Z
+sample_data            | 2023-10-23T13:53:55.832000000Z
+sample_data            | 2023-10-23T13:55:01.543000000Z
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543123456Z
+;
+
 ###############################
 # Mapped x 2 and non-existent #
 ###############################
@@ -1158,6 +1261,161 @@ colors              | null
 colors              | null
 colors              | null
 colors              | null
+;
+
+typeConflictDateNanosDateNonExistentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, colors METADATA _index
+| KEEP _index, @timestamp
+| SORT _index DESC
+| LIMIT 25
+;
+
+_index:keyword       | @timestamp:unsupported
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data_ts_nanos | null
+sample_data          | null
+sample_data          | null
+sample_data          | null
+sample_data          | null
+sample_data          | null
+sample_data          | null
+sample_data          | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+;
+
+typeConflictDateNanosDateNonExistentCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, colors METADATA _index
+| EVAL ts = @timestamp::keyword
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 25
+;
+
+_index:keyword       | ts:keyword
+sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos | 2023-10-23T13:55:01.543123456Z
+sample_data          | 2023-10-23T12:15:03.360Z
+sample_data          | 2023-10-23T12:27:28.948Z
+sample_data          | 2023-10-23T13:33:34.937Z
+sample_data          | 2023-10-23T13:51:54.732Z
+sample_data          | 2023-10-23T13:52:55.015Z
+sample_data          | 2023-10-23T13:53:55.832Z
+sample_data          | 2023-10-23T13:55:01.543Z
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+;
+
+typeConflictDateNanosDateNonExistentCastToDate
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, colors METADATA _index
+| EVAL ts = @timestamp::date
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 25
+;
+
+_index:keyword       | ts:datetime
+sample_data_ts_nanos | 2023-10-23T12:15:03.360Z
+sample_data_ts_nanos | 2023-10-23T12:27:28.948Z
+sample_data_ts_nanos | 2023-10-23T13:33:34.937Z
+sample_data_ts_nanos | 2023-10-23T13:51:54.732Z
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z
+sample_data_ts_nanos | 2023-10-23T13:53:55.832Z
+sample_data_ts_nanos | 2023-10-23T13:55:01.543Z
+sample_data          | 2023-10-23T12:15:03.360Z
+sample_data          | 2023-10-23T12:27:28.948Z
+sample_data          | 2023-10-23T13:33:34.937Z
+sample_data          | 2023-10-23T13:51:54.732Z
+sample_data          | 2023-10-23T13:52:55.015Z
+sample_data          | 2023-10-23T13:53:55.832Z
+sample_data          | 2023-10-23T13:55:01.543Z
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+;
+
+typeConflictDateNanosDateNonExistentCastToDateNanos
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, colors METADATA _index
+| EVAL ts = @timestamp::date_nanos
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 25
+;
+
+_index:keyword       | ts:date_nanos
+sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos | 2023-10-23T13:55:01.543123456Z
+sample_data          | 2023-10-23T12:15:03.360000000Z
+sample_data          | 2023-10-23T12:27:28.948000000Z
+sample_data          | 2023-10-23T13:33:34.937000000Z
+sample_data          | 2023-10-23T13:51:54.732000000Z
+sample_data          | 2023-10-23T13:52:55.015000000Z
+sample_data          | 2023-10-23T13:53:55.832000000Z
+sample_data          | 2023-10-23T13:55:01.543000000Z
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
+colors               | null
 ;
 
 ##########################################
@@ -1384,6 +1642,181 @@ sample_data_ts_long    | 2023-10-23T13:51:54.732Z
 sample_data_ts_long    | 2023-10-23T13:52:55.015Z
 sample_data_ts_long    | 2023-10-23T13:53:55.832Z
 sample_data_ts_long    | 2023-10-23T13:55:01.543Z
+;
+
+typeConflictDateNanosDateUnmappedNonExistentNotCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data, colors METADATA _index
+| KEEP _index, @timestamp
+| SORT _index DESC
+| LIMIT 30
+;
+
+_index:keyword         | @timestamp:unsupported
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data_ts_nanos   | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+sample_data            | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+;
+
+typeConflictDateNanosDateUnmappedNonExistentCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data, colors METADATA _index
+| EVAL ts = @timestamp::keyword
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 30
+;
+
+_index:keyword         | ts:keyword
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543123456Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+;
+
+typeConflictDateNanosDateUnmappedNonExistentCastToDate
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data, colors METADATA _index
+| EVAL ts = @timestamp::date
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 30
+;
+
+_index:keyword         | ts:datetime
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+;
+
+typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data, colors METADATA _index
+| EVAL ts = @timestamp::date_nanos
+| KEEP _index, ts
+| SORT _index DESC, ts
+| LIMIT 30
+;
+
+_index:keyword         | ts:date_nanos
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360123456Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948123456Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937123456Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732123456Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015123456Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832123456Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543123456Z
+sample_data            | 2023-10-23T12:15:03.360000000Z
+sample_data            | 2023-10-23T12:27:28.948000000Z
+sample_data            | 2023-10-23T13:33:34.937000000Z
+sample_data            | 2023-10-23T13:51:54.732000000Z
+sample_data            | 2023-10-23T13:52:55.015000000Z
+sample_data            | 2023-10-23T13:53:55.832000000Z
+sample_data            | 2023-10-23T13:55:01.543000000Z
+no_mapping_sample_data | 2024-10-23T12:15:03.360000000Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948000000Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937000000Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732000000Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015000000Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832000000Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543000000Z
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 ##############################

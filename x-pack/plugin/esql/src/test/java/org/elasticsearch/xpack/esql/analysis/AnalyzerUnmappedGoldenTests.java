@@ -731,6 +731,22 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // DROP a single partially-mapped keyword field (message), leaving only non-keyword fields.
+    public void testPartiallyMappedFieldsDropOnePartiallyMapped() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | DROP message
+            """);
+    }
+
+    // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
+    public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | DROP event_duration
+            """);
+    }
+
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
     public void testPartiallyMappedFieldsDropNonKeywordWithWildcards() throws Exception {
         runTests("""

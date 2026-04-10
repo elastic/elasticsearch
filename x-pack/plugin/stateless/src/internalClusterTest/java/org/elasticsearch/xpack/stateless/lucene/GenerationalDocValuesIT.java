@@ -923,12 +923,15 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         assertThat(indexingShard.docStats().getDeleted(), equalTo(0L));
 
         // delete every 10th doc from segment core _0 and produce new segment core _2
-        executeBulk(
-            bulkRequest -> LongStream.range(0L, docsAfterSegment_0)
+        // Also index a real document to ensure segment _2 contains at least 1 live doc and is not immediately dropped
+        // by SoftDeletesRetentionMergePolicy when shouldRetainForPeerRecovery() returns false
+        executeBulk(bulkRequest -> {
+            LongStream.range(0L, docsAfterSegment_0)
                 .filter(n -> n % 10 == 0)
                 .mapToObj(n -> client(masterNode).prepareDelete(indexName, String.valueOf(n)))
-                .forEach(bulkRequest::add)
-        );
+                .forEach(bulkRequest::add);
+            bulkRequest.add(client(masterNode).prepareIndex(indexName).setId("other").setSource("segment", "_2"));
+        });
         flush(indexName);
 
         var filesLocations = Map.ofEntries(
@@ -941,7 +944,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             entry("_1.cfe", 5L),
             entry("_1.cfs", 5L),
             entry("_1.si", 5L),
-            // new segment core _2
+            // new segment core _2 (contains 1 live doc + tombstones)
             entry("_2.cfe", 6L),
             entry("_2.cfs", 6L),
             entry("_2.si", 6L),
@@ -952,7 +955,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
 
         long deletedDocs = docsAfterSegment_0 / 10L;
-        long docsAfterSegment_2 = docsAfterSegment_1 - deletedDocs;
+        long docsAfterSegment_2 = docsAfterSegment_1 - deletedDocs + 1; // +1 for the live doc in segment _2
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_2));
 
         assertThat(getShardGeneration.apply(indexingShard), equalTo(6L));

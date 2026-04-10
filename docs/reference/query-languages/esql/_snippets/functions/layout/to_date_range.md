@@ -19,8 +19,5 @@ serverless: preview
 :::{include} ../description/to_date_range.md
 :::
 
-:::{include} ../types/to_date_range.md
-:::
-
 :::{include} ../examples/to_date_range.md
 :::

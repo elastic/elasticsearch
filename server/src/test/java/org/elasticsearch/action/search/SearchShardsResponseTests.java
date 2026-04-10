@@ -188,6 +188,29 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         assertEquals(2, response.getNumSkippedShards());
     }
 
+    /** Legacy peers rely on per-group skip bits; {@link SearchShardsGroup#writeTo} must emit them when NUM_SKIPPED2 is unsupported. */
+    public void testLegacyWireRoundTripSkipsPerGroup() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2);
+        ShardId shard0 = new ShardId("idx", UUIDs.randomBase64UUID(), 0);
+        ShardId shard1 = new ShardId("idx", UUIDs.randomBase64UUID(), 1);
+        List<SearchShardsGroup> groups = List.of(
+            new SearchShardsGroup(shard0, List.of("n1"), SplitShardCountSummary.UNSET, true),
+            new SearchShardsGroup(shard1, List.of("n1"), SplitShardCountSummary.UNSET, false)
+        );
+        SearchShardsResponse original = new SearchShardsResponse(groups, 0, List.of(), Map.of());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            original.writeTo(out);
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(oldVersion);
+                SearchShardsResponse read = new SearchShardsResponse(in);
+                assertEquals(1, read.getGroups().size());
+                assertEquals(shard1, read.getGroups().iterator().next().shardId());
+                assertEquals(1, read.getNumSkippedShards());
+            }
+        }
+    }
+
     private SearchShardsResponse readResponseFromWire(TransportVersion version, List<Boolean> skippedFlags, int numSkippedShards)
         throws IOException {
         List<ShardId> shardIds = new ArrayList<>();

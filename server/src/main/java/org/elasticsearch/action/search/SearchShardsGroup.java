@@ -30,15 +30,33 @@ import java.util.Objects;
 public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
-    // Legacy wire-only marker. Modern responses omit skipped groups.
+    /**
+     * When {@code true}: read from a legacy peer's per-group skip boolean, or set when building a pre-filtered
+     * response for a shard that {@link SearchShardIterator#skip()} marks as non-matching (serialized on legacy wire
+     * only; modern peers use the aggregate on {@link SearchShardsResponse}).
+     */
     private final boolean skippedFromWire;
     private final SplitShardCountSummary reshardSplitShardCountSummary;
     private final transient boolean preFiltered;
 
     public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, SplitShardCountSummary reshardSplitShardCountSummary) {
+        this(shardId, allocatedNodes, reshardSplitShardCountSummary, false);
+    }
+
+    /**
+     * @param canMatchSkipped {@code true} when can-match excluded this shard from the query phase; must be serialized
+     *                        on the per-group legacy boolean for peers that do not support
+     *                        {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}.
+     */
+    public SearchShardsGroup(
+        ShardId shardId,
+        List<String> allocatedNodes,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        boolean canMatchSkipped
+    ) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
-        this.skippedFromWire = false;
+        this.skippedFromWire = canMatchSkipped;
         this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         this.preFiltered = true;
     }
@@ -75,7 +93,11 @@ public class SearchShardsGroup implements Writeable {
         }
         shardId.writeTo(out);
         out.writeStringCollection(allocatedNodes);
-        out.writeBoolean(false);
+        if (out.getTransportVersion().supports(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2)) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(skippedFromWire);
+        }
         if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
             reshardSplitShardCountSummary.writeTo(out);
         }

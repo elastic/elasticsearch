@@ -23,8 +23,7 @@ import org.junit.rules.TestRule;
  */
 public class ApmAgentTracesIT extends AbstractTracesIT {
 
-    public static ElasticsearchCluster cluster = baseTracesClusterBuilder()
-        .systemProperty("telemetry.otel.traces.enabled", "false")
+    public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "false")
         .setting("telemetry.agent.metrics_interval", "1s")
         .setting("telemetry.agent.server_url", () -> "http://" + recordingApmServer.getHttpAddress())
         .build();

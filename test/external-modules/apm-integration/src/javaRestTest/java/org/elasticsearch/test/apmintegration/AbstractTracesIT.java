@@ -126,9 +126,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         recordingApmServer.addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
-        nodeStatsRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build()
-        );
+        nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
@@ -201,9 +199,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         recordingApmServer.addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
-        nodeStatsRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build()
-        );
+        nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 

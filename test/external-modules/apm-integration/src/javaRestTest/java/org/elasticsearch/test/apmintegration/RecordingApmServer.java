@@ -12,9 +12,9 @@ package org.elasticsearch.test.apmintegration;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.SuppressForbidden;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;

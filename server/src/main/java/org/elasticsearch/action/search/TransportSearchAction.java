@@ -308,7 +308,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
-    private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
+    /**
+     * Resolve a qualified index expression to the local part if it matches the alias, otherwise return null.
+     * Unqualified index expressions are returned as-is.
+     */
+    private static String localizeIndexBoostExpression(String indexExpr, String clusterAlias) {
+        String[] split = RemoteClusterAware.splitIndexName(indexExpr);
+        String cluster = split[0];
+        if (cluster == null) {
+            return indexExpr;
+        }
+        return cluster.equals(clusterAlias) ? split[1] : null;
+    }
+
+    /**
+     * @param allowRemoteBoosts when true, {@code indices_boost} entries qualified for other clusters
+     *                                               are skipped (same rules as a CCS local sub-request).
+     */
+    private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState, boolean allowRemoteBoosts) {
         if (searchRequest.source() == null) {
             return Collections.emptyMap();
         }
@@ -318,12 +335,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return Collections.emptyMap();
         }
 
+        String clusterAlias = searchRequest.getLocalClusterAlias();
+        if (Strings.isNullOrEmpty(clusterAlias) && allowRemoteBoosts) {
+            clusterAlias = RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS;
+        }
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
         for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
+            final String indexExpression;
+            if (allowRemoteBoosts) {
+                indexExpression = localizeIndexBoostExpression(ib.getIndex(), clusterAlias);
+                if (indexExpression == null) {
+                    continue;
+                }
+            } else {
+                indexExpression = ib.getIndex();
+            }
             Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
                 clusterState,
                 searchRequest.indicesOptions(),
-                ib.getIndex()
+                indexExpression
             );
 
             for (Index concreteIndex : concreteIndices) {
@@ -694,6 +724,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 projectState,
                                 remoteAliasFilters,
                                 participatingProjects,
+                                false,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
@@ -1617,6 +1648,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             projectState,
             Collections.emptyMap(),
             clusterInfo,
+            true,
             searchPhaseProvider
         );
     }
@@ -1788,6 +1820,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
         SearchResponse.Clusters clusters,
+        boolean allowRemoteBoosts,
         SearchPhaseProvider searchPhaseProvider
     ) {
         if (searchRequest.allowPartialSearchResults() == null) {
@@ -1868,7 +1901,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster());
+        // Fan-out CCS (ccs_minimize_roundtrips=false): the merged search runs on the querying cluster with no
+        // SearchRequest#localClusterAlias, so resolveIndexBoosts only maps local index UUIDs. Remote shard scores do not
+        // receive cluster-qualified indices_boost entries from the coordinator; use ccs_minimize_roundtrips=true instead.
+        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), allowRemoteBoosts);
 
         adjustSearchType(searchRequest, shardIterators.size() == 1);
 

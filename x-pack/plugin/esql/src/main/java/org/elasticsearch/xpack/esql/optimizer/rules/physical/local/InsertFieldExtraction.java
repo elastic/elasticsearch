@@ -91,7 +91,8 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         // This is also correct for LookupJoinExec, where we only need field extraction on the left fields used to match, since the right
         // side is always materialized.
         p.references().forEach(f -> {
-            if ((f instanceof FieldAttribute || f instanceof MetadataAttribute || f instanceof TemporalityAttribute) && EsQueryExec.isDocAttribute(f) == false) {
+            if ((f instanceof FieldAttribute || f instanceof MetadataAttribute || f instanceof TemporalityAttribute)
+                && EsQueryExec.isDocAttribute(f) == false) {
                 if (input.contains(f) == false) {
                     missing.add(f);
                 }

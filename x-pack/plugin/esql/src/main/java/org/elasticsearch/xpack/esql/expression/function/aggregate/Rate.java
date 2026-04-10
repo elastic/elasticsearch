@@ -42,7 +42,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class).ternary(Rate::createWithImplicitTemporality).name("rate");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)
+        .ternary(Rate::createWithImplicitTemporality)
+        .name("rate");
 
     private final Expression timestamp;
     private final Expression temporality;

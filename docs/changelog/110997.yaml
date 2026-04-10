@@ -1,5 +1,6 @@
+area: Machine Learning
+issues:
+ - 110992
 pr: 110997
 summary: Improve validation for the query field and task types in the Inference API
-area: Machine Learning
 type: bug
-issues: [ ]

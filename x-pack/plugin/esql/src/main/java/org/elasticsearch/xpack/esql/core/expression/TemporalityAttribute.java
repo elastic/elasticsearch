@@ -39,7 +39,7 @@ public final class TemporalityAttribute extends TypedAttribute {
     }
 
     private TemporalityAttribute(Source source, @Nullable NameId id) {
-        super(source, NAME, DataType.KEYWORD, Nullability.TRUE, id, true);
+        super(source, NAME, DataType.KEYWORD, Nullability.TRUE, id, false);
     }
 
     @Override
@@ -86,7 +86,7 @@ public final class TemporalityAttribute extends TypedAttribute {
 
     @Override
     protected String label() {
-        return "";
+        return "t";
     }
 
     @Override

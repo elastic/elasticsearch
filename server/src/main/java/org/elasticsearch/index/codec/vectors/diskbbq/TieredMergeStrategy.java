@@ -18,17 +18,17 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
  * <tr><td>Force merge requested</td><td>FULL_REBUILD</td></tr>
  * <tr><td>Total vectors very small</td><td>FULL_REBUILD</td></tr>
  * <tr><td>Dominant segment ≥80% with enough centroids</td><td>INSERTION</td></tr>
- * <tr><td>Segments with enough prior centroids</td><td>WARM_START</td></tr>
+ * <tr><td>Segments with enough prior centroids</td><td>CONCATENATION</td></tr>
  * <tr><td>Default</td><td>FULL_REBUILD</td></tr>
  * </table>
  */
 public class TieredMergeStrategy {
 
     /**
-     * Minimum total centroids across all segments to justify warm-start.
+     * Minimum total centroids across all segments to justify concatenation.
      * Below this, full rebuild is cheap enough.
      */
-    static final int MIN_CENTROIDS_FOR_WARMSTART = 32;
+    static final int MIN_CENTROIDS_FOR_CONCATENATION = 32;
 
     /**
      * Minimum dominant segment ratio for INSERTION strategy.
@@ -48,8 +48,8 @@ public class TieredMergeStrategy {
     public enum Strategy {
         /** Current behavior: full hierarchical K-means from scratch */
         FULL_REBUILD,
-        /** Bootstrap K-means with prior centroids, then iterate */
-        WARM_START,
+        /** Concatenate prior centroids, reduce to target K, single assignment pass (no iterative convergence) */
+        CONCATENATION,
         /** HNSW-style insertion: keep dominant segment's clustering, assign new vectors with minimal iteration */
         INSERTION
     }
@@ -91,17 +91,17 @@ public class TieredMergeStrategy {
             float dominantRatio = (float) maxSegmentSize / totalVectors;
             if (dominantRatio >= INSERTION_DOMINANT_RATIO) {
                 int dominantIdx = findDominantSegment(segmentSizes);
-                if (segmentCentroids[dominantIdx] >= MIN_CENTROIDS_FOR_WARMSTART) {
+                if (segmentCentroids[dominantIdx] >= MIN_CENTROIDS_FOR_CONCATENATION) {
                     return Strategy.INSERTION;
                 }
             }
         }
 
-        // If we have enough prior centroids from any segments, warm-start K-means.
-        // This seeds K-means with existing centroid positions, giving faster convergence
-        // while preserving full recall (the algorithm still runs to completion).
-        if (totalCentroids >= MIN_CENTROIDS_FOR_WARMSTART) {
-            return Strategy.WARM_START;
+        // If we have enough prior centroids from any segments, concatenate them and do
+        // a single assignment pass. This avoids iterative convergence overhead since
+        // the prior centroids are already good approximations of the data distribution.
+        if (totalCentroids >= MIN_CENTROIDS_FOR_CONCATENATION) {
+            return Strategy.CONCATENATION;
         }
 
         return Strategy.FULL_REBUILD;

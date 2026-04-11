@@ -20,7 +20,6 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
@@ -60,7 +59,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final FlatVectorsWriter rawVectorDelegate;
     private final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
-    private final SegmentInfo segmentInfo;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
@@ -81,7 +79,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
-        this.segmentInfo = state.segmentInfo;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         final String ivfCentroidsFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, centroidExtension);
         final String ivfClustersFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, clusterExtension);
@@ -374,11 +371,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(numCentroids);
-        // Expose IVF metadata as segment attributes for merge policy decisions.
-        // This allows merge policies to access cluster count without opening codec readers.
-        if (numCentroids > 0) {
-            segmentInfo.putAttribute(ivfAttributeKey(field.name, "num_centroids"), Integer.toString(numCentroids));
-        }
         ivfMeta.writeLong(centroidOffset);
         ivfMeta.writeLong(centroidLength);
         if (centroidLength > 0) {
@@ -390,15 +382,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
         doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength, numberOfSlices, maxSliceSize);
-    }
-
-    /**
-     * Returns the segment attribute key for an IVF metadata property.
-     * These attributes are persisted in the segments file and can be read
-     * by merge policies without opening codec readers.
-     */
-    public static String ivfAttributeKey(String fieldName, String property) {
-        return "es.ivf." + fieldName + "." + property;
     }
 
     protected abstract void doWriteMeta(

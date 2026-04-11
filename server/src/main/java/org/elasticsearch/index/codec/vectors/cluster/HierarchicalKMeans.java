@@ -228,16 +228,20 @@ public class HierarchicalKMeans {
     }
 
     private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize) {
+        return buildKmeansLocal(numVectors, localSampleSize, maxIterations);
+    }
+
+    private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize, int iterations) {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedOTKMeansLocalSerial(localSampleSize, maxIterations)
-                : new BalancedOTKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+                ? new BalancedOTKMeansLocalSerial(localSampleSize, iterations)
+                : new BalancedOTKMeansLocalConcurrent(executor, numWorkers, localSampleSize, iterations);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial(localSampleSize, maxIterations)
-                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
+                ? new LloydKMeansLocalSerial(localSampleSize, iterations)
+                : new LloydKMeansLocalConcurrent(executor, numWorkers, localSampleSize, iterations);
         }
     }
 
@@ -326,5 +330,254 @@ public class HierarchicalKMeans {
 
         // number of items inserted with 1 element replaced
         return subPartitions.centroids().length - 1;
+    }
+
+    private static float[][] deepCopy(float[][] source) {
+        float[][] copy = new float[source.length][];
+        for (int i = 0; i < source.length; i++) {
+            copy[i] = Arrays.copyOf(source[i], source[i].length);
+        }
+        return copy;
+    }
+
+    /**
+     * Reduce a large set of centroids to targetCount using lightweight K-means.
+     * Operates only on centroids (not full vectors), so it's very fast.
+     */
+    private float[][] reduceCentroids(float[][] centroids, int targetCount) throws IOException {
+        ClusteringFloatVectorValues centroidValues = KMeansFloatVectorValues.build(java.util.Arrays.asList(centroids), null, dimension);
+        float[][] reduced = KMeansLocal.pickInitialCentroids(centroidValues, targetCount);
+        // Run a few Lloyd iterations to refine
+        KMeansIntermediate intermediate = new KMeansIntermediate(reduced, new int[centroids.length], centroidValues::ordToDoc);
+        KMeansLocal kMeansLocal = new LloydKMeansLocalSerial(centroids.length, 3);
+        kMeansLocal.cluster(centroidValues, intermediate);
+        return intermediate.centroids();
+    }
+
+    /**
+     * Supplement a small set of centroids with random vectors to reach targetCount.
+     * Uses stride-based sampling to spread selected vectors evenly across the dataset.
+     */
+    private static float[][] supplementCentroids(float[][] existing, ClusteringFloatVectorValues vectors, int targetCount)
+        throws IOException {
+        float[][] augmented = new float[targetCount][];
+        for (int i = 0; i < existing.length; i++) {
+            augmented[i] = Arrays.copyOf(existing[i], existing[i].length);
+        }
+        int needed = targetCount - existing.length;
+        // Stride-based sampling: pick every (size/needed)-th vector for even distribution
+        int filled = 0;
+        double stride = (double) vectors.size() / needed;
+        for (int i = 0; filled < needed && i < vectors.size(); i++) {
+            if (i >= (long) (filled * stride)) {
+                float[] vector = vectors.vectorValue(i);
+                augmented[existing.length + filled] = Arrays.copyOf(vector, vector.length);
+                filled++;
+            }
+        }
+        // Fallback: fill any remaining slots from the start (shouldn't happen with stride sampling)
+        for (int i = 0; filled < needed && i < vectors.size(); i++) {
+            float[] vector = vectors.vectorValue(i);
+            augmented[existing.length + filled] = Arrays.copyOf(vector, vector.length);
+            filled++;
+        }
+        return augmented;
+    }
+
+    /**
+     * Cluster vectors by inserting them into an existing centroid structure.
+     * Analogous to HNSW merge where the biggest graph is kept and new vectors are inserted:
+     * uses the provided centroids as a near-final clustering and does minimal iteration —
+     * one assignment pass to place all vectors, then one refinement pass for neighborhood
+     * awareness and SOAR. This is significantly faster when the initial centroids already
+     * represent the majority of the data (e.g., from a dominant segment).
+     *
+     * @param vectors          the vectors to cluster
+     * @param initialCentroids centroids from the dominant segment
+     * @param targetSize       target number of vectors per cluster
+     * @return clustering result with assignments and SOAR assignments
+     */
+    public KMeansResult clusterByInsertion(ClusteringFloatVectorValues vectors, float[][] initialCentroids, int targetSize)
+        throws IOException {
+        if (vectors.size() == 0) {
+            return new KMeansIntermediate();
+        }
+
+        if (vectors.size() <= targetSize) {
+            float[] centroid = new float[dimension];
+            for (int i = 0; i < vectors.size(); i++) {
+                float[] vector = vectors.vectorValue(i);
+                for (int j = 0; j < dimension; j++) {
+                    centroid[j] += vector[j];
+                }
+            }
+            for (int j = 0; j < dimension; j++) {
+                centroid[j] /= vectors.size();
+            }
+            return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);
+        }
+
+        int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
+
+        float[][] seedCentroids;
+        if (initialCentroids.length == k) {
+            seedCentroids = deepCopy(initialCentroids);
+        } else if (initialCentroids.length > k) {
+            seedCentroids = reduceCentroids(initialCentroids, k);
+        } else {
+            seedCentroids = supplementCentroids(initialCentroids, vectors, k);
+        }
+
+        // Single assignment pass: assign all vectors to nearest seed centroid and update positions.
+        // No sampling — with only 1 iteration, a full pass is both faster and more accurate than
+        // a sampled pass followed by a final full pass.
+        int[] assignments = new int[vectors.size()];
+        Arrays.fill(assignments, -1);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(seedCentroids, assignments, vectors::ordToDoc);
+        KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 1);
+        kMeansLocal.cluster(vectors, kMeansIntermediate);
+
+        // Handle oversized clusters by recursive splitting, same as clusterAndSplit
+        int[] centroidVectorCount = new int[seedCentroids.length];
+        for (int assignment : assignments) {
+            if (assignment >= 0) {
+                centroidVectorCount[assignment]++;
+            }
+        }
+
+        int centroidIndexOffset = 0;
+        for (int c = 0; c < centroidVectorCount.length; c++) {
+            int count = centroidVectorCount[c];
+            int adjustedCentroid = c + centroidIndexOffset;
+            if (100 * count > 134 * targetSize) {
+                ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+            } else if (count == 0) {
+                int newSize = kMeansIntermediate.centroids().length - 1;
+                float[][] newCentroids = new float[newSize][];
+                System.arraycopy(kMeansIntermediate.centroids(), 0, newCentroids, 0, adjustedCentroid);
+                System.arraycopy(
+                    kMeansIntermediate.centroids(),
+                    adjustedCentroid + 1,
+                    newCentroids,
+                    adjustedCentroid,
+                    newSize - adjustedCentroid
+                );
+                for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
+                    if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
+                        kMeansIntermediate.assignments()[i]--;
+                    }
+                }
+                kMeansIntermediate.setCentroids(newCentroids);
+                centroidIndexOffset--;
+            }
+        }
+
+        // Neighborhood-aware refinement + SOAR with minimal iteration.
+        // One pass is sufficient since the initial assignment is already good.
+        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
+            KMeansLocal refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
+            refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        }
+
+        return kMeansIntermediate;
+    }
+
+    /**
+     * Cluster vectors by concatenating prior centroids and doing a single assignment pass.
+     * <p>
+     * For merges of balanced segments (no dominant segment) where prior centroids exist:
+     * concatenate all prior centroids, reduce/expand to target K, then do a single full
+     * assignment pass + SOAR. This eliminates iterative convergence entirely — the prior
+     * centroids are already good approximations of the data distribution.
+     *
+     * @param vectors           the merged vectors
+     * @param allPriorCentroids centroids concatenated from all input segments
+     * @param targetSize        target vectors per cluster
+     * @return clustering result
+     */
+    public KMeansResult clusterByConcatenation(ClusteringFloatVectorValues vectors, float[][] allPriorCentroids, int targetSize)
+        throws IOException {
+        if (vectors.size() == 0) {
+            return new KMeansIntermediate();
+        }
+        if (vectors.size() <= targetSize) {
+            float[] centroid = new float[dimension];
+            for (int i = 0; i < vectors.size(); i++) {
+                float[] vector = vectors.vectorValue(i);
+                for (int j = 0; j < dimension; j++) {
+                    centroid[j] += vector[j];
+                }
+            }
+            for (int j = 0; j < dimension; j++) {
+                centroid[j] /= vectors.size();
+            }
+            return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);
+        }
+
+        int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
+
+        // Fit prior centroids to target K
+        float[][] seedCentroids;
+        if (allPriorCentroids.length == k) {
+            seedCentroids = deepCopy(allPriorCentroids);
+        } else if (allPriorCentroids.length > k) {
+            seedCentroids = reduceCentroids(allPriorCentroids, k);
+        } else {
+            seedCentroids = supplementCentroids(allPriorCentroids, vectors, k);
+        }
+
+        // Single assignment pass with NO iterative convergence (0 sampled iterations).
+        int[] assignments = new int[vectors.size()];
+        Arrays.fill(assignments, -1);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(seedCentroids, assignments, vectors::ordToDoc);
+        // maxIterations=0 means only the final full-pass assignment (no sampled iterations)
+        KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 0);
+        kMeansLocal.cluster(vectors, kMeansIntermediate);
+
+        // Handle oversized clusters
+        int[] centroidVectorCount = new int[seedCentroids.length];
+        for (int assignment : assignments) {
+            if (assignment >= 0) {
+                centroidVectorCount[assignment]++;
+            }
+        }
+        int centroidIndexOffset = 0;
+        for (int c = 0; c < centroidVectorCount.length; c++) {
+            int count = centroidVectorCount[c];
+            int adjustedCentroid = c + centroidIndexOffset;
+            if (100 * count > 134 * targetSize) {
+                ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+            } else if (count == 0) {
+                int newSize = kMeansIntermediate.centroids().length - 1;
+                float[][] newCentroids = new float[newSize][];
+                System.arraycopy(kMeansIntermediate.centroids(), 0, newCentroids, 0, adjustedCentroid);
+                System.arraycopy(
+                    kMeansIntermediate.centroids(),
+                    adjustedCentroid + 1,
+                    newCentroids,
+                    adjustedCentroid,
+                    newSize - adjustedCentroid
+                );
+                for (int i = 0; i < kMeansIntermediate.assignments().length; i++) {
+                    if (kMeansIntermediate.assignments()[i] > adjustedCentroid) {
+                        kMeansIntermediate.assignments()[i]--;
+                    }
+                }
+                kMeansIntermediate.setCentroids(newCentroids);
+                centroidIndexOffset--;
+            }
+        }
+
+        // SOAR refinement with single pass
+        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
+            KMeansLocal refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
+            refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        }
+
+        return kMeansIntermediate;
     }
 }

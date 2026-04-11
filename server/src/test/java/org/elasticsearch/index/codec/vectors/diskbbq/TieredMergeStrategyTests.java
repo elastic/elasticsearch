@@ -34,7 +34,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(TieredMergeStrategy.Strategy.INSERTION, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testExactly70PercentSelectsWarmStart() {
+    public void testExactly70PercentSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 128);
         int[] sizes = { 700, 300 };
         int[] centroids = { 10, 5 };
@@ -42,12 +42,12 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(TieredMergeStrategy.Strategy.FULL_REBUILD, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testMultipleLargeSegmentsWithPriorCentroidsSelectsWarmStart() {
+    public void testMultipleLargeSegmentsWithPriorCentroidsSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 128);
         // Two roughly equal segments with prior centroids
         int[] sizes = { 3000, 4000 };
         int[] centroids = { 20, 20 };
-        assertEquals(TieredMergeStrategy.Strategy.WARM_START, strategy.selectStrategy(sizes, centroids, false));
+        assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, strategy.selectStrategy(sizes, centroids, false));
     }
 
     public void testInsufficientCentroidsSelectsFullRebuild() {
@@ -89,18 +89,18 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(TieredMergeStrategy.Strategy.FULL_REBUILD, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testLowDimLargeScaleDominantSelectsWarmStart() {
+    public void testLowDimLargeScaleDominantSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 128);
         int[] sizes = { 70000, 30000 };
         int[] centroids = { 200, 50 };
-        assertEquals(TieredMergeStrategy.Strategy.WARM_START, strategy.selectStrategy(sizes, centroids, false));
+        assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testHighDimLargeScaleDominantSelectsWarmStart() {
+    public void testHighDimLargeScaleDominantSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 512);
         int[] sizes = { 70000, 30000 };
         int[] centroids = { 200, 50 };
-        assertEquals(TieredMergeStrategy.Strategy.WARM_START, strategy.selectStrategy(sizes, centroids, false));
+        assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, strategy.selectStrategy(sizes, centroids, false));
     }
 
     public void testHighDimModerateDominantSelectsInsertion() {
@@ -111,20 +111,20 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(TieredMergeStrategy.Strategy.INSERTION, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testDominantBelowThresholdSelectsWarmStart() {
+    public void testDominantBelowThresholdSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 128);
-        // 7500/10000 = 0.75, below insertion threshold → warm-start
+        // 7500/10000 = 0.75, below insertion threshold → concatenation
         int[] sizes = { 7500, 1000, 1000, 500 };
         int[] centroids = { 100, 8, 8, 8 };
-        assertEquals(TieredMergeStrategy.Strategy.WARM_START, strategy.selectStrategy(sizes, centroids, false));
+        assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, strategy.selectStrategy(sizes, centroids, false));
     }
 
-    public void testDominantWithInsufficientCentroidsSelectsWarmStart() {
+    public void testDominantWithInsufficientCentroidsSelectsConcatenation() {
         TieredMergeStrategy strategy = new TieredMergeStrategy(64, 128);
-        // Dominant ratio 0.9 but dominant segment has only 20 centroids (<32) → falls to warm-start via totalCentroids
+        // Dominant ratio 0.9 but dominant segment has only 20 centroids (<32) → falls to concatenation via totalCentroids
         int[] sizes = { 9000, 1000 };
         int[] centroids = { 20, 15 };
-        assertEquals(TieredMergeStrategy.Strategy.WARM_START, strategy.selectStrategy(sizes, centroids, false));
+        assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, strategy.selectStrategy(sizes, centroids, false));
     }
 
     public void testHighlyDominantSelectsInsertion() {

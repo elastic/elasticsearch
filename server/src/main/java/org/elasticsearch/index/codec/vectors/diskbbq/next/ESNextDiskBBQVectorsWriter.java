@@ -915,7 +915,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     kMeansResult.soarAssignments()
                 );
             }
-            case WARM_START -> {
+            case CONCATENATION -> {
                 java.util.List<float[]> allPriorCentroids = new java.util.ArrayList<>();
                 for (IVFVectorsReader.CentroidData data : segmentCentroidData) {
                     if (data != null) {
@@ -929,7 +929,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 } else {
                     hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
                 }
-                KMeansResult kMeansResult = hierarchicalKMeans.clusterWithWarmStart(floatVectorValues, initialCentroids, vectorPerCluster);
+                KMeansResult kMeansResult = hierarchicalKMeans.clusterByConcatenation(
+                    floatVectorValues,
+                    initialCentroids,
+                    vectorPerCluster
+                );
                 return new CentroidAssignments(
                     fieldInfo.getVectorDimension(),
                     kMeansResult.centroids(),

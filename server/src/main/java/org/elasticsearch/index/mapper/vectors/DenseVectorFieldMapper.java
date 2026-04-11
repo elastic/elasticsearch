@@ -3258,13 +3258,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexOptions;
         }
 
-        /**
-         * Returns true if this field uses the DiskBBQ (IVF-based) vector index type.
-         */
-        public boolean isDiskBBQ() {
-            return indexOptions != null && indexOptions.type == VectorIndexType.BBQ_DISK;
-        }
-
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {

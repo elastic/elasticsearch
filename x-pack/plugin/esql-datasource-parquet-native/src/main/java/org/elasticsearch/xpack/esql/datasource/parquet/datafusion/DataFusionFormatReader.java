@@ -24,10 +24,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -319,7 +325,7 @@ public class DataFusionFormatReader implements FormatReader {
                     Block[] blocks = new Block[vectors.size()];
                     try {
                         for (int col = 0; col < vectors.size(); col++) {
-                            blocks[col] = wrapZeroCopy(vectors.get(col), rowCount);
+                            blocks[col] = wrapOrConvert(vectors.get(col), rowCount);
                         }
                     } catch (Exception e) {
                         Releasables.closeExpectNoException(blocks);
@@ -335,52 +341,114 @@ public class DataFusionFormatReader implements FormatReader {
          * Numeric, boolean, and string/binary types are wrapped directly.
          * Timestamps in microseconds are wrapped with a x1000 divisor via LongMul1kArrowBufBlock.
          */
-        private Block wrapZeroCopy(FieldVector vector, int rowCount) {
+        private Block wrapOrConvert(FieldVector vector, int rowCount) {
             return switch (vector.getMinorType()) {
+                // Integers — zero-copy
+                case TINYINT -> Int8ArrowBufBlock.of(vector, blockFactory);
+                case SMALLINT -> Int16ArrowBufBlock.of(vector, blockFactory);
                 case INT -> IntArrowBufBlock.of(vector, blockFactory);
                 case BIGINT -> LongArrowBufBlock.of(vector, blockFactory);
+                case UINT1 -> UInt8ArrowBufBlock.of(vector, blockFactory);
+                case UINT2 -> UInt16ArrowBufBlock.of(vector, blockFactory);
+                case UINT4 -> UInt32ArrowBufBlock.of(vector, blockFactory);
+                case UINT8 -> LongArrowBufBlock.of(vector, blockFactory);
+
+                // Floats — zero-copy
+                case FLOAT2 -> Float16ArrowBufBlock.of(vector, blockFactory);
                 case FLOAT4 -> FloatArrowBufBlock.of(vector, blockFactory);
                 case FLOAT8 -> DoubleArrowBufBlock.of(vector, blockFactory);
+
+                // Boolean — zero-copy
                 case BIT -> BooleanArrowBufBlock.of((BitVector) vector, blockFactory);
+
+                // Strings — zero-copy
                 case VARCHAR -> BytesRefArrowBufBlock.of(vector, blockFactory);
                 case VARBINARY -> BytesRefArrowBufBlock.of(vector, blockFactory);
-                case TIMESTAMPMICRO -> LongMul1kArrowBufBlock.of(vector, blockFactory);
-                case TIMESTAMPMICROTZ -> LongMul1kArrowBufBlock.of(vector, blockFactory);
-                default -> copyConvert(vector, rowCount);
-            };
-        }
+                case FIXEDSIZEBINARY -> copyBytesRef(vector, rowCount);
 
-        private Block copyConvert(FieldVector vector, int rowCount) {
-            return switch (vector.getMinorType()) {
-                case LARGEVARCHAR, LARGEVARBINARY -> {
-                    try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                        for (int i = 0; i < rowCount; i++) {
-                            if (vector.isNull(i)) {
-                                builder.appendNull();
-                            } else {
-                                builder.appendBytesRef(new BytesRef((byte[]) vector.getObject(i)));
-                            }
-                        }
-                        yield builder.build();
-                    }
-                }
-                case TIMESTAMPMILLI -> {
-                    try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                        for (int i = 0; i < rowCount; i++) {
-                            if (vector.isNull(i)) {
-                                builder.appendNull();
-                            } else {
-                                builder.appendLong((long) vector.getObject(i));
-                            }
-                        }
-                        yield builder.build();
-                    }
-                }
+                // Strings — copy (64-bit offsets, no zero-copy wrapper)
+                case LARGEVARCHAR, LARGEVARBINARY -> copyBytesRef(vector, rowCount);
+
+                // Timestamps — ESQL stores millis
+                case TIMESTAMPMICRO, TIMESTAMPMICROTZ -> LongMul1kArrowBufBlock.of(vector, blockFactory);
+                case TIMESTAMPMILLI, TIMESTAMPMILLITZ -> copyTimestampMillis(vector, rowCount);
+                case TIMESTAMPSEC, TIMESTAMPSECTZ -> copyTimestampSeconds(vector, rowCount);
+                case TIMESTAMPNANO, TIMESTAMPNANOTZ -> copyTimestampNanos(vector, rowCount);
+
+                // Dates — ESQL stores millis
+                case DATEMILLI -> LongArrowBufBlock.of(vector, blockFactory);
+                case DATEDAY -> copyDateDays(vector, rowCount);
+
                 default -> {
                     logger.warn("Unsupported Arrow type [{}], returning null block", vector.getMinorType());
                     yield blockFactory.newConstantNullBlock(rowCount);
                 }
             };
+        }
+
+        private Block copyBytesRef(FieldVector vector, int rowCount) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendBytesRef(new BytesRef((byte[]) vector.getObject(i)));
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyTimestampMillis(FieldVector vector, int rowCount) {
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong((long) vector.getObject(i));
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyTimestampSeconds(FieldVector vector, int rowCount) {
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong((long) vector.getObject(i) * 1000);
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyTimestampNanos(FieldVector vector, int rowCount) {
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong((long) vector.getObject(i) / 1_000_000);
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyDateDays(FieldVector vector, int rowCount) {
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong((int) vector.getObject(i) * 86_400_000L);
+                    }
+                }
+                return builder.build();
+            }
         }
 
         @Override

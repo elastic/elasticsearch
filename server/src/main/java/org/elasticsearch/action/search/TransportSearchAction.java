@@ -308,47 +308,44 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
-    /**
-     * Resolve a qualified index expression to the local part if it matches the alias, otherwise return null.
-     * Unqualified index expressions are returned as-is.
-     */
-    private static String localizeIndexBoostExpression(String indexExpr, String clusterAlias) {
-        String[] split = RemoteClusterAware.splitIndexName(indexExpr);
-        String cluster = split[0];
-        if (cluster == null) {
-            return indexExpr;
-        }
-        return cluster.equals(clusterAlias) ? split[1] : null;
-    }
-
-    /**
-     * @param allowRemoteBoosts when true, {@code indices_boost} entries qualified for other clusters
-     *                                               are skipped (same rules as a CCS local sub-request).
-     */
-    private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState, boolean allowRemoteBoosts) {
+    private IndexBoosts resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState, boolean keepRemotes) {
         if (searchRequest.source() == null) {
-            return Collections.emptyMap();
+            return IndexBoosts.EMPTY;
         }
 
         SearchSourceBuilder source = searchRequest.source();
         if (source.indexBoosts() == null) {
-            return Collections.emptyMap();
+            return IndexBoosts.EMPTY;
         }
 
         String clusterAlias = searchRequest.getLocalClusterAlias();
-        if (Strings.isNullOrEmpty(clusterAlias) && allowRemoteBoosts) {
+        if (Strings.isNullOrEmpty(clusterAlias)) {
             clusterAlias = RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS;
+        } else {
+            // No need to keep remotes if we're already on remote cluster
+            keepRemotes = false;
         }
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
+        Map<String, Float> universalIndexBoosts = keepRemotes ? new HashMap<>() : Map.of();
+        Map<String, Map<String, Float>> remoteIndexBoosts = keepRemotes ? new HashMap<>() : Map.of();
         for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
             final String indexExpression;
-            if (allowRemoteBoosts) {
-                indexExpression = localizeIndexBoostExpression(ib.getIndex(), clusterAlias);
-                if (indexExpression == null) {
+            String[] split = RemoteClusterAware.splitIndexName(ib.getIndex());
+            if (split[0] != null) {
+                // Have qualified index name
+                if (split[0].equals(clusterAlias)) {
+                    indexExpression = split[1];
+                } else {
+                    if (keepRemotes) {
+                        remoteIndexBoosts.computeIfAbsent(split[0], k -> new HashMap<>()).put(split[1], ib.getBoost());
+                    }
                     continue;
                 }
             } else {
-                indexExpression = ib.getIndex();
+                if (keepRemotes) {
+                    universalIndexBoosts.putIfAbsent(split[1], ib.getBoost());
+                }
+                indexExpression = split[1];
             }
             Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
                 clusterState,
@@ -360,7 +357,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());
             }
         }
-        return Collections.unmodifiableMap(concreteIndexBoosts);
+        return new IndexBoosts(
+            concreteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(concreteIndexBoosts),
+            universalIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(universalIndexBoosts),
+            remoteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(remoteIndexBoosts)
+        );
     }
 
     /**
@@ -724,7 +725,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 projectState,
                                 remoteAliasFilters,
                                 participatingProjects,
-                                false,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
@@ -750,6 +750,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original.getLocalClusterAlias(),
                 resolvedIndices,
                 original.pointInTimeBuilder(),
+
                 shouldMinimizeRoundtrips(original),
                 isExplain,
                 isProfile,
@@ -1648,7 +1649,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             projectState,
             Collections.emptyMap(),
             clusterInfo,
-            true,
             searchPhaseProvider
         );
     }
@@ -1820,7 +1820,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
         SearchResponse.Clusters clusters,
-        boolean allowRemoteBoosts,
         SearchPhaseProvider searchPhaseProvider
     ) {
         if (searchRequest.allowPartialSearchResults() == null) {
@@ -1904,7 +1903,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // Fan-out CCS (ccs_minimize_roundtrips=false): the merged search runs on the querying cluster with no
         // SearchRequest#localClusterAlias, so resolveIndexBoosts only maps local index UUIDs. Remote shard scores do not
         // receive cluster-qualified indices_boost entries from the coordinator; use ccs_minimize_roundtrips=true instead.
-        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), allowRemoteBoosts);
+        IndexBoosts indexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), remoteShardIterators.isEmpty() == false);
 
         adjustSearchType(searchRequest, shardIterators.size() == 1);
 
@@ -1961,7 +1960,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             connectionLookup,
             projectState.cluster(),
             Collections.unmodifiableMap(aliasFilter),
-            concreteIndexBoosts,
+            indexBoosts,
             preFilterSearchShards,
             threadPool,
             clusters,
@@ -2080,7 +2079,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts indexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
@@ -2106,7 +2105,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts indexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
@@ -2120,7 +2119,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchTransportService,
                     connectionLookup,
                     aliasFilter,
-                    concreteIndexBoosts,
+                    indexBoosts,
                     threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                     searchRequest,
                     shardIterators,
@@ -2145,7 +2144,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         connectionLookup,
                         clusterState,
                         aliasFilter,
-                        concreteIndexBoosts,
+                        indexBoosts,
                         false,
                         threadPool,
                         clusters,
@@ -2182,7 +2181,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
-                        concreteIndexBoosts,
+                        indexBoosts,
                         executor,
                         queryResultConsumer,
                         searchRequest,
@@ -2207,7 +2206,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
-                        concreteIndexBoosts,
+                        indexBoosts,
                         executor,
                         queryResultConsumer,
                         searchRequest,

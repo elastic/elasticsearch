@@ -111,7 +111,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 return lookup.get(node);
             },
             aliasFilters,
-            Collections.emptyMap(),
+            IndexBoosts.EMPTY,
             null,
             request,
             responseListener,
@@ -223,7 +223,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node);
                 },
                 aliasFilters,
-                Collections.emptyMap(),
+                IndexBoosts.EMPTY,
                 null,
                 request,
                 ActionTestUtils.assertNoFailureListener(response -> {}),
@@ -344,7 +344,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node);
                 },
                 aliasFilters,
-                Collections.emptyMap(),
+                IndexBoosts.EMPTY,
                 executor,
                 request,
                 responseListener,
@@ -479,7 +479,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node);
                 },
                 aliasFilters,
-                Collections.emptyMap(),
+                IndexBoosts.EMPTY,
                 executor,
                 request,
                 responseListener,
@@ -592,7 +592,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node);
                 },
                 aliasFilters,
-                Collections.emptyMap(),
+                IndexBoosts.EMPTY,
                 null,
                 request,
                 ActionTestUtils.assertNoFailureListener(response -> {}),
@@ -682,7 +682,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 return lookup.get(node);
             },
             Map.of("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
+            IndexBoosts.EMPTY,
             null,
             request,
             responseListener,

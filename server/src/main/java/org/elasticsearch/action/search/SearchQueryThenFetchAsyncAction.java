@@ -107,7 +107,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
+        IndexBoosts indexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         SearchRequest request,
@@ -132,7 +132,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             bigArrays,
             nodeIdToConnection,
             aliasFilter,
-            concreteIndexBoosts,
+            indexBoosts,
             executor,
             request,
             listener,
@@ -497,10 +497,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
                         t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
                     );
-                    final String indexUUID = routing.getShardId().getIndex().getUUID();
                     perNodeRequest.shards.add(
                         new ShardToQuery(
-                            concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
+                            indexBoosts.lookup(shardRoutings),
                             getOriginalIndices(shardIndex).indices(),
                             shardIndex,
                             routing.getShardId(),
@@ -508,6 +507,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardRoutings.getSplitShardCountSummary()
                         )
                     );
+                    final String indexUUID = routing.getShardId().getIndex().getUUID();
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
                     if (filterForAlias != AliasFilter.EMPTY) {
                         perNodeRequest.aliasFilters.putIfAbsent(indexUUID, filterForAlias);

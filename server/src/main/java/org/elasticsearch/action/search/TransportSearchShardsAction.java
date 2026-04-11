@@ -198,7 +198,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                         return transportService.getConnection(project.cluster().nodes().get(node));
                     },
                         aliasFilters,
-                        Map.of(),
+                        IndexBoosts.EMPTY,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                         searchRequest,
                         shardIts,

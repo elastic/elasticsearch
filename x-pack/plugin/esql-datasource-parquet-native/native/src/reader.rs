@@ -13,6 +13,7 @@ use jni::sys::{jboolean, jlong, JNI_FALSE, JNI_TRUE};
 pub struct ReaderState {
     _ctx: SessionContext,
     stream: SendableRecordBatchStream,
+    execution_plan: String,
 }
 
 type ReaderError = Box<dyn std::error::Error + Send + Sync>;
@@ -51,8 +52,16 @@ async fn open_stream(
         df = df.limit(0, Some(limit))?;
     }
 
+    let plan = df.clone().create_physical_plan().await?;
+    let execution_plan = datafusion::physical_plan::displayable(plan.as_ref())
+        .indent(false)
+        .to_string();
     let stream = df.execute_stream().await?;
-    Ok(ReaderState { _ctx: ctx, stream })
+    Ok(ReaderState {
+        _ctx: ctx,
+        stream,
+        execution_plan,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +137,20 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
                 Ok(JNI_TRUE)
             }
         }
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_getExecutionPlan<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jni::objects::JString<'local> {
+    env.with_env(|env| -> JniResult<jni::objects::JString<'local>> {
+        let state = unsafe { &*(handle as *const ReaderState) };
+        let plan_str = env.new_string(&state.execution_plan)?;
+        Ok(plan_str)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

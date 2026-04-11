@@ -718,7 +718,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        executor.execute(() -> {
+        Thread.ofVirtual().name("esql-external-source-reader").start(() -> {
             CloseableIterator<Page> pages = null;
             try {
                 if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {

@@ -55,6 +55,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link DataFusionFormatReader} that verify end-to-end reading of Parquet files
@@ -165,8 +168,175 @@ public class DataFusionFormatReaderTests extends ESTestCase {
         try {
             Page firstPage = pages.get(0);
             assertEquals(2, firstPage.getBlockCount());
+
+            BytesRefBlock nameBlock = (BytesRefBlock) firstPage.getBlock(0);
+            IntBlock ageBlock = (IntBlock) firstPage.getBlock(1);
+
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Bob"), nameBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(new BytesRef("Charlie"), nameBlock.getBytesRef(2, new BytesRef()));
+
+            assertEquals(30, ageBlock.getInt(0));
+            assertEquals(25, ageBlock.getInt(1));
+            assertEquals(35, ageBlock.getInt(2));
         } finally {
             releasePages(pages);
+        }
+    }
+
+    public void testProjectionSingleColumn() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.of(List.of("age"), 1024);
+        List<Page> pages = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            while (iter.hasNext()) {
+                pages.add(iter.next());
+            }
+        }
+
+        try {
+            Page firstPage = pages.get(0);
+            assertEquals(1, firstPage.getBlockCount());
+
+            IntBlock ageBlock = (IntBlock) firstPage.getBlock(0);
+            assertEquals(3, firstPage.getPositionCount());
+            assertEquals(30, ageBlock.getInt(0));
+            assertEquals(25, ageBlock.getInt(1));
+            assertEquals(35, ageBlock.getInt(2));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testProjectionReversedColumnOrder() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.of(List.of("age", "id"), 1024);
+        List<Page> pages = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            while (iter.hasNext()) {
+                pages.add(iter.next());
+            }
+        }
+
+        try {
+            Page firstPage = pages.get(0);
+            assertEquals(2, firstPage.getBlockCount());
+
+            IntBlock ageBlock = (IntBlock) firstPage.getBlock(0);
+            LongBlock idBlock = (LongBlock) firstPage.getBlock(1);
+
+            assertEquals(30, ageBlock.getInt(0));
+            assertEquals(1L, idBlock.getLong(0));
+            assertEquals(25, ageBlock.getInt(1));
+            assertEquals(2L, idBlock.getLong(1));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testProjectionWithFilter() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+
+        Expression filter = new GreaterThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(28), null);
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        FormatReader reader = new DataFusionFormatReader(blockFactory).withPushedFilter(result.pushedFilter());
+        FormatReadContext context = FormatReadContext.of(List.of("name"), 1024);
+        List<Page> pages = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            while (iter.hasNext()) {
+                pages.add(iter.next());
+            }
+        }
+
+        try {
+            assertEquals(2, totalRows(pages));
+            Page firstPage = pages.get(0);
+            assertEquals(1, firstPage.getBlockCount());
+
+            BytesRefBlock nameBlock = (BytesRefBlock) firstPage.getBlock(0);
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Charlie"), nameBlock.getBytesRef(1, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testProjectionNullReadsAllColumns() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.of(null, 1024);
+        List<Page> pages = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            while (iter.hasNext()) {
+                pages.add(iter.next());
+            }
+        }
+
+        try {
+            Page firstPage = pages.get(0);
+            assertEquals(3, firstPage.getBlockCount());
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testExecutionPlanShowsProjectedColumns() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.of(List.of("name"), 1024);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            assertThat(iter, instanceOf(DataFusionFormatReader.DataFusionBatchIterator.class));
+            String plan = ((DataFusionFormatReader.DataFusionBatchIterator) iter).executionPlan();
+            assertNotNull(plan);
+            assertThat(plan, containsString("name"));
+            assertThat(plan, not(containsString("projection=[id, name, age]")));
+        }
+    }
+
+    public void testExecutionPlanShowsAllColumnsWhenNoProjection() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.of(null, 1024);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            assertThat(iter, instanceOf(DataFusionFormatReader.DataFusionBatchIterator.class));
+            String plan = ((DataFusionFormatReader.DataFusionBatchIterator) iter).executionPlan();
+            assertNotNull(plan);
+            assertThat(plan, containsString("id"));
+            assertThat(plan, containsString("name"));
+            assertThat(plan, containsString("age"));
+        }
+    }
+
+    public void testExecutionPlanShowsFilter() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+
+        Expression filter = new GreaterThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(28), null);
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        FormatReader reader = new DataFusionFormatReader(blockFactory).withPushedFilter(result.pushedFilter());
+        FormatReadContext context = FormatReadContext.of(List.of("name", "age"), 1024);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            assertThat(iter, instanceOf(DataFusionFormatReader.DataFusionBatchIterator.class));
+            String plan = ((DataFusionFormatReader.DataFusionBatchIterator) iter).executionPlan();
+            assertNotNull(plan);
+            assertThat(plan, containsString("Filter"));
         }
     }
 

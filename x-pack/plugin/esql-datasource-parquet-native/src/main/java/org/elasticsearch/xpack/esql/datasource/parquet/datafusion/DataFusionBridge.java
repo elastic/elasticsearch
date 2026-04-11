@@ -36,6 +36,9 @@ final class DataFusionBridge {
 
     static native void closeReader(long handle);
 
+    /** Returns the DataFusion execution plan string for an open reader. */
+    static native String getExecutionPlan(long handle);
+
     // ---- Metadata ----
 
     static native String[] getSchema(String filePath);

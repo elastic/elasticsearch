@@ -207,7 +207,8 @@ public class DataFusionFormatReader implements FormatReader {
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
         long handle = DataFusionBridge.openReader(path, columns, batchSize, limit, filterHandle);
-        return new DataFusionBatchIterator(handle, blockFactory);
+        String executionPlan = DataFusionBridge.getExecutionPlan(handle);
+        return new DataFusionBatchIterator(handle, blockFactory, executionPlan);
     }
 
     @Override
@@ -260,17 +261,23 @@ public class DataFusionFormatReader implements FormatReader {
      * Iterates over batches from the native DataFusion reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.
      */
-    private static class DataFusionBatchIterator implements CloseableIterator<Page> {
+    static class DataFusionBatchIterator implements CloseableIterator<Page> {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
+        private final String executionPlan;
         private boolean exhausted = false;
         private Page nextPage;
 
-        DataFusionBatchIterator(long handle, BlockFactory blockFactory) {
+        DataFusionBatchIterator(long handle, BlockFactory blockFactory, String executionPlan) {
             this.handle = handle;
             this.blockFactory = blockFactory;
             this.allocator = new RootAllocator(Long.MAX_VALUE);
+            this.executionPlan = executionPlan;
+        }
+
+        String executionPlan() {
+            return executionPlan;
         }
 
         @Override

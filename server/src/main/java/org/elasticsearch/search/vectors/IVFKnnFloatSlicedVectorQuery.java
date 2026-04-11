@@ -102,8 +102,11 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
     }
 
-    private ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(SortedDocValues sortedDocValues, DocValuesSkipper skipper, int ord)
-        throws IOException {
+    private static ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(
+        SortedDocValues sortedDocValues,
+        DocValuesSkipper skipper,
+        int ord
+    ) throws IOException {
         int minDocID;
         if (skipper.minValue() == ord) {
             minDocID = 0;

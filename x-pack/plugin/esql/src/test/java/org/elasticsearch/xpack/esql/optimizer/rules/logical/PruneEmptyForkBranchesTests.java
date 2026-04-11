@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_Fork[[_meta_field{r}#29, emp_no{r}#30, first_name{r}#31, gender{r}#32, hire_date{r}#33, job{r}#34, job.raw{r}#35, l
      * anguages{r}#36, last_name{r}#37, long_noidx{r}#38, salary{r}#39, x{r}#40, _fork{r}#41]]
@@ -38,7 +38,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
      *     \_Eval[[1[INTEGER] AS x#5, fork1[KEYWORD] AS _fork#3]]
      *       \_Limit[10[INTEGER],false,false]
      *         \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     * }</pre>
+     * }
      */
     public void testEmptyForkBranches() {
         var plan = plan("""
@@ -78,7 +78,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
      * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, x{r}#39]]
@@ -87,7 +87,7 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
      *     \_Subquery[]
      *       \_Eval[[1[INTEGER] AS x#4]]
      *         \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     * }</pre>
+     * }
      */
     public void testOneEmptySubquery() {
         checkSubquerySupport();

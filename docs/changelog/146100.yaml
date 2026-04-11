@@ -1,0 +1,5 @@
+area: CCS
+issues: []
+pr: 146100
+summary: Enable specifying remote qualified indices in `index_boost`
+type: enhancement

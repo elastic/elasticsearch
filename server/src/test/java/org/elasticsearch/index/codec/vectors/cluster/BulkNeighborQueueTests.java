@@ -56,6 +56,9 @@ public class BulkNeighborQueueTests extends ESTestCase {
             k,
             maxScore(scores)
         );
+        assertTopKMatches(new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.FAISS_RESERVOIR), docs, scores, count, k, maxScore(scores));
+        assertTopKMatches(new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.SCANN_FAST), docs, scores, count, k, maxScore(scores));
+        assertTopKMatches(new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.AUTO_V2, count * 10), docs, scores, count, k, maxScore(scores));
     }
 
     public void testBulkInsertMatchesTopKMaxHeap() {
@@ -67,8 +70,19 @@ public class BulkNeighborQueueTests extends ESTestCase {
         assertTopKMatches(new BulkNeighborQueue(k, true, BulkNeighborQueue.Strategy.BINARY), docs, scores, count, k, minScore(scores));
     }
 
-    public void testRadixRequiresMinHeap() {
+    public void testNonBinaryStrategiesRequireMinHeap() {
         expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.QUICKSELECT));
+        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.FAISS_RESERVOIR));
+        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.SCANN_FAST));
+        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.AUTO_V2));
+    }
+
+    public void testAutoV2UsesBinaryWhenFewVectorsAreExpected() {
+        int[] docs = new int[] { 1, 2, 3, 4 };
+        float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f };
+        int k = 4;
+        BulkNeighborQueue queue = new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.AUTO_V2, k);
+        assertTopKMatches(queue, docs, scores, docs.length, k, maxScore(scores));
     }
 
     private static void assertTopKMatches(BulkNeighborQueue queue, int[] docs, float[] scores, int count, int k, float bestScore) {
@@ -78,8 +92,14 @@ public class BulkNeighborQueueTests extends ESTestCase {
         long[] expected = topKEncoded(queue, docs, scores, count, k);
         List<Long> drained = drainEncoded(queue);
         assertEquals(expected.length, drained.size());
+        long[] actual = new long[drained.size()];
+        for (int i = 0; i < drained.size(); i++) {
+            actual[i] = drained.get(i);
+        }
+        Arrays.sort(expected);
+        Arrays.sort(actual);
         for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i], drained.get(i).longValue());
+            assertEquals(expected[i], actual[i]);
         }
         assertEquals(0, queue.size());
     }

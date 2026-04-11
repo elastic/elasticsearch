@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.NumericUtils;
 
+import java.util.Arrays;
 import java.util.function.LongConsumer;
 
 /**
@@ -49,30 +50,73 @@ public class BulkNeighborQueue {
 
     public enum Strategy {
         BINARY,
-        QUICKSELECT
+        QUICKSELECT,
+        FAISS_RESERVOIR,
+        SCANN_FAST,
+        AUTO_V2
     }
 
     private final BulkLongHeap heap;
+    private final FaissReservoirTopK faissQueue;
+    private final ScannFastTopK scannQueue;
+    private final Strategy strategy;
     private final Order order;
     private final int maxSize;
     private final long sentinelWorst;
 
     public BulkNeighborQueue(int maxSize, boolean maxHeap, Strategy strategy) {
+        this(maxSize, maxHeap, strategy, Integer.MAX_VALUE);
+    }
+
+    public BulkNeighborQueue(int maxSize, boolean maxHeap, Strategy strategy, int totalVectorsHint) {
         if (maxSize < 1) {
             throw new IllegalArgumentException("maxSize must be >= 1");
         }
-        if (strategy != Strategy.BINARY && maxHeap) {
-            throw new IllegalArgumentException("Quickselect strategy requires min-heap");
+        if (totalVectorsHint < 1) {
+            throw new IllegalArgumentException("totalVectorsHint must be >= 1");
         }
         this.order = maxHeap ? Order.MAX_HEAP : Order.MIN_HEAP;
         this.maxSize = maxSize;
-        this.heap = (strategy == Strategy.BINARY || strategy == Strategy.QUICKSELECT) ? new BulkLongHeap(maxSize, order) : null;
+        this.strategy = resolveStrategy(strategy, maxHeap, maxSize, totalVectorsHint);
+        this.heap = (this.strategy == Strategy.BINARY || this.strategy == Strategy.QUICKSELECT) ? new BulkLongHeap(maxSize, order) : null;
+        this.faissQueue = this.strategy == Strategy.FAISS_RESERVOIR ? new FaissReservoirTopK(maxSize, order) : null;
+        this.scannQueue = this.strategy == Strategy.SCANN_FAST ? new ScannFastTopK(maxSize, order) : null;
         float worstScore = order == Order.MIN_HEAP ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
         this.sentinelWorst = order.apply(encodeRaw(0, worstScore));
     }
 
+    private static Strategy resolveStrategy(Strategy strategy, boolean maxHeap, int maxSize, int totalVectorsHint) {
+        if (strategy == Strategy.BINARY) {
+            return Strategy.BINARY;
+        }
+        if (strategy == Strategy.QUICKSELECT) {
+            if (maxHeap) {
+                throw new IllegalArgumentException("Quickselect strategy requires min-heap");
+            }
+            return Strategy.QUICKSELECT;
+        }
+        if (strategy == Strategy.FAISS_RESERVOIR || strategy == Strategy.SCANN_FAST || strategy == Strategy.AUTO_V2) {
+            if (maxHeap) {
+                throw new IllegalArgumentException("Reservoir strategies require min-heap");
+            }
+            if (strategy == Strategy.AUTO_V2) {
+                if (totalVectorsHint <= maxSize) {
+                    return Strategy.BINARY;
+                }
+                return maxSize <= 5 ? Strategy.SCANN_FAST : Strategy.FAISS_RESERVOIR;
+            }
+            return strategy;
+        }
+        throw new IllegalArgumentException("Unknown strategy " + strategy);
+    }
+
     public int size() {
-        return heap.size();
+        return switch (strategy) {
+            case BINARY, QUICKSELECT -> heap.size();
+            case FAISS_RESERVOIR -> faissQueue.size();
+            case SCANN_FAST -> scannQueue.size();
+            case AUTO_V2 -> throw new IllegalStateException("AUTO_V2 must be resolved in constructor");
+        };
     }
 
     /**
@@ -83,7 +127,12 @@ public class BulkNeighborQueue {
         if (size() < maxSize) {
             return sentinelWorst;
         }
-        return heap.top();
+        return switch (strategy) {
+            case BINARY, QUICKSELECT -> heap.top();
+            case FAISS_RESERVOIR -> faissQueue.peek();
+            case SCANN_FAST -> scannQueue.peek();
+            case AUTO_V2 -> throw new IllegalStateException("AUTO_V2 must be resolved in constructor");
+        };
     }
 
     /**
@@ -122,7 +171,12 @@ public class BulkNeighborQueue {
      * @return the number of elements that were accepted (added or replaced).
      */
     public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
-        return heap.insertWithOverflowBulk(docs, scores, count, bestScore);
+        return switch (strategy) {
+            case BINARY, QUICKSELECT -> heap.insertWithOverflowBulk(docs, scores, count, bestScore);
+            case FAISS_RESERVOIR -> faissQueue.insertWithOverflowBulk(docs, scores, count, bestScore);
+            case SCANN_FAST -> scannQueue.insertWithOverflowBulk(docs, scores, count, bestScore);
+            case AUTO_V2 -> throw new IllegalStateException("AUTO_V2 must be resolved in constructor");
+        };
     }
 
     /**
@@ -133,8 +187,15 @@ public class BulkNeighborQueue {
         if (count == 0) {
             return;
         }
-        for (int i = 1; i <= count; i++) {
-            consumer.accept(pop());
+        switch (strategy) {
+            case BINARY, QUICKSELECT -> {
+                for (int i = 1; i <= count; i++) {
+                    consumer.accept(pop());
+                }
+            }
+            case FAISS_RESERVOIR -> faissQueue.drain(consumer);
+            case SCANN_FAST -> scannQueue.drain(consumer);
+            case AUTO_V2 -> throw new IllegalStateException("AUTO_V2 must be resolved in constructor");
         }
     }
 
@@ -283,6 +344,242 @@ public class BulkNeighborQueue {
                 heapify();
             }
         }
+    }
+
+    private static class FaissReservoirTopK {
+        private final int maxSize;
+        private final int bufferSize;
+        private final long[] values;
+        private final Order order;
+        private int size;
+        private long threshold = Long.MIN_VALUE;
+
+        private FaissReservoirTopK(int maxSize, Order order) {
+            this.maxSize = maxSize;
+            this.bufferSize = Math.max(maxSize, maxSize * 2);
+            this.values = new long[bufferSize];
+            this.order = order;
+        }
+
+        private int size() {
+            return Math.min(size, maxSize);
+        }
+
+        private long peek() {
+            return threshold;
+        }
+
+        private int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+            if (count <= 0) {
+                return 0;
+            }
+            if (size >= maxSize && bestScoreDoesNotBeatThreshold(bestScore)) {
+                return 0;
+            }
+            int accepted = 0;
+            for (int i = 0; i < count; i++) {
+                long encoded = order.apply(encodeRaw(docs[i], scores[i]));
+                if (encoded <= threshold) {
+                    continue;
+                }
+                values[size++] = encoded;
+                accepted++;
+                if (size == maxSize) {
+                    threshold = minValue(values, size);
+                }
+                if (size == bufferSize) {
+                    compactToMaxSize();
+                }
+            }
+            return accepted;
+        }
+
+        private void drain(LongConsumer consumer) {
+            compactToMaxSize();
+            Arrays.sort(values, 0, size);
+            for (int i = 0; i < size; i++) {
+                consumer.accept(values[i]);
+            }
+            size = 0;
+            threshold = Long.MIN_VALUE;
+        }
+
+        private void compactToMaxSize() {
+            if (size <= maxSize) {
+                if (size == maxSize) {
+                    threshold = minValue(values, size);
+                }
+                return;
+            }
+            int start = size - maxSize;
+            quickSelect(values, 0, size - 1, start);
+            long min = Long.MAX_VALUE;
+            for (int i = 0; i < maxSize; i++) {
+                long value = values[start + i];
+                values[i] = value;
+                if (value < min) {
+                    min = value;
+                }
+            }
+            size = maxSize;
+            threshold = min;
+        }
+
+        private boolean bestScoreDoesNotBeatThreshold(float bestScore) {
+            long bestEncoded = order.apply(encodeRaw(0, bestScore));
+            return bestEncoded <= threshold;
+        }
+    }
+
+    private static class ScannFastTopK {
+        private final int maxSize;
+        private final int capacity;
+        private final long[] values;
+        private final Order order;
+        private int size;
+        private long threshold = Long.MIN_VALUE;
+
+        private ScannFastTopK(int maxSize, Order order) {
+            this.maxSize = maxSize;
+            this.capacity = Math.max(maxSize, maxSize * 2);
+            this.values = new long[capacity];
+            this.order = order;
+        }
+
+        private int size() {
+            return Math.min(size, maxSize);
+        }
+
+        private long peek() {
+            return threshold;
+        }
+
+        private int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+            if (count <= 0) {
+                return 0;
+            }
+            if (size >= maxSize && bestScoreDoesNotBeatThreshold(bestScore)) {
+                return 0;
+            }
+            int accepted = 0;
+            for (int i = 0; i < count; i++) {
+                long encoded = order.apply(encodeRaw(docs[i], scores[i]));
+                if (encoded <= threshold) {
+                    continue;
+                }
+                values[size++] = encoded;
+                accepted++;
+                if (size == maxSize) {
+                    threshold = minValue(values, size);
+                }
+                if (size == capacity) {
+                    garbageCollect();
+                }
+            }
+            return accepted;
+        }
+
+        private void drain(LongConsumer consumer) {
+            compactToMaxSize();
+            Arrays.sort(values, 0, size);
+            for (int i = 0; i < size; i++) {
+                consumer.accept(values[i]);
+            }
+            size = 0;
+            threshold = Long.MIN_VALUE;
+        }
+
+        private void garbageCollect() {
+            if (size <= maxSize) {
+                if (size == maxSize) {
+                    threshold = minValue(values, size);
+                }
+                return;
+            }
+            int keepMax = (maxSize + capacity) / 2 - 1;
+            if (keepMax < maxSize) {
+                keepMax = maxSize;
+            }
+            int start = size - keepMax;
+            quickSelect(values, 0, size - 1, start);
+            long min = Long.MAX_VALUE;
+            for (int i = 0; i < keepMax; i++) {
+                long value = values[start + i];
+                values[i] = value;
+                if (value < min) {
+                    min = value;
+                }
+            }
+            size = keepMax;
+            threshold = min;
+        }
+
+        private void compactToMaxSize() {
+            if (size <= maxSize) {
+                if (size == maxSize) {
+                    threshold = minValue(values, size);
+                }
+                return;
+            }
+            int start = size - maxSize;
+            quickSelect(values, 0, size - 1, start);
+            long min = Long.MAX_VALUE;
+            for (int i = 0; i < maxSize; i++) {
+                long value = values[start + i];
+                values[i] = value;
+                if (value < min) {
+                    min = value;
+                }
+            }
+            size = maxSize;
+            threshold = min;
+        }
+
+        private boolean bestScoreDoesNotBeatThreshold(float bestScore) {
+            long bestEncoded = order.apply(encodeRaw(0, bestScore));
+            return bestEncoded <= threshold;
+        }
+    }
+
+    private static void quickSelect(long[] values, int left, int right, int k) {
+        while (left < right) {
+            long pivot = values[left + ((right - left) >>> 1)];
+            int i = left;
+            int j = right;
+            while (i <= j) {
+                while (values[i] < pivot) {
+                    i++;
+                }
+                while (values[j] > pivot) {
+                    j--;
+                }
+                if (i <= j) {
+                    long tmp = values[i];
+                    values[i] = values[j];
+                    values[j] = tmp;
+                    i++;
+                    j--;
+                }
+            }
+            if (k <= j) {
+                right = j;
+            } else if (k >= i) {
+                left = i;
+            } else {
+                return;
+            }
+        }
+    }
+
+    private static long minValue(long[] values, int size) {
+        long min = Long.MAX_VALUE;
+        for (int i = 0; i < size; i++) {
+            long value = values[i];
+            if (value < min) {
+                min = value;
+            }
+        }
+        return min;
     }
 
 }

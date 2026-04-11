@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -774,6 +775,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
             parentOrd++;
         }
+        // write raw centroids for merge strategy centroid reuse
+        writeRawCentroids(centroidOutput, centroidSupplier, fieldInfo.getVectorDimension());
     }
 
     private void writeCentroidsWithoutParents(
@@ -798,6 +801,19 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         for (int i = 0; i < centroidSupplier.size(); i++) {
             centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(i));
             centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(i));
+        }
+        // write raw centroids for merge strategy centroid reuse
+        writeRawCentroids(centroidOutput, centroidSupplier, fieldInfo.getVectorDimension());
+    }
+
+    private static void writeRawCentroids(IndexOutput centroidOutput, CentroidSupplier centroidSupplier, int dimension)
+        throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < centroidSupplier.size(); i++) {
+            float[] centroid = centroidSupplier.centroid(i);
+            buffer.clear();
+            buffer.asFloatBuffer().put(centroid);
+            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
         }
     }
 
@@ -857,7 +873,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IVFVectorsReader.CentroidData[] segmentCentroidData = new IVFVectorsReader.CentroidData[numSegments];
 
         for (int i = 0; i < numSegments; i++) {
-            if (mergeState.knnVectorsReaders[i] instanceof IVFVectorsReader<?> ivfReader) {
+            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
+                reader = perFieldReader.getFieldReader(fieldInfo.name);
+            }
+            if (reader instanceof IVFVectorsReader<?> ivfReader) {
                 FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
                 if (readerFieldInfo == null) {
                     segmentSizes[i] = 0;

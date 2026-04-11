@@ -315,7 +315,31 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return null;
     }
 
-    protected static class NextFieldEntry extends FieldEntry {
+    @Override
+    public CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException {
+        NextFieldEntry entry = fields.get(fieldInfo.number);
+        if (entry == null || entry.numCentroids() == 0) {
+            return null;
+        }
+        int dimension = fieldInfo.getVectorDimension();
+        int numCentroids = entry.numCentroids();
+        float[][] centroids = new float[numCentroids][];
+        int[] clusterSizes = new int[numCentroids];
+
+        long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
+        try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids)) {
+            // Raw centroids are appended at the end of the centroid data
+            centroidSlice.seek(centroidSlice.length() - rawCentroidsSize);
+            for (int c = 0; c < numCentroids; c++) {
+                centroids[c] = new float[dimension];
+                centroidSlice.readFloats(centroids[c], 0, dimension);
+            }
+        }
+
+        return new CentroidData(centroids, clusterSizes, entry.globalCentroid());
+    }
+
+    static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;

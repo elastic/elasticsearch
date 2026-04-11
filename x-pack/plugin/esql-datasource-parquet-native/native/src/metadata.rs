@@ -1,0 +1,158 @@
+use super::jni_utils::*;
+use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
+use jni::{EnvUnowned, jni_str};
+use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::jint;
+use parquet::arrow::parquet_to_arrow_schema;
+use parquet::file::reader::{FileReader, SerializedFileReader};
+
+type MetadataError = Box<dyn std::error::Error + Send + Sync>;
+
+pub const TYPE_BOOLEAN: jint = 1;
+pub const TYPE_INT32: jint = 2;
+pub const TYPE_INT64: jint = 3;
+pub const TYPE_FLOAT32: jint = 4;
+pub const TYPE_FLOAT64: jint = 5;
+pub const TYPE_UTF8: jint = 6;
+pub const TYPE_BINARY: jint = 7;
+pub const TYPE_DATE32: jint = 8;
+pub const TYPE_TIMESTAMP_MILLIS: jint = 9;
+pub const TYPE_TIMESTAMP_MICROS: jint = 10;
+pub const TYPE_TIMESTAMP_NANOS: jint = 11;
+pub const TYPE_DECIMAL128: jint = 12;
+pub const TYPE_LIST: jint = 13;
+pub const TYPE_UNSUPPORTED: jint = -1;
+
+fn arrow_type_to_id(dt: &ArrowDataType) -> jint {
+    match dt {
+        ArrowDataType::Boolean => TYPE_BOOLEAN,
+        ArrowDataType::Int8 | ArrowDataType::Int16 | ArrowDataType::Int32
+        | ArrowDataType::UInt8 | ArrowDataType::UInt16 | ArrowDataType::UInt32 => TYPE_INT32,
+        ArrowDataType::Int64 | ArrowDataType::UInt64 => TYPE_INT64,
+        ArrowDataType::Float16 | ArrowDataType::Float32 => TYPE_FLOAT32,
+        ArrowDataType::Float64 => TYPE_FLOAT64,
+        ArrowDataType::Utf8 | ArrowDataType::LargeUtf8 => TYPE_UTF8,
+        ArrowDataType::Binary | ArrowDataType::LargeBinary | ArrowDataType::FixedSizeBinary(_) => TYPE_BINARY,
+        ArrowDataType::Date32 | ArrowDataType::Date64 => TYPE_DATE32,
+        ArrowDataType::Timestamp(TimeUnit::Millisecond, _) => TYPE_TIMESTAMP_MILLIS,
+        ArrowDataType::Timestamp(TimeUnit::Microsecond, _) => TYPE_TIMESTAMP_MICROS,
+        ArrowDataType::Timestamp(TimeUnit::Nanosecond, _) => TYPE_TIMESTAMP_NANOS,
+        ArrowDataType::Timestamp(TimeUnit::Second, _) => TYPE_TIMESTAMP_MILLIS,
+        ArrowDataType::Decimal128(_, _) | ArrowDataType::Decimal256(_, _) => TYPE_DECIMAL128,
+        ArrowDataType::List(field) | ArrowDataType::LargeList(field) => {
+            let element_type = arrow_type_to_id(field.data_type());
+            if element_type == TYPE_UNSUPPORTED { TYPE_UNSUPPORTED } else { TYPE_LIST }
+        }
+        _ => TYPE_UNSUPPORTED,
+    }
+}
+
+fn arrow_list_element_type_id(dt: &ArrowDataType) -> jint {
+    match dt {
+        ArrowDataType::List(field) | ArrowDataType::LargeList(field) => {
+            arrow_type_to_id(field.data_type())
+        }
+        _ => arrow_type_to_id(dt),
+    }
+}
+
+struct SchemaEntry {
+    name: String,
+    type_id: jint,
+    element_type_id: jint,
+}
+
+fn read_schema(file_path: &str) -> Result<Vec<SchemaEntry>, MetadataError> {
+    let file = std::fs::File::open(file_path)?;
+    let reader = SerializedFileReader::new(file)?;
+    let parquet_metadata = reader.metadata();
+    let file_metadata = parquet_metadata.file_metadata();
+    let arrow_schema = parquet_to_arrow_schema(
+        file_metadata.schema_descr(),
+        file_metadata.key_value_metadata(),
+    )?;
+
+    let mut entries = Vec::with_capacity(arrow_schema.fields().len());
+    for field in arrow_schema.fields() {
+        entries.push(SchemaEntry {
+            name: field.name().clone(),
+            type_id: arrow_type_to_id(field.data_type()),
+            element_type_id: arrow_list_element_type_id(field.data_type()),
+        });
+    }
+    Ok(entries)
+}
+
+struct FileStats {
+    total_rows: i64,
+    total_bytes: i64,
+}
+
+fn read_statistics(file_path: &str) -> Result<FileStats, MetadataError> {
+    let file = std::fs::File::open(file_path)?;
+    let reader = SerializedFileReader::new(file)?;
+    let parquet_metadata = reader.metadata();
+
+    let mut total_rows: i64 = 0;
+    let mut total_bytes: i64 = 0;
+    for rg in parquet_metadata.row_groups() {
+        total_rows += rg.num_rows();
+        total_bytes += rg.total_byte_size();
+    }
+
+    Ok(FileStats { total_rows, total_bytes })
+}
+
+// ---------------------------------------------------------------------------
+// JNI entry points
+// ---------------------------------------------------------------------------
+
+/// Returns schema as a flat String array: [name0, typeId0, elemTypeId0, name1, ...]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_getSchema<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    file_path: JString<'local>,
+) -> jni::objects::JObjectArray<'local> {
+    env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
+        let path = file_path.try_to_string(env)?;
+        let entries = read_schema(&path).map_err(jni_err)?;
+
+        let string_class = env.find_class(jni_str!("java/lang/String"))?;
+        let arr_len = (entries.len() * 3) as i32;
+        let arr = env.new_object_array(arr_len, &string_class, &JObject::null())?;
+
+        for (i, entry) in entries.iter().enumerate() {
+            let base = i * 3;
+            let name = env.new_string(&entry.name)?;
+            let type_str = env.new_string(entry.type_id.to_string())?;
+            let elem_str = env.new_string(entry.element_type_id.to_string())?;
+            arr.set_element(env, base, &name)?;
+            arr.set_element(env, base + 1, &type_str)?;
+            arr.set_element(env, base + 2, &elem_str)?;
+        }
+
+        Ok(arr)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Returns [totalRows, totalBytes] as a long array.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_getStatistics<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    file_path: JString<'local>,
+) -> jni::sys::jlongArray {
+    env.with_env(|env| -> JniResult<jni::sys::jlongArray> {
+        let path = file_path.try_to_string(env)?;
+        let stats = read_statistics(&path).map_err(jni_err)?;
+
+        let arr = env.new_long_array(2)?;
+        let buf: [i64; 2] = [stats.total_rows, stats.total_bytes];
+        arr.set_region(env, 0, &buf)?;
+        Ok(arr.into_raw())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}

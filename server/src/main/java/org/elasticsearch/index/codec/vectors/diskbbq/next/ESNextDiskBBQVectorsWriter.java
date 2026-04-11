@@ -806,8 +806,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         writeRawCentroids(centroidOutput, centroidSupplier, fieldInfo.getVectorDimension());
     }
 
-    private static void writeRawCentroids(IndexOutput centroidOutput, CentroidSupplier centroidSupplier, int dimension)
-        throws IOException {
+    private static void writeRawCentroids(IndexOutput centroidOutput, CentroidSupplier centroidSupplier, int dimension) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocate(dimension * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < centroidSupplier.size(); i++) {
             float[] centroid = centroidSupplier.centroid(i);

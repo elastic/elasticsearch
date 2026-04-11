@@ -18,10 +18,28 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -167,6 +185,214 @@ public class DataFusionFormatReaderTests extends ESTestCase {
         } finally {
             releasePages(pages);
         }
+    }
+
+    // ---- Filter pushdown tests ----
+
+    public void testFilterEqualsInt() throws Exception {
+        // age == 30 => only Alice (id=1)
+        List<Page> pages = readWithFilter(new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null));
+        try {
+            assertEquals(1, totalRows(pages));
+            LongBlock idBlock = (LongBlock) pages.get(0).getBlock(0);
+            assertEquals(1L, idBlock.getLong(0));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterEqualsString() throws Exception {
+        // name == "Bob" => only Bob (id=2)
+        List<Page> pages = readWithFilter(new Equals(Source.EMPTY, attr("name", DataType.KEYWORD), keywordLit("Bob"), null));
+        try {
+            assertEquals(1, totalRows(pages));
+            LongBlock idBlock = (LongBlock) pages.get(0).getBlock(0);
+            assertEquals(2L, idBlock.getLong(0));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterNotEquals() throws Exception {
+        // age != 30 => Bob (25) and Charlie (35)
+        List<Page> pages = readWithFilter(new NotEquals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterGreaterThan() throws Exception {
+        // age > 28 => Alice (30) and Charlie (35)
+        List<Page> pages = readWithFilter(new GreaterThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(28), null));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLessThan() throws Exception {
+        // age < 30 => only Bob (25)
+        List<Page> pages = readWithFilter(new LessThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null));
+        try {
+            assertEquals(1, totalRows(pages));
+            IntBlock ageBlock = (IntBlock) pages.get(0).getBlock(2);
+            assertEquals(25, ageBlock.getInt(0));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterGreaterThanOrEqual() throws Exception {
+        // age >= 30 => Alice (30) and Charlie (35)
+        List<Page> pages = readWithFilter(new GreaterThanOrEqual(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterAnd() throws Exception {
+        // age > 20 AND age < 31 => Alice (30) and Bob (25)
+        Expression left = new GreaterThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(20), null);
+        Expression right = new LessThan(Source.EMPTY, attr("age", DataType.INTEGER), intLit(31), null);
+        List<Page> pages = readWithFilter(new And(Source.EMPTY, left, right));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterOr() throws Exception {
+        // age == 25 OR age == 35 => Bob and Charlie
+        Expression left = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(25), null);
+        Expression right = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(35), null);
+        List<Page> pages = readWithFilter(new Or(Source.EMPTY, left, right));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterNot() throws Exception {
+        // NOT (age == 30) => Bob (25) and Charlie (35)
+        Expression inner = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null);
+        List<Page> pages = readWithFilter(new Not(Source.EMPTY, inner));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterIn() throws Exception {
+        // age IN (25, 35) => Bob and Charlie
+        Expression value = attr("age", DataType.INTEGER);
+        List<Expression> list = List.of(intLit(25), intLit(35));
+        List<Page> pages = readWithFilter(new In(Source.EMPTY, value, list));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterIsNotNull() throws Exception {
+        // name IS NOT NULL => all 3 rows (no nulls in test data)
+        List<Page> pages = readWithFilter(new IsNotNull(Source.EMPTY, attr("name", DataType.KEYWORD)));
+        try {
+            assertEquals(3, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterStartsWith() throws Exception {
+        // name STARTS WITH "Al" => only Alice
+        List<Page> pages = readWithFilter(new StartsWith(Source.EMPTY, attr("name", DataType.KEYWORD), keywordLit("Al")));
+        try {
+            assertEquals(1, totalRows(pages));
+            BytesRefBlock nameBlock = (BytesRefBlock) pages.get(0).getBlock(1);
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterNoMatchReturnsEmpty() throws Exception {
+        // age == 999 => no rows
+        List<Page> pages = readWithFilter(new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(999), null));
+        try {
+            assertEquals(0, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterPushdownSupportCanPush() {
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        Expression filter = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null);
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+    }
+
+    public void testFilterPushdownSupportPushFilters() {
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        Expression pushable = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null);
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(pushable));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.pushedExpressions().size());
+        assertEquals(0, result.remainder().size());
+
+        // Clean up the native handle
+        DataFusionPushedFilter pushedFilter = (DataFusionPushedFilter) result.pushedFilter();
+        DataFusionBridge.freeExpr(pushedFilter.exprHandle());
+    }
+
+    // ---- Filter test helpers ----
+
+    private List<Page> readWithFilter(Expression filter) throws IOException {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+        assertTrue("Filter should be pushable", result.hasPushedFilter());
+
+        FormatReader reader = new DataFusionFormatReader(blockFactory).withPushedFilter(result.pushedFilter());
+        FormatReadContext context = FormatReadContext.of(null, 1024);
+        List<Page> pages = new ArrayList<>();
+        try (CloseableIterator<Page> iter = reader.read(storageObject, context)) {
+            while (iter.hasNext()) {
+                pages.add(iter.next());
+            }
+        }
+        return pages;
+    }
+
+    private static int totalRows(List<Page> pages) {
+        int total = 0;
+        for (Page page : pages) {
+            total += page.getPositionCount();
+        }
+        return total;
+    }
+
+    private static Attribute attr(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, name, type);
+    }
+
+    private static Literal intLit(int value) {
+        return new Literal(Source.EMPTY, value, DataType.INTEGER);
+    }
+
+    private static Literal keywordLit(String value) {
+        return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
     }
 
     /**

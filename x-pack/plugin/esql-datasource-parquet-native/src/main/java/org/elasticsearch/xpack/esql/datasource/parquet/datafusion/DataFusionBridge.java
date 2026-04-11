@@ -11,8 +11,8 @@ package org.elasticsearch.xpack.esql.datasource.parquet.datafusion;
  * JNI bridge to the Rust DataFusion-based Parquet reader.
  * <p>
  * Uses the Arrow C Data Interface for zero-copy batch transfer from Rust to Java.
- * The schema and array FFI structs are written to caller-provided memory addresses,
- * then imported into Java Arrow vectors via {@code Data.importVectorSchemaRoot}.
+ * Filter expressions are built incrementally as a DataFusion {@code Expr} tree in Rust
+ * via the {@code create*} methods, then passed to {@link #openReader} as an opaque handle.
  */
 final class DataFusionBridge {
 
@@ -22,25 +22,74 @@ final class DataFusionBridge {
 
     private DataFusionBridge() {}
 
-    /** Opens a DataFusion reader. Returns an opaque native handle. */
-    static native long openReader(String filePath, String[] projectedColumns, int batchSize, long limit);
+    // ---- Reader lifecycle ----
 
     /**
-     * Reads the next batch via the Arrow C Data Interface.
-     * Writes FFI_ArrowSchema and FFI_ArrowArray to the provided memory addresses.
+     * Opens a DataFusion reader with optional filter.
      *
-     * @param schemaAddr memory address of an allocated ArrowSchema FFI struct
-     * @param arrayAddr memory address of an allocated ArrowArray FFI struct
-     * @return true if a batch was produced, false if end-of-stream
+     * @param filterHandle opaque handle to a DataFusion Expr built via create* methods, or 0 for no filter.
+     *                     Ownership is transferred: the native side frees the Expr when the reader opens.
      */
+    static native long openReader(String filePath, String[] projectedColumns, int batchSize, long limit, long filterHandle);
+
     static native boolean nextBatch(long handle, long schemaAddr, long arrayAddr);
 
-    /** Closes the native reader and releases all resources. */
     static native void closeReader(long handle);
 
-    /** Returns schema as [name0, typeId0, elemTypeId0, name1, ...]. */
+    // ---- Metadata ----
+
     static native String[] getSchema(String filePath);
 
-    /** Returns [totalRows, totalBytes]. */
     static native long[] getStatistics(String filePath);
+
+    // ---- Filter expression building ----
+    // Each create* method returns an opaque handle (boxed Expr on Rust heap).
+    // Binary operations consume their input handles (ownership transfer).
+
+    static native long createColumn(String name);
+
+    static native long createLiteralInt(int value);
+
+    static native long createLiteralLong(long value);
+
+    static native long createLiteralDouble(double value);
+
+    static native long createLiteralBool(boolean value);
+
+    static native long createLiteralString(String value);
+
+    static native long createEquals(long left, long right);
+
+    static native long createNotEquals(long left, long right);
+
+    static native long createGreaterThan(long left, long right);
+
+    static native long createGreaterThanOrEqual(long left, long right);
+
+    static native long createLessThan(long left, long right);
+
+    static native long createLessThanOrEqual(long left, long right);
+
+    static native long createAnd(long left, long right);
+
+    static native long createOr(long left, long right);
+
+    static native long createNot(long child);
+
+    static native long createIsNull(long child);
+
+    static native long createIsNotNull(long child);
+
+    static native long createInList(long exprHandle, long[] listHandles);
+
+    /**
+     * Builds a StartsWith filter as {@code col >= prefix AND col < upperBound}.
+     *
+     * @param colHandle handle to a column Expr (consumed)
+     * @param prefix the prefix string
+     * @param upperBound exclusive upper bound string, or null if prefix is all-max codepoints
+     */
+    static native long createStartsWith(long colHandle, String prefix, String upperBound);
+
+    static native void freeExpr(long handle);
 }

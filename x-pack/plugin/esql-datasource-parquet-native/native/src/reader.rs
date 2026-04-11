@@ -22,6 +22,7 @@ async fn open_stream(
     projected_cols: Option<Vec<String>>,
     batch_size: usize,
     limit: Option<usize>,
+    filter: Option<Expr>,
 ) -> Result<ReaderState, ReaderError> {
     let mut config = SessionConfig::new().with_batch_size(batch_size);
     config
@@ -36,6 +37,10 @@ async fn open_stream(
     ctx.register_parquet("data", file_path, parquet_opts).await?;
 
     let mut df = ctx.table("data").await?;
+
+    if let Some(expr) = filter {
+        df = df.filter(expr)?;
+    }
 
     if let Some(cols) = projected_cols {
         let exprs: Vec<Expr> = cols.into_iter().map(|c| col(c)).collect();
@@ -62,14 +67,22 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     projected_columns: JObjectArray,
     batch_size: jni::sys::jint,
     limit: jlong,
+    filter_handle: jlong,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
+        let filter = if filter_handle != 0 {
+            Some(unsafe { *Box::from_raw(filter_handle as *mut Expr) })
+        } else {
+            None
+        };
+
         let state = ASYNC_RUNTIME
             .block_on(open_stream(
                 &file_path.try_to_string(env)?,
                 string_array_to_vec(&projected_columns, env)?,
                 batch_size as usize,
                 jlong_to_opt_usize(limit),
+                filter,
             ))
             .map_err(jni_err)?;
 

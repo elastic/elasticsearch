@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -63,9 +64,28 @@ public class DataFusionFormatReader implements FormatReader {
     private static final Logger logger = LogManager.getLogger(DataFusionFormatReader.class);
 
     private final BlockFactory blockFactory;
+    private final long filterHandle;
 
     public DataFusionFormatReader(BlockFactory blockFactory) {
+        this(blockFactory, 0);
+    }
+
+    private DataFusionFormatReader(BlockFactory blockFactory, long filterHandle) {
         this.blockFactory = blockFactory;
+        this.filterHandle = filterHandle;
+    }
+
+    @Override
+    public FilterPushdownSupport filterPushdownSupport() {
+        return new DataFusionFilterPushdownSupport();
+    }
+
+    @Override
+    public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter instanceof DataFusionPushedFilter df) {
+            return new DataFusionFormatReader(blockFactory, df.exprHandle());
+        }
+        return this;
     }
 
     @Override
@@ -105,7 +125,7 @@ public class DataFusionFormatReader implements FormatReader {
         String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
-        long handle = DataFusionBridge.openReader(path, columns, batchSize, limit);
+        long handle = DataFusionBridge.openReader(path, columns, batchSize, limit, filterHandle);
         return new DataFusionBatchIterator(handle, blockFactory);
     }
 

@@ -583,7 +583,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             }
             w.commit();
             if (random().nextBoolean()) {
-                // force one leave so slice metadata is present
                 w.forceMerge(1);
             }
             float[] vector = randomVector(dimensions);
@@ -635,7 +634,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     }
                     assertEquals(docsPerSlice[slice], uniqueDocIds.size());
                 }
-
             }
         }
     }

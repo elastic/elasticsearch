@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
@@ -144,10 +143,15 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             .append(":")
             .append(this.field)
             .append("[")
-            .append(Arrays.toString(getQuery()))
+            .append(getQuery()[0])
             .append(",...]")
             .append("[")
             .append(k)
+            .append("]")
+            .append("[")
+            .append(sliceField)
+            .append("=")
+            .append(sliceId.utf8ToString())
             .append("]");
         if (this.filter != null) {
             buffer.append("[").append(this.filter).append("]");

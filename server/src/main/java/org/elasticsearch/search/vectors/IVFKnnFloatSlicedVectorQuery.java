@@ -116,7 +116,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
-            maxDocID = skipper.docCount();
+            maxDocID = skipper.docCount() - 1;
         } else {
             skipper.advance(ord + 1, Long.MAX_VALUE);
             maxDocID = nextDoc(skipper.minDocID(0), sortedDocValues, ord + 1) - 1;

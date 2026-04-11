@@ -27,9 +27,13 @@ dependencies {
   compileOnly project(xpackModule('esql:compute'))
 
   // Arrow C Data Interface for zero-copy FFI transfer from Rust
-  implementation("org.apache.arrow:arrow-c-data:18.3.0")
+  implementation("org.apache.arrow:arrow-c-data:18.3.0") {
+    exclude group: 'org.slf4j'
+  }
   // Arrow core (vectors, memory) - already in compute transitively, needed at compile time
-  implementation project(':libs:arrow')
+  implementation(project(':libs:arrow')) {
+    exclude group: 'org.slf4j'
+  }
 
   // parquet-mr used only in tests to create Parquet test files
   testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")

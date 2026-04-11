@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -357,6 +359,106 @@ public class DataFusionFormatReaderTests extends ESTestCase {
         // Clean up the native handle
         DataFusionPushedFilter pushedFilter = (DataFusionPushedFilter) result.pushedFilter();
         DataFusionBridge.freeExpr(pushedFilter.exprHandle());
+    }
+
+    // ---- LIKE filter pushdown tests ----
+
+    public void testFilterLikeWildcardSuffix() throws Exception {
+        // name LIKE "Al*" => Alice
+        List<Page> pages = readWithFilter(new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("Al*")));
+        try {
+            assertEquals(1, totalRows(pages));
+            BytesRefBlock nameBlock = (BytesRefBlock) pages.get(0).getBlock(1);
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLikeWildcardPrefix() throws Exception {
+        // name LIKE "*lie" => Charlie
+        List<Page> pages = readWithFilter(new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("*lie")));
+        try {
+            assertEquals(1, totalRows(pages));
+            BytesRefBlock nameBlock = (BytesRefBlock) pages.get(0).getBlock(1);
+            assertEquals(new BytesRef("Charlie"), nameBlock.getBytesRef(0, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLikeContains() throws Exception {
+        // name LIKE "*li*" => Alice and Charlie
+        List<Page> pages = readWithFilter(new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("*li*")));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLikeSingleCharWildcard() throws Exception {
+        // name LIKE "Bo?" => Bob
+        List<Page> pages = readWithFilter(new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("Bo?")));
+        try {
+            assertEquals(1, totalRows(pages));
+            BytesRefBlock nameBlock = (BytesRefBlock) pages.get(0).getBlock(1);
+            assertEquals(new BytesRef("Bob"), nameBlock.getBytesRef(0, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLikeNoMatch() throws Exception {
+        // name LIKE "*xyz*" => no match
+        List<Page> pages = readWithFilter(new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("*xyz*")));
+        try {
+            assertEquals(0, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterLikeAndEquals() throws Exception {
+        // name LIKE "*li*" AND age == 30 => Alice only
+        Expression like = new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("*li*"));
+        Expression eq = new Equals(Source.EMPTY, attr("age", DataType.INTEGER), intLit(30), null);
+        List<Page> pages = readWithFilter(new And(Source.EMPTY, like, eq));
+        try {
+            assertEquals(1, totalRows(pages));
+            BytesRefBlock nameBlock = (BytesRefBlock) pages.get(0).getBlock(1);
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testFilterNotLike() throws Exception {
+        // NOT (name LIKE "Al*") => Bob and Charlie
+        Expression like = new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("Al*"));
+        List<Page> pages = readWithFilter(new Not(Source.EMPTY, like));
+        try {
+            assertEquals(2, totalRows(pages));
+        } finally {
+            releasePages(pages);
+        }
+    }
+
+    public void testCanConvertWildcardLike() {
+        DataFusionFilterPushdownSupport support = new DataFusionFilterPushdownSupport();
+        Expression like = new WildcardLike(Source.EMPTY, attr("name", DataType.KEYWORD), new WildcardPattern("*test*"));
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(like));
+    }
+
+    public void testEsqlWildcardToSqlLikeConversion() {
+        assertEquals("%", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("*"));
+        assertEquals("_", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("?"));
+        assertEquals("%google%", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("*google*"));
+        assertEquals("%.google.%", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("*.google.*"));
+        assertEquals("Al%", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("Al*"));
+        assertEquals("Bo_", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("Bo?"));
+        assertEquals("test\\%value", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("test%value"));
+        assertEquals("test\\_value", DataFusionFilterPushdownSupport.esqlWildcardToSqlLike("test_value"));
     }
 
     // ---- Aggregate pushdown tests ----

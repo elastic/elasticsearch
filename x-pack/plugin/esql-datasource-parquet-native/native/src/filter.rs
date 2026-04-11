@@ -262,6 +262,40 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
 }
 
 // ---------------------------------------------------------------------------
+// LIKE: col LIKE pattern (SQL-style % and _ wildcards)
+// ---------------------------------------------------------------------------
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_createLike(
+    mut env: EnvUnowned,
+    _class: JClass,
+    col_handle: jlong,
+    pattern: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(col_handle) };
+        let pat = pattern.try_to_string(env)?;
+        Ok(box_expr(c.like(lit(pat))))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_createNotLike(
+    mut env: EnvUnowned,
+    _class: JClass,
+    col_handle: jlong,
+    pattern: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(col_handle) };
+        let pat = pattern.try_to_string(env)?;
+        Ok(box_expr(c.not_like(lit(pat))))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup
 // ---------------------------------------------------------------------------
 

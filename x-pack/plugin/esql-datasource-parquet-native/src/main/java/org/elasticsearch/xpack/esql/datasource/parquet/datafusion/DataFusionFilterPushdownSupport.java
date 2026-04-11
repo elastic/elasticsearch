@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -132,6 +133,9 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
         if (expr instanceof StartsWith sw) {
             return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
         }
+        if (expr instanceof WildcardLike wl) {
+            return wl.field() instanceof NamedExpression ne && (ne.dataType() == DataType.KEYWORD || ne.dataType() == DataType.TEXT);
+        }
         return false;
     }
 
@@ -201,6 +205,11 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
                 return DataFusionBridge.createNot(innerHandle);
             }
             return 0;
+        }
+        if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+            long colHandle = DataFusionBridge.createColumn(ne.name());
+            String sqlPattern = esqlWildcardToSqlLike(wl.pattern().pattern());
+            return DataFusionBridge.createLike(colHandle, sqlPattern);
         }
         if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
             Object prefixValue = literalValueOf(sw.prefix());
@@ -296,6 +305,36 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
                 yield 0;
             }
         };
+    }
+
+    /**
+     * Converts ESQL wildcard pattern (using * and ?) to SQL LIKE pattern (using % and _).
+     * Escapes literal % and _ characters in the original pattern with backslash.
+     */
+    static String esqlWildcardToSqlLike(String esqlPattern) {
+        StringBuilder sb = new StringBuilder(esqlPattern.length());
+        boolean escaped = false;
+        for (int i = 0; i < esqlPattern.length(); i++) {
+            char c = esqlPattern.charAt(i);
+            if (escaped) {
+                sb.append(c);
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                sb.append(c);
+                continue;
+            }
+            switch (c) {
+                case '*' -> sb.append('%');
+                case '?' -> sb.append('_');
+                case '%' -> sb.append("\\%");
+                case '_' -> sb.append("\\_");
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private static long createLiteral(DataType dataType, Object value) {

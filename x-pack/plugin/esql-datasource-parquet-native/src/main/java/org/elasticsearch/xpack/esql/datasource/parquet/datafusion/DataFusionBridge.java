@@ -94,5 +94,11 @@ final class DataFusionBridge {
      */
     static native long createStartsWith(long colHandle, String prefix, String upperBound);
 
+    /** Builds {@code col LIKE pattern} using SQL LIKE syntax (% and _ wildcards). */
+    static native long createLike(long colHandle, String pattern);
+
+    /** Builds {@code col NOT LIKE pattern} using SQL LIKE syntax (% and _ wildcards). */
+    static native long createNotLike(long colHandle, String pattern);
+
     static native void freeExpr(long handle);
 }

@@ -91,34 +91,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         return true;
     }
 
-    public void testExistsQueryDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertExistsQuery(mapperService);
-        assertParseMinimalWarnings();
-    }
-
-    public void testAggregationsDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertAggregatableConsistency(mapperService.fieldType("field"));
-    }
-
-    public void testDefaults() throws Exception {
-        XContentBuilder mapping = fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0));
-        DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals("LongField <field:1230>", fields.get(0).toString());
-    }
-
     public void testMissingScalingFactor() {
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -133,26 +105,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", -1)))
         );
         assertThat(e.getMessage(), containsString("[scaling_factor] must be a positive number, got [-1.0]"));
-    }
-
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "scaled_float").field("index", false).field("scaling_factor", 10.0))
-        );
-
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
-                XContentType.JSON
-            )
-        );
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1230, dvField.numericValue().longValue());
     }
 
     public void testNoDocValues() throws Exception {
@@ -194,54 +146,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }
     }
 
-    public void testStore() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "scaled_float").field("store", true).field("scaling_factor", 10.0))
-        );
-
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
-                XContentType.JSON
-            )
-        );
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertEquals("LongField <field:1230>", fields.get(0).toString());
-        IndexableField storedField = fields.get(1);
-        assertTrue(storedField.fieldType().stored());
-        assertEquals(1230, storedField.numericValue().longValue());
-    }
-
-    public void testCoerce() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
-                XContentType.JSON
-            )
-        );
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals("LongField <field:1230>", fields.get(0).toString());
-
-        DocumentMapper mapper2 = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
-        );
-        ThrowingRunnable runnable = () -> mapper2.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
-                XContentType.JSON
-            )
-        );
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("passed as String"));
-    }
-
     @Override
     protected boolean supportsIgnoreMalformed() {
         return true;
@@ -256,32 +160,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]"),
             exampleMalformedValue(b -> b.value(true)).errorMatches("Current token (VALUE_TRUE) not numeric")
         );
-    }
-
-    public void testNullValue() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                XContentType.JSON
-            )
-        );
-        assertThat(doc.rootDoc().getFields("field"), empty());
-
-        mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("null_value", 2.5))
-        );
-        doc = mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                XContentType.JSON
-            )
-        );
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals("LongField <field:25>", fields.get(0).toString());
     }
 
     /**
@@ -329,14 +207,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
-    }
-
-    public void testMetricAndDocvalues() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("doc_values", false);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {

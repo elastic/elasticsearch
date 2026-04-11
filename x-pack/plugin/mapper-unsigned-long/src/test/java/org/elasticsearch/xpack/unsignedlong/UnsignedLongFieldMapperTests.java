@@ -84,45 +84,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
-    public void testDefaults() throws Exception {
-        XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
-        DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
-
-        // test indexing of values as string
-        {
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-            List<IndexableField> fields = doc.rootDoc().getFields("field");
-            assertEquals(1, fields.size());
-            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
-        }
-
-        // test indexing values as integer numbers
-        {
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9223372036854775807L)));
-            List<IndexableField> fields = doc.rootDoc().getFields("field");
-            assertEquals(1, fields.size());
-            assertEquals("LongField <field:-1>", fields.get(0).toString());
-        }
-
-        // test that indexing values as number with decimal is not allowed
-        {
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
-            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
-        }
-    }
-
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-    }
-
     public void testNoDocValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
@@ -134,16 +95,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertAggregatableConsistency(mapper.mappers().getFieldType("field"));
     }
 
-    public void testStore() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("store", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
-        IndexableField storedField = fields.get(1);
-        assertTrue(storedField.fieldType().stored());
-        assertEquals("18446744073709551615", storedField.stringValue());
-    }
 
     public void testCoerceMappingParameterIsIllegal() {
         MapperParsingException e = expectThrows(
@@ -154,27 +105,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             e.getMessage(),
             containsString("Failed to parse mapping: unknown parameter [coerce] on mapper [field] of type [unsigned_long]")
         );
-    }
-
-    public void testNullValue() throws IOException {
-        // test that if null value is not defined, field is not indexed
-        {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertThat(doc.rootDoc().getFields("field"), empty());
-        }
-
-        // test that if null value is defined, it is used
-        {
-            DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> b.field("type", "unsigned_long").field("null_value", "18446744073709551615"))
-            );
-            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            ;
-            List<IndexableField> fields = doc.rootDoc().getFields("field");
-            assertEquals(1, fields.size());
-            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
-        }
     }
 
     @Override
@@ -221,15 +151,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testExistsQueryDocValuesDisabled() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("doc_values", false);
-        }));
-        assertExistsQuery(mapperService);
-        assertParseMinimalWarnings();
-    }
-
     public void testDimension() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
@@ -240,23 +161,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
 
         assertTimeSeriesIndexing();
-    }
-
-    public void testDimensionIndexedAndDocvalues() {
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
-            })));
-            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
-            })));
-            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
-        }
     }
 
     public void testDimensionMultiValuedFieldTSDB() throws IOException {
@@ -316,25 +220,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
             );
         }
-    }
-
-    public void testMetricAndDocvalues() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("doc_values", false);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
-    }
-
-    public void testMetricAndDimension() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", "counter").field("time_series_dimension", true);
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
-        );
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {

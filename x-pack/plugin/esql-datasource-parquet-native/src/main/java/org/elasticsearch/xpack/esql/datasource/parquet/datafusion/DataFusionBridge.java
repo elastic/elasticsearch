@@ -42,6 +42,9 @@ final class DataFusionBridge {
 
     static native long[] getStatistics(String filePath);
 
+    /** Returns column statistics as [name0, nullCount0, min0, max0, name1, ...]. Empty string = absent. */
+    static native String[] getColumnStatistics(String filePath);
+
     // ---- Filter expression building ----
     // Each create* method returns an opaque handle (boxed Expr on Rust heap).
     // Binary operations consume their input handles (ownership transfer).

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -46,8 +47,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
@@ -81,6 +85,11 @@ public class DataFusionFormatReader implements FormatReader {
     }
 
     @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new DataFusionAggregatePushdownSupport();
+    }
+
+    @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof DataFusionPushedFilter df) {
             return new DataFusionFormatReader(blockFactory, df.exprHandle());
@@ -99,6 +108,8 @@ public class DataFusionFormatReader implements FormatReader {
         if (stats != null && stats.length >= 2) {
             long totalRows = stats[0];
             long totalBytes = stats[1];
+            Map<String, SourceStatistics.ColumnStatistics> columnStats = parseColumnStatistics(path, attributes);
+
             statistics = new SourceStatistics() {
                 @Override
                 public OptionalLong rowCount() {
@@ -109,10 +120,80 @@ public class DataFusionFormatReader implements FormatReader {
                 public OptionalLong sizeInBytes() {
                     return OptionalLong.of(totalBytes);
                 }
+
+                @Override
+                public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                    return columnStats.isEmpty() ? Optional.empty() : Optional.of(columnStats);
+                }
             };
         }
 
         return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
+    }
+
+    private static Map<String, SourceStatistics.ColumnStatistics> parseColumnStatistics(String path, List<Attribute> attributes) {
+        String[] raw = DataFusionBridge.getColumnStatistics(path);
+        if (raw == null || raw.length == 0) {
+            return Map.of();
+        }
+
+        Map<String, DataType> typeMap = new HashMap<>();
+        for (Attribute attr : attributes) {
+            typeMap.put(attr.name(), attr.dataType());
+        }
+
+        Map<String, SourceStatistics.ColumnStatistics> result = new HashMap<>();
+        for (int i = 0; i + 3 < raw.length; i += 4) {
+            String name = raw[i];
+            long nullCount = Long.parseLong(raw[i + 1]);
+            String minStr = raw[i + 2];
+            String maxStr = raw[i + 3];
+            DataType dt = typeMap.get(name);
+
+            Object minVal = parseStatValue(minStr, dt);
+            Object maxVal = parseStatValue(maxStr, dt);
+
+            result.put(name, new SourceStatistics.ColumnStatistics() {
+                @Override
+                public OptionalLong nullCount() {
+                    return OptionalLong.of(nullCount);
+                }
+
+                @Override
+                public OptionalLong distinctCount() {
+                    return OptionalLong.empty();
+                }
+
+                @Override
+                public Optional<Object> minValue() {
+                    return Optional.ofNullable(minVal);
+                }
+
+                @Override
+                public Optional<Object> maxValue() {
+                    return Optional.ofNullable(maxVal);
+                }
+            });
+        }
+        return result;
+    }
+
+    private static Object parseStatValue(String str, DataType dt) {
+        if (str == null || str.isEmpty() || dt == null) {
+            return null;
+        }
+        try {
+            return switch (dt) {
+                case INTEGER -> Integer.parseInt(str);
+                case LONG, DATETIME -> Long.parseLong(str);
+                case DOUBLE -> Double.parseDouble(str);
+                case BOOLEAN -> Boolean.parseBoolean(str);
+                case KEYWORD -> str;
+                default -> null;
+            };
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     @Override

@@ -23,12 +23,17 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -352,6 +357,78 @@ public class DataFusionFormatReaderTests extends ESTestCase {
         // Clean up the native handle
         DataFusionPushedFilter pushedFilter = (DataFusionPushedFilter) result.pushedFilter();
         DataFusionBridge.freeExpr(pushedFilter.exprHandle());
+    }
+
+    // ---- Aggregate pushdown tests ----
+
+    public void testMetadataIncludesColumnStatistics() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue(metadata.statistics().isPresent());
+        SourceStatistics statistics = metadata.statistics().get();
+
+        assertTrue(statistics.rowCount().isPresent());
+        assertEquals(3L, statistics.rowCount().getAsLong());
+
+        assertTrue(statistics.columnStatistics().isPresent());
+        var colStats = statistics.columnStatistics().get();
+        assertTrue(colStats.containsKey("age"));
+
+        SourceStatistics.ColumnStatistics ageStats = colStats.get("age");
+        assertTrue(ageStats.nullCount().isPresent());
+        assertEquals(0L, ageStats.nullCount().getAsLong());
+        assertTrue(ageStats.minValue().isPresent());
+        assertEquals(25, ageStats.minValue().get());
+        assertTrue(ageStats.maxValue().isPresent());
+        assertEquals(35, ageStats.maxValue().get());
+    }
+
+    public void testMetadataStringColumnStats() throws Exception {
+        Path parquetFile = createTestParquetFile(tempDir);
+        StorageObject storageObject = createFileStorageObject(parquetFile);
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        var colStats = metadata.statistics().get().columnStatistics().get();
+        assertTrue(colStats.containsKey("name"));
+
+        SourceStatistics.ColumnStatistics nameStats = colStats.get("name");
+        assertTrue(nameStats.minValue().isPresent());
+        assertEquals("Alice", nameStats.minValue().get());
+        assertTrue(nameStats.maxValue().isPresent());
+        assertEquals("Charlie", nameStats.maxValue().get());
+    }
+
+    public void testAggregatePushdownSupportCountMinMax() {
+        DataFusionAggregatePushdownSupport support = new DataFusionAggregatePushdownSupport();
+
+        Attribute ageAttr = attr("age", DataType.INTEGER);
+        List<Expression> aggregates = List.of(
+            new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")),
+            new Min(Source.EMPTY, ageAttr),
+            new Max(Source.EMPTY, ageAttr)
+        );
+
+        assertEquals(AggregatePushdownSupport.Pushability.YES, support.canPushAggregates(aggregates, List.of()));
+    }
+
+    public void testAggregatePushdownRejectsGroupBy() {
+        DataFusionAggregatePushdownSupport support = new DataFusionAggregatePushdownSupport();
+
+        Attribute ageAttr = attr("age", DataType.INTEGER);
+        List<Expression> aggregates = List.of(new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*")));
+        List<Expression> groupings = List.of(ageAttr);
+
+        assertEquals(AggregatePushdownSupport.Pushability.NO, support.canPushAggregates(aggregates, groupings));
+    }
+
+    public void testAggregatePushdownSupportIsWired() {
+        DataFusionFormatReader reader = new DataFusionFormatReader(blockFactory);
+        assertNotNull(reader.aggregatePushdownSupport());
+        assertNotSame(AggregatePushdownSupport.UNSUPPORTED, reader.aggregatePushdownSupport());
     }
 
     // ---- Filter test helpers ----

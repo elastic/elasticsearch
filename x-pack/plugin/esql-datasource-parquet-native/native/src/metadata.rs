@@ -104,6 +104,90 @@ fn read_statistics(file_path: &str) -> Result<FileStats, MetadataError> {
     Ok(FileStats { total_rows, total_bytes })
 }
 
+struct ColumnStats {
+    name: String,
+    null_count: i64,
+    min_value: Option<String>,
+    max_value: Option<String>,
+}
+
+fn read_column_statistics(file_path: &str) -> Result<Vec<ColumnStats>, MetadataError> {
+    use parquet::file::statistics::Statistics;
+
+    let file = std::fs::File::open(file_path)?;
+    let reader = SerializedFileReader::new(file)?;
+    let parquet_metadata = reader.metadata();
+    let file_metadata = parquet_metadata.file_metadata();
+    let schema = file_metadata.schema_descr();
+    let num_columns = schema.num_columns();
+    let num_row_groups = parquet_metadata.num_row_groups();
+
+    let mut columns: Vec<ColumnStats> = Vec::with_capacity(num_columns);
+    for col_idx in 0..num_columns {
+        let col_desc = schema.column(col_idx);
+        let col_name = col_desc.name().to_string();
+        let mut null_count: i64 = 0;
+        let mut global_min: Option<String> = None;
+        let mut global_max: Option<String> = None;
+
+        for rg_idx in 0..num_row_groups {
+            let rg = parquet_metadata.row_group(rg_idx);
+            let col_meta = rg.column(col_idx);
+
+            if let Some(stats) = col_meta.statistics() {
+                if let Some(nc) = stats.null_count_opt() {
+                    null_count += nc as i64;
+                }
+                let (min_str, max_str) = format_stats(stats);
+                if let Some(min_s) = min_str {
+                    global_min = match global_min {
+                        None => Some(min_s),
+                        Some(existing) => Some(pick_min(&existing, &min_s)),
+                    };
+                }
+                if let Some(max_s) = max_str {
+                    global_max = match global_max {
+                        None => Some(max_s),
+                        Some(existing) => Some(pick_max(&existing, &max_s)),
+                    };
+                }
+            }
+        }
+
+        columns.push(ColumnStats { name: col_name, null_count, min_value: global_min, max_value: global_max });
+    }
+
+    Ok(columns)
+}
+
+fn format_stats(stats: &parquet::file::statistics::Statistics) -> (Option<String>, Option<String>) {
+    use parquet::file::statistics::Statistics::*;
+    match stats {
+        Int32(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        Int64(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        Float(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        Double(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        Boolean(s) => (s.min_opt().map(|v| v.to_string()), s.max_opt().map(|v| v.to_string())),
+        ByteArray(s) => (
+            s.min_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+            s.max_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+        ),
+        FixedLenByteArray(s) => (
+            s.min_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+            s.max_opt().map(|v| String::from_utf8_lossy(v.data()).to_string()),
+        ),
+        Int96(_) => (None, None),
+    }
+}
+
+fn pick_min(a: &str, b: &str) -> String {
+    if a <= b { a.to_string() } else { b.to_string() }
+}
+
+fn pick_max(a: &str, b: &str) -> String {
+    if a >= b { a.to_string() } else { b.to_string() }
+}
+
 // ---------------------------------------------------------------------------
 // JNI entry points
 // ---------------------------------------------------------------------------
@@ -131,6 +215,39 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
             arr.set_element(env, base, &name)?;
             arr.set_element(env, base + 1, &type_str)?;
             arr.set_element(env, base + 2, &elem_str)?;
+        }
+
+        Ok(arr)
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+/// Returns column statistics as a flat String array: [name0, nullCount0, min0, max0, name1, ...]
+/// null/missing values are represented as empty strings.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_getColumnStatistics<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    file_path: JString<'local>,
+) -> jni::objects::JObjectArray<'local> {
+    env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
+        let path = file_path.try_to_string(env)?;
+        let columns = read_column_statistics(&path).map_err(jni_err)?;
+
+        let string_class = env.find_class(jni_str!("java/lang/String"))?;
+        let arr_len = (columns.len() * 4) as i32;
+        let arr = env.new_object_array(arr_len, &string_class, &JObject::null())?;
+
+        for (i, col) in columns.iter().enumerate() {
+            let base = i * 4;
+            let name = env.new_string(&col.name)?;
+            let null_count = env.new_string(col.null_count.to_string())?;
+            let min = env.new_string(col.min_value.as_deref().unwrap_or(""))?;
+            let max = env.new_string(col.max_value.as_deref().unwrap_or(""))?;
+            arr.set_element(env, base, &name)?;
+            arr.set_element(env, base + 1, &null_count)?;
+            arr.set_element(env, base + 2, &min)?;
+            arr.set_element(env, base + 3, &max)?;
         }
 
         Ok(arr)

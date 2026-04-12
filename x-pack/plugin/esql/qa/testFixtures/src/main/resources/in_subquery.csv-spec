@@ -1769,3 +1769,179 @@ emp_no:long | first_name:text | salary:long
 10002       | Bezalel         | 56371
 10003       | Parto           | 61805
 ;
+
+constantIntegerInSubquery
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantIntegerNotInSubquery
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantStringInSubquery
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "Georgi" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantStringInSubqueryNoMatch
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "nonexistent_name" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+debugConstantIntNotInAll
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+constantStringNotInSubqueryNoMatch
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "nonexistent" NOT IN (FROM employees | WHERE first_name IS NOT NULL | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantStringNotInSubqueryMatchExists
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "Georgi" NOT IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantInSubqueryNoMatch
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 99999 IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+constantNotInSubqueryNoMatch
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantInSubqueryWithFilteredSubquery
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 IN (FROM employees | WHERE emp_no < 10005 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantInSubqueryWithAndCondition
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no) AND salary > 60000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10003          | Parto              | 61805
+10005          | Kyoichi            | 63528
+10006          | Anneke             | 60335
+;
+
+constantNotInSubqueryWithAndCondition
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no) AND salary > 70000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10019          | Lillian            | 73717
+10027          | Divier             | 73851
+;

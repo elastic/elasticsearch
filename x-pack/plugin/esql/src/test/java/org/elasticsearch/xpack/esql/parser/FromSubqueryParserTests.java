@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPatte
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.hamcrest.Matchers.containsString;
 
-public class SubqueryTests extends AbstractStatementParserTests {
+public class FromSubqueryParserTests extends AbstractStatementParserTests {
 
     @Before
     public void checkSubqueryInFromCommandSupport() {

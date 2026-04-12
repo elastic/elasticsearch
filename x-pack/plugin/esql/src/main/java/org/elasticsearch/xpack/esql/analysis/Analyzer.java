@@ -3599,13 +3599,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Collect subquery joins to be placed on top
             record SubqueryJoin(Source source, LogicalPlan subquery, JoinConfig config, boolean anti) {}
             List<SubqueryJoin> subqueryJoins = new ArrayList<>();
+            // Synthetic Eval aliases for constant left-hand side expressions (e.g. WHERE 10001 IN (subquery))
+            List<Alias> syntheticEvals = new ArrayList<>();
 
             for (Expression conjunct : conjuncts) {
                 boolean negated = false;
                 Expression expr = conjunct;
-                if (expr instanceof Not not) {
+                while (expr instanceof Not not) {
                     expr = not.field();
-                    negated = true;
+                    negated = !negated;
                 }
 
                 if (expr instanceof InSubquery inSubquery) {
@@ -3614,6 +3616,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     List<Attribute> leftFields;
                     if (leftValue instanceof Attribute leftAttr) {
                         leftFields = singletonList(leftAttr);
+                    } else if (leftValue.foldable()) {
+                        // Constant expression: wrap in a synthetic Eval so it can be used as a join key.
+                        // The synthetic Eval and its attribute are removed after the join by a Project.
+                        var syntheticAlias = new Alias(
+                            leftValue.source(),
+                            syntheticName(leftValue, inSubquery.subquery()),
+                            leftValue,
+                            null,
+                            true
+                        );
+                        syntheticEvals.add(syntheticAlias);
+                        leftFields = singletonList(syntheticAlias.toAttribute());
                     } else {
                         remaining.add(conjunct);
                         continue;
@@ -3643,12 +3657,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 ? filter.child()
                 : new Filter(filter.source(), filter.child(), Predicates.combineAnd(remaining));
 
+            // If any constants need materialization, insert an Eval to create the synthetic attributes
+            if (syntheticEvals.isEmpty() == false) {
+                current = new Eval(filter.source(), current, syntheticEvals);
+            }
+
             // Stack SemiJoin/AntiJoin on top
             for (SubqueryJoin sj : subqueryJoins) {
                 current = sj.anti
                     ? new AntiJoin(sj.source, current, sj.subquery, sj.config)
                     : new SemiJoin(sj.source, current, sj.subquery, sj.config);
             }
+
             return current;
         }
 
@@ -3709,6 +3729,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return not.field();
             }
             return new Not(expr.source(), expr);
+        }
+
+        /**
+         * Generates a unique synthetic name for a constant left-hand side of IN subquery.
+         */
+        private static String syntheticName(Expression value, LogicalPlan subquery) {
+            return "$$in_subquery_const$" + System.identityHashCode(value) + "$" + System.identityHashCode(subquery);
         }
 
         private static boolean containsInSubquery(Expression expr) {

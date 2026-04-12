@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -1266,6 +1267,406 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | KEEP emp_no
             """);
         assertNotNull(plan);
+    }
+
+    // -- IN subquery in processing commands (rejected by analyzer) --
+
+    /**
+     * Verifies that an IN subquery inside SORT is rejected.
+     */
+    public void testRejectsInSubqueryInSort() {
+        errorInSubquery("""
+            FROM test
+            | SORT emp_no IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in OrderBy"));
+    }
+
+    /**
+     * Verifies that a NOT IN subquery inside SORT is rejected.
+     */
+    public void testRejectsNotInSubqueryInSort() {
+        errorInSubquery("""
+            FROM test
+            | SORT emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in OrderBy"));
+    }
+
+    /**
+     * Verifies that an IN subquery in STATS BY clause is rejected.
+     */
+    public void testRejectsInSubqueryInStatsBy() {
+        errorInSubquery("""
+            FROM test
+            | STATS cnt = COUNT(*) BY emp_no IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in Aggregate"));
+    }
+
+    /**
+     * Verifies that a NOT IN subquery in STATS BY clause is rejected.
+     */
+    public void testRejectsNotInSubqueryInStatsBy() {
+        errorInSubquery("""
+            FROM test
+            | STATS cnt = COUNT(*) BY emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in Aggregate"));
+    }
+
+    /**
+     * Verifies that an IN subquery in LIMIT BY clause is rejected.
+     */
+    public void testRejectsInSubqueryInLimitBy() {
+        errorInSubquery("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 10 BY emp_no IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in LimitBy"));
+    }
+
+    /**
+     * Verifies that a NOT IN subquery in LIMIT BY clause is rejected.
+     */
+    public void testRejectsNotInSubqueryInLimitBy() {
+        errorInSubquery("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in LimitBy"));
+    }
+
+    /**
+     * Verifies that an IN subquery inside EVAL with multiple fields (one being the IN subquery) is rejected.
+     */
+    public void testRejectsInSubqueryInEvalAmongMultipleFields() {
+        errorInSubquery("""
+            FROM test
+            | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
+            """, containsString("IN/NOT IN subquery is not supported in Eval"));
+    }
+
+    /**
+     * Verifies that an IN subquery as a function argument inside EVAL is rejected.
+     * The InSubquery inside COALESCE is unresolved, and the verifier reports
+     * that IN/NOT IN subquery is not supported in Eval.
+     */
+    public void testRejectsInSubqueryAsFunctionArgInEval() {
+        errorInSubquery("""
+            FROM test
+            | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, containsString("IN/NOT IN subquery is not supported in Eval"));
+    }
+
+    // -- IN subquery nested in WHERE expressions --
+
+    /**
+     * Verifies that WHERE with AND correctly produces SemiJoin with remaining filter for triple AND.
+     * {@code WHERE a > 50000 AND x IN (FROM sub | KEEP x) AND b < 100000}
+     */
+    public void testSemiJoinWithTripleAndCondition() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE salary > 50000 AND emp_no IN (FROM employees | KEEP emp_no) AND salary < 100000
+            """);
+
+        var limit = as(plan, Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        // Remaining filters (salary > 50000 AND salary < 100000) are below the SemiJoin
+        var filter = as(semiJoin.left(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that WHERE with double NOT simplifies correctly:
+     * {@code WHERE NOT (emp_no NOT IN (FROM sub))} → equivalent to IN → produces SemiJoin.
+     */
+    public void testDoubleNotInSubqueryProducesSemiJoin() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        as(semiJoin.left(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that triple NOT simplifies to NOT IN → produces AntiJoin.
+     * {@code WHERE NOT (NOT (emp_no NOT IN (FROM sub)))} → NOT IN → AntiJoin.
+     */
+    public void testTripleNotInSubqueryProducesAntiJoin() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (NOT (emp_no NOT IN (FROM employees | KEEP emp_no)))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        as(antiJoin.left(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that double NOT IN subquery OR a regular condition is rewritten to UnionAll.
+     * {@code WHERE NOT (emp_no NOT IN (FROM sub)) OR salary > 50000}
+     * Branch 1: NOT(NOT IN) simplifies to IN → SemiJoin.
+     * Branch 2: exclusion negate(NOT(NOT IN)) = NOT IN → AntiJoin, with remaining filter salary > 50000.
+     */
+    public void testDoubleNotInSubqueryOrRegularCondition() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               OR salary > 50000
+            """);
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Branch 1: Project -> SemiJoin (double NOT unwraps to IN)
+        var branch1Project = as(unionAll.children().get(0), Project.class);
+        var branch1Semi = as(branch1Project.child(), SemiJoin.class);
+        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        // Branch 2: Project -> AntiJoin (exclusion = NOT IN) with remaining filter below
+        var branch2Project = as(unionAll.children().get(1), Project.class);
+        var branch2Anti = as(branch2Project.child(), AntiJoin.class);
+        assertThat(branch2Anti.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(branch2Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
+        var branch2Filter = as(branch2Anti.left(), Filter.class);
+        as(branch2Filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that double NOT IN subquery OR another IN subquery is rewritten to UnionAll.
+     * {@code WHERE NOT (emp_no NOT IN (FROM sub1)) OR salary IN (FROM sub2)}
+     * Branch 1: NOT(NOT IN sub1) → SemiJoin on emp_no.
+     * Branch 2: exclusion NOT IN sub1 (AntiJoin) with salary IN sub2 (SemiJoin) on top.
+     */
+    public void testDoubleNotInSubqueryOrInSubquery() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               OR salary IN (FROM employees | KEEP salary)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Branch 1: Project -> SemiJoin (double NOT → IN)
+        var branch1Project = as(unionAll.children().get(0), Project.class);
+        var branch1Semi = as(branch1Project.child(), SemiJoin.class);
+        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        // Branch 2: Project -> SemiJoin for salary IN sub2, with AntiJoin exclusion (NOT IN sub1) below
+        var branch2Project = as(unionAll.children().get(1), Project.class);
+        var branch2Outer = as(branch2Project.child(), SemiJoin.class);
+        assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("salary"));
+        var branch2Inner = as(branch2Outer.left(), AntiJoin.class);
+        assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
+    }
+
+    /**
+     * Verifies that double NOT IN subquery AND a regular condition produces SemiJoin with remaining filter.
+     * {@code WHERE NOT (emp_no NOT IN (FROM sub)) AND salary > 50000}
+     * The double NOT unwraps to IN → SemiJoin, salary > 50000 is a remaining filter below.
+     */
+    public void testDoubleNotInSubqueryAndRegularCondition() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               AND salary > 50000
+            """);
+
+        var limit = as(plan, Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        var filter = as(semiJoin.left(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that double NOT IN subquery AND another IN subquery produces stacked joins.
+     * {@code WHERE NOT (emp_no NOT IN (FROM sub1)) AND salary IN (FROM sub2)}
+     * The double NOT unwraps to IN → SemiJoin on emp_no, and salary IN → SemiJoin on salary, stacked.
+     */
+    public void testDoubleNotInSubqueryAndInSubquery() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               AND salary IN (FROM employees | KEEP salary)
+            """);
+
+        var limit = as(plan, Limit.class);
+        // Two SemiJoins are stacked: the last one extracted is on top
+        var outerSemi = as(limit.child(), SemiJoin.class);
+        assertThat(outerSemi.config().leftFields().get(0).name(), equalTo("salary"));
+
+        var innerSemi = as(outerSemi.left(), SemiJoin.class);
+        assertThat(innerSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        as(innerSemi.left(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that parenthesized IN subquery is handled the same as non-parenthesized:
+     * {@code WHERE (emp_no IN (FROM sub)) AND salary > 50000}
+     */
+    public void testParenthesizedInSubqueryProducesSemiJoin() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) AND salary > 50000
+            """);
+
+        var limit = as(plan, Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        var filter = as(semiJoin.left(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that an IN subquery mixed with an IN value-list in the same WHERE clause works.
+     * The IN subquery becomes a SemiJoin and the IN value-list stays as a remaining filter.
+     */
+    public void testInSubqueryMixedWithInValueList() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND languages IN (1, 2, 3)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+
+        // The IN value-list is a remaining filter below the SemiJoin
+        var filter = as(semiJoin.left(), Filter.class);
+        as(filter.condition(), In.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
+     * The analyzer cannot extract InSubquery from inside a function call.
+     */
+    public void testRejectsInSubqueryInCaseFunctionInWhere() {
+        errorInSubquery(
+            """
+                FROM test
+                | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in Filter [WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
+            )
+        );
+    }
+
+    /**
+     * Verifies that an IN subquery wrapped in IS NOT NULL in WHERE is rejected.
+     * The analyzer cannot extract InSubquery from inside IS NULL expressions.
+     */
+    public void testRejectsInSubqueryInIsNullInWhere() {
+        errorInSubquery(
+            """
+                FROM test
+                | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in " + "Filter [WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]"
+            )
+        );
+    }
+
+    // -- constant left-hand side IN subquery tests --
+
+    /**
+     * Verifies that a constant value on the left side of IN subquery is supported.
+     * {@code WHERE 10001 IN (FROM sub | KEEP emp_no)} produces a SemiJoin with a synthetic Eval.
+     */
+    public void testConstantInSubquery() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 IN (FROM employees | KEEP emp_no)
+            """);
+
+        // Project on top strips the synthetic constant column from the output
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+
+        var eval = as(semiJoin.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that a constant value on the left side of NOT IN subquery is supported.
+     * {@code WHERE 10001 NOT IN (FROM sub | KEEP emp_no)} produces an AntiJoin with a synthetic Eval.
+     */
+    public void testConstantNotInSubquery() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+
+        var eval = as(antiJoin.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that a constant IN subquery combined with a regular condition works.
+     * {@code WHERE 10001 IN (FROM sub | KEEP emp_no) AND salary > 50000}
+     */
+    public void testConstantInSubqueryWithRemainingFilter() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 IN (FROM employees | KEEP emp_no) AND salary > 50000
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+
+        var eval = as(semiJoin.left(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Verifies that a string constant IN subquery works.
+     */
+    public void testStringConstantInSubquery() {
+        var plan = analyzeInSubquery("""
+            FROM test
+            | WHERE "Georgi" IN (FROM employees | KEEP first_name)
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+
+        var eval = as(semiJoin.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
     }
 
     @Override

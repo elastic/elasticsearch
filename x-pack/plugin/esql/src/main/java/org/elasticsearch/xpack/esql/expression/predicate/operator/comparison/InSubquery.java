@@ -67,10 +67,12 @@ public class InSubquery extends Expression implements PostAnalysisPlanVerificati
         throw new UnsupportedOperationException("InSubquery is not serializable; it should be resolved during analysis");
     }
 
+    /*
     @Override
     public boolean resolved() {
         return false;
     }
+     */
 
     @Override
     protected NodeInfo<InSubquery> info() {
@@ -101,8 +103,14 @@ public class InSubquery extends Expression implements PostAnalysisPlanVerificati
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return (plan, failures) -> failures.add(
-            fail(this, "IN/NOT IN subquery is not supported in {} [{}]", plan.nodeName(), plan.sourceText())
-        );
+        return (plan, failures) -> {
+            // Only report the error for the plan node that directly contains this InSubquery expression,
+            // not for every plan node in the tree.
+            plan.forEachExpression(InSubquery.class, inSub -> {
+                if (inSub == this) {
+                    failures.add(fail(this, "IN/NOT IN subquery is not supported in {} [{}]", plan.nodeName(), plan.sourceText()));
+                }
+            });
+        };
     }
 }

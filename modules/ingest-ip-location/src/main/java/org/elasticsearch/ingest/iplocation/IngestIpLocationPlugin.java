@@ -63,7 +63,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                 try {
                     ingestService.reloadPipeline(pid, id);
                 } catch (Exception e) {
-                    logger.debug(() -> format("failed to reload pipeline [%s] after database [%s] became available", id, databaseFile), e);
+                    logger.warn(() -> format("failed to reload pipeline [%s] after database [%s] became available", id, databaseFile), e);
                 }
             }
         });
@@ -291,6 +291,8 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             String pipelineName = (String) processorConfig.get("name");
             if (pipelineName != null) {
                 if (pipelineHasGeoProcessorById.containsKey(pipelineName)) {
+                    // A null value means we're currently resolving this pipeline (cycle detected); treat as false.
+                    // noinspection Java8MapApi - cannot replace with putIfAbsent, null has a meaningful value in this case
                     if (pipelineHasGeoProcessorById.get(pipelineName) == null) {
                         pipelineHasGeoProcessorById.put(pipelineName, false);
                     }
@@ -300,6 +302,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                     if (config != null) {
                         childProcessors = (List<Map<String, Object>>) config.getConfig().get(Pipeline.PROCESSORS_KEY);
                     }
+                    // Mark as "currently resolving" before recursing, so cycles are detected above.
                     pipelineHasGeoProcessorById.put(pipelineName, null);
                     pipelineHasGeoProcessorById.put(
                         pipelineName,

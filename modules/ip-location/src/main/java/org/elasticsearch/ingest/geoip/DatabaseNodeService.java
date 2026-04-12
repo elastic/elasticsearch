@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.geoip.IpDataLookupFactories.IpDataLookupFactory;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 import org.elasticsearch.iplocation.api.DatabaseAvailabilityListener;
+import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -628,7 +629,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
     // --- IpLocationService implementation ---
 
     @Override
-    public org.elasticsearch.iplocation.api.IpDataLookup createIpDataLookup(
+    public IpDataLookup createIpDataLookup(
         String projectIdStr,
         String databaseFile,
         java.util.List<String> propertyNames
@@ -650,7 +651,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
             try {
                 loader.close();
             } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                logger.warn("failed to close database loader [{}]", databaseFile, e);
             }
         }
     }

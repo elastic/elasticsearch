@@ -9,8 +9,11 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.iplocation.api.DatabaseAvailabilityListener;
+import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -25,6 +28,8 @@ import java.util.List;
  * accept bridge-provided databases without change.
  */
 public final class IpLocationServiceAdapter implements IpLocationService {
+
+    private static final Logger logger = LogManager.getLogger(IpLocationServiceAdapter.class);
 
     private final IpDatabaseProvider provider;
 
@@ -62,7 +67,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
             try {
                 database.close();
             } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                logger.warn("failed to close database [{}]", databaseFile, e);
             }
         }
     }
@@ -101,11 +106,10 @@ public final class IpLocationServiceAdapter implements IpLocationService {
     }
 
     /**
-     * An {@link org.elasticsearch.iplocation.api.IpDataLookup} backed by an
-     * {@link IpDatabaseProvider}. Each lookup call obtains a fresh database
-     * handle from the provider.
+     * An {@link IpDataLookup} backed by an {@link IpDatabaseProvider}.
+     * Each lookup call obtains a fresh database handle from the provider.
      */
-    private static final class BridgeIpDataLookup implements org.elasticsearch.iplocation.api.IpDataLookup {
+    private static final class BridgeIpDataLookup implements IpDataLookup {
 
         private final IpDatabaseProvider provider;
         private final ProjectId projectId;

@@ -33,6 +33,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.geoip.InternalIpDataLookup.Result;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 
 import java.io.IOException;
@@ -94,7 +95,7 @@ final class MaxmindIpDataLookups {
     }
 
     @Nullable
-    static Function<Set<Database.Property>, InternalIpDataLookup> getMaxmindLookup(final Database database) {
+    static Function<Set<DatabaseProperty>, InternalIpDataLookup> getMaxmindLookup(final Database database) {
         return switch (database) {
             case City -> MaxmindIpDataLookups.City::new;
             case Country -> MaxmindIpDataLookups.Country::new;
@@ -109,7 +110,7 @@ final class MaxmindIpDataLookups {
     }
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse, AnonymousIpResponse> {
-        AnonymousIp(final Set<Database.Property> properties) {
+        AnonymousIp(final Set<DatabaseProperty> properties) {
             super(
                 properties,
                 AnonymousIpResponse.class,
@@ -124,7 +125,7 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected void transform(final AnonymousIpResponse response, final IpLocationInfoCollector collector) {
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(response.getIpAddress());
                     case HOSTING_PROVIDER -> collector.hostingProvider(response.isHostingProvider());
@@ -139,7 +140,7 @@ final class MaxmindIpDataLookups {
     }
 
     static class Asn extends AbstractBase<AsnResponse, AsnResponse> {
-        Asn(Set<Database.Property> properties) {
+        Asn(Set<DatabaseProperty> properties) {
             super(properties, AsnResponse.class, (response, ipAddress, network, locales) -> new AsnResponse(response, ipAddress, network));
         }
 
@@ -154,7 +155,7 @@ final class MaxmindIpDataLookups {
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(response.getIpAddress());
                     case ASN -> {
@@ -191,7 +192,7 @@ final class MaxmindIpDataLookups {
     ) {}
 
     static class City extends AbstractBase<CityResponse, Result<CacheableCityResponse>> {
-        City(final Set<Database.Property> properties) {
+        City(final Set<DatabaseProperty> properties) {
             super(properties, CityResponse.class, CityResponse::new);
         }
 
@@ -234,7 +235,7 @@ final class MaxmindIpDataLookups {
         protected void transform(final Result<CacheableCityResponse> result, final IpLocationInfoCollector collector) {
             CacheableCityResponse response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
@@ -294,7 +295,7 @@ final class MaxmindIpDataLookups {
     }
 
     static class ConnectionType extends AbstractBase<ConnectionTypeResponse, ConnectionTypeResponse> {
-        ConnectionType(final Set<Database.Property> properties) {
+        ConnectionType(final Set<DatabaseProperty> properties) {
             super(
                 properties,
                 ConnectionTypeResponse.class,
@@ -311,7 +312,7 @@ final class MaxmindIpDataLookups {
         protected void transform(final ConnectionTypeResponse response, final IpLocationInfoCollector collector) {
             ConnectionTypeResponse.ConnectionType connectionType = response.getConnectionType();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(response.getIpAddress());
                     case CONNECTION_TYPE -> {
@@ -334,7 +335,7 @@ final class MaxmindIpDataLookups {
     ) {}
 
     static class Country extends AbstractBase<CountryResponse, Result<CacheableCountryResponse>> {
-        Country(final Set<Database.Property> properties) {
+        Country(final Set<DatabaseProperty> properties) {
             super(properties, CountryResponse.class, CountryResponse::new);
         }
 
@@ -364,7 +365,7 @@ final class MaxmindIpDataLookups {
         protected void transform(final Result<CacheableCountryResponse> result, final IpLocationInfoCollector collector) {
             CacheableCountryResponse response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
@@ -401,7 +402,7 @@ final class MaxmindIpDataLookups {
     }
 
     static class Domain extends AbstractBase<DomainResponse, DomainResponse> {
-        Domain(final Set<Database.Property> properties) {
+        Domain(final Set<DatabaseProperty> properties) {
             super(
                 properties,
                 DomainResponse.class,
@@ -418,7 +419,7 @@ final class MaxmindIpDataLookups {
         protected void transform(final DomainResponse response, final IpLocationInfoCollector collector) {
             String domain = response.getDomain();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(response.getIpAddress());
                     case DOMAIN -> {
@@ -467,7 +468,7 @@ final class MaxmindIpDataLookups {
     ) {}
 
     static class Enterprise extends AbstractBase<EnterpriseResponse, Result<CacheableEnterpriseResponse>> {
-        Enterprise(final Set<Database.Property> properties) {
+        Enterprise(final Set<DatabaseProperty> properties) {
             super(properties, EnterpriseResponse.class, EnterpriseResponse::new);
         }
 
@@ -528,7 +529,7 @@ final class MaxmindIpDataLookups {
         protected void transform(final Result<CacheableEnterpriseResponse> result, final IpLocationInfoCollector collector) {
             CacheableEnterpriseResponse response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case COUNTRY_CONFIDENCE -> {
@@ -633,7 +634,7 @@ final class MaxmindIpDataLookups {
     }
 
     static class Isp extends AbstractBase<IspResponse, IspResponse> {
-        Isp(final Set<Database.Property> properties) {
+        Isp(final Set<DatabaseProperty> properties) {
             super(properties, IspResponse.class, (response, ipAddress, network, locales) -> new IspResponse(response, ipAddress, network));
         }
 
@@ -652,7 +653,7 @@ final class MaxmindIpDataLookups {
             String organizationName = response.getAutonomousSystemOrganization();
             Network network = response.getNetwork();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(response.getIpAddress());
                     case ASN -> {
@@ -701,19 +702,19 @@ final class MaxmindIpDataLookups {
      */
     private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD> implements InternalIpDataLookup {
 
-        protected final Set<Database.Property> properties;
+        protected final Set<DatabaseProperty> properties;
         protected final Class<RESPONSE> clazz;
         // see the docstring on ResponseBuilder to understand why this isn't yet another abstract method on this class
         protected final ResponseBuilder<RESPONSE> builder;
 
-        AbstractBase(final Set<Database.Property> properties, final Class<RESPONSE> clazz, final ResponseBuilder<RESPONSE> builder) {
+        AbstractBase(final Set<DatabaseProperty> properties, final Class<RESPONSE> clazz, final ResponseBuilder<RESPONSE> builder) {
             this.properties = Set.copyOf(properties);
             this.clazz = clazz;
             this.builder = builder;
         }
 
         @Override
-        public Set<Database.Property> getProperties() {
+        public Set<DatabaseProperty> getProperties() {
             return this.properties;
         }
 

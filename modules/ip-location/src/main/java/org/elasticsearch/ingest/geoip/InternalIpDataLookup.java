@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ interface InternalIpDataLookup {
     /**
      * @return the set of properties this lookup will provide
      */
-    Set<Database.Property> getProperties();
+    Set<DatabaseProperty> getProperties();
 
     /**
      * A helper record that holds other records. Every ip data lookup will have an associated ip address that was looked up, as well

@@ -21,211 +21,211 @@ public class IpLocationInfoMapCollector extends HashMap<String, Object> implemen
 
     @Override
     public void ip(String ip) {
-        put("ip", ip);
+        put(DatabaseProperty.IP.fieldName(), ip);
     }
 
     @Override
     public void countryInEuropeanUnion(boolean val) {
-        put("country_in_european_union", val);
+        put(DatabaseProperty.COUNTRY_IN_EUROPEAN_UNION.fieldName(), val);
     }
 
     @Override
     public void countryIsoCode(String code) {
-        put("country_iso_code", code);
+        put(DatabaseProperty.COUNTRY_ISO_CODE.fieldName(), code);
     }
 
     @Override
     public void countryName(String name) {
-        put("country_name", name);
+        put(DatabaseProperty.COUNTRY_NAME.fieldName(), name);
     }
 
     @Override
     public void continentCode(String code) {
-        put("continent_code", code);
+        put(DatabaseProperty.CONTINENT_CODE.fieldName(), code);
     }
 
     @Override
     public void continentName(String name) {
-        put("continent_name", name);
+        put(DatabaseProperty.CONTINENT_NAME.fieldName(), name);
     }
 
     @Override
     public void regionIsoCode(String code) {
-        put("region_iso_code", code);
+        put(DatabaseProperty.REGION_ISO_CODE.fieldName(), code);
     }
 
     @Override
     public void regionName(String name) {
-        put("region_name", name);
+        put(DatabaseProperty.REGION_NAME.fieldName(), name);
     }
 
     @Override
     public void cityName(String name) {
-        put("city_name", name);
+        put(DatabaseProperty.CITY_NAME.fieldName(), name);
     }
 
     @Override
     public void timezone(String tz) {
-        put("timezone", tz);
+        put(DatabaseProperty.TIMEZONE.fieldName(), tz);
     }
 
     @Override
     public void location(double lat, double lon) {
-        put("location", Map.of("lat", lat, "lon", lon));
+        put(DatabaseProperty.LOCATION.fieldName(), Map.of("lat", lat, "lon", lon));
     }
 
     @Override
     public void postalCode(String code) {
-        put("postal_code", code);
+        put(DatabaseProperty.POSTAL_CODE.fieldName(), code);
     }
 
     @Override
     public void accuracyRadius(int radius) {
-        put("accuracy_radius", radius);
+        put(DatabaseProperty.ACCURACY_RADIUS.fieldName(), radius);
     }
 
     @Override
     public void asn(long asn) {
-        put("asn", asn);
+        put(DatabaseProperty.ASN.fieldName(), asn);
     }
 
     @Override
     public void organizationName(String name) {
-        put("organization_name", name);
+        put(DatabaseProperty.ORGANIZATION_NAME.fieldName(), name);
     }
 
     @Override
     public void network(String network) {
-        put("network", network);
+        put(DatabaseProperty.NETWORK.fieldName(), network);
     }
 
     @Override
     public void hostingProvider(boolean val) {
-        put("hosting_provider", val);
+        put(DatabaseProperty.HOSTING_PROVIDER.fieldName(), val);
     }
 
     @Override
     public void torExitNode(boolean val) {
-        put("tor_exit_node", val);
+        put(DatabaseProperty.TOR_EXIT_NODE.fieldName(), val);
     }
 
     @Override
     public void anonymousVpn(boolean val) {
-        put("anonymous_vpn", val);
+        put(DatabaseProperty.ANONYMOUS_VPN.fieldName(), val);
     }
 
     @Override
     public void anonymous(boolean val) {
-        put("anonymous", val);
+        put(DatabaseProperty.ANONYMOUS.fieldName(), val);
     }
 
     @Override
     public void publicProxy(boolean val) {
-        put("public_proxy", val);
+        put(DatabaseProperty.PUBLIC_PROXY.fieldName(), val);
     }
 
     @Override
     public void residentialProxy(boolean val) {
-        put("residential_proxy", val);
+        put(DatabaseProperty.RESIDENTIAL_PROXY.fieldName(), val);
     }
 
     @Override
     public void domain(String domain) {
-        put("domain", domain);
+        put(DatabaseProperty.DOMAIN.fieldName(), domain);
     }
 
     @Override
     public void connectionType(String type) {
-        put("connection_type", type);
+        put(DatabaseProperty.CONNECTION_TYPE.fieldName(), type);
     }
 
     @Override
     public void isp(String isp) {
-        put("isp", isp);
+        put(DatabaseProperty.ISP.fieldName(), isp);
     }
 
     @Override
     public void ispOrganizationName(String name) {
-        put("isp_organization_name", name);
+        put(DatabaseProperty.ISP_ORGANIZATION_NAME.fieldName(), name);
     }
 
     @Override
     public void mobileCountryCode(String code) {
-        put("mobile_country_code", code);
+        put(DatabaseProperty.MOBILE_COUNTRY_CODE.fieldName(), code);
     }
 
     @Override
     public void mobileNetworkCode(String code) {
-        put("mobile_network_code", code);
+        put(DatabaseProperty.MOBILE_NETWORK_CODE.fieldName(), code);
     }
 
     @Override
     public void userType(String type) {
-        put("user_type", type);
+        put(DatabaseProperty.USER_TYPE.fieldName(), type);
     }
 
     @Override
     public void type(String type) {
-        put("type", type);
+        put(DatabaseProperty.TYPE.fieldName(), type);
     }
 
     @Override
     public void countryConfidence(int confidence) {
-        put("country_confidence", confidence);
+        put(DatabaseProperty.COUNTRY_CONFIDENCE.fieldName(), confidence);
     }
 
     @Override
     public void cityConfidence(int confidence) {
-        put("city_confidence", confidence);
+        put(DatabaseProperty.CITY_CONFIDENCE.fieldName(), confidence);
     }
 
     @Override
     public void postalConfidence(int confidence) {
-        put("postal_confidence", confidence);
+        put(DatabaseProperty.POSTAL_CONFIDENCE.fieldName(), confidence);
     }
 
     @Override
     public void registeredCountryInEuropeanUnion(boolean val) {
-        put("registered_country_in_european_union", val);
+        put(DatabaseProperty.REGISTERED_COUNTRY_IN_EUROPEAN_UNION.fieldName(), val);
     }
 
     @Override
     public void registeredCountryIsoCode(String code) {
-        put("registered_country_iso_code", code);
+        put(DatabaseProperty.REGISTERED_COUNTRY_ISO_CODE.fieldName(), code);
     }
 
     @Override
     public void registeredCountryName(String name) {
-        put("registered_country_name", name);
+        put(DatabaseProperty.REGISTERED_COUNTRY_NAME.fieldName(), name);
     }
 
     @Override
     public void hosting(boolean val) {
-        put("hosting", val);
+        put(DatabaseProperty.HOSTING.fieldName(), val);
     }
 
     @Override
     public void proxy(boolean val) {
-        put("proxy", val);
+        put(DatabaseProperty.PROXY.fieldName(), val);
     }
 
     @Override
     public void relay(boolean val) {
-        put("relay", val);
+        put(DatabaseProperty.RELAY.fieldName(), val);
     }
 
     @Override
     public void tor(boolean val) {
-        put("tor", val);
+        put(DatabaseProperty.TOR.fieldName(), val);
     }
 
     @Override
     public void vpn(boolean val) {
-        put("vpn", val);
+        put(DatabaseProperty.VPN.fieldName(), val);
     }
 
     @Override
     public void service(String service) {
-        put("service", service);
+        put(DatabaseProperty.SERVICE.fieldName(), service);
     }
 }

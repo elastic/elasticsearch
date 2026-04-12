@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 
 import java.util.LinkedHashMap;
@@ -20,9 +21,9 @@ final class IpDataLookupInfoImpl implements IpDataLookupInfo {
     private final SequencedMap<String, Class<?>> fields;
     private final String databaseType;
 
-    IpDataLookupInfoImpl(Set<Database.Property> properties, String databaseType) {
+    IpDataLookupInfoImpl(Set<DatabaseProperty> properties, String databaseType) {
         LinkedHashMap<String, Class<?>> map = new LinkedHashMap<>();
-        for (Database.Property property : properties) {
+        for (DatabaseProperty property : properties) {
             map.put(property.fieldName(), property.fieldType());
         }
         this.fields = map;

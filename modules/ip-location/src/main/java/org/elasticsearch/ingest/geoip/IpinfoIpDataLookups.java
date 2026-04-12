@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 
 import java.io.IOException;
@@ -111,7 +112,7 @@ final class IpinfoIpDataLookups {
     }
 
     @Nullable
-    static Function<Set<Database.Property>, InternalIpDataLookup> getIpinfoLookup(final Database database) {
+    static Function<Set<DatabaseProperty>, InternalIpDataLookup> getIpinfoLookup(final Database database) {
         return switch (database) {
             case AsnV2 -> IpinfoIpDataLookups.Asn::new;
             case CountryV2 -> IpinfoIpDataLookups.Country::new;
@@ -257,7 +258,7 @@ final class IpinfoIpDataLookups {
     }
 
     static class Asn extends AbstractBase<AsnResult> {
-        Asn(Set<Database.Property> properties) {
+        Asn(Set<DatabaseProperty> properties) {
             super(properties, AsnResult.class);
         }
 
@@ -265,7 +266,7 @@ final class IpinfoIpDataLookups {
         protected void transform(final Result<AsnResult> result, final IpLocationInfoCollector collector) {
             AsnResult response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case ASN -> {
@@ -292,7 +293,7 @@ final class IpinfoIpDataLookups {
     }
 
     static class Country extends AbstractBase<CountryResult> {
-        Country(Set<Database.Property> properties) {
+        Country(Set<DatabaseProperty> properties) {
             super(properties, CountryResult.class);
         }
 
@@ -300,7 +301,7 @@ final class IpinfoIpDataLookups {
         protected void transform(final Result<CountryResult> result, final IpLocationInfoCollector collector) {
             CountryResult response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case COUNTRY_ISO_CODE -> {
@@ -321,7 +322,7 @@ final class IpinfoIpDataLookups {
     }
 
     static class Geolocation extends AbstractBase<GeolocationResult> {
-        Geolocation(final Set<Database.Property> properties) {
+        Geolocation(final Set<DatabaseProperty> properties) {
             super(properties, GeolocationResult.class);
         }
 
@@ -329,7 +330,7 @@ final class IpinfoIpDataLookups {
         protected void transform(final Result<GeolocationResult> result, final IpLocationInfoCollector collector) {
             GeolocationResult response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case COUNTRY_ISO_CODE -> {
@@ -358,7 +359,7 @@ final class IpinfoIpDataLookups {
     }
 
     static class PrivacyDetection extends AbstractBase<PrivacyDetectionResult> {
-        PrivacyDetection(Set<Database.Property> properties) {
+        PrivacyDetection(Set<DatabaseProperty> properties) {
             super(properties, PrivacyDetectionResult.class);
         }
 
@@ -366,7 +367,7 @@ final class IpinfoIpDataLookups {
         protected void transform(final Result<PrivacyDetectionResult> result, final IpLocationInfoCollector collector) {
             PrivacyDetectionResult response = result.result();
 
-            for (Database.Property property : this.properties) {
+            for (DatabaseProperty property : this.properties) {
                 switch (property) {
                     case IP -> collector.ip(result.ip());
                     case HOSTING -> {
@@ -400,16 +401,16 @@ final class IpinfoIpDataLookups {
      */
     private abstract static class AbstractBase<RESPONSE> implements InternalIpDataLookup {
 
-        protected final Set<Database.Property> properties;
+        protected final Set<DatabaseProperty> properties;
         protected final Class<RESPONSE> clazz;
 
-        AbstractBase(final Set<Database.Property> properties, final Class<RESPONSE> clazz) {
+        AbstractBase(final Set<DatabaseProperty> properties, final Class<RESPONSE> clazz) {
             this.properties = Set.copyOf(properties);
             this.clazz = clazz;
         }
 
         @Override
-        public Set<Database.Property> getProperties() {
+        public Set<DatabaseProperty> getProperties() {
             return this.properties;
         }
 

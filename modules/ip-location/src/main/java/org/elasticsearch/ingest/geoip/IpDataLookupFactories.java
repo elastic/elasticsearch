@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 
 import java.util.List;
 import java.util.Locale;
@@ -63,7 +64,7 @@ final class IpDataLookupFactories {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
-        final Function<Set<Database.Property>, InternalIpDataLookup> factoryMethod;
+        final Function<Set<DatabaseProperty>, InternalIpDataLookup> factoryMethod;
         final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
         if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
             factoryMethod = getIpinfoLookup(database);

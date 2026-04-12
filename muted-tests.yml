@@ -312,6 +312,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined
   issue: https://github.com/elastic/elasticsearch/issues/146109
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMigrateToTsdb
+  issue: https://github.com/elastic/elasticsearch/issues/146112
 
 # Examples:
 #

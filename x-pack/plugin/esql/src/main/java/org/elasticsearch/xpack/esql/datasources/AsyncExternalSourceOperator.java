@@ -87,7 +87,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.bytesInBuffer(), buffer.failure());
+        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.bytesInBuffer(), buffer.failure(), buffer.description());
     }
 
     public static class Status implements Operator.Status {
@@ -106,13 +106,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long rowsEmitted;
         private final long bytesBuffered;
         private final Throwable failure;
+        private final String description;
 
-        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
+        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure, String description) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
+            this.description = description;
         }
 
         Status(StreamInput in) throws IOException {
@@ -121,6 +123,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             rowsEmitted = in.readVLong();
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
+            description = in.readOptionalString();
         }
 
         @Override
@@ -132,6 +135,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(bytesBuffered);
             }
             out.writeException(failure);
+            out.writeOptionalString(description);
         }
 
         @Override
@@ -169,6 +173,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             if (failure != null) {
                 builder.field("failure", failure.getMessage());
             }
+            if (description != null) {
+                builder.field("reader_plan", description);
+            }
             return builder.endObject();
         }
 
@@ -187,12 +194,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
                 && bytesBuffered == status.bytesBuffered
-                && Objects.equals(thisFailureMsg, otherFailureMsg);
+                && Objects.equals(thisFailureMsg, otherFailureMsg)
+                && Objects.equals(description, status.description);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure != null ? failure.getMessage() : null);
+            return Objects.hash(
+                pagesWaiting,
+                pagesEmitted,
+                rowsEmitted,
+                bytesBuffered,
+                failure != null ? failure.getMessage() : null,
+                description
+            );
         }
 
         @Override

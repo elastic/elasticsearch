@@ -51,6 +51,7 @@ public final class AsyncExternalSourceBuffer {
 
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
+    private volatile String description = null;
 
     public AsyncExternalSourceBuffer(long maxBufferBytes) {
         if (maxBufferBytes < 1) {
@@ -262,5 +263,13 @@ public final class AsyncExternalSourceBuffer {
      */
     public long bytesInBuffer() {
         return bytesInBuffer.get();
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String description() {
+        return description;
     }
 }

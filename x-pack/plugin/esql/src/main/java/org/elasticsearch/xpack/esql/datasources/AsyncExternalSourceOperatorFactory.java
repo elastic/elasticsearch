@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -739,6 +740,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .errorPolicy(errorPolicy)
                         .build();
                     pages = formatReader.read(storageObject, ctx);
+                }
+                if (pages instanceof Describable describable) {
+                    buffer.setDescription(describable.describe());
                 }
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {

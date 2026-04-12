@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
@@ -36,8 +37,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * DataFusion-specific filter pushdown that translates ESQL filter expressions into
@@ -98,7 +97,7 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
             if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
                 return false;
             }
-            if (bc.right().foldable() && literalValueOf(bc.right()) == null) {
+            if (bc.right() instanceof Literal lit && lit.value() == null) {
                 return false;
             }
             if (bc.left() instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN) {
@@ -131,7 +130,9 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
             return canConvert(not.field());
         }
         if (expr instanceof StartsWith sw) {
-            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD)
+                && sw.prefix() instanceof Literal lit
+                && lit.value() != null;
         }
         if (expr instanceof WildcardLike wl) {
             return wl.field() instanceof NamedExpression ne && (ne.dataType() == DataType.KEYWORD || ne.dataType() == DataType.TEXT);
@@ -159,8 +160,8 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
     }
 
     private static long translateExpression(Expression expr) {
-        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
-            Object value = literalValueOf(bc.right());
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right() instanceof Literal lit) {
+            Object value = lit.value();
             if (value == null) {
                 return 0;
             }
@@ -211,12 +212,13 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
             String sqlPattern = esqlWildcardToSqlLike(wl.pattern().pattern());
             return DataFusionBridge.createLike(colHandle, sqlPattern);
         }
-        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
-            Object prefixValue = literalValueOf(sw.prefix());
-            if (prefixValue == null) {
+        if (expr instanceof StartsWith sw
+            && sw.singleValueField() instanceof NamedExpression ne
+            && sw.prefix() instanceof Literal prefixLit) {
+            if (prefixLit.value() == null) {
                 return 0;
             }
-            BytesRef prefix = (BytesRef) prefixValue;
+            BytesRef prefix = (BytesRef) prefixLit.value();
             long colHandle = DataFusionBridge.createColumn(ne.name());
             BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
             return DataFusionBridge.createStartsWith(colHandle, prefix.utf8ToString(), upper != null ? upper.utf8ToString() : null);
@@ -244,9 +246,8 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
     private static long translateIn(NamedExpression ne, List<Expression> items) {
         List<Long> litHandles = new ArrayList<>();
         for (Expression item : items) {
-            Object val = literalValueOf(item);
-            if (val != null) {
-                long h = createLiteral(ne.dataType(), val);
+            if (item instanceof Literal lit && lit.value() != null) {
+                long h = createLiteral(ne.dataType(), lit.value());
                 if (h != 0) {
                     litHandles.add(h);
                 }
@@ -261,11 +262,16 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
     }
 
     private static long translateRange(NamedExpression ne, Range range) {
-        Object lower = literalValueOf(range.lower());
-        Object upper = literalValueOf(range.upper());
-        if (lower == null || upper == null) {
-            return 0;
+        if (range.lower() instanceof Literal lowerLit
+            && range.upper() instanceof Literal upperLit
+            && lowerLit.value() != null
+            && upperLit.value() != null) {
+            return translateRangeBounds(ne, range, lowerLit.value(), upperLit.value());
         }
+        return 0;
+    }
+
+    private static long translateRangeBounds(NamedExpression ne, Range range, Object lower, Object upper) {
 
         long colLower = DataFusionBridge.createColumn(ne.name());
         long litLower = createLiteral(ne.dataType(), lower);

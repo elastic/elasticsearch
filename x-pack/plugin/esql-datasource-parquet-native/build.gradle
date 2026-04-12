@@ -71,7 +71,13 @@ def resourceTarget = "${project.projectDir}/src/main/resources/platform/${platfo
 tasks.register("cargoBuild", Exec) {
   description = "Build the native DataFusion library with cargo (release mode)"
   workingDir nativeDir
-  commandLine "cargo", "build", "--release"
+
+  def cargoPath = org.gradle.internal.os.OperatingSystem.current().findInPath("cargo")
+  if (cargoPath != null) {
+    commandLine cargoPath.absolutePath, "build", "--release"
+  } else {
+    commandLine "cargo", "build", "--release"
+  }
 
   inputs.dir("${nativeDir}/src")
   inputs.file("${nativeDir}/Cargo.toml")
@@ -79,13 +85,7 @@ tasks.register("cargoBuild", Exec) {
   outputs.file("${cargoOutputDir}/${libFileName}")
 
   onlyIf {
-    try {
-      def proc = "cargo --version".execute()
-      proc.waitFor()
-      return proc.exitValue() == 0
-    } catch (Exception e) {
-      return false
-    }
+    cargoPath != null
   }
 }
 

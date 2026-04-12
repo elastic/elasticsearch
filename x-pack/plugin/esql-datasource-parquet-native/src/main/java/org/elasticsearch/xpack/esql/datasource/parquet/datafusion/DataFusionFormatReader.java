@@ -15,17 +15,19 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
@@ -238,12 +240,15 @@ public class DataFusionFormatReader implements FormatReader {
         return path;
     }
 
+    private static final int TYPE_LIST = 13;
+
     private static List<Attribute> parseSchema(String[] rawSchema) {
         List<Attribute> attributes = new ArrayList<>();
         for (int i = 0; i + 2 < rawSchema.length; i += 3) {
             String name = rawSchema[i];
             int typeId = Integer.parseInt(rawSchema[i + 1]);
-            DataType esqlType = mapNativeTypeToEsql(typeId);
+            int elementTypeId = Integer.parseInt(rawSchema[i + 2]);
+            DataType esqlType = typeId == TYPE_LIST ? mapNativeTypeToEsql(elementTypeId) : mapNativeTypeToEsql(typeId);
             attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
         }
         return attributes;
@@ -267,7 +272,7 @@ public class DataFusionFormatReader implements FormatReader {
      * Iterates over batches from the native DataFusion reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.
      */
-    static class DataFusionBatchIterator implements CloseableIterator<Page> {
+    static class DataFusionBatchIterator implements CloseableIterator<Page>, Describable {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
@@ -282,7 +287,8 @@ public class DataFusionFormatReader implements FormatReader {
             this.executionPlan = executionPlan;
         }
 
-        String executionPlan() {
+        @Override
+        public String describe() {
             return executionPlan;
         }
 
@@ -353,9 +359,8 @@ public class DataFusionFormatReader implements FormatReader {
                 case UINT4 -> UInt32ArrowBufBlock.of(vector, blockFactory);
                 case UINT8 -> LongArrowBufBlock.of(vector, blockFactory);
 
-                // Floats — zero-copy
-                case FLOAT2 -> Float16ArrowBufBlock.of(vector, blockFactory);
-                case FLOAT4 -> FloatArrowBufBlock.of(vector, blockFactory);
+                // Floats — ESQL maps all float types to DOUBLE
+                case FLOAT2, FLOAT4 -> copyFloatToDouble(vector, rowCount);
                 case FLOAT8 -> DoubleArrowBufBlock.of(vector, blockFactory);
 
                 // Boolean — zero-copy
@@ -379,11 +384,94 @@ public class DataFusionFormatReader implements FormatReader {
                 case DATEMILLI -> LongArrowBufBlock.of(vector, blockFactory);
                 case DATEDAY -> copyDateDays(vector, rowCount);
 
+                case LIST -> wrapListVector((ListVector) vector, rowCount);
+
                 default -> {
                     logger.warn("Unsupported Arrow type [{}], returning null block", vector.getMinorType());
                     yield blockFactory.newConstantNullBlock(rowCount);
                 }
             };
+        }
+
+        /**
+         * Wraps an Arrow ListVector as a multi-valued ESQL block, dispatching to the
+         * appropriate ArrowBufBlock based on the child vector's element type.
+         */
+        private Block wrapListVector(ListVector listVector, int rowCount) {
+            FieldVector child = listVector.getDataVector();
+            return switch (child.getMinorType()) {
+                case INT -> IntArrowBufBlock.of(listVector, blockFactory);
+                case BIGINT -> LongArrowBufBlock.of(listVector, blockFactory);
+                case FLOAT8 -> DoubleArrowBufBlock.of(listVector, blockFactory);
+                case VARCHAR, VARBINARY -> BytesRefArrowBufBlock.of(listVector, blockFactory);
+                case BIT -> copyListBoolean(listVector, rowCount);
+                case FLOAT4 -> copyListFloatToDouble(listVector, rowCount);
+                default -> {
+                    logger.warn("Unsupported LIST element type [{}], returning null block", child.getMinorType());
+                    yield blockFactory.newConstantNullBlock(rowCount);
+                }
+            };
+        }
+
+        private Block copyListBoolean(ListVector listVector, int rowCount) {
+            try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listVector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        int start = listVector.getElementStartIndex(i);
+                        int end = listVector.getElementEndIndex(i);
+                        if (start == end) {
+                            builder.appendNull();
+                        } else {
+                            FieldVector child = listVector.getDataVector();
+                            builder.beginPositionEntry();
+                            for (int j = start; j < end; j++) {
+                                builder.appendBoolean((Boolean) child.getObject(j));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyListFloatToDouble(ListVector listVector, int rowCount) {
+            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listVector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        int start = listVector.getElementStartIndex(i);
+                        int end = listVector.getElementEndIndex(i);
+                        if (start == end) {
+                            builder.appendNull();
+                        } else {
+                            FieldVector child = listVector.getDataVector();
+                            builder.beginPositionEntry();
+                            for (int j = start; j < end; j++) {
+                                builder.appendDouble(((Number) child.getObject(j)).doubleValue());
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block copyFloatToDouble(FieldVector vector, int rowCount) {
+            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (vector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(((Number) vector.getObject(i)).doubleValue());
+                    }
+                }
+                return builder.build();
+            }
         }
 
         private Block copyBytesRef(FieldVector vector, int rowCount) {

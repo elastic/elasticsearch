@@ -30,7 +30,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            null
+            null,
+            randomBoolean() ? randomAlphaOfLength(20) : null
         );
     }
 
@@ -47,20 +48,30 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             case 3 -> bytesBuffered = randomValueOtherThan(bytesBuffered, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new AsyncExternalSourceOperator.Status(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, null);
+        return new AsyncExternalSourceOperator.Status(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, null, null);
     }
 
     public void testToXContent() {
         assertThat(
-            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null)),
+            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, null)),
             equalTo("{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048}")
         );
     }
 
     public void testToXContentWithFailure() {
         assertThat(
-            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"))),
+            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), null)),
             equalTo("{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,\"failure\":\"boom\"}")
+        );
+    }
+
+    public void testToXContentWithDescription() {
+        assertThat(
+            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, "ParquetExec: file.parquet")),
+            equalTo(
+                "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
+                    + "\"reader_plan\":\"ParquetExec: file.parquet\"}"
+            )
         );
     }
 }

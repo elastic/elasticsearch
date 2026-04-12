@@ -58,6 +58,8 @@ final class DataFusionBridge {
 
     static native long createLiteralLong(long value);
 
+    static native long createLiteralTimestampMillis(long value);
+
     static native long createLiteralDouble(double value);
 
     static native long createLiteralBool(boolean value);

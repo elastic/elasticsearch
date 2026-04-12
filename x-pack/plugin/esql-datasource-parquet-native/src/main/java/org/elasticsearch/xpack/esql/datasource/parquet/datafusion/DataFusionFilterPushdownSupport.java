@@ -346,7 +346,8 @@ public class DataFusionFilterPushdownSupport implements FilterPushdownSupport {
     private static long createLiteral(DataType dataType, Object value) {
         return switch (dataType) {
             case INTEGER -> DataFusionBridge.createLiteralInt(((Number) value).intValue());
-            case LONG, DATETIME -> DataFusionBridge.createLiteralLong(((Number) value).longValue());
+            case LONG -> DataFusionBridge.createLiteralLong(((Number) value).longValue());
+            case DATETIME -> DataFusionBridge.createLiteralTimestampMillis(((Number) value).longValue());
             case DOUBLE -> DataFusionBridge.createLiteralDouble(((Number) value).doubleValue());
             case BOOLEAN -> DataFusionBridge.createLiteralBool((Boolean) value);
             case KEYWORD -> {

@@ -403,7 +403,7 @@ public class DataFusionFormatReader implements FormatReader {
                 case INT -> IntArrowBufBlock.of(listVector, blockFactory);
                 case BIGINT -> LongArrowBufBlock.of(listVector, blockFactory);
                 case FLOAT8 -> DoubleArrowBufBlock.of(listVector, blockFactory);
-                case VARCHAR, VARBINARY -> BytesRefArrowBufBlock.of(listVector, blockFactory);
+                case VARCHAR, VARBINARY -> copyListBytesRef(listVector, rowCount);
                 case BIT -> copyListBoolean(listVector, rowCount);
                 case FLOAT4 -> copyListFloatToDouble(listVector, rowCount);
                 default -> {
@@ -411,6 +411,37 @@ public class DataFusionFormatReader implements FormatReader {
                     yield blockFactory.newConstantNullBlock(rowCount);
                 }
             };
+        }
+
+        private Block copyListBytesRef(ListVector listVector, int rowCount) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listVector.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        int start = listVector.getElementStartIndex(i);
+                        int end = listVector.getElementEndIndex(i);
+                        if (start == end) {
+                            builder.appendNull();
+                        } else {
+                            FieldVector child = listVector.getDataVector();
+                            builder.beginPositionEntry();
+                            for (int j = start; j < end; j++) {
+                                builder.appendBytesRef(toBytesRef(child.getObject(j)));
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private static BytesRef toBytesRef(Object value) {
+            if (value instanceof byte[] bytes) {
+                return new BytesRef(bytes);
+            }
+            return new BytesRef(value.toString());
         }
 
         private Block copyListBoolean(ListVector listVector, int rowCount) {

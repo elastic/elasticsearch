@@ -1,4 +1,5 @@
 use super::jni_utils::*;
+use datafusion::common::ScalarValue;
 use datafusion::prelude::*;
 use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
@@ -58,6 +59,19 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
 ) -> jlong {
     env.with_env(|_env| -> JniResult<jlong> {
         Ok(box_expr(lit(value)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_createLiteralTimestampMillis(
+    mut env: EnvUnowned,
+    _class: JClass,
+    value: jni::sys::jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> {
+        let scalar = ScalarValue::TimestampMillisecond(Some(value), None);
+        Ok(box_expr(Expr::Literal(scalar, None)))
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

@@ -209,7 +209,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * When true, the native DataFusion-based Parquet reader is used instead of the Java-based parquet-mr reader.
      * Only one Parquet plugin will be registered at runtime based on this toggle.
      */
-    static final boolean USE_DATAFUSION_PARQUET = false;
+    static final boolean USE_DATAFUSION_PARQUET = true;
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();

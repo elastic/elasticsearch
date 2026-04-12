@@ -53,6 +53,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
+        if (buffer.isFinished() && buffer.failure() != null) {
+            throw new RuntimeException("External source read failed", buffer.failure());
+        }
         return buffer.isFinished();
     }
 

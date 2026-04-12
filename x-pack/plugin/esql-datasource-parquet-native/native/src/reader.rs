@@ -2,6 +2,8 @@ use super::ASYNC_RUNTIME;
 use super::jni_utils::*;
 use arrow::array::{Array, StructArray};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
+use datafusion::common::Column;
+use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::execution::SendableRecordBatchStream;
 use datafusion::prelude::*;
 use futures::StreamExt;
@@ -9,6 +11,7 @@ use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
 use jni::objects::{JClass, JObjectArray, JString};
 use jni::sys::{jboolean, jlong, JNI_FALSE, JNI_TRUE};
+use std::collections::HashMap;
 
 pub struct ReaderState {
     _ctx: SessionContext,
@@ -18,6 +21,37 @@ pub struct ReaderState {
 
 type ReaderError = Box<dyn std::error::Error + Send + Sync>;
 
+/// Builds a lookup from lowercase field name to the actual schema field name.
+fn build_case_map(schema: &datafusion::common::DFSchema) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for field in schema.fields() {
+        map.insert(field.name().to_ascii_lowercase(), field.name().clone());
+    }
+    map
+}
+
+/// Rewrites column references in an Expr tree to match the actual schema case.
+fn remap_columns(expr: Expr, case_map: &HashMap<String, String>) -> Expr {
+    expr.transform(|e| {
+        match e {
+            Expr::Column(ref c) => {
+                let lookup = c.name().to_ascii_lowercase();
+                if let Some(actual) = case_map.get(&lookup) {
+                    if actual != c.name() {
+                        return Ok(Transformed::yes(
+                            Expr::Column(Column::new(Some("data"), actual.as_str()))
+                        ));
+                    }
+                }
+                Ok(Transformed::no(e))
+            }
+            _ => Ok(Transformed::no(e)),
+        }
+    })
+    .unwrap()
+    .data
+}
+
 async fn open_stream(
     file_path: &str,
     projected_cols: Option<Vec<String>>,
@@ -26,11 +60,7 @@ async fn open_stream(
     filter: Option<Expr>,
 ) -> Result<ReaderState, ReaderError> {
     let mut config = SessionConfig::new().with_batch_size(batch_size);
-    config
-        .options_mut()
-        .execution
-        .parquet
-        .schema_force_view_types = false;
+    config.options_mut().execution.parquet.schema_force_view_types = false;
 
     let ctx = SessionContext::new_with_config(config);
 
@@ -39,12 +69,21 @@ async fn open_stream(
 
     let mut df = ctx.table("data").await?;
 
+    let case_map = build_case_map(df.schema());
+
     if let Some(expr) = filter {
-        df = df.filter(expr)?;
+        let remapped = remap_columns(expr, &case_map);
+        df = df.filter(remapped)?;
     }
 
     if let Some(cols) = projected_cols {
-        let exprs: Vec<Expr> = cols.into_iter().map(|c| col(c)).collect();
+        let exprs: Vec<Expr> = cols.iter().map(|c| {
+            let lookup = c.to_ascii_lowercase();
+            match case_map.get(&lookup) {
+                Some(actual) => col(Column::new(Some("data"), actual.as_str())),
+                None => col(c.as_str()),
+            }
+        }).collect();
         df = df.select(exprs)?;
     }
 

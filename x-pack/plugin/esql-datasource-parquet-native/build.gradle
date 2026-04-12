@@ -48,58 +48,57 @@ dependencies {
 // Native Rust library build (requires cargo on PATH; skips gracefully if absent)
 // ---------------------------------------------------------------------------
 def nativeDir = "${project.projectDir}/native"
-def cargoAvailable = {
-  try {
-    def proc = "cargo --version".execute()
-    proc.waitFor()
-    return proc.exitValue() == 0
-  } catch (Exception e) {
-    return false
+
+def os = System.getProperty("os.name", "").toLowerCase()
+def arch = System.getProperty("os.arch", "").toLowerCase()
+
+String libFileName
+String platformDir
+if (os.contains("mac") || os.contains("darwin")) {
+  libFileName = "libesql_parquet_native.dylib"
+  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
+} else if (os.contains("linux")) {
+  libFileName = "libesql_parquet_native.so"
+  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
+} else {
+  libFileName = "libesql_parquet_native.so"
+  platformDir = "unsupported"
+}
+
+def cargoOutputDir = "${nativeDir}/target/release"
+def resourceTarget = "${project.projectDir}/src/main/resources/platform/${platformDir}"
+
+tasks.register("cargoBuild", Exec) {
+  description = "Build the native DataFusion library with cargo (release mode)"
+  workingDir nativeDir
+  commandLine "cargo", "build", "--release"
+
+  inputs.dir("${nativeDir}/src")
+  inputs.file("${nativeDir}/Cargo.toml")
+  inputs.file("${nativeDir}/Cargo.lock")
+  outputs.file("${cargoOutputDir}/${libFileName}")
+
+  onlyIf {
+    try {
+      def proc = "cargo --version".execute()
+      proc.waitFor()
+      return proc.exitValue() == 0
+    } catch (Exception e) {
+      return false
+    }
   }
 }
 
-if (cargoAvailable()) {
-  def os = System.getProperty("os.name", "").toLowerCase()
-  def arch = System.getProperty("os.arch", "").toLowerCase()
+tasks.register("copyNativeLib", Copy) {
+  description = "Copy the built native library to the platform resources directory"
+  dependsOn "cargoBuild"
+  from "${cargoOutputDir}/${libFileName}"
+  into resourceTarget
+  onlyIf { new File("${cargoOutputDir}/${libFileName}").exists() }
+}
 
-  String libFileName
-  String platformDir
-  if (os.contains("mac") || os.contains("darwin")) {
-    libFileName = "libesql_parquet_native.dylib"
-    platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
-  } else if (os.contains("linux")) {
-    libFileName = "libesql_parquet_native.so"
-    platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
-  } else {
-    throw new GradleException("Unsupported OS for native build: ${os}")
-  }
-
-  def cargoOutputDir = "${nativeDir}/target/release"
-  def resourceTarget = "${project.projectDir}/src/main/resources/platform/${platformDir}"
-
-  tasks.register("cargoBuild", Exec) {
-    description = "Build the native DataFusion library with cargo (release mode)"
-    workingDir nativeDir
-    commandLine "cargo", "build", "--release"
-
-    inputs.dir("${nativeDir}/src")
-    inputs.file("${nativeDir}/Cargo.toml")
-    inputs.file("${nativeDir}/Cargo.lock")
-    outputs.file("${cargoOutputDir}/${libFileName}")
-  }
-
-  tasks.register("copyNativeLib", Copy) {
-    description = "Copy the built native library to the platform resources directory"
-    dependsOn "cargoBuild"
-    from "${cargoOutputDir}/${libFileName}"
-    into resourceTarget
-  }
-
-  tasks.named("processResources").configure {
-    dependsOn "copyNativeLib"
-  }
-} else {
-  logger.warn("cargo not found on PATH — skipping native library build. Using pre-built library from resources.")
+tasks.named("processResources").configure {
+  dependsOn "copyNativeLib"
 }
 
 tasks.named("test").configure {

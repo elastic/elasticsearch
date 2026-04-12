@@ -37,7 +37,7 @@ public interface IpLocationService {
      * @param projectId     the project id string
      * @param databaseFile  the database file name (e.g. "GeoLite2-City.mmdb")
      * @param propertyNames the properties to extract (e.g. ["city_name", "country_name"]),
-     *                      or null for all default properties
+     *                      or null for all default properties. See {@link DatabaseProperty} for valid values.
      * @return a live IpDataLookup handle, or null if the database is not available
      * @throws IllegalArgumentException if database type or properties are invalid
      */

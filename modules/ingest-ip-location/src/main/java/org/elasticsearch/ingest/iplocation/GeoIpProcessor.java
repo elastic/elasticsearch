@@ -155,6 +155,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return ipDataLookup.getInfo().getFields();
     }
 
+    /**
+     * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
+     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. The "location" field
+     * is written as an array [lon, lat] for better compatibility with geo_point fields in flexible mode.
+     */
     private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
         if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
             for (Map.Entry<String, Object> entry : data.entrySet()) {
@@ -167,6 +172,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Writes a list of GeoIP data to the document. In flexible field access mode, writes each property
+     * as a separate list (e.g., "my.field.city" contains a list of cities, one per IP).
+     * In classic mode, writes as a single list of maps.
+     */
     private void writeGeoIpDataList(IngestDocument document, String targetField, List<Map<String, Object>> dataList) {
         if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
             Set<String> allKeys = new java.util.HashSet<>();
@@ -192,6 +202,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Transforms a GeoIP value for flexible field access mode.
+     * Converts location maps to [lon, lat] arrays and validates that only location fields contain Maps.
+     */
     @SuppressWarnings("unchecked")
     private static Object transformValueForFlexibleMode(String key, Object value) {
         if ("location".equals(key) && value instanceof Map) {
@@ -205,6 +219,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return value;
     }
 
+    /**
+     * Creates a mutable list containing [lon, lat] coordinates.
+     * Uses ArrayList instead of List.of() to allow modification by downstream processors.
+     */
     private static List<Double> newMutableLocationList(double lon, double lat) {
         List<Double> location = new ArrayList<>(2);
         location.add(lon);

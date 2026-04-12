@@ -45,8 +45,6 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Internal cluster tests for ingest pipeline behavior with geoip processors.
- * These tests were moved from ip-location because they fundamentally depend on
- * the geoip processor type, which is registered by {@link IngestIpLocationPlugin}.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
 public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
@@ -69,15 +67,6 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
-    }
-
-    @After
-    public void disableDownloader() {
-        updateClusterSettings(
-            Settings.builder()
-                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
-        );
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {

@@ -179,4 +179,62 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         assertTrue(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(Map.of()));
     }
+
+    public void testSetIgnoreMissing() throws Exception {
+        IpDataLookup lookup = mockLookup("GeoLite2-City");
+        IpLocationService service = mock(IpLocationService.class);
+        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("ignore_missing", true);
+
+        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
+        assertThat(processor, instanceOf(GeoIpProcessor.class));
+        GeoIpProcessor geoIpProcessor = (GeoIpProcessor) processor;
+        assertThat(geoIpProcessor.getField(), equalTo("source_field"));
+        assertThat(geoIpProcessor.getTargetField(), equalTo("geoip"));
+        assertThat(geoIpProcessor.getDatabaseType(), equalTo("GeoLite2-City"));
+        assertTrue(geoIpProcessor.isIgnoreMissing());
+    }
+
+    public void testStrictMaxmindSupport() throws Exception {
+        IpDataLookup lookup = mockLookup("ipinfo some_ipinfo_database.mmdb-City");
+        IpLocationService service = mock(IpLocationService.class);
+        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("database_file", "some-ipinfo-database.mmdb");
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(null, null, null, config, ProjectId.DEFAULT)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[database_file] Unsupported database type [ipinfo some_ipinfo_database.mmdb-City] "
+                    + "for file [some-ipinfo-database.mmdb]"
+            )
+        );
+    }
+
+    public void testLaxMaxmindSupport() throws Exception {
+        IpDataLookup lookup = mockLookup("some_custom_database.mmdb-City");
+        IpLocationService service = mock(IpLocationService.class);
+        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("database_file", "some-custom-database.mmdb");
+
+        factory.create(null, null, null, config, ProjectId.DEFAULT);
+        assertWarnings(GeoIpProcessor.UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE.replaceAll("\\{}", "some_custom_database.mmdb-City"));
+    }
 }

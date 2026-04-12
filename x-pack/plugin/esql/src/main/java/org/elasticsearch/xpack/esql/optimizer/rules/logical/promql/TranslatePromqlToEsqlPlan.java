@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -958,22 +959,28 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         // Try to extract the exact match
         String exactMatch = AutomatonUtils.matchesExact(matcher.automaton());
-        if (exactMatch != null) {
-            return new Equals(source, field, Literal.keyword(source, exactMatch));
-        }
-
         Expression condition;
-        // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
-        List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
-        if (fragments != null && fragments.isEmpty() == false) {
-            condition = translateDisjointPatterns(source, field, fragments);
+        if (exactMatch != null) {
+            condition = new Equals(source, field, Literal.keyword(source, exactMatch));
         } else {
-            // Fallback to RLIKE with the full automaton pattern
-            // Note: We need to ensure the pattern is properly anchored for PromQL semantics
-            condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+            // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
+            List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
+            if (fragments != null && fragments.isEmpty() == false) {
+                condition = translateDisjointPatterns(source, field, fragments);
+            } else {
+                // Fallback to RLIKE with the full automaton pattern
+                // Note: We need to ensure the pattern is properly anchored for PromQL semantics
+                condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+            }
+            if (matcher.isNegation()) {
+                condition = new Not(source, condition);
+            }
         }
-        if (matcher.isNegation()) {
-            condition = new Not(source, condition);
+        // PromQL spec: absent labels are treated as having value "". If the matcher's automaton
+        // accepts the empty string (e.g. {label=""} or {label!="foo"}), series where the label
+        // field is NULL (absent) must also match.
+        if (matcher.matchesEmpty()) {
+            condition = Predicates.combineOr(List.of(new IsNull(source, field), condition));
         }
         return condition;
     }

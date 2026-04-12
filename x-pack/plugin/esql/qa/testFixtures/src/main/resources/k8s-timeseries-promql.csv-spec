@@ -688,6 +688,39 @@ PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 result:double | step:datetime | _timeseries:keyword
 ;
 
+// PromQL spec: absent labels are treated as having value "".
+// {label=""} must therefore match series where the label is absent (NULL).
+absent_label_equals_empty
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label=""}));
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+// {label!="foo"} must match absent series since absent maps to "" and "" != "foo".
+absent_label_not_equals_non_empty
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label!="foo"}));
+
+result:double | step:datetime
+61.0          | 2024-05-10T00:00:00.000Z
+;
+
+// {label!=""} must NOT match absent series since absent maps to "" and "" does not satisfy != "".
+absent_label_not_equals_empty
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+PROMQL index=k8s step=1h result=(sum(network.cost{unmapped.label!=""}));
+
+result:double | step:datetime
+;
+
 scalar_single_element
 required_capability: promql_command_v0
 required_capability: promql_scalar

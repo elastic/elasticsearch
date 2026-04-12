@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
@@ -228,7 +230,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         );
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
-        FragmentExec fragmentExec = new FragmentExec(project);
+        // Mirror the analyzer's UnionTypesCleanup: convert any InvalidMappedField-backed FieldAttribute into an UnsupportedAttribute so
+        // that the serialized plan matches what production sends over the wire (and round-trip equality holds). The fixtures here only
+        // produce genuine type conflicts (no single-type potentially-unmapped fields), so flagTypeConflicts() is sufficient and we don't
+        // need the full cleanTypeConflicts(...) logic from UnionTypesCleanup.
+        LogicalPlan cleanedProject = project.transformUp(
+            LogicalPlan.class,
+            p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::flagTypeConflicts)
+        );
+        FragmentExec fragmentExec = new FragmentExec(cleanedProject);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);
         try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
             pso.writeNamedWriteable(exchangeSinkExec);

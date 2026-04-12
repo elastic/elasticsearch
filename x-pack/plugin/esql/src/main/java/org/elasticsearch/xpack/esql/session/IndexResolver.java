@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -490,10 +491,17 @@ public class IndexResolver {
         if (rest.isEmpty() == false) {
             if (fieldsInfo.hasTimeSeriesAggregation()) {
                 for (IndexFieldCapabilities fc : rest) {
+                    EsField.TimeSeriesFieldType next = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc);
                     try {
-                        timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
+                        timeSeriesFieldType = timeSeriesFieldType.merge(next);
                     } catch (IllegalArgumentException e) {
-                        return new InvalidMappedField(name, e.getMessage());
+                        // Surface time series metadata conflicts (dimension vs metric) as an UnsupportedEsField directly: the analyzer
+                        // builds an UnsupportedAttribute from it via mappingAsAttributes, avoiding a roundtrip through
+                        // InvalidMappedField + UnionTypesCleanup.
+                        return new UnsupportedEsField(
+                            name,
+                            List.of(timeSeriesFieldType.name().toLowerCase(Locale.ROOT), next.name().toLowerCase(Locale.ROOT))
+                        );
                     }
                 }
             }

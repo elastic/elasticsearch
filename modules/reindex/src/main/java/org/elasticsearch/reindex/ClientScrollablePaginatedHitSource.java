@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -51,6 +53,10 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
+    /// Each task must be executed in the root thread context and not in a descendant context of the previous task, so that the tracing
+    /// subsystem does not form a deeply-nested linked list of spans.
+    private final Supplier<ThreadContext.StoredContext> rootStoredContextSupplier;
+
     public ClientScrollablePaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -65,6 +71,7 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
         firstSearchRequest.allowPartialSearchResults(false);
+        this.rootStoredContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
     }
 
     @Override
@@ -73,7 +80,9 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
             "executing initial local scroll search against {}",
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
-        client.search(firstSearchRequest, wrapListener(searchListener));
+        try (var ignored = rootStoredContextSupplier.get()) {
+            client.search(firstSearchRequest, wrapListener(searchListener));
+        }
     }
 
     @Override
@@ -86,7 +95,9 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
         request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
-        client.searchScroll(request, wrapListener(searchListener));
+        try (var ignored = rootStoredContextSupplier.get()) {
+            client.searchScroll(request, wrapListener(searchListener));
+        }
     }
 
     private static ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {

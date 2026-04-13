@@ -10,7 +10,6 @@
 package org.elasticsearch.synonyms;
 
 import org.apache.lucene.search.TotalHits;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -25,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHits;
@@ -142,8 +140,8 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 var result = new GetResult(
                     getRequest.index(),
                     getRequest.id(),
-                    setExists ? SequenceNumbers.UNASSIGNED_SEQ_NO : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    setExists ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : 0,
+                    setExists ? 0L : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    setExists ? 1L : SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                     setExists ? 1 : -1,
                     setExists,
                     null,

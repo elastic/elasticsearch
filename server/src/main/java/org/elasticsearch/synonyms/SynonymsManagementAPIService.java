@@ -428,6 +428,15 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        putSynonymsSet(synonymSetId, synonymsSet, refresh, false, listener);
+    }
+
+    public void putSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
         boolean append,
         ActionListener<SynonymsReloadResult> listener
     ) {
@@ -510,26 +519,29 @@ public class SynonymsManagementAPIService {
                 }
                 doAppendBulkInsert(synonymSetId, synonymsSet, refresh, UpdateSynonymsResultStatus.CREATED, listener);
             } else {
-                // Existing set — count current rules so we can enforce the limit on the combined total.
+                // Existing set — count rules that are NOT being replaced by the incoming batch, so
+                // that updates to existing IDs don't inflate the count and cause false limit errors.
+                List<String> incomingIds = Arrays.stream(synonymsSet)
+                    .map(SynonymRule::id)
+                    .filter(id -> id != null)
+                    .collect(Collectors.toList());
+                BoolQueryBuilder countQuery = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE));
+                if (incomingIds.isEmpty() == false) {
+                    countQuery.mustNot(QueryBuilders.termsQuery(SYNONYM_RULE_ID_FIELD, incomingIds));
+                }
                 client.prepareSearch(SYNONYMS_ALIAS_NAME)
-                    .setQuery(
-                        QueryBuilders.boolQuery()
-                            .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
-                            .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-                    )
+                    .setQuery(countQuery)
                     .setSize(0)
                     .setPreference(Preference.LOCAL.type())
                     .setTrackTotalHits(true)
                     .execute(listener.delegateFailureAndWrap((l, searchResponse) -> {
-                        long existingCount = searchResponse.getHits().getTotalHits().value();
-                        if (existingCount + synonymsSet.length > maxSynonymRules) {
+                        long nonOverlappingCount = searchResponse.getHits().getTotalHits().value();
+                        if (nonOverlappingCount + synonymsSet.length > maxSynonymRules) {
                             l.onFailure(
                                 new IllegalArgumentException(
-                                    "Appending "
-                                        + synonymsSet.length
-                                        + " rules would exceed the synonym set limit of "
-                                        + maxSynonymRules
-                                        + " rules"
+                                    "The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules
                                 )
                             );
                             return;
@@ -538,7 +550,7 @@ public class SynonymsManagementAPIService {
                     }));
             }
         }, e -> {
-            if (e instanceof IndexNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 // Index doesn't exist yet — treat as new set creation.
                 if (synonymsSet.length > maxSynonymRules) {
                     listener.onFailure(

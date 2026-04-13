@@ -141,7 +141,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
                         for (HitReference hitRef : ref) {
-                            hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                            hits.add(new SearchHit(-1, hitRef.id()));
                         }
                         searchHits.add(hits);
                     }
@@ -250,12 +250,12 @@ public class PITAwareQueryClientTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -276,7 +276,11 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null
             );
 
-            ActionListener.respondAndRelease(listener, (Response) response);
+            try {
+                ActionListener.respondAndRelease(listener, (Response) response);
+            } finally {
+                searchHits.decRef();
+            }
         }
     }
 

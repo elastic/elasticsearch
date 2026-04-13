@@ -38,7 +38,11 @@ class SequencePayload extends AbstractPayload {
                 if (hit == null) {
                     events.add(Event.MISSING_EVENT);
                 } else {
-                    events.add(new Event(hit));
+                    try {
+                        events.add(new Event(hit));
+                    } finally {
+                        hit.decRef();
+                    }
                 }
 
             }

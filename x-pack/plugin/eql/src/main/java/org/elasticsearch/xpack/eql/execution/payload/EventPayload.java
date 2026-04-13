@@ -25,8 +25,12 @@ public class EventPayload extends AbstractPayload {
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            // TODO: remove unpooled usage
-            values.add(new Event(hit.asUnpooled()));
+            hit.mustIncRef();
+            try {
+                values.add(new Event(hit));
+            } finally {
+                hit.decRef();
+            }
         }
     }
 

@@ -375,12 +375,12 @@ public abstract class DocumentParserContext {
 
     /**
      * Adds an ignored field from the parser context, capturing an object or an array.
-     *
+     * <p>
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
      * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
      * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
      * the current parsing context gets captured.
-     *
+     * <p>
      * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
      * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
      */
@@ -414,7 +414,7 @@ public abstract class DocumentParserContext {
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
-    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
@@ -428,7 +428,7 @@ public abstract class DocumentParserContext {
 
     /**
      * Add the given {@code field} to the _field_names field
-     *
+     * <p>
      * Use this if an exists query run against the field cannot use docvalues
      * or norms.
      */
@@ -1046,7 +1046,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             if (state == State.FIELD) {
                 state = State.VALUE;
                 return delegate().currentToken();
@@ -1063,7 +1063,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public String currentName() throws IOException {
+        public String currentName() {
             return field;
         }
     }

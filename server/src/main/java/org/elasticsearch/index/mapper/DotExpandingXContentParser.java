@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
- *
+ * <p>
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
  * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
@@ -444,7 +444,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             return null;
         }
     }

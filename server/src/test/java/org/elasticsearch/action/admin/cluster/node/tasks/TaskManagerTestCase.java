@@ -62,6 +62,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.mockito.Mockito.mock;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -200,7 +201,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters, mock(), mock());
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }

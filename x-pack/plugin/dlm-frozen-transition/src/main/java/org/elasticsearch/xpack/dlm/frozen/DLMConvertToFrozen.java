@@ -49,7 +49,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -65,6 +65,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -375,11 +376,21 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String snapshotName = snapshotName(forceMergeIndex);
         String mountedIndexName = snapshotName(indexName);
 
+        // We ignore these settings when mounting the snapshot to frozen:
+        // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
         // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
         // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
-        // allocate all the shards in the frozen tier and the user does not have any way of fixing this. For this reason, we ignore this
-        // setting when moving to frozen.
-        String[] ignoredIndexSettings = new String[] { ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
+        // allocate all the shards in the frozen tier and the user does not have any way of
+        // fixing this. For this reason, we ignore this setting when moving to frozen.
+        // - LifecycleSettings.LIFECYCLE_NAME:
+        // Avoids potential conflicts with ILM.
+        // - DataTier.TIER_PREFERENCE:
+        // Since we are moving to frozen, we want to ensure that any existing tier preferences
+        // do not interfere with the allocation of the mounted index to the frozen tier.
+        String[] ignoredIndexSettings = new String[] {
+            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
+            LifecycleSettings.LIFECYCLE_NAME,
+            DataTier.TIER_PREFERENCE };
 
         MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             TimeValue.MAX_VALUE,
@@ -428,7 +439,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             logger.debug("DLM cleaning up partially-mounted index [{}] for snapshot [{}]", mountedIndexName, snapshotName);
             deleteIndex(mountedIndexName);
-        } catch (Exception e) {
+        } catch (IndexNotFoundException ignored) {} catch (Exception e) {
             logger.warn(
                 "DLM failed to clean up partially-mounted index [{}] for snapshot [{}]: {}",
                 mountedIndexName,
@@ -676,14 +687,13 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
+    /**
+     * Checks whether the snapshot for the index is already mounted by
+     * looking for an index with the expected mounted name in the project metadata.
+     */
     boolean isSnapshotMounted() {
-        ProjectState projectState = getProjectState();
-        ProjectMetadata projectMetadata = projectState.metadata();
-        return Optional.of(snapshotName(indexName))
-            .filter(projectMetadata.indices()::containsKey)
-            .map(idx -> projectState.routingTable().index(idx))
-            .map(IndexRoutingTable::allPrimaryShardsActive)
-            .orElse(false);
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
 
     /**

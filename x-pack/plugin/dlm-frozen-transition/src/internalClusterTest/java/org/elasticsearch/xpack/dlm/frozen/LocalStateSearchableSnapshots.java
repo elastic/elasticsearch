@@ -17,6 +17,12 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import java.nio.file.Path;
 import java.util.Collection;
 
+/**
+ * A composite plugin wrapper around {@link SearchableSnapshots} for use in internal cluster tests.
+ * This delegates to the real {@link SearchableSnapshots} plugin while overriding the license state
+ * to use the one managed by {@link LocalStateCompositeXPackPlugin}, ensuring that license checks
+ * behave correctly in the test environment.
+ */
 public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugin implements SystemIndexPlugin {
 
     private final SearchableSnapshots plugin;

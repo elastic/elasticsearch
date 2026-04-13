@@ -135,10 +135,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
-        this.primaryUnassignedBufferTime = PRIMARY_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(PRIMARY_UNASSIGNED_BUFFER_TIME, this::setPrimaryUnassignedBufferTime);
-        this.replicaUnassignedBufferTime = REPLICA_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
+        clusterService.getClusterSettings().initializeAndWatch(PRIMARY_UNASSIGNED_BUFFER_TIME, this::setPrimaryUnassignedBufferTime);
+        clusterService.getClusterSettings().initializeAndWatch(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
         this.projectResolver = projectResolver;
     }
 

@@ -32,7 +32,8 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "DOUBLE"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }

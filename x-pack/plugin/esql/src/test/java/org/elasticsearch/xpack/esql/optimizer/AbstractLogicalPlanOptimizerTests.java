@@ -55,6 +55,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             super(unboundLogicalOptimizerContext());
         }
 
+        public TestSubstitutionOnlyOptimizer(TransportVersion minimumVersion) {
+            super(unboundLogicalOptimizerContext(minimumVersion));
+        }
+
         @Override
         protected List<Batch<LogicalPlan>> batches() {
             return List.of(substitutions());

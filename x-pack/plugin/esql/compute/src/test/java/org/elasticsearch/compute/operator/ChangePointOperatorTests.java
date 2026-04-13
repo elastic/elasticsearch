@@ -353,10 +353,14 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             nCopies(groupSize, "db")
         ).flatMap(List::stream).toList();
         List<Long> valuesColumn = Stream.of(
-            nCopies(13, 0L), nCopies(12, 1L),
-            nCopies(13, 0L), nCopies(12, 1L),
-            nCopies(13, 0L), nCopies(12, 1L),
-            nCopies(13, 0L), nCopies(12, 1L)
+            nCopies(13, 0L),
+            nCopies(12, 1L),
+            nCopies(13, 0L),
+            nCopies(12, 1L),
+            nCopies(13, 0L),
+            nCopies(12, 1L),
+            nCopies(13, 0L),
+            nCopies(12, 1L)
         ).flatMap(List::stream).toList();
 
         Page inputPage = buildPage(blockFactory, valuesColumn, regionsColumn, servicesColumn);
@@ -393,6 +397,57 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         try {
             assertChangePointAt(outputPages.get(0), 15);
             assertChangePointAt(outputPages.get(0), 45);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedThreeGroupsOnSinglePage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Group A: [0×15, 1×15] -> step at row 15
+        // Group B: [0×15, 1×15] -> step at row 45
+        // Group C: [0×15, 1×15] -> step at row 75
+        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
+        List<Long> valuesColumn = Stream.of(
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 1L)
+        ).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(0), 45);
+            assertChangePointAt(outputPages.get(0), 75);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupBoundaryAtFirstPositionOfPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Group A fills page0 exactly (30 rows), group B starts at position 0 of page1 (30 rows).
+        // Group A: [0×15, 1×15] -> step at row 15 of page0
+        // Group B: [0×15, 1×15] -> step at row 15 of page1
+        List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
+            .flatMap(List::stream)
+            .toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertThat(outputPages, hasSize(2));
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(1), 15);
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
@@ -498,18 +553,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages) {
-        try (ChangePointOperator op = new ChangePointOperator(ctx, 1, new int[] { 0 }, new TestWarningsSource(null))) {
-            for (Page page : inputPages) {
-                op.addInput(page);
-            }
-            op.finish();
-            Page out;
-            List<Page> outputPages = new ArrayList<>();
-            while ((out = op.getOutput()) != null) {
-                outputPages.add(out);
-            }
-            return outputPages;
-        }
+        return invokeChangePoint(ctx, inputPages, 1, new int[] { 0 });
     }
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, Integer groupingChannel) {
@@ -519,12 +563,18 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, int[] groupingChannels) {
         try (ChangePointOperator op = new ChangePointOperator(ctx, keyChannel, groupingChannels, new TestWarningsSource(null))) {
+            List<Page> outputPages = new ArrayList<>();
             for (Page page : inputPages) {
+                while (op.needsInput() == false) {
+                    Page out = op.getOutput();
+                    if (out != null) {
+                        outputPages.add(out);
+                    }
+                }
                 op.addInput(page);
             }
             op.finish();
             Page out;
-            List<Page> outputPages = new ArrayList<>();
             while ((out = op.getOutput()) != null) {
                 outputPages.add(out);
             }

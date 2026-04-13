@@ -170,10 +170,11 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     }
 
     private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
-        if (executorNodeTask.get() == null) {
+        final var task = executorNodeTask.get();
+        if (task == null) {
             return List.of();
         }
-        final var state = executorNodeTask.get().getLastState();
+        final var state = task.getLastState();
         if (state == null) {
             return List.of();
         }

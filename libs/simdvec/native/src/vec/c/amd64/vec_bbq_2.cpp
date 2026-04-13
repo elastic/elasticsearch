@@ -182,12 +182,16 @@ EXPORT void vec_dotd1q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    if (length == 16) {
+    switch (length) {
+    case 16:
         dotd1q4_bulk_packed4(a, query, length, count, results);
-    } else if (length == 32) {
+        break;
+    case 32:
         dotd1q4_bulk_packed2(a, query, length, count, results);
-    } else {
+        break;
+    default:
         dotd1q4_inner_bulk<int8_t, sequential_mapper, dotd1q4_inner_avx512>(a, query, length, length, NULL, count, results);
+        break;
     }
 }
 

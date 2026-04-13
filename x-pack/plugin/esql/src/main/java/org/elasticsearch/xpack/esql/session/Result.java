@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * Results from running a chunk of ESQL.
- * @param plan The optimized logical plan that produced these results.
+ * @param plan The logical plan that produced these results.
  * @param schema "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
  *               that was run. Each {@link Page} contains a {@link Block} of values for each
  *               attribute in this list.

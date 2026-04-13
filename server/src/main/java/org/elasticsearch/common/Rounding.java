@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  */
-public abstract sealed class Rounding implements Writeable {
+public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     public enum DateTimeUnit {
@@ -484,7 +484,7 @@ public abstract sealed class Rounding implements Writeable {
         }
     }
 
-    static final class TimeUnitRounding extends Rounding {
+    static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
         private final DateTimeUnit unit;
@@ -1022,7 +1022,7 @@ public abstract sealed class Rounding implements Writeable {
         }
     }
 
-    static final class TimeIntervalRounding extends Rounding {
+    static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
         private final long interval;
@@ -1394,7 +1394,7 @@ public abstract sealed class Rounding implements Writeable {
         }
     }
 
-    static final class OffsetRounding extends Rounding {
+    static class OffsetRounding extends Rounding {
         static final byte ID = 3;
 
         private final Rounding delegate;
@@ -1574,6 +1574,7 @@ public abstract sealed class Rounding implements Writeable {
                 ? Map.of("date_range", "1 " + unit.unit.shortName, "date_range_ms", unit.unit.ratio)
                 : Map.of("date_range", "1 " + unit.unit.shortName);
             case Rounding.OffsetRounding offset -> offset.delegate.getMetadata();
+            default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());
         };
     }
 }

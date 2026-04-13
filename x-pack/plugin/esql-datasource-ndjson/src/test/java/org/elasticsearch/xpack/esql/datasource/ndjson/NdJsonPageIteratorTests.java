@@ -8,25 +8,42 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class NdJsonPageIteratorTests extends ESTestCase {
 
@@ -35,11 +52,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
     public void testIterator() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         List<Integer> sizes = new ArrayList<>();
@@ -62,8 +79,65 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertEquals(List.of(42, 42, 16), sizes); // Total 100
     }
 
+    public void testJsonExtensionRecognized() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
+    }
+
+    public void testJsonExtensionReadsData() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///data.json", IOUtils.resourceToByteArray("/employees.ndjson"));
+
+        try (var iterator = reader.read(object, List.of("emp_no"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertTrue(page.getPositionCount() > 0);
+        }
+    }
+
+    public void testSkipFirstLineForSplit() throws IOException {
+        // Simulate a split that starts mid-line: "partial_first_line\n{\"id\":1}\n{\"id\":2}\n"
+        String data = "partial_first_line\n{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(false).lastSplit(true).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            // Should have skipped "partial_first_line" and read 2 records
+            assertEquals(2, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            IntBlock idBlock = page.getBlock(0);
+            assertEquals(1, idBlock.getInt(0));
+            assertEquals(2, idBlock.getInt(1));
+        }
+    }
+
+    public void testSkipFirstLineNoSkip() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(true).lastSplit(true).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
     public void testSampleData() throws Exception {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         var metadata = reader.metadata(object);
@@ -87,13 +161,334 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             BooleanBlock stillHired = page.getBlock(blockIdx(metadata, "still_hired"));
             DoubleBlock height = page.getBlock(blockIdx(metadata, "height"));
 
-            var bytesRef = new BytesRef();
-
             assertEquals("1963-06-01T00:00:00Z", Instant.ofEpochMilli(birthDate.getLong(9)).toString());
             assertEquals(10010, empNo.getInt(9));
             assertFalse(stillHired.getBoolean(9));
             assertEquals(1.70, height.getDouble(9), 0.0001);
         }
+    }
+
+    public void testMalformedLineDoesNotCrash() throws IOException {
+        // A completely invalid JSON line should not crash the parser; it should be skipped
+        String ndjson = """
+            {"name":"alice","age":30}
+            NOT-JSON-AT-ALL
+            {"name":"charlie","age":40}
+            """;
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        List<Page> pages = new ArrayList<>();
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                pages.add(iterator.next());
+            }
+        }
+
+        // Should produce at least 2 rows (alice + charlie); the invalid line is handled gracefully
+        int totalRows = 0;
+        for (var page : pages) {
+            totalRows += page.getPositionCount();
+            checkBlockSizes(page);
+        }
+        assertTrue("Should produce at least the valid rows", totalRows >= 2);
+    }
+
+    public void testConsistentBlockPositionCounts() throws IOException {
+        // Ensures all blocks in a page have the same position count even with missing data
+        String ndjson = """
+            {"x":1,"y":"a"}
+            {"x":2}
+            {"x":3,"y":"c"}
+            """;
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                checkBlockSizes(page);
+                assertEquals(3, page.getPositionCount());
+            }
+        }
+    }
+
+    public void testTypeDifferentFromSchema() throws IOException {
+
+        String ndjson = """
+            {"x": "2024-01-01T00:00:00Z", "y": 1}
+            {"x": true, "y": 2}
+            """;
+
+        // Infer schema from the first line only
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                     LONG      |      INT     \s
+                ---------------+---------------
+                1704067200000  |1             \s
+                null           |2             \s
+                """);
+
+            assertEquals(ElementType.LONG, page.getBlock(0).elementType()); // DATETIME
+
+            assertEquals(2, page.getBlock(0).getPositionCount());
+            assertEquals(2, page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+
+            assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
+        }
+    }
+
+    public void testNestedObject() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"address": {"city": "NYC", "zip": "10001"}}
+            {"address": {"city": "London", "zip": "SW1A"}}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("address.city", "address.zip"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                   BYTES_REF   |   BYTES_REF  \s
+                ---------------+---------------
+                NYC            |10001         \s
+                London         |SW1A          \s
+                """);
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+        }
+    }
+
+    public void testArrayOfObjects() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"events": [{"type": "click", "page": 1}, {"type": "view", "page": 2}], "id": 1}
+            {"events": [{"type": "click", "page": 3}, {"type": "view", "page": null}], "id": 2}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "events.type:KEYWORD, events.page:INTEGER?, id:INTEGER");
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertPage(page, """
+                   BYTES_REF   |      INT      |      INT     \s
+                ---------------+---------------+---------------
+                [click, view]  |[1, 2]         |1             \s
+                [click, view]  |3              |2             \s
+                """);
+
+        }
+    }
+
+    public void testNullsInArray() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"tags": ["a", null, "b"], "id": 1}
+            {"tags": ["c", "d"], "id": 2}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("tags", "id"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertPage(page, """
+                   BYTES_REF   |      INT     \s
+                ---------------+---------------
+                [a, b]         |1             \s
+                [c, d]         |2             \s
+                """);
+
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
+    public void testNestedArraysMisalignment() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"matrix": [[1,2],[3,4]], "id": 1}
+            {"matrix": [[5,6]], "id": 2}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("matrix", "id"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
+    public void testNonNullValueForNullTypedColumn() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"data": null, "id": 0}
+            {"data": [1, 2, 3], "id": 1}
+            """;
+
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "id:INTEGER"); // data is all null during inference, and therefore ignored
+
+        try (var iterator = reader.read(object, List.of("data", "id"), 200)) {
+            var page = iterator.next();
+            // 2nd line ignored as inference was only on line 2
+            assertPage(page, """
+                     NULL      |      INT     \s
+                ---------------+---------------
+                null           |0             \s
+                null           |1             \s
+                """);
+        }
+    }
+
+    public void testDateParsing() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": "2025-03-26T00:00:00Z"}
+            {"timestamp": "2025-03-26"}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "timestamp:DATETIME");
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            var page = iterator.next();
+            assertPage(page, """
+                     LONG     \s
+                ---------------
+                1743012754000 \s
+                1742947200000 \s
+                1742947200000 \s
+                """);
+        }
+    }
+
+    public void testBigInteger() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id": 1, "big": 18446744073709551615}
+            {"id": 2, "big": 42}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |       DOUBLE       \s
+                ---------------+---------------------
+                1              |1.8446744073709552E19
+                2              |42.0                \s
+                """);
+        }
+    }
+
+    public void testBigDecimal() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // Extra large numeric values convert to Infinity
+        // DOUBLE.MAX_VALUE is 1.7976931348623157e+308
+        String ndjson = """
+            {"id": 1, "big": 1.23e+400}
+            {"id": 2, "big": 42}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |    DOUBLE    \s
+                ---------------+---------------
+                1              |Infinity      \s
+                2              |42.0          \s
+                """);
+        }
+    }
+
+    // --- findNextRecordBoundary tests ---
+
+    public void testFindNextRecordBoundaryNewline() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLF() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCROnly() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
+        int expected = "{\"key\":\"value\"}\r".length();
+        assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] padding = new byte[8191];
+        Arrays.fill(padding, (byte) 'x');
+        byte[] suffix = "\r\nmore\n".getBytes(StandardCharsets.UTF_8);
+        byte[] data = new byte[padding.length + suffix.length];
+        System.arraycopy(padding, 0, data, 0, padding.length);
+        System.arraycopy(suffix, 0, data, padding.length, suffix.length);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals(8193, boundary);
+    }
+
+    public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryEmptyStream() throws IOException {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {
@@ -110,5 +505,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         for (int i = 0; i < page.getBlockCount(); i++) {
             assertEquals("Block[" + i + "] position count", size, page.getBlock(i).getPositionCount());
         }
+    }
+
+    private static void assertSchema(List<Attribute> attributes, String expected) {
+        var str = attributes.stream()
+            .map(a -> a.name() + ":" + a.dataType().toString() + (a.nullable() == Nullability.TRUE ? "?" : ""))
+            .collect(Collectors.joining(", "));
+
+        assertEquals(expected, str);
+    }
+
+    private static void assertPage(Page page, String expected) {
+        var req = new FakeRestRequest();
+        var format = TextFormat.PLAIN_TEXT;
+        var cols = new ArrayList<ColumnInfoImpl>();
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            var block = page.getBlock(i);
+            cols.add(new ColumnInfoImpl(block.elementType().toString(), dataType(block), null));
+        }
+        var resp = new EsqlQueryResponse(cols, List.of(page), 0, 0, null, false, false, ZoneOffset.UTC, 0, 0, null);
+        var str = RestResponseUtils.getTextBodyContent(format.format(req, resp));
+
+        assertEquals(expected, str);
+    }
+
+    public void testWithConfigSchemaSampleSizeOverride() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        var configured = reader.withConfig(Map.of("schema_sample_size", "50"));
+        assertNotSame(reader, configured);
+    }
+
+    public void testWithConfigSchemaSampleSizeZeroIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+    }
+
+    public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+    }
+
+    public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+    }
+
+    public void testWithConfigNullOrEmptyReturnsThis() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        assertSame(reader, reader.withConfig(null));
+        assertSame(reader, reader.withConfig(Map.of()));
+    }
+
+    private static DataType dataType(Block block) {
+        return switch (block.elementType()) {
+            case BOOLEAN -> DataType.BOOLEAN;
+            case INT -> DataType.INTEGER;
+            case LONG -> DataType.LONG;
+            case FLOAT -> DataType.FLOAT;
+            case DOUBLE -> DataType.DOUBLE;
+            case NULL -> DataType.NULL;
+            case BYTES_REF -> DataType.KEYWORD;
+            case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+                throw new IllegalArgumentException("Unsupported block type: " + block.elementType());
+        };
     }
 }

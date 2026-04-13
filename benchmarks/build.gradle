@@ -47,9 +47,11 @@ dependencies {
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  api(project(':x-pack:plugin:esql-datasource-csv'))
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
+  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
@@ -64,6 +66,7 @@ dependencies {
   nativeLib(project(':libs:native'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
+  annotationProcessor project(':benchmarks:processor')
   // Dependencies of JMH
   runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.2'
   runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
@@ -74,7 +77,7 @@ dependencies {
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor,org.elasticsearch.benchmark.ExtraParamProcessor"])
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
@@ -94,14 +97,15 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  systemProperty 'plugins.dir', "${buildDir}/plugins"
+  systemProperty 'tests.index', "${buildDir}/index"
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
 }
 

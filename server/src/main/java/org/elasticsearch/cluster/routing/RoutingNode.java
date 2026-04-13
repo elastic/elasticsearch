@@ -283,6 +283,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
     }
 
+    public int numberOfStartedShardsForIndex(final Index index) {
+        final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        if (shardRoutings == null) {
+            return 0;
+        } else {
+            return Math.toIntExact(shardRoutings.stream().filter(shard -> shard.started()).count());
+        }
+    }
+
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("][").append(node == null ? "X" : "V").append("]\n");

@@ -17,21 +17,28 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -67,6 +74,12 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     KnnVectorsFormat format;
 
     @Before
@@ -350,30 +363,77 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         doRestrictiveFilter(false);
     }
 
+    public void testIndexSortOnFlush() throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+            .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
+            addSortedVectorDoc(w, "c", vectorC);
+            addSortedVectorDoc(w, "a", vectorA);
+            addSortedVectorDoc(w, "b", vectorB);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+
+                // we might collect the same document twice because of soar assignments
+                KnnCollector collector = new TopKnnCollector(3, Integer.MAX_VALUE);
+                leafReader.searchNearestVectors(
+                    "f",
+                    vectorA,
+                    collector,
+                    AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc())
+                );
+                TopDocs topDocs = collector.topDocs();
+                assertEquals(3, topDocs.scoreDocs.length);
+                assertEquals(0, topDocs.scoreDocs[0].doc);
+                assertEquals(1, topDocs.scoreDocs[1].doc);
+                assertEquals(2, topDocs.scoreDocs[2].doc);
+            }
+        }
+    }
+
     private void doRestrictiveFilter(boolean dense) throws IOException {
         int dimensions = random().nextInt(12, 500);
         int maxMatchingDocs = random().nextInt(1, 10);
         int matchingDocs = 0;
         int numDocs = random().nextInt(100, 3_000);
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (random().nextBoolean()) {
+            iwc.setIndexSort(new Sort(new SortField("k", SortField.Type.STRING)));
+        }
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
                 if (dense || rarely() == false) {
                     float[] vector = randomVector(dimensions);
                     doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
                 }
-                doc.add(new KeywordField("k", new BytesRef("B"), Field.Store.NO));
+                if (random().nextBoolean()) {
+                    doc.add(new StringField("k", new BytesRef("A"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("A")));
+                } else {
+                    doc.add(new StringField("k", new BytesRef("C"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("C")));
+                }
                 w.addDocument(doc);
                 if (matchingDocs < maxMatchingDocs && rarely()) {
                     matchingDocs++;
                     doc = new Document();
                     doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
-                    doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                    doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("B")));
                     w.addDocument(doc);
                 }
                 if (dense == false && rarely()) {
                     doc = new Document();
-                    doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                    doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                    doc.add(new SortedDocValuesField("k", new BytesRef("B")));
                     w.addDocument(doc);
                 }
             }
@@ -383,50 +443,77 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 float[] vector = randomVector(dimensions);
                 Document doc = new Document();
                 doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
-                doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                doc.add(new StringField("k", new BytesRef("B"), Field.Store.YES));
+                doc.add(new SortedDocValuesField("k", new BytesRef("B")));
                 w.addDocument(doc);
             }
             w.commit();
-            // force one leave
-            w.forceMerge(1);
+            if (random().nextBoolean()) {
+                // force one leave
+                w.forceMerge(1);
+            }
             try (IndexReader reader = DirectoryReader.open(w)) {
-                LeafReader leafReader = getOnlyLeafReader(reader);
-                float[] vector = randomVector(dimensions);
-                // we might collect the same document twice because of soar assignments
-                KnnCollector collector;
-                if (random().nextBoolean()) {
-                    collector = new TopKnnCollector(random().nextInt(2 * matchingDocs, 3 * matchingDocs), Integer.MAX_VALUE);
-                } else {
-                    collector = new TopKnnCollector(
-                        random().nextInt(2 * matchingDocs, 3 * matchingDocs),
-                        Integer.MAX_VALUE,
-                        new IVFKnnSearchStrategy(0.25f, null)
+                TopDocs[] topDocsArray = new TopDocs[reader.leaves().size()];
+                for (int i = 0; i < reader.leaves().size(); i++) {
+                    LeafReaderContext context = reader.leaves().get(i);
+                    LeafReader leafReader = context.reader();
+                    float[] vector = randomVector(dimensions);
+                    // we might collect the same document twice because of soar assignments
+                    KnnCollector collector;
+                    if (random().nextBoolean()) {
+                        collector = new TopKnnCollector(random().nextInt(2 * matchingDocs, 3 * matchingDocs), Integer.MAX_VALUE);
+                    } else {
+                        collector = new TopKnnCollector(
+                            random().nextInt(2 * matchingDocs, 3 * matchingDocs),
+                            Integer.MAX_VALUE,
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null)
+                        );
+                    }
+                    if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {
+                        topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                        continue;
+                    }
+                    leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        collector,
+                        AcceptDocs.fromIteratorSupplier(
+                            () -> leafReader.postings(new Term("k", new BytesRef("B"))),
+                            leafReader.getLiveDocs(),
+                            leafReader.maxDoc()
+                        )
+                    );
+                    TopDocs leafTopDocs = collector.topDocs();
+                    ScoreDoc[] adjusted = new ScoreDoc[leafTopDocs.scoreDocs.length];
+                    for (int docIndex = 0; docIndex < leafTopDocs.scoreDocs.length; docIndex++) {
+                        ScoreDoc scoreDoc = leafTopDocs.scoreDocs[docIndex];
+                        adjusted[docIndex] = new ScoreDoc(scoreDoc.doc + context.docBase, scoreDoc.score);
+                    }
+                    topDocsArray[i] = new TopDocs(leafTopDocs.totalHits, adjusted);
+                    // match no docs
+                    leafReader.searchNearestVectors(
+                        "f",
+                        vector,
+                        new TopKnnCollector(2, Integer.MAX_VALUE),
+                        AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
                     );
                 }
-                leafReader.searchNearestVectors(
-                    "f",
-                    vector,
-                    collector,
-                    AcceptDocs.fromIteratorSupplier(
-                        () -> leafReader.postings(new Term("k", new BytesRef("A"))),
-                        leafReader.getLiveDocs(),
-                        leafReader.maxDoc()
-                    )
-                );
-                TopDocs topDocs = collector.topDocs();
+                TopDocs topDocs = TopDocs.merge(2 * maxMatchingDocs, topDocsArray);
                 Set<Integer> uniqueDocIds = new HashSet<>();
                 for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                     uniqueDocIds.add(topDocs.scoreDocs[i].doc);
+                    Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
+                    assertThat(document.getField("k").binaryValue().utf8ToString(), equalTo("B"));
                 }
                 assertEquals(matchingDocs, uniqueDocIds.size());
-                // match no docs
-                leafReader.searchNearestVectors(
-                    "f",
-                    vector,
-                    new TopKnnCollector(2, Integer.MAX_VALUE),
-                    AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
-                );
             }
         }
+    }
+
+    private static void addSortedVectorDoc(IndexWriter writer, String id, float[] vector) throws IOException {
+        Document doc = new Document();
+        doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+        doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
+        writer.addDocument(doc);
     }
 }

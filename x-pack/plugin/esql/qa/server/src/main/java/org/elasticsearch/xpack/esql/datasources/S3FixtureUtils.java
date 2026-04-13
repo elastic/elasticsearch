@@ -10,30 +10,23 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiPredicate;
-import java.util.stream.Collectors;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
@@ -57,40 +50,17 @@ public final class S3FixtureUtils {
     /** Default warehouse path within the bucket */
     public static final String WAREHOUSE = "warehouse";
 
-    /** Resource path for test fixtures */
-    private static final String FIXTURES_RESOURCE_PATH = "/iceberg-fixtures";
-
+    // TODO: drop this S3 fixture logging
+    // TODO: ... along with unsupportedOperations,
+    // TODO: ...along with AbstractExternalSourceSpecTestCase#checkForUnsupportedOperations & co. -- we're not testing a S3 implementation
     /** Thread-safe list of S3 request logs */
     private static final CopyOnWriteArrayList<S3RequestLog> requestLogs = new CopyOnWriteArrayList<>();
-
-    /** Set of known/expected S3 request types */
-    private static final Set<String> KNOWN_REQUEST_TYPES = Set.of(
-        "GET_OBJECT",
-        "HEAD_OBJECT",
-        "PUT_OBJECT",
-        "DELETE_OBJECT",
-        "LIST_OBJECTS",
-        "LIST_OBJECTS_V2",
-        "INITIATE_MULTIPART",
-        "UPLOAD_PART",
-        "COMPLETE_MULTIPART",
-        "ABORT_MULTIPART",
-        "LIST_MULTIPART_UPLOADS",
-        "MULTI_OBJECT_DELETE"
-    );
 
     /** Set of unsupported operations encountered during test execution */
     private static final Set<String> unsupportedOperations = ConcurrentHashMap.newKeySet();
 
     private S3FixtureUtils() {
         // Utility class - no instantiation
-    }
-
-    /**
-     * Get the warehouse path for S3 URLs.
-     */
-    public static String getWarehousePath() {
-        return WAREHOUSE;
     }
 
     /**
@@ -101,61 +71,6 @@ public final class S3FixtureUtils {
     }
 
     /**
-     * Clear all recorded S3 request logs.
-     */
-    public static void clearRequestLogs() {
-        requestLogs.clear();
-        unsupportedOperations.clear();
-    }
-
-    /**
-     * Print a summary of S3 requests to the logger.
-     */
-    public static void printRequestSummary() {
-        List<S3RequestLog> logs = getRequestLogs();
-        if (logs.isEmpty()) {
-            logger.info("No S3 requests recorded");
-            return;
-        }
-
-        Map<String, Long> byType = logs.stream().collect(Collectors.groupingBy(S3RequestLog::getRequestType, Collectors.counting()));
-
-        logger.info("S3 Request Summary ({} total requests):", logs.size());
-        byType.entrySet()
-            .stream()
-            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-            .forEach(entry -> logger.info("  {}: {}", entry.getKey(), entry.getValue()));
-    }
-
-    /**
-     * Get the count of requests of a specific type.
-     */
-    public static int getRequestCount(String requestType) {
-        return (int) requestLogs.stream().filter(log -> requestType.equals(log.getRequestType())).count();
-    }
-
-    /**
-     * Get all requests of a specific type.
-     */
-    public static List<S3RequestLog> getRequestsByType(String requestType) {
-        return requestLogs.stream().filter(log -> requestType.equals(log.getRequestType())).collect(Collectors.toList());
-    }
-
-    /**
-     * Check if any unknown/unsupported request types were encountered.
-     */
-    public static boolean hasUnknownRequests() {
-        return requestLogs.stream().anyMatch(log -> KNOWN_REQUEST_TYPES.contains(log.getRequestType()) == false);
-    }
-
-    /**
-     * Get all unknown/unsupported requests.
-     */
-    public static List<S3RequestLog> getUnknownRequests() {
-        return requestLogs.stream().filter(log -> KNOWN_REQUEST_TYPES.contains(log.getRequestType()) == false).collect(Collectors.toList());
-    }
-
-    /**
      * Build an error message for unsupported S3 operations, or null if none.
      */
     public static String buildUnsupportedOperationsError() {
@@ -163,13 +78,6 @@ public final class S3FixtureUtils {
             return null;
         }
         return "Unsupported S3 operations encountered: " + String.join(", ", unsupportedOperations);
-    }
-
-    /**
-     * Add a blob to the S3 fixture.
-     */
-    public static void addBlobToFixture(S3HttpHandler handler, String key, String content) {
-        addBlobToFixture(handler, key, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -339,10 +247,6 @@ public final class S3FixtureUtils {
             return path;
         }
 
-        public long getContentLength() {
-            return contentLength;
-        }
-
         public long getTimestamp() {
             return timestamp;
         }
@@ -357,33 +261,27 @@ public final class S3FixtureUtils {
      * Extended S3HttpFixture that automatically loads test fixtures from resources.
      * This fixture provides an in-memory S3-compatible endpoint for integration tests.
      */
+    @SuppressForbidden(reason = "uses HttpHandler for fault injection wrapper around S3 fixture")
     public static class DataSourcesS3HttpFixture extends S3HttpFixture {
 
         private static final Logger fixtureLogger = LogManager.getLogger(DataSourcesS3HttpFixture.class);
 
-        private final int fixedPort;
         private S3HttpHandler handler;
+        private FaultInjectingS3HttpHandler faultHandler;
 
         /**
          * Create a fixture with a random available port.
          */
         public DataSourcesS3HttpFixture() {
-            this(-1);
-        }
-
-        /**
-         * Create a fixture with a specific port.
-         */
-        public DataSourcesS3HttpFixture(int port) {
             super(true, () -> S3ConsistencyModel.STRONG_MPUS);
-            this.fixedPort = port;
         }
 
         @Override
-        protected S3HttpHandler createHandler() {
+        protected HttpHandler createHandler() {
             BiPredicate<String, String> authPredicate = fixedAccessKey(ACCESS_KEY, () -> "us-east-1", "s3");
             handler = new LoggingS3HttpHandler(BUCKET, WAREHOUSE, S3ConsistencyModel.STRONG_MPUS, authPredicate);
-            return handler;
+            faultHandler = new FaultInjectingS3HttpHandler(handler);
+            return faultHandler;
         }
 
         /**
@@ -394,59 +292,62 @@ public final class S3FixtureUtils {
         }
 
         /**
-         * Load test fixtures from the classpath resources into the S3 fixture.
+         * Inject S3 endpoint and credentials into the query.
+         *
+         * @param query the ESQL query containing an EXTERNAL command
+         * @return the query with S3 parameters injected
          */
-        public void loadFixturesFromResources() {
-            try {
-                URL resourceUrl = getClass().getResource(FIXTURES_RESOURCE_PATH);
-                if (resourceUrl == null) {
-                    fixtureLogger.warn("Fixtures resource path not found: {}", FIXTURES_RESOURCE_PATH);
-                    return;
-                }
+        public String injectParams(String query) {
+            String trimmed = query.trim();
+            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
 
-                if (resourceUrl.getProtocol().equals("file")) {
-                    Path fixturesPath = Paths.get(resourceUrl.toURI());
-                    loadFixturesFromPath(fixturesPath);
-                } else {
-                    fixtureLogger.warn("Cannot load fixtures from non-file URL: {}", resourceUrl);
-                }
-            } catch (Exception e) {
-                fixtureLogger.error("Failed to load fixtures from resources", e);
-            }
-        }
+            String externalPart;
+            String restOfQuery;
 
-        private void loadFixturesFromPath(Path fixturesPath) throws IOException {
-            if (Files.exists(fixturesPath) == false) {
-                fixtureLogger.warn("Fixtures path does not exist: {}", fixturesPath);
-                return;
+            if (pipeIndex == -1) {
+                externalPart = trimmed;
+                restOfQuery = "";
+            } else {
+                externalPart = trimmed.substring(0, pipeIndex).trim();
+                restOfQuery = " " + trimmed.substring(pipeIndex);
             }
 
-            Set<String> loadedFiles = new HashSet<>();
+            StringBuilder params = new StringBuilder();
+            params.append(" WITH { ");
+            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
+            params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
+            params.append(" }");
 
-            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String relativePath = fixturesPath.relativize(file).toString();
-                    String key = WAREHOUSE + "/" + relativePath;
-
-                    byte[] content = Files.readAllBytes(file);
-                    addBlobToFixture(handler, key, content);
-                    loadedFiles.add(key);
-
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-
-            fixtureLogger.info("Loaded {} fixture files from {}", loadedFiles.size(), fixturesPath);
+            return externalPart + params + restOfQuery;
         }
 
         /**
-         * Load a single fixture file from an input stream.
+         * Get the fault-injecting handler wrapper for controlling fault injection during tests.
          */
-        public void loadFixture(String key, InputStream inputStream) throws IOException {
-            byte[] content = inputStream.readAllBytes();
-            addBlobToFixture(handler, key, content);
+        public FaultInjectingS3HttpHandler getFaultHandler() {
+            return faultHandler;
         }
+
+        /**
+         * Load test fixtures from the classpath resources into the S3 fixture.
+         * Supports both filesystem paths and JAR-packaged resources.
+         */
+        public void loadFixturesFromResources() {
+            try {
+                Set<String> loadedKeys = new HashSet<>();
+                FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(S3FixtureUtils.class.getClassLoader(), (relativePath, content) -> {
+                    String key = WAREHOUSE + "/" + relativePath;
+                    addBlobToFixture(handler, key, content);
+                    loadedKeys.add(key);
+                });
+                fixtureLogger.info("Loaded {} fixture file(s) into S3 fixture: {}", loadedKeys.size(), String.join(", ", loadedKeys));
+            } catch (Exception e) {
+                fixtureLogger.error("Failed to load fixtures from resources", e);
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     /**
@@ -473,6 +374,7 @@ public final class S3FixtureUtils {
             String query = exchange.getRequestURI().getQuery();
 
             String requestType = classifyRequest(method, path, query);
+
             logRequest(requestType, path, 0);
 
             try {

@@ -44,7 +44,10 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 field.add(new BytesRef("a".repeat(i % cardinality)));
                 NumericDocValuesField countField;
                 if (multiValues && i % cardinality == 0) {
@@ -115,10 +118,6 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
                 }
             }
         }
-    }
-
-    private TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private void checkBlocks(TestBlock strings, TestBlock lengths) {

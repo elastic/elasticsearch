@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#0 AS language_code#1, language_name{f}#2],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#3, language_code{r}#1, language_name{f}#2]]
+  \_Filter[language_code{f}#4 == 1[INTEGER]]
+    \_EsRelation[languages][language_code{f}#4, language_name{f}#2, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#0]

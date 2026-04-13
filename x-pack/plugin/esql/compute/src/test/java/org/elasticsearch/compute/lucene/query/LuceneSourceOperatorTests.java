@@ -194,7 +194,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         void assertSourceOperator(LuceneSourceOperator sourceOperator) {
             for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
                 var shardContext = sourceOperator.getSliceQueue().shardContext(shard);
-                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                if (shardContext.searcher().getIndexReader().maxDoc() > 0) {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                } else {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), equalTo(0d));
+                }
             }
         }
     }
@@ -246,6 +250,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             maxPageSize,
             limit,
@@ -438,7 +443,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         IndexReader rLarge = null;
         try {
             r0 = simpleReader(dir0, 0, 1);
-            rLarge = simpleReader(dirLarge, 200, 10);
+            rLarge = simpleReader(dirLarge, 2000, 100);
 
             List<ShardContext> shardContexts = List.of(new MockShardContext(r0, 0), new MockShardContext(rLarge, 1));
 
@@ -451,6 +456,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 queryFunction,
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
@@ -502,6 +508,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         private final ContextIndexSearcher searcher;
         private final ShardSearchStats shardSearchStats;
 
+        private static final int MIN_DOCS_PER_SLICE = 50_000;
+        private static final int MAX_SLICES_NUMBER = 10;
+
         // TODO Reuse this overload in the places that pass 0.
         public MockShardContext(IndexReader reader) {
             this(reader, 0);
@@ -519,7 +528,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                         IndexSearcher.getDefaultSimilarity(),
                         IndexSearcher.getDefaultQueryCache(),
                         TrivialQueryCachingPolicy.NEVER,
-                        true
+                        true,
+                        Runnable::run,
+                        MAX_SLICES_NUMBER,
+                        MIN_DOCS_PER_SLICE
                     );
                 } else {
                     this.searcher = null;
@@ -558,6 +570,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {

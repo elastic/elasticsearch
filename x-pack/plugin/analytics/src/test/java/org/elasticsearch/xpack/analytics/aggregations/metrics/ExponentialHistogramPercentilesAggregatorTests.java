@@ -152,21 +152,33 @@ public class ExponentialHistogramPercentilesAggregatorTests extends ExponentialH
         double[] percentToTest = new double[] { 25, 50, 75, 99 };
         for (double percent : percentToTest) {
             double aggregatedValue = percentiles.percentile(percent);
-            double referenceValue = ExponentialHistogramQuantile.getQuantile(reference, percent / 100.0);
-            if (Double.isNaN(referenceValue)) {
-                // reference is empty
-                assertThat(aggregatedValue, equalTo(Double.NaN));
+            verifyPercentile(reference, percent, aggregatedValue);
+        }
+    }
+
+    /**
+     * Verifies that an aggregated percentile value matches a reference value computed from an exponential histogram,
+     * accounting for the inherent bucket-based approximation of exponential histograms.
+     *
+     * @param reference the reference exponential histogram
+     * @param percent the percentile being tested (0-100 scale)
+     * @param aggregatedValue the value from the aggregation
+     */
+    public static void verifyPercentile(ExponentialHistogram reference, double percent, double aggregatedValue) {
+        double referenceValue = ExponentialHistogramQuantile.getQuantile(reference, percent / 100.0);
+        if (Double.isNaN(referenceValue)) {
+            // reference is empty
+            assertThat(aggregatedValue, equalTo(Double.NaN));
+        } else {
+            if (Math.abs(referenceValue) <= 2 * reference.zeroBucket().zeroThreshold()) {
+                // actual should be somewhere in the zero bucket
+                assertThat(Math.abs(aggregatedValue), lessThanOrEqualTo(2 * reference.zeroBucket().zeroThreshold()));
             } else {
-                if (Math.abs(referenceValue) <= 2 * reference.zeroBucket().zeroThreshold()) {
-                    // actual should be somewhere in the zero bucket
-                    assertThat(Math.abs(aggregatedValue), lessThanOrEqualTo(2 * reference.zeroBucket().zeroThreshold()));
-                } else {
-                    double relativeError = Math.abs(aggregatedValue - referenceValue) / Math.abs(referenceValue);
-                    double relativeBucketSize = ExponentialScaleUtils.getLowerBucketBoundary(1, reference.scale()) / ExponentialScaleUtils
-                        .getLowerBucketBoundary(0, reference.scale());
-                    double allowedError = Math.max(0.0001, (relativeBucketSize - 1.0) * 1.1);
-                    assertThat(relativeError, lessThan(allowedError)); // within 5% relative error
-                }
+                double relativeError = Math.abs(aggregatedValue - referenceValue) / Math.abs(referenceValue);
+                double relativeBucketSize = ExponentialScaleUtils.getLowerBucketBoundary(1, reference.scale()) / ExponentialScaleUtils
+                    .getLowerBucketBoundary(0, reference.scale());
+                double allowedError = Math.max(0.0001, (relativeBucketSize - 1.0) * 1.1);
+                assertThat("Percentile " + percent + "% relative error too high", relativeError, lessThan(allowedError));
             }
 
         }

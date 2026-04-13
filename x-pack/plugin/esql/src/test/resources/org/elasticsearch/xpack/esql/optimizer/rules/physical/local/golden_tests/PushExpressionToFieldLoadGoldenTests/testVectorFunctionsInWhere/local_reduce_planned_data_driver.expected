@@ -1,0 +1,6 @@
+ExchangeSinkExec[[dense_vector{f}#0],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[dense_vector{f}#0]]
+\_Limit[1000[INTEGER],false,false]
+  \_Filter[COSINESIMILARITY(dense_vector{f}#0,[0.78354394, 0.089722395, 0.88437265][DENSE_VECTOR]) > 0.5[DOUBLE]]
+    \_EsRelation[all_types][!alias_integer, boolean{f}#1, byte{f}#2, constant_keyword-foo{f}#3, date{f}#4, date_nanos{f}#5, dense_vector{f}#0, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]<>]]

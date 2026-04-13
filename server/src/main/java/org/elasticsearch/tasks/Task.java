@@ -100,7 +100,7 @@ public class Task implements Traceable {
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
-    private final long startTime;
+    protected final long startTime;
 
     /**
      * The task's start time as a relative time ({@link System#nanoTime()} style).

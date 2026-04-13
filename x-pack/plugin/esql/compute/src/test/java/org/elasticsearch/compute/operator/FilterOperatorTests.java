@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceBooleanBlockSourceOperator;
@@ -34,7 +35,7 @@ public class FilterOperatorTests extends OperatorTestCase {
         return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record SameLastDigit(DriverContext context, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record SameLastDigit(DriverContext context, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
@@ -62,10 +63,10 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+        return new FilterOperator.FilterOperatorFactory(new ExpressionEvaluator.Factory() {
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context) {
                 return new SameLastDigit(context, 0, 1);
             }
 

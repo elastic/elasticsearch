@@ -17,6 +17,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +37,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Read the full file
@@ -59,7 +60,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Read a range (bytes 5-9, which should be "56789")
@@ -79,7 +80,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Check metadata
@@ -98,7 +99,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath dirPath = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath dirPath = StoragePath.of(StoragePath.fileUri(tempDir));
 
         // List directory
         List<StorageEntry> entries = new ArrayList<>();
@@ -123,7 +124,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + nonExistentFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
         StorageObject object = provider.newObject(path);
 
         assertFalse(object.exists());
@@ -144,6 +145,85 @@ public class LocalStorageProviderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> provider.newObject(path));
     }
 
+    public void testReadBytesHeapBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(5);
+        int bytesRead = object.readBytes(5, buf);
+        assertEquals(5, bytesRead);
+        buf.flip();
+        byte[] result = new byte[5];
+        buf.get(result);
+        assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesDirectBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocateDirect(5);
+        assertFalse(buf.hasArray());
+        int bytesRead = object.readBytes(5, buf);
+        assertEquals(5, bytesRead);
+        buf.flip();
+        byte[] result = new byte[5];
+        buf.get(result);
+        assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAtEndOfFile() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "short";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        int bytesRead = object.readBytes(0, buf);
+        assertEquals(5, bytesRead);
+        assertEquals(5, buf.position());
+    }
+
+    public void testReadBytesAtEofReturnsMinusOne() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        Files.writeString(tempFile, "abc");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(5);
+        int bytesRead = object.readBytes(3, buf);
+        assertEquals(-1, bytesRead);
+        assertEquals(0, buf.position());
+    }
+
+    public void testReadBytesEmptyBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        Files.writeString(tempFile, "data");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(0);
+        int bytesRead = object.readBytes(0, buf);
+        assertEquals(0, bytesRead);
+    }
+
     // -- directory listing: non-recursive vs recursive --
 
     public void testListDirectoryNonRecursive() throws IOException {
@@ -154,7 +234,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Files.createFile(sub.resolve("c.parquet"));
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<String> names = collectObjectNames(provider.listObjects(prefix, false));
         assertEquals(List.of("a.parquet", "b.parquet"), sorted(names));
@@ -169,7 +249,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Files.createFile(deep.resolve("d.parquet"));
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<String> names = collectObjectNames(provider.listObjects(prefix, true));
         assertEquals(List.of("a.parquet", "c.parquet", "d.parquet"), sorted(names));
@@ -183,7 +263,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         }
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(3, entries.size());
@@ -193,7 +273,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Path tempDir = createTempDir();
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(0, entries.size());
@@ -225,7 +305,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         }
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(totalFiles, entries.size());

@@ -172,8 +172,8 @@ setup:
 ---
 "Percentiles aggregation over tdigest and exponential_histogram":
   - requires:
-      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
-      reason: exponential_histogram percentile aggregations was introduced
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
   - do:
       search:
         index: test-data-stream
@@ -191,10 +191,10 @@ setup:
   - lte: { aggregations.percentiles_agg.values.5\.0: 0.901 }
   - gte: { aggregations.percentiles_agg.values.25\.0: 1.007 }
   - lte: { aggregations.percentiles_agg.values.25\.0: 1.009 }
-  - gte: { aggregations.percentiles_agg.values.50\.0: 1.999 }
-  - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 1.332 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 1.335 }
   - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
-  - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2.669 }
 
 ---
 "Percentile ranks aggregation over tdigest and exponential_histogram":
@@ -222,6 +222,32 @@ setup:
         8.0: 100.0
 
 ---
+"Boxplot aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            boxplot_agg:
+              boxplot:
+                field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.boxplot_agg.min: 0.9 }
+  - match: { aggregations.boxplot_agg.max: 10.0 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.boxplot_agg.q1: 1.007 }
+  - lte: { aggregations.boxplot_agg.q1: 1.009 }
+  - gte: { aggregations.boxplot_agg.q2: 1.332 }
+  - lte: { aggregations.boxplot_agg.q2: 1.335 }
+  - gte: { aggregations.boxplot_agg.q3: 2.665 }
+  - lte: { aggregations.boxplot_agg.q3: 2.669 }
+
+---
 "Exists query over tdigest and exponential_histogram":
   - do:
       search:
@@ -232,4 +258,35 @@ setup:
               field: tdigest_or_exp_histo
 
   - match: { hits.total.value: 2 }
+
+---
+"Range aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_range" ]
+      reason: exponential_histogram range aggregation was introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            range_agg:
+              range:
+                field: tdigest_or_exp_histo
+                ranges:
+                  - {to: 1}
+                  - {from: 1, to: 3}
+                  - {from: 3, to: 6}
+                  - {from: 6}
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.range_agg.buckets: 4 }
+  - match: { aggregations.range_agg.buckets.0.key: "*-1.0" }
+  - match: { aggregations.range_agg.buckets.0.doc_count: 3 }
+  - match: { aggregations.range_agg.buckets.1.key: "1.0-3.0" }
+  - match: { aggregations.range_agg.buckets.1.doc_count: 5 }
+  - match: { aggregations.range_agg.buckets.2.key: "3.0-6.0" }
+  - match: { aggregations.range_agg.buckets.2.doc_count: 2 }
+  - match: { aggregations.range_agg.buckets.3.key: "6.0-*" }
+  - match: { aggregations.range_agg.buckets.3.doc_count: 0 }
 

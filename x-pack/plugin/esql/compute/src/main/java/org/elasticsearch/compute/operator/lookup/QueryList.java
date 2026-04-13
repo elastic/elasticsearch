@@ -57,6 +57,8 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     protected final int channelOffset; // Channel index in the input Page
     @Nullable
     protected final OnlySingleValueParams onlySingleValueParams;
+    private Query cachedSingleValueFilter;
+    private boolean singleValueFilterComputed;
 
     protected QueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, OnlySingleValueParams onlySingleValueParams) {
         this.aliasFilter = aliasFilter;
@@ -128,30 +130,34 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         SearchExecutionContext searchExecutionContext
     );
 
+    private Query getOrComputeSingleValueFilter(SearchExecutionContext searchExecutionContext) {
+        if (singleValueFilterComputed == false) {
+            SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
+                searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
+                // Not emitting warnings for multivalued fields not matching
+                onlySingleValueParams.warnings,
+                onlySingleValueParams.multiValueWarningMessage
+            );
+            try {
+                Query rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
+                cachedSingleValueFilter = (rewrite instanceof MatchAllDocsQuery) ? null : rewrite;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Error while rewriting SingleValueQuery", e);
+            }
+            singleValueFilterComputed = true;
+        }
+        return cachedSingleValueFilter;
+    }
+
     private Query wrapSingleValueQuery(Query query, SearchExecutionContext searchExecutionContext) {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
-
-        SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
-            searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
-            // Not emitting warnings for multivalued fields not matching
-            onlySingleValueParams.warnings,
-            onlySingleValueParams.multiValueWarningMessage
-        );
-
-        Query rewrite;
-        try {
-            rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
-            if (rewrite instanceof MatchAllDocsQuery) {
-                // nothing to filter
-                return query;
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Error while rewriting SingleValueQuery", e);
+        Query singleValueFilter = getOrComputeSingleValueFilter(searchExecutionContext);
+        if (singleValueFilter == null) {
+            return query;
         }
-
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
-        builder.add(rewrite, BooleanClause.Occur.FILTER);
+        builder.add(singleValueFilter, BooleanClause.Occur.FILTER);
         return builder.build();
     }
 

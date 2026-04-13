@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -21,16 +22,21 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class StoreDirectoryMetricsIT extends ESIntegTestCase {
+
     public void testDirectoryMetrics() throws IOException {
+        assumeTrue("directory metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
         IntStream.range(0, between(10, 100)).forEach(i -> indexDoc(indexName, "id " + i, "f", i));
-        flush(indexName);
+        flushAndRefresh(indexName);
+        forceMerge(true);
 
         String node = internalCluster().nodesInclude(indexName).iterator().next();
 
@@ -38,36 +44,30 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(clusterService().state().metadata().getProject().index(indexName).getIndex(), 0);
 
         IndexShard searchShard = indicesService.getShardOrNull(shardId);
-        Tuple<Long, DirectoryMetrics> tuple = indicesService.withDirectoryMetrics(() -> {
-            try (Engine.Searcher searcher = searchShard.acquireSearcher("test")) {
-                Directory directory = searcher.getDirectoryReader().directory();
-                String[] files = directory.listAll();
+
+        try (Engine.IndexCommitRef commitRef = searchShard.acquireLastIndexCommit(true)) {
+            final IndexCommit commit = commitRef.getIndexCommit();
+            Tuple<Long, DirectoryMetrics> tuple = indicesService.withDirectoryMetrics(() -> {
+                Directory directory = commit.getDirectory();
+                Collection<String> files = commit.getFileNames();
                 long reads = 0;
                 for (String file : files) {
-                    if (file.endsWith("lock") == false) {
-                        IndexInput indexInput = directory.openInput(
-                            file,
-                            file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT
-                        );
-                        indexInput.readByte();
-                        ++reads;
-                        indexInput.seek(directory.fileLength(file) - 1);
-                        indexInput.readByte();
-                        ++reads;
-                        indexInput.close();
-                    }
+                    IndexInput indexInput = directory.openInput(
+                        file,
+                        file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT
+                    );
+                    indexInput.readByte();
+                    ++reads;
+                    indexInput.seek(directory.fileLength(file) - 1);
+                    indexInput.readByte();
+                    ++reads;
+                    indexInput.close();
                 }
                 return reads;
-            }
-        });
-        DirectoryMetrics metrics = tuple.v2();
-        StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
-        // In release builds the directory_metrics feature flag is disabled by default, so the store directory is not
-        // wrapped with StoreMetricsDirectory and bytes read are not tracked.
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            });
+            DirectoryMetrics metrics = tuple.v2();
+            StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
             assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
-        } else {
-            assertThat(storeMetrics.getBytesRead(), equalTo(0L));
         }
     }
 }

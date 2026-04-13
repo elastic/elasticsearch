@@ -14,13 +14,9 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -41,6 +37,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -126,8 +123,6 @@ public class ActionModuleTests extends ESTestCase {
         ActionModule actionModule = new ActionModule(
             testEnv,
             TestIndexNameExpressionResolver.newInstance(),
-            null,
-            settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
             null,
@@ -143,6 +138,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            CrossProjectModeDecider.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
@@ -166,13 +162,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<RestHandler> getRestHandlers(
-                Settings settings,
-                NamedWriteableRegistry namedWriteableRegistry,
-                RestController restController,
-                ClusterSettings clusterSettings,
-                IndexScopedSettings indexScopedSettings,
-                SettingsFilter settingsFilter,
-                IndexNameExpressionResolver indexNameExpressionResolver,
+                RestHandlersServices restHandlersServices,
                 Supplier<DiscoveryNodes> nodesInCluster,
                 Predicate<NodeFeature> clusterSupportsFeature
             ) {
@@ -193,8 +183,6 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
                 threadPool,
@@ -210,6 +198,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
@@ -232,13 +221,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin registersFakeHandler = new ActionPlugin() {
             @Override
             public List<RestHandler> getRestHandlers(
-                Settings settings,
-                NamedWriteableRegistry namedWriteableRegistry,
-                RestController restController,
-                ClusterSettings clusterSettings,
-                IndexScopedSettings indexScopedSettings,
-                SettingsFilter settingsFilter,
-                IndexNameExpressionResolver indexNameExpressionResolver,
+                RestHandlersServices restHandlersServices,
                 Supplier<DiscoveryNodes> nodesInCluster,
                 Predicate<NodeFeature> clusterSupportsFeature
             ) {
@@ -253,8 +236,6 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
                 threadPool,
@@ -270,6 +251,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
@@ -306,8 +288,6 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    null,
-                    settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
@@ -323,6 +303,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )
             );
@@ -350,8 +331,6 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    null,
-                    settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
@@ -367,6 +346,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )
             );

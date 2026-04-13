@@ -13,11 +13,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> resolved) {
 
@@ -25,7 +27,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
 
     public static Map<String, EsqlResolvedIndexExpression> from(FieldCapabilitiesResponse response) {
         return Stream.concat(
-            Stream.of(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
+            Stream.of(Map.entry(LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
             response.getResolvedRemotely().entrySet().stream()
         )
             .map(
@@ -36,7 +38,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
                         .stream()
                         .filter(e -> e.localExpressions().indices().isEmpty() == false)
                         .filter(e -> e.localExpressions().localIndexResolutionResult() == SUCCESS)
-                        .map(EsqlResolvedIndexExpression::from)
+                        .map(e -> stripClusterAliasForOriginProject(entry.getKey(), e))
                         .reduce(EMPTY, EsqlResolvedIndexExpression::merge)
                 )
             )
@@ -48,13 +50,9 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
         return new EsqlResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
     }
 
-    private static EsqlResolvedIndexExpression from(ResolvedIndexExpression e) {
-        var expression = e.original();
-        if (expression.startsWith(ORIGIN_PREFIX)) {
-            expression = expression.substring(ORIGIN_PREFIX.length());
-        }
-        return new EsqlResolvedIndexExpression(Set.of(expression), e.localExpressions().indices());
+    private static EsqlResolvedIndexExpression stripClusterAliasForOriginProject(String origin, ResolvedIndexExpression e) {
+        return Objects.equals(origin, LOCAL_CLUSTER_GROUP_KEY) && RemoteClusterAware.isRemoteIndexName(e.original())
+            ? new EsqlResolvedIndexExpression(Set.of(RemoteClusterAware.parseLocalIndexName(e.original())), e.localExpressions().indices())
+            : new EsqlResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices());
     }
-
-    private static final String ORIGIN_PREFIX = "_origin:";
 }

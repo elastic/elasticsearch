@@ -46,6 +46,7 @@ setup:
         human: true
   - match: { completed: true }
   - exists: id
+  - match: { description: "reindex from [source] to [dest]" }
   - exists: start_time
   - gte: { start_time_in_millis: 0 }
   - exists: running_time

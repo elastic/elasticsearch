@@ -13,29 +13,28 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
+ * {@link ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class NegIntsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NegIntsEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator v;
+  private final ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public NegIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
+  public NegIntsEvaluator(Source source, ExpressionEvaluator v, DriverContext driverContext) {
     this.source = source;
     this.v = v;
     this.driverContext = driverContext;
@@ -117,12 +116,12 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory v;
+    private final ExpressionEvaluator.Factory v;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+    public Factory(Source source, ExpressionEvaluator.Factory v) {
       this.source = source;
       this.v = v;
     }

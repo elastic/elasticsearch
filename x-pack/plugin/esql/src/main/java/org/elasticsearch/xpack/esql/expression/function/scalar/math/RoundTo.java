@@ -11,7 +11,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
  */
 public class RoundTo extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RoundTo.class).unaryVariadic(RoundTo::new).name("round_to");
 
     private final Expression field;
     private final List<Expression> points;
@@ -183,12 +185,12 @@ public class RoundTo extends EsqlScalarFunction {
         ExpressionEvaluator.Factory field = toEvaluator.apply(field());
         field = Cast.cast(source(), field().dataType(), dataType, field);
         List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
-        List<Object> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
+        List<Number> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
         return build.build(source(), field, sortedPoints);
     }
 
     interface Build {
-        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Object> points);
+        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Number> points);
     }
 
     private static final Map<DataType, Build> SIGNATURES = Map.ofEntries(
@@ -199,7 +201,7 @@ public class RoundTo extends EsqlScalarFunction {
         Map.entry(DOUBLE, RoundToDouble.BUILD)
     );
 
-    public static List<Object> sortedRoundingPoints(List<Object> points, DataType dataType) {
+    public static List<Number> sortedRoundingPoints(List<Object> points, DataType dataType) {
         List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
 
         return switch (dataType) {

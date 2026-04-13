@@ -81,15 +81,9 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.indicesOptions(
                 IndicesOptions.builder()
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
-                    .wildcardOptions(
-                        new IndicesOptions.WildcardOptions(
-                            randomBoolean(),
-                            randomBoolean(),
-                            randomBoolean(),
-                            instance.indicesOptions().ignoreAliases() == false,
-                            randomBoolean(),
-                            false // Specifying views in the restore snapshot request is not supported
-                        )
+                    .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
+                    .indexAbstractionOptions(
+                        new IndicesOptions.IndexAbstractionOptions(instance.indicesOptions().ignoreAliases() == false, false)
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()

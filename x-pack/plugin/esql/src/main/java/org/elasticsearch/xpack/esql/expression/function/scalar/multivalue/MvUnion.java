@@ -17,7 +17,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -46,6 +48,7 @@ import java.util.Set;
  */
 public class MvUnion extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvUnion", MvUnion::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvUnion.class).binary(MvUnion::new).name("mv_union");
 
     @FunctionInfo(
         returnType = {
@@ -100,7 +103,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. Null values are treated as empty sets."
+            description = "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -123,7 +126,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. Null values are treated as empty sets."
+            description = "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
         ) Expression field2
     ) {
         super(source, field1, field2);
@@ -222,14 +225,14 @@ public class MvUnion extends MvSetOperationFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvUnionBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvUnionBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvUnionIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvUnionLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvUnionDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

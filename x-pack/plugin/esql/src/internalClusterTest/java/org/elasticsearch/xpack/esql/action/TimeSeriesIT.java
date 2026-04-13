@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -23,9 +25,11 @@ import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -111,7 +115,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     @Before
     public void populateIndex() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
@@ -461,7 +465,80 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.allowPartialResults(false);
             run(request).close();
         });
-        assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
+        assertThat(failure.getMessage(), containsString("[hosts-old] is not a time series index. Use FROM command instead"));
+    }
+
+    public void testTsAgainstNonExistentIndex() {
+        Exception failure = expectThrows(Exception.class, () -> {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("TS does_not_exist | STATS count(host) BY host");
+            request.allowPartialResults(false);
+            run(request).close();
+        });
+        assertThat(failure.getMessage(), containsString("Unknown index [does_not_exist]"));
+    }
+
+    public void testTsAgainstWildcardMatchingOnlyNonTsdsIndices() {
+        // TS with a wildcard pattern that matches only non-TSDS indices should not produce "Unknown index"
+        // but should resolve to an empty mapping (no TSDS indices matched the pattern).
+        // The existing testIndexMode already covers "TS hosts*" which matches both TSDS and non-TSDS.
+        // Here we verify only non-TSDS indices are present.
+        createIndex("logs-test");
+        try (var resp = run("TS logs-test* | LIMIT 0")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, empty());
+        }
+    }
+
+    public void testTsStatsLastWithTimestampSort() {
+        // TS two-phase semantics: first phase computes LastOverTime(cpu) and MAX(@timestamp) per _tsid,
+        // second phase picks LAST(cpu_result, max_ts) per host (the result from the time series with the latest timestamp).
+        record TsKey(String host, String cluster) {}
+        Map<TsKey, Doc> lastPerTs = new HashMap<>();
+        for (Doc doc : docs) {
+            lastPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp > b.timestamp ? a : b);
+        }
+        Map<String, Doc> lastByHost = new HashMap<>();
+        for (var entry : lastPerTs.entrySet()) {
+            lastByHost.merge(entry.getKey().host, entry.getValue(), (a, b) -> a.timestamp > b.timestamp ? a : b);
+        }
+        try (var resp = run("TS hosts | STATS last_cpu = LAST(cpu, @timestamp) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            List<String> sortedHosts = lastByHost.keySet().stream().sorted().toList();
+            assertThat(rows, hasSize(sortedHosts.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                String host = sortedHosts.get(i);
+                assertThat(rows.get(i).get(1), equalTo(host));
+                assertThat((double) rows.get(i).get(0), equalTo(lastByHost.get(host).cpu));
+            }
+        }
+    }
+
+    public void testTsStatsFirstWithTimestampSort() {
+        // TS two-phase semantics for FIRST: first phase computes FirstOverTime(cpu) and MIN(@timestamp) per _tsid,
+        // second phase picks FIRST(cpu_result, min_ts) per host (the result from the time series with the earliest timestamp).
+        record TsKey(String host, String cluster) {}
+        // First phase: FirstOverTime picks the value at the EARLIEST timestamp per time series
+        Map<TsKey, Doc> firstPerTs = new HashMap<>();
+        for (Doc doc : docs) {
+            firstPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp < b.timestamp ? a : b);
+        }
+        // Second phase: FIRST picks the result from the time series with the earliest MIN(@timestamp)
+        Map<String, Doc> firstByHost = new HashMap<>();
+        for (var entry : firstPerTs.entrySet()) {
+            String host = entry.getKey().host;
+            firstByHost.merge(host, entry.getValue(), (a, b) -> a.timestamp < b.timestamp ? a : b);
+        }
+        try (var resp = run("TS hosts | STATS first_cpu = FIRST(cpu, @timestamp) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            List<String> sortedHosts = firstByHost.keySet().stream().sorted().toList();
+            assertThat(rows, hasSize(sortedHosts.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                String host = sortedHosts.get(i);
+                assertThat(rows.get(i).get(1), equalTo(host));
+                assertThat((double) rows.get(i).get(0), equalTo(firstByHost.get(host).cpu));
+            }
+        }
     }
 
     public void testFieldDoesNotExist() {
@@ -526,9 +603,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings indexSettings = Settings.builder()
             .put("mode", "time_series")
             .putList("routing_path", List.of("host", "cluster"))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.require._id", dataNode)
+            .put("index.codec", "default")
             .build();
         String index = "my-hosts";
         client().admin()
@@ -572,9 +650,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             Settings.builder()
                 .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), between(3, 10))
                 .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.AUTO)
+                .put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), 1)
                 .build()
         );
-        // The rate aggregation is executed with one shard at a time
+        // rate with time-series partitioning
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);
@@ -588,12 +668,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
                     LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
                     for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
-                        assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
+                        if (TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current())) {
+                            assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.TIME_SERIES));
+                        } else {
+                            assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
+                        }
                     }
                 }
             }
         }
-        // non-rate aggregation is executed with multiple shards at a time
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);
@@ -1014,6 +1097,31 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         searchResponse.decRef();
         assertThat(fromEsql, equalTo(fromSearch));
+    }
+
+    public void testNonMultipleWindowWithTimeBucket() {
+        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket.
+        // GCD(7s, 5s) = 1s, so internal sub-buckets are 1s, output at 5s boundaries.
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 7 second)) BY cluster, TBUCKET(5 second)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat("expected non-empty results", rows, not(empty()));
+            var rounding = new Rounding.Builder(TimeValue.timeValueSeconds(5)).build().prepareForUnknown();
+            for (List<Object> row : rows) {
+                // row: [avg_value, cluster, tbucket_string]
+                String tbucketStr = (String) row.get(2);
+                long tbucketMillis = DEFAULT_DATE_TIME_FORMATTER.parseMillis(tbucketStr);
+                assertThat(
+                    "output timestamp should be at 5-second boundary: " + tbucketStr,
+                    rounding.round(tbucketMillis),
+                    equalTo(tbucketMillis)
+                );
+            }
+        }
+        // Also verify an exact-multiple window still works as before (regression check)
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 10 second)) BY cluster, TBUCKET(5 second)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat("expected non-empty results for exact multiple", rows, not(empty()));
+        }
     }
 
     private static double round(double value) {

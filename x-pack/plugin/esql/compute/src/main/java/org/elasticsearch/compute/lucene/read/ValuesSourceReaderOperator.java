@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.logging.LogManager;
@@ -40,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -60,7 +60,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         List<FieldInfo> fields,
         IndexedByShardId<ShardContext> shardContexts,
         boolean reuseColumnLoaders,
-        int docChannel
+        int docChannel,
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold
     ) implements OperatorFactory {
         public Factory
 
@@ -68,6 +70,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
+        }
+
+        /**
+         * Convenience constructor that uses the default doc-sequence threshold of 500.
+         */
+        public Factory(
+            ByteSizeValue jumboSize,
+            List<FieldInfo> fields,
+            IndexedByShardId<ShardContext> shardContexts,
+            boolean reuseColumnLoaders,
+            int docChannel,
+            double sourceReservationFactor
+        ) {
+            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500);
         }
 
         @Override
@@ -78,7 +94,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 fields,
                 shardContexts,
                 reuseColumnLoaders,
-                docChannel
+                docChannel,
+                sourceReservationFactor,
+                docSequenceBytesRefFieldThreshold
             );
         }
 
@@ -112,10 +130,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
      *                      without value for field x, all target documents returned from the source operator
      *                      will have a value for field x whether x is dense or sparse in the index.
-     * @param loaderAndConverter   maps shard index to the {@link BlockLoader} which load the actual blocks and an
-     *                             optional type converter.
+     * @param buildLoader builds the {@link BlockLoader} which loads the actual blocks and an
+     *                    optional type converter for a given shard.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, BuildLoader buildLoader) {}
+
+    /**
+     * Builds a {@link LoaderAndConverter} for a given shard.
+     */
+    public interface BuildLoader {
+        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+    }
 
     /**
      * Singleton to load constant {@code null}s.
@@ -163,16 +188,43 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * </p>
      */
     final long jumboBytes;
+    final int docSequenceBytesRefFieldThreshold;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
     private final boolean reuseColumnLoaders;
     private final int docChannel;
+
+    /**
+     * Multiplier applied to {@link #lastKnownSourceSize} to pre-reserve memory on the circuit
+     * breaker before loading {@code _source}. A factor of 3.0 covers the large untracked
+     * allocations from source parsing such as the scratch buffer, SourceFilter.filterBytes() and
+     * JSON parsing overhead. This is a heuristic and can be adjusted based on observed
+     * memory usage patterns.
+     */
+    final double sourceReservationFactor;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
 
     private int lastShard = -1;
     private int lastSegment = -1;
+
+    /**
+     * The maximum raw byte size of _source observed so far. This persists across pages so
+     * the pre-reservation for source parsing overhead can protect even the first (and only)
+     * document in a page. On a 512MB JVM, jumboBytes is ~512KB, so each 5MB text field
+     * creates a 1-doc page. Without persisting this, every page starts with 0 reservation.
+     */
+    long lastKnownSourceSize;
+
+    /**
+     * Persistent reservation on the circuit breaker for the expected overhead of _source
+     * parsing. Held while this operator is active and loading large documents. When multiple
+     * operators load large _source concurrently, their persistent reservations accumulate
+     * on the shared circuit breaker, causing it to trip before the aggregate untracked
+     * temporaries from concurrent loads can overwhelm the heap.
+     */
+    private long sourceLoadingReservation;
 
     /**
      * Creates a new extractor
@@ -185,13 +237,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean reuseColumnLoaders,
-        int docChannel
+        int docChannel,
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
+        this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.fields = new FieldWork[fields.size()];
         for (int i = 0; i < this.fields.length; i++) {
             this.fields[i] = new FieldWork(fields.get(i), i);
@@ -199,15 +254,65 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         this.shardContexts = shardContexts;
         this.reuseColumnLoaders = reuseColumnLoaders;
         this.docChannel = docChannel;
+        this.sourceReservationFactor = sourceReservationFactor;
     }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
+        acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(
-            page,
-            docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
-        );
+        return appendBlockArrays(page, valuesReader(docVector));
+    }
+
+    private ValuesReader valuesReader(DocVector docVector) {
+        if (docVector.singleSegment()) {
+            return new ValuesFromSingleReader(this, docVector);
+        }
+        if (bytesRefFieldCount() >= docSequenceBytesRefFieldThreshold) {
+            return new ValuesFromDocSequence(this, docVector);
+        }
+        return new ValuesFromManyReader(this, docVector);
+    }
+
+    private int bytesRefFieldCount() {
+        int count = 0;
+        for (FieldWork field : fields) {
+            if (field.info.type() == ElementType.BYTES_REF) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Acquires or increases the persistent source loading reservation on the circuit breaker.
+     * Called at the start of each page and after each row load that updates
+     * {@link #lastKnownSourceSize}. If the breaker trips, the exception propagates and
+     * prevents further loading, limiting concurrent large _source operations.
+     */
+    void acquireSourceLoadingReservation() {
+        long needed = (long) (lastKnownSourceSize * sourceReservationFactor);
+        long additional = needed - sourceLoadingReservation;
+        if (additional > 0) {
+            driverContext.blockFactory().adjustBreaker(additional);
+            sourceLoadingReservation = needed;
+            if (log.isDebugEnabled()) {
+                log.debug("reserve {}/{} bytes on circuit breaker for source loading", additional, sourceLoadingReservation);
+            }
+        }
+    }
+
+    /**
+     * Updates the source loading reservation if the source bytes from the current document
+     * exceed what we've seen before, then releases the parsed source to free memory.
+     */
+    void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
+        long sourceBytes = storedFields.lastSourceBytesSize();
+        if (sourceBytes > lastKnownSourceSize) {
+            lastKnownSourceSize = sourceBytes;
+            acquireSourceLoadingReservation();
+        }
+        storedFields.releaseParsedSource();
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -267,6 +372,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     public void close() {
+        if (sourceLoadingReservation > 0) {
+            driverContext.blockFactory().adjustBreaker(-sourceLoadingReservation);
+            sourceLoadingReservation = 0;
+            if (log.isDebugEnabled()) {
+                log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
+            }
+        }
         Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
     }
 
@@ -306,7 +418,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.loaderAndConverter.apply(shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);

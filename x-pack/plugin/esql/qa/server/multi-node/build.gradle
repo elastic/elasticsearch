@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
@@ -13,20 +14,90 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrec
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 
+  // S3 fixture infrastructure for external source distributed tests
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // GCS fixture infrastructure
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
+  clusterModules project(':modules:repository-s3')
+  clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-parquet'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
 }
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+// Generate Parquet fixtures at build time from CSV.
+// Uses shared ParquetFixtureGenerator from esql:qa:server.
+def serverProject = project(xpackModule('esql:qa:server'))
+def parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+def parquetFixtureDir = file("${parquetFixtureOutputDir}/standalone")
+def esqlCsvIcebergFixtures = project(xpackModule('esql-datasource-csv')).file('qa/src/javaRestTest/resources/iceberg-fixtures')
+
+tasks.register('syncIcebergFixtures', Sync) {
+  from esqlCsvIcebergFixtures
+  into parquetFixtureOutputDir
+}
+
+// Add CSV base names here to generate Parquet fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
+def csvToParquetFixtures = ['employees', 'web_logs', 'books']
+
+def generateParquetTasks = []
+csvToParquetFixtures.each { baseName ->
+  def taskName = "generateParquet_${baseName}"
+  def csvFile = project(xpackModule('esql:qa:testFixtures')).file("src/main/resources/data/${baseName}.csv")
+  def parquetFile = file("${parquetFixtureDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava'), syncIcebergFixtures
+    dependsOn project(xpackModule('esql:qa:testFixtures')).tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvFile.absolutePath, parquetFile.absolutePath]
+    inputs.file(csvFile)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateParquetFixtures') {
+  dependsOn generateParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn generateParquetFixtures
+}
+
 tasks.named('javaRestTest') {
+  dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
 }
 
 restResources {

@@ -31,13 +31,13 @@ public final class AllLastFloatByLongAggregatorFunctionSupplier implements Aggre
   @Override
   public AllLastFloatByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllLastFloatByLongAggregatorFunction.create(driverContext, channels);
+    return new AllLastFloatByLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllLastFloatByLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllLastFloatByLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllLastFloatByLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -260,7 +259,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
+        );
     }
 
     record RateRange(Double lower, Double upper) implements Comparable<RateRange> {
@@ -549,9 +553,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        }
+        settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME

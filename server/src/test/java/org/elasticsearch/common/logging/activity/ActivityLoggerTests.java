@@ -11,8 +11,6 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -32,7 +30,6 @@ import static org.mockito.Mockito.when;
 public class ActivityLoggerTests extends ESTestCase {
 
     private final String loggerName = "test_logger";
-    private ClusterSettings clusterSettings;
     private ActivityLogProducer<TestContext> producer;
     private ActivityLogWriter writer;
     private ActionLoggingFields loggingFields;
@@ -41,7 +38,6 @@ public class ActivityLoggerTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setup() {
-        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         producer = mock(ActivityLogProducer.class);
         when(producer.loggerName()).thenReturn(loggerName);
         writer = mock(ActivityLogWriter.class);
@@ -52,7 +48,7 @@ public class ActivityLoggerTests extends ESTestCase {
         var writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        actionLogger = new ActivityLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
+        actionLogger = new ActivityLogger<>(producer, writerProvider, fieldProvider);
     }
 
     private ESLogMessage randomMessage() {
@@ -66,7 +62,7 @@ public class ActivityLoggerTests extends ESTestCase {
     }
 
     public void testLogActionEnabled() {
-        enableLogger();
+        actionLogger.enabled = true;
         TestContext context = new TestContext(100);
 
         ESLogMessage randomMessage = randomMessage();
@@ -79,7 +75,8 @@ public class ActivityLoggerTests extends ESTestCase {
     }
 
     public void testLogActionBelowThreshold() {
-        setThreshold(TimeValue.timeValueMillis(100));
+        actionLogger.enabled = true;
+        actionLogger.threshold = TimeValue.timeValueMillis(100).nanos();
 
         TestContext context = new TestContext(TimeValue.timeValueMillis(50).nanos());
         actionLogger.logAction(context);
@@ -88,7 +85,8 @@ public class ActivityLoggerTests extends ESTestCase {
     }
 
     public void testLogActionAboveThreshold() {
-        setThreshold(TimeValue.timeValueMillis(100));
+        actionLogger.enabled = true;
+        actionLogger.threshold = TimeValue.timeValueMillis(100).nanos();
 
         TestContext context = new TestContext(TimeValue.timeValueMillis(150).nanos());
         ESLogMessage randomMessage = randomMessage();
@@ -109,20 +107,6 @@ public class ActivityLoggerTests extends ESTestCase {
 
         assertThat(wrapped, sameInstance(listener));
         verifyNoInteractions(builder);
-    }
-
-    private void enableLogger() {
-        clusterSettings.applySettings(Settings.builder().put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getKey(), true).build());
-    }
-
-    // Setting the threshold includes enabling since there's no point to have it on disabled logger
-    private void setThreshold(TimeValue threshold) {
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getKey(), true)
-                .put(ActivityLogger.ACTIVITY_LOGGER_THRESHOLD.getKey(), threshold)
-                .build()
-        );
     }
 
     private static class TestContext extends ActivityLoggerContext {

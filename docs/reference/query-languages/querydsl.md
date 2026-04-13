@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html
 ---
 
-# QueryDSL [query-dsl]
+# Query DSL [query-dsl]
 
 :::{note}
 Refer to the [Query DSL overview](docs-content://explore-analyze/query-filter/languages/querydsl.md) in the **Explore and analyze** section for overview and conceptual information about Query DSL.

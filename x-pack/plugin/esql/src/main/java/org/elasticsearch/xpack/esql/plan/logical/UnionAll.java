@@ -42,8 +42,13 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     @Override
-    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+    public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new UnionAll(source(), subPlans, output);
+    }
+
+    @Override
+    public UnionAll refreshOutput() {
+        return new UnionAll(source(), children(), refreshedOutput());
     }
 
     @Override

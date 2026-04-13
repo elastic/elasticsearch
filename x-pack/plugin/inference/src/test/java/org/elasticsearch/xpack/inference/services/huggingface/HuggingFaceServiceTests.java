@@ -36,6 +36,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -300,42 +301,42 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // The escapes are because the streaming response must be on a single line
-        String responseJson = """
-            data: {\
-                "id":"12345",\
-                "object":"chat.completion.chunk",\
-                "created":123456789,\
-                "model":"gpt-4o-mini",\
-                "system_fingerprint": "123456789",\
-                "choices":[\
-                    {\
-                        "index":0,\
-                        "delta":{\
-                            "content":"hello, world"\
-                        },\
-                        "logprobs":null,\
-                        "finish_reason":"stop"\
-                    }\
-                ],\
-                "usage":{\
-                    "prompt_tokens": 16,\
-                    "completion_tokens": 28,\
-                    "total_tokens": 44,\
-                    "prompt_tokens_details": {\
-                        "cached_tokens": 0,\
-                        "audio_tokens": 0\
-                    },\
-                    "completion_tokens_details": {\
-                        "reasoning_tokens": 0,\
-                        "audio_tokens": 0,\
-                        "accepted_prediction_tokens": 0,\
-                        "rejected_prediction_tokens": 0\
-                    }\
-                }\
-            }
+        String responseJson = org.elasticsearch.common.Strings.format("""
+            data: %s
 
-            """;
+            """, XContentHelper.stripWhitespace("""
+            {
+                "id": "12345",
+                "object": "chat.completion.chunk",
+                "created": 123456789,
+                "model": "gpt-4o-mini",
+                "system_fingerprint": "123456789",
+                "choices": [{
+                        "index": 0,
+                        "delta": {
+                            "content": "hello, world"
+                        },
+                        "logprobs": null,
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 16,
+                    "completion_tokens": 28,
+                    "total_tokens": 44,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 0,
+                        "audio_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 0,
+                        "audio_tokens": 0,
+                        "accepted_prediction_tokens": 0,
+                        "rejected_prediction_tokens": 0
+                    }
+                }
+            }
+            """));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -350,11 +351,32 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT);
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
-                {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
-                "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
-                "prompt_tokens_details":{"cached_tokens":0}}}""");
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                    "id": "12345",
+                    "choices": [{
+                            "delta": {
+                                "content": "hello, world"
+                            },
+                            "finish_reason": "stop",
+                            "index": 0
+                        }
+                    ],
+                    "model": "gpt-4o-mini",
+                    "object": "chat.completion.chunk",
+                    "usage": {
+                        "completion_tokens": 28,
+                        "prompt_tokens": 16,
+                        "total_tokens": 44,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 0
+                        }
+                    }
+                }
+                """));
         }
     }
 
@@ -697,7 +719,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -705,11 +727,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -720,7 +745,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesACompletionModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesACompletionModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -728,11 +753,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceChatCompletionModel.class));
@@ -743,7 +771,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -752,11 +780,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -768,7 +799,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -776,11 +807,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -792,7 +826,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnElserModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -800,11 +834,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.SPARSE_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.SPARSE_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
@@ -815,7 +852,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -824,11 +861,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -839,18 +879,21 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createHuggingFaceService()) {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), new HashMap<>(), secretSettingsMap);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -861,7 +904,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(
                 getServiceSettingsMap(URL_VALUE),
@@ -870,11 +913,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
             persistedConfig.secrets().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -885,18 +931,21 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createHuggingFaceService()) {
             var serviceSettingsMap = getServiceSettingsMap(URL_VALUE);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, new HashMap<>(), getSecretSettingsMap(API_KEY_VALUE));
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -907,7 +956,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createHuggingFaceService()) {
             var taskSettingsMap = new HashMap<String, Object>();
             taskSettingsMap.put("extra_key", "value");
@@ -918,11 +967,14 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
@@ -937,7 +989,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -951,7 +1011,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), createRandomChunkingSettingsMap());
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -966,7 +1034,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -981,7 +1057,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), new HashMap<>());
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.SPARSE_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.SPARSE_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceElserModel.class));
 
@@ -996,7 +1080,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE));
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -1013,7 +1105,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap);
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -1030,7 +1130,15 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(URL_VALUE), taskSettingsMap, null);
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    HuggingFaceService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
 
@@ -1460,16 +1568,17 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID_VALUE,
-            TaskType.ANY,
-            HuggingFaceService.NAME,
-            mock(ServiceSettings.class)
-        );
+        // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
+        var modelConfigurationsMock = mock(ModelConfigurations.class);
+        when(modelConfigurationsMock.getInferenceEntityId()).thenReturn(INFERENCE_ENTITY_ID_VALUE);
+        when(modelConfigurationsMock.getTaskType()).thenReturn(TaskType.ANY);
+        when(modelConfigurationsMock.getService()).thenReturn(HuggingFaceService.NAME);
+        when(modelConfigurationsMock.getServiceSettings()).thenReturn(mock(ServiceSettings.class));
+
         try (var inferenceService = createInferenceService()) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurationsMock, mock(ModelSecrets.class))
             );
             assertThat(
                 thrownException.getMessage(),

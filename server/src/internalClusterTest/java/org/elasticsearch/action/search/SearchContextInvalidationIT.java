@@ -42,8 +42,15 @@ public class SearchContextInvalidationIT extends ESIntegTestCase {
     }
 
     public void testScrollReturns404WhenNodeLeavesCluster() throws Exception {
+        String dataNode = internalCluster().startDataOnlyNode();
+
         assertAcked(
-            prepareCreate("test-index").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            prepareCreate("test-index").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.require._name", dataNode)
+            )
         );
 
         List<IndexRequestBuilder> docs = new ArrayList<>();

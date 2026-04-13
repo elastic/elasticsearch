@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.test;
 
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -90,15 +89,6 @@ public class SecurityTestUtils {
                     .build()
             )
             .build();
-    }
-
-    /**
-     * Adds the index alias {@code .security} to the underlying concrete index.
-     * @deprecated Use {@link #addAliasToMetadata(ProjectMetadata, String) instead}.
-     */
-    @Deprecated
-    public static Metadata addAliasToMetadata(Metadata metadata, String indexName) {
-        return Metadata.builder(metadata).put(addAliasToMetadata(metadata.getProject(), indexName)).build();
     }
 
     /**

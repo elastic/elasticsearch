@@ -10,13 +10,14 @@
 | cartesian_shape | cartesian_shape | cartesian_shape |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
-| exponential_histogram {applies_to}`stack: preview 9.3.0` | exponential_histogram {applies_to}`stack: preview 9.3.0` | exponential_histogram |
+| dense_vector | dense_vector | dense_vector |
+| exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram |
 | geo_point | geo_point | geo_point |
 | geo_shape | geo_shape | geo_shape |
 | geohash | geohash | geohash |
 | geohex | geohex | geohex |
 | geotile | geotile | geotile |
-| histogram {applies_to}`stack: preview 9.3.0` | histogram {applies_to}`stack: preview 9.3.0` | histogram |
+| histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | histogram |
 | integer | integer | integer |
 | integer | | integer |
 | ip | ip | ip |
@@ -24,7 +25,7 @@
 | keyword | | keyword |
 | long | long | long |
 | long | | long |
-| tdigest {applies_to}`stack: preview 9.3.0` | tdigest {applies_to}`stack: preview 9.3.0` | tdigest |
+| tdigest {applies_to}`stack: preview 9.3.0, ga 9.4.0` | tdigest {applies_to}`stack: preview 9.3.0, ga 9.4.0` | tdigest |
 | text | text | keyword |
 | text | | keyword |
 | version | version | version |

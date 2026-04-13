@@ -31,13 +31,13 @@ public final class AllLastBytesRefByLongAggregatorFunctionSupplier implements Ag
   @Override
   public AllLastBytesRefByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllLastBytesRefByLongAggregatorFunction.create(driverContext, channels);
+    return new AllLastBytesRefByLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllLastBytesRefByLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllLastBytesRefByLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllLastBytesRefByLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

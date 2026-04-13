@@ -202,6 +202,13 @@ public class DriverContext {
     }
 
     /**
+     * Returns true if there are pending async actions registered via {@link #addAsyncAction()}.
+     */
+    public boolean hasPendingAsyncActions() {
+        return asyncActions.instances.get() > 1;
+    }
+
+    /**
      * Checks if the Driver associated with this DriverContext has been cancelled or early terminated.
      */
     public void checkForEarlyTermination() {

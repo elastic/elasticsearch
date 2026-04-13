@@ -275,9 +275,10 @@ public class ReadOnlyEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
     }
 
     @Override
@@ -453,7 +454,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         listener.onResponse(new FlushResult(false, lastCommittedSegmentInfos.getGeneration()));
     }
 
@@ -607,8 +608,8 @@ public class ReadOnlyEngine extends Engine {
                 return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
             }
 
-            long minValue = DocValuesSkipper.globalMinValue(searcher, field);
-            long maxValue = DocValuesSkipper.globalMaxValue(searcher, field);
+            long minValue = DocValuesSkipper.globalMinValue(searcher.getIndexReader(), field);
+            long maxValue = DocValuesSkipper.globalMaxValue(searcher.getIndexReader(), field);
             if (minValue == Long.MAX_VALUE && maxValue == Long.MIN_VALUE) {
                 // no skipper
                 return ShardLongFieldRange.EMPTY;

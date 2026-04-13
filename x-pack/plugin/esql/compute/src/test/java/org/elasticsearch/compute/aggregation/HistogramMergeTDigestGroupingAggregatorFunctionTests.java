@@ -56,7 +56,8 @@ public class HistogramMergeTDigestGroupingAggregatorFunctionTests extends Groupi
 
         TDigestHolder value = null;
         if (result.isNull(position) == false) {
-            value = ((TDigestBlock) result).getTDigestHolder(position);
+            TDigestBlock tDigestBlock = (TDigestBlock) result;
+            value = tDigestBlock.getTDigestHolder(tDigestBlock.getFirstValueIndex(position), new TDigestHolder());
         }
 
         if (allHistograms.isEmpty()) {
@@ -68,6 +69,6 @@ public class HistogramMergeTDigestGroupingAggregatorFunctionTests extends Groupi
 
     protected static Stream<TDigestHolder> allTDigests(Page page, Long group) {
         TDigestBlock b = page.getBlock(1);
-        return allValueOffsets(page, group).mapToObj(b::getTDigestHolder);
+        return allValueOffsets(page, group).mapToObj(offset -> b.getTDigestHolder(offset, new TDigestHolder()));
     }
 }

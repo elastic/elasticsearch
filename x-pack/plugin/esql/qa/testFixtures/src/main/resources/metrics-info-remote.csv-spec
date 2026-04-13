@@ -1,0 +1,31 @@
+metricsInfoBasicRemote
+required_capability: metrics_info_command
+required_capability: metadata_fields_remote_test
+TS k8s | METRICS_INFO | SORT metric_name;
+
+metric_name:keyword    | data_stream:keyword        | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.eth0.rx        | remote_cluster:k8s         | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx        | remote_cluster:k8s         | packets      | gauge               | integer            | [cluster, pod, region]
+network.total_bytes_in | remote_cluster:k8s         | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost     | remote_cluster:k8s         | usd          | counter             | double             | [cluster, pod, region]
+;
+
+metricsInfoWithWhereRemote
+required_capability: metrics_info_command
+required_capability: metadata_fields_remote_test
+TS k8s | METRICS_INFO | WHERE metric_type == "counter" | SORT metric_name;
+
+metric_name:keyword         | data_stream:keyword        | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.total_bytes_in      | remote_cluster:k8s         | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost          | remote_cluster:k8s         | usd          | counter             | double             | [cluster, pod, region]
+;
+
+metricsInfoWithWhereOnMetricNameRemote
+required_capability: metrics_info_command
+required_capability: metadata_fields_remote_test
+TS k8s | METRICS_INFO | WHERE metric_name LIKE "network.eth0*" | SORT metric_name;
+
+metric_name:keyword         | data_stream:keyword        | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.eth0.rx             | remote_cluster:k8s         | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx             | remote_cluster:k8s         | packets      | gauge               | integer            | [cluster, pod, region]
+;

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -58,6 +59,26 @@ public sealed interface ExponentialHistogramBlock extends HistogramBlock permits
      * Builder for {@link ExponentialHistogramBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.ExponentialHistogramBuilder permits ExponentialHistogramBlockBuilder {
+
+        /**
+         * Appends the provided histogram to this builder.
+         */
+        Builder append(ExponentialHistogram histogram);
+
+        /**
+         * Appends a histogram from raw bucket iterators and summary statistics.
+         */
+        Builder append(
+            int scale,
+            BucketIterator negativeBuckets,
+            BucketIterator positiveBuckets,
+            double zeroThreshold,
+            long zeroCount,
+            long count,
+            double sum,
+            double min,
+            double max
+        );
 
         /**
          * Copy the values in {@code block} from the given positon into this builder.

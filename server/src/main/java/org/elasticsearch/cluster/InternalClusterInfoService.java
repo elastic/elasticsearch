@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -215,7 +216,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
         private volatile Map<String, ByteSizeValue> maxHeapPerNode;
         private volatile Map<String, Long> estimatedHeapUsagePerNode;
-        private volatile Map<ShardId, ShardAndIndexHeapUsage> estimatedHeapUsagePerShard;
+        private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
         private volatile IndicesStatsSummary indicesStatsSummary;
 
@@ -269,7 +270,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             } else {
                 logger.trace("skipping collecting estimated heap usage from cluster, notifying listeners with empty estimated heap usage");
                 estimatedHeapUsagePerNode = Map.of();
-                estimatedHeapUsagePerShard = Map.of();
+                estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
             }
         }
 
@@ -310,14 +311,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
             estimatedHeapUsageCollector.collectShardHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<ShardId, ShardAndIndexHeapUsage> currentEstimatedHeapUsages) {
-                    estimatedHeapUsagePerShard = currentEstimatedHeapUsages;
+                public void onResponse(ShardHeapUsageEstimates currentEstimatedHeapUsages) {
+                    estimatedShardHeapUsageEstimates = currentEstimatedHeapUsages;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for shards", e);
-                    estimatedHeapUsagePerShard = Map.of();
+                    estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
                 }
             }, fetchRefs.acquire()));
         }
@@ -501,7 +502,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
                 nodeThreadPoolUsageStatsPerNode,
-                writeLoadConstraintSettings.getQueueLatencyThreshold()
+                writeLoadConstraintSettings.getQueueLatencyThreshold(),
+                writeLoadConstraintSettings.getHotspotUtilizationThreshold()
             );
 
             final var newClusterInfo = new ClusterInfo(
@@ -512,7 +514,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 indicesStatsSummary.dataPath,
                 indicesStatsSummary.reservedSpace,
                 estimatedHeapUsages,
-                estimatedHeapUsagePerShard,
+                estimatedShardHeapUsageEstimates.perShard(),
+                estimatedShardHeapUsageEstimates.defaultForShardsWithoutMetrics(),
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,
@@ -524,13 +527,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private static Set<String> buildNodeIdsWriteLoadHotspottingSet(
             Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
-            TimeValue queueLatencyThreshold
+            TimeValue hotspotQueueLatencyThreshold,
+            double hotspotUtilizationThreshold
         ) {
             final Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(nodeThreadPoolUsageStatsPerNode.size());
             nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
-                NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
-                    .get(ThreadPool.Names.WRITE);
-                if (threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold.millis()) {
+                if (WriteLoadConstraintDecider.nodeIsHotspotting(
+                    nodeUsageStats,
+                    hotspotQueueLatencyThreshold,
+                    hotspotUtilizationThreshold
+                )) {
                     nodeIdsWriteLoadHotspotting.add(nodeId);
                 }
             });

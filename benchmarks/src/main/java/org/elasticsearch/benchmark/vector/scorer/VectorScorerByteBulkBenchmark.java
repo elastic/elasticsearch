@@ -9,8 +9,6 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -20,8 +18,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -70,24 +68,25 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByte
 public class VectorScorerByteBulkBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-        if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerByteBulkBenchmark.class);
-            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
-        }
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1024" })
     public int dims;
 
-    // 128k is typically enough to not fit in L1 (core) cache for most processors;
-    // 1.5M is typically enough to not fit in L2 (core) cache;
-    // 130M is enough to not fit in L3 cache
+    // 128kb is typically enough to not fit in L1 (core) cache for most processors;
+    // 1.5Mb is typically enough to not fit in L2 (core) cache;
+    // 130Mb is enough to not fit in L3 cache
     @Param({ "128", "1500", "130000" })
     public int numVectors;
     public int numVectorsToScore;
+
+    // Bulk sizes to test.
+    // HNSW params will have the distributed ordinal bulk sizes depending on the number of connections in the graph
+    // The default is 16, maximum is 512, and the bottom layer is 2x that the configured setting, so 1024 is a maximum
+    // the MOST common case here is 32
+    @Param({ "32", "64", "256", "1024" })
+    public int bulkSize;
 
     @Param
     public VectorImplementation implementation;
@@ -110,7 +109,7 @@ public class VectorScorerByteBulkBenchmark {
 
         @Override
         public float score(int ordinal) throws IOException {
-            return normalize(cosine(queryVector, values.vectorValue(ordinal)));
+            return normalize(ScalarOperations.cosine(queryVector, values.vectorValue(ordinal)));
         }
 
         private float normalize(float cosine) {
@@ -140,10 +139,10 @@ public class VectorScorerByteBulkBenchmark {
 
         @Override
         public float score(int ordinal) throws IOException {
-            return normalize(dotProduct(queryVector, values.vectorValue(ordinal)));
+            return normalize(ScalarOperations.dotProduct(queryVector, values.vectorValue(ordinal)));
         }
 
-        private float normalize(int dotProduct) {
+        private float normalize(float dotProduct) {
             return 0.5f + dotProduct / denom;
         }
 
@@ -171,7 +170,7 @@ public class VectorScorerByteBulkBenchmark {
 
         @Override
         public float score(int ordinal) throws IOException {
-            return VectorUtil.normalizeDistanceToUnitInterval(squareDistance(queryVector, values.vectorValue(ordinal)));
+            return VectorUtil.normalizeDistanceToUnitInterval(ScalarOperations.squareDistance(queryVector, values.vectorValue(ordinal)));
         }
 
         @Override
@@ -188,6 +187,7 @@ public class VectorScorerByteBulkBenchmark {
     private float[] scores;
     private int[] ordinals;
     private int[] ids;
+    private int[] toScore; // scratch array for bulk scoring
 
     private UpdateableRandomVectorScorer scorer;
     private RandomVectorScorer queryScorer;
@@ -233,7 +233,8 @@ public class VectorScorerByteBulkBenchmark {
         writeByteVectorData(dir, vectorData.vectorData);
 
         numVectorsToScore = vectorData.numVectorsToScore;
-        scores = new float[numVectorsToScore];
+        scores = new float[bulkSize];
+        toScore = new int[bulkSize];
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
 
@@ -275,75 +276,67 @@ public class VectorScorerByteBulkBenchmark {
 
     @Benchmark
     public float[] scoreMultipleSequential() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(v);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(v);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = queryScorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = queryScorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleSequentialBulk() throws IOException {
-        scorer.bulkScore(ids, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of sequential IDs to the scratch array
+            System.arraycopy(ids, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandomBulk() throws IOException {
-        scorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandomBulk() throws IOException {
-        queryScorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            queryScorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
-    }
-
-    static float cosine(byte[] a, byte[] b) {
-        int sum = 0;
-        int norm1 = 0;
-        int norm2 = 0;
-
-        for (int i = 0; i < a.length; i++) {
-            byte elem1 = a[i];
-            byte elem2 = b[i];
-            sum += elem1 * elem2;
-            norm1 += elem1 * elem1;
-            norm2 += elem2 * elem2;
-        }
-        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
-    }
-
-    static int dotProduct(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static int squareDistance(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            int d = a[i] - b[i];
-            res += d * d;
-        }
-        return res;
     }
 }

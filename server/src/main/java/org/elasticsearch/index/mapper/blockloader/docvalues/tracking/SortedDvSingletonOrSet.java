@@ -55,6 +55,14 @@ public record SortedDvSingletonOrSet(@Nullable TrackingSortedDocValues singleton
         }
     }
 
+    public TrackingSortedDocValues forceSingle() {
+        if (singleton == null) {
+            set.close();
+            throw new IllegalStateException("expected singleton");
+        }
+        return singleton;
+    }
+
     public TrackingSortedSetDocValues forceSet() {
         if (set != null) {
             return set;

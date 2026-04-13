@@ -205,6 +205,10 @@ public class ObjectMapper extends Mapper {
             return builder;
         }
 
+        public List<Mapper.Builder> getChildBuilders() {
+            return mappersBuilders;
+        }
+
         private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
@@ -756,6 +760,10 @@ public class ObjectMapper extends Mapper {
         return mappers.get(field);
     }
 
+    public Map<String, Mapper> getMappers() {
+        return mappers;
+    }
+
     @Override
     public Iterator<Mapper> iterator() {
         return mappers.values().iterator();
@@ -936,9 +944,11 @@ public class ObjectMapper extends Mapper {
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
-        if (mapper instanceof MetadataFieldMapper metaMapper) {
-            return metaMapper.syntheticFieldLoader();
+        // We always need the ignored source to load other fields
+        if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceMapper) {
+            return ignoredSourceMapper.syntheticFieldLoader();
         }
+
         if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

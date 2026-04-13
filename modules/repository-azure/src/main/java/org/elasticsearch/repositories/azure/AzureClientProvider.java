@@ -15,11 +15,13 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
+import com.azure.core.http.HttpHeaderName;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
@@ -54,6 +56,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
@@ -256,8 +259,23 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         closed = true;
-        connectionProvider.dispose();
-        eventLoopGroup.shutdownGracefully().addListener(f -> Schedulers.resetFactory());
+        // Dispose of the connection provider first and wait for it to complete before we close the event loop.
+        connectionProvider.disposeLater()
+            .timeout(Duration.ofSeconds(10))    // Limit how long we wait for the connection provider to close
+            .doFinally(signalType -> {
+                if (signalType != SignalType.ON_COMPLETE) {
+                    logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
+                }
+                // Now safe to shut down the event loop
+                eventLoopGroup.shutdownGracefully().addListener(future -> {
+                    if (future.isSuccess() == false) {
+                        logger.warn("Error shutting down Azure event loop, but resetting schedulers anyway", future.cause());
+                    }
+                    // Now everything is shut down, reset the factory to clear any cached schedulers
+                    Schedulers.resetFactory();
+                });
+            })
+            .subscribe(null, throwable -> logger.warn("Error shutting down connection provider", throwable));
     }
 
     @Override
@@ -335,6 +353,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 return next.process();
             }
             RequestMetrics metrics = (RequestMetrics) metricsData.get();
+            logger.trace("Increasing request count by + 1");
             metrics.requestCount++;
             long requestStartTimeNanos = System.nanoTime();
             return next.process().doOnError(throwable -> {
@@ -350,6 +369,23 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                     if (response.getStatusCode() == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
                         metrics.throttleCount++;
                     }
+                    logger.trace(
+                        () -> format(
+                            "Unsuccessful response [%s]: statusCode=[%s], errorCount=%d, throttleCount=%d",
+                            response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
+                            response.getStatusCode(),
+                            metrics.errorCount,
+                            metrics.throttleCount
+                        )
+                    );
+                } else {
+                    logger.trace(
+                        () -> format(
+                            "Successful response [%s]: statusCode=[%s]",
+                            response.getRequest().getHeaders().get(HttpHeaderName.X_MS_CLIENT_REQUEST_ID),
+                            response.getStatusCode()
+                        )
+                    );
                 }
             });
         }

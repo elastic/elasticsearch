@@ -69,6 +69,11 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(
         final AllocatedPersistentTask task,
         final DownsampleShardTaskParams params,

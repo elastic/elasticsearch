@@ -158,7 +158,7 @@ public record MinimalServiceSettings(
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType(),
-            model.getConfigurations().getEndpointMetadata()
+            model.getConfigurations().getEndpointMetadataOrEmpty()
         );
     }
 
@@ -204,7 +204,7 @@ public record MinimalServiceSettings(
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return this::toXContent;
+        return (b, p) -> toXContent(b, p, false);
     }
 
     @Override
@@ -218,24 +218,7 @@ public record MinimalServiceSettings(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (service != null) {
-            builder.field(SERVICE_FIELD, service);
-        }
-        builder.field(TASK_TYPE_FIELD, taskType.toString());
-        if (dimensions != null) {
-            builder.field(DIMENSIONS_FIELD, dimensions);
-        }
-        if (similarity != null) {
-            builder.field(SIMILARITY_FIELD, similarity);
-        }
-        if (elementType != null) {
-            builder.field(ELEMENT_TYPE_FIELD, elementType);
-        }
-        if (endpointMetadata.isEmpty() == false) {
-            builder.field(METADATA_FIELD_NAME, endpointMetadata);
-        }
-        return builder.endObject();
+        return toXContent(builder, params, true);
     }
 
     @Override
@@ -292,5 +275,26 @@ public record MinimalServiceSettings(
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
             && elementType == other.elementType;
+    }
+
+    private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
+        builder.startObject();
+        if (service != null) {
+            builder.field(SERVICE_FIELD, service);
+        }
+        builder.field(TASK_TYPE_FIELD, taskType.toString());
+        if (dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY_FIELD, similarity);
+        }
+        if (elementType != null) {
+            builder.field(ELEMENT_TYPE_FIELD, elementType);
+        }
+        if (includeFilteredFields && endpointMetadata.isEmpty() == false) {
+            builder.field(METADATA_FIELD_NAME, endpointMetadata);
+        }
+        return builder.endObject();
     }
 }

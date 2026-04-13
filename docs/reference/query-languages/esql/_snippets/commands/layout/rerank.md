@@ -52,13 +52,13 @@ FROM books
 
 ::::
 
-**Syntax**
+## Syntax
 
 ```esql
 RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" }]
 ```
 
-**Parameters**
+## Parameters
 
 `column`
 :   (Optional) The name of the output column containing the reranked scores.
@@ -80,7 +80,7 @@ the [inference endpoint](docs-content://explore-analyze/elastic-inference/infere
 to use for the task.
 The inference endpoint must be configured with the `rerank` task type.
 
-**Description**
+## Description
 
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
@@ -95,14 +95,14 @@ When using `RERANK` with a multivalue column, each value is ranked individually.
 The score column is then assigned the maximum score resulting from ranking the
 individual values.
 
-**Requirements**
+## Requirements
 
 To use this command, you must deploy your reranking model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 with the
 task type `rerank`.
 
-#### Handling timeouts
+### Handling timeouts
 
 `RERANK` commands may time out when processing large datasets or complex
 queries. The default timeout is 10 minutes, but you can increase this limit if
@@ -144,27 +144,24 @@ If you don't want to increase the timeout limit, try the following:
 * Configure your HTTP client's response timeout (Refer
   to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
-**Examples**
+## Examples
 
-Rerank search results using a simple query and a single field:
-
+### Rerank with a single field
 
 :::{include} ../examples/rerank.csv-spec/simple-query.md
 :::
 
-Rerank search results using a query and multiple fields, and store the new score
-in a column named `rerank_score`:
+### Rerank with multiple fields and a custom score column
 
 :::{include} ../examples/rerank.csv-spec/two-queries.md
 :::
 
-Combine the original score with the reranked score:
+### Combine original score with reranked score
 
 :::{include} ../examples/rerank.csv-spec/combine.md
 :::
 
-Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
-function:
+### Rerank using document snippets
 
 :::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
 :::

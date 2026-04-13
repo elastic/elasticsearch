@@ -196,13 +196,6 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         if (pathPrefix != null) {
             b.append(" pathPrefix=").append(pathPrefix);
         }
-        b.append(" query=").append(query.utf8ToString());
-        if (username != null) {
-            b.append(" username=").append(username);
-        }
-        if (password != null) {
-            b.append(" password=<<>>");
-        }
         return b.toString();
     }
 

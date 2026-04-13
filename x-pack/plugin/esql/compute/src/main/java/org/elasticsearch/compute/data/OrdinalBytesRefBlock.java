@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -75,6 +76,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return bytes.get(ordinals.getInt(valueIndex), scratch);
+    }
+
+    @Override
     public OrdinalBytesRefVector asVector() {
         IntVector vector = ordinals.asVector();
         if (vector != null) {
@@ -87,6 +93,17 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return this;
+    }
+
+    @Override
+    public BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntBlock slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefBlock(slicedOrdinals, bytes);
     }
 
     @Override

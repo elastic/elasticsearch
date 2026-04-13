@@ -244,7 +244,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
-                        mock(CrossProjectModeDecider.class)
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -331,7 +332,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformAuditor.class),
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
-                        mock(CrossProjectModeDecider.class)
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -467,7 +469,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

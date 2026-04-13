@@ -24,7 +24,7 @@ package org.elasticsearch.exponentialhistogram;
 /**
  * An iterator over the non-empty buckets of the histogram for either the positive or negative range.
  * <ul>
- *     <li>The iterator always iterates from the lowest bucket index to the highest.</li>
+ *     <li>The iterator always iterates in sorted order. The order may be ascending or descending.</li>
  *     <li>The iterator never returns duplicate buckets (buckets with the same index).</li>
  *     <li>The iterator never returns empty buckets ({@link #peekCount()} is never zero).</li>
  * </ul>
@@ -58,8 +58,6 @@ public interface BucketIterator {
 
     /**
      * Moves the iterator to the next, non-empty bucket.
-     * If {@link #hasNext()} is {@code true} after calling {@link #advance()}, {@link #peekIndex()} is guaranteed to return a value
-     * greater than the value returned prior to the {@link #advance()} call.
      */
     void advance();
 

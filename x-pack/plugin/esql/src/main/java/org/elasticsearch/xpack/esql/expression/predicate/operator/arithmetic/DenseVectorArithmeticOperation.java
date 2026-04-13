@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,25 +35,13 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     /** Set of arithmetic (quad) functions for dense_vectors. */
     public interface DenseVectorBinaryEvaluator {
         // when both arguments are dense_vectors
-        EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
-        );
+        ExpressionEvaluator.Factory vectorsOperation(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
 
         // when lhs is a scalar and rhs is a dense_vector
-        EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
-            Source source,
-            float lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
-        );
+        ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs);
 
         // when lhs is a dense_vector and rhs is a scalar
-        EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            float rhs
-        );
+        ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs);
     }
 
     protected DenseVectorArithmeticOperation(
@@ -117,7 +105,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         if (commonType == DENSE_VECTOR) {
             if (left().dataType() == DENSE_VECTOR && right().dataType() == DENSE_VECTOR) {

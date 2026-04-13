@@ -7,6 +7,11 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -15,6 +20,7 @@ import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
@@ -28,6 +34,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests.randomHitExtractor;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class QuerierTests extends ESTestCase {
 
@@ -266,5 +279,81 @@ public class QuerierTests extends ESTestCase {
         localSorter.onResponse(page);
 
         return new Tuple<>(responses.get(), failures.get());
+    }
+
+    public void testClosePointInTimeWithLastPage() {
+        BytesArray pitId = new BytesArray("test_pit_id");
+        Client client = mock(Client.class);
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.pointInTimeId()).thenReturn(pitId);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArgument(2);
+            listener.onResponse(new ClosePointInTimeResponse(true, 1));
+            return null;
+        }).when(client).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
+
+        RowSet rowSet = mock(RowSet.class);
+        Cursor.Page lastPage = Cursor.Page.last(rowSet);
+
+        final Cursor.Page[] receivedPage = new Cursor.Page[1];
+        ActionListener<Cursor.Page> pageListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Cursor.Page page) {
+                receivedPage[0] = page;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Expected onResponse, got onFailure: " + e.getMessage());
+            }
+        };
+
+        Querier.closePointInTimeWithLastPage(client, response, lastPage, pageListener);
+
+        verify(response, times(1)).incRef();
+        verify(response, times(1)).decRef();
+        assertNotNull(receivedPage[0]);
+        assertSame(lastPage, receivedPage[0]);
+        assertSame(Cursor.EMPTY, receivedPage[0].next());
+    }
+
+    public void testClosePointInTimeWithLastPageOnFailureDecRefs() {
+        BytesArray pitId = new BytesArray("test_pit_id");
+        Client client = mock(Client.class);
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.pointInTimeId()).thenReturn(pitId);
+
+        Exception failure = new RuntimeException("close failed");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArgument(2);
+            listener.onFailure(failure);
+            return null;
+        }).when(client).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
+
+        RowSet rowSet = mock(RowSet.class);
+        Cursor.Page lastPage = Cursor.Page.last(rowSet);
+
+        final Exception[] receivedFailure = new Exception[1];
+        ActionListener<Cursor.Page> pageListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Cursor.Page page) {
+                fail("Expected onFailure, got onResponse");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                receivedFailure[0] = e;
+            }
+        };
+
+        Querier.closePointInTimeWithLastPage(client, response, lastPage, pageListener);
+
+        verify(response, times(1)).incRef();
+        verify(response, times(1)).decRef();
+        assertNotNull(receivedFailure[0]);
+        assertSame(failure, receivedFailure[0]);
     }
 }

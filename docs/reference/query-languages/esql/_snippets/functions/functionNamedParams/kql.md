@@ -2,15 +2,15 @@
 
 ### Supported function named parameters
 
-`boost`
-:   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
+`case_insensitive`
+:   (boolean) If true, performs case-insensitive matching for keyword fields. Defaults to false.
 
 `time_zone`
 :   (keyword) UTC offset or IANA time zone used to interpret date literals in the query string.
 
-`case_insensitive`
-:   (boolean) If true, performs case-insensitive matching for keyword fields. Defaults to false.
-
 `default_field`
 :   (keyword) Default field to search if no field is provided in the query string. Supports wildcards (*).
+
+`boost`
+:   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
 

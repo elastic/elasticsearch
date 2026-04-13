@@ -24,7 +24,7 @@ public final class DateParser {
 
     public static LocalDate parseLocalDate(String dateString, String key, String root) {
         try {
-            if (dateString == null) {
+            if (Strings.isNullOrBlank(dateString)) {
                 return null;
             }
             return LocalDate.parse(dateString);

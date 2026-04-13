@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -190,7 +191,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 return decision;
             })).toList());
 
-            RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
+            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
             allocation.setDebugMode(debugMode);
 
             var decision = operation.apply(allocation, deciders);
@@ -267,7 +268,9 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
-        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.builder(new ClusterName("test")).build())
+            .allocationDeciders(deciders)
+            .build();
     }
 
     private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {

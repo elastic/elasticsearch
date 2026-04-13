@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.Arrays;
@@ -120,7 +121,7 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                 );
                 break;
             case TDIGEST:
-                ((TDigestBlockBuilder) into).appendTDigest(((TDigestBlock) from).getTDigestHolder(valueIndex));
+                ((TDigestBlockBuilder) into).appendTDigest(((TDigestBlock) from).getTDigestHolder(valueIndex, new TDigestHolder()));
                 break;
             default:
                 throw new IllegalArgumentException("unknown block type " + elementType);

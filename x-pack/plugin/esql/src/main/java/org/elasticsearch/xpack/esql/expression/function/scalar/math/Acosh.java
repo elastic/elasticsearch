@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.ESSloppyMath;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -27,6 +28,7 @@ import java.util.List;
  */
 public class Acosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Acosh", Acosh::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Acosh.class).unary(Acosh::new).name("acosh");
 
     private static final double LN2 = Math.log(2);
     private static final double LARGE = (double) (1L << 28);
@@ -57,7 +59,7 @@ public class Acosh extends AbstractTrigonometricFunction {
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
         return new AcoshEvaluator.Factory(source(), field);
     }
 

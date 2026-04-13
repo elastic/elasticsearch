@@ -70,16 +70,31 @@ public final class StoragePath {
 
         // Parse authority and path
         int authorityStart = schemeEnd + SCHEME_SEPARATOR.length();
-        int pathStart = location.indexOf('/', authorityStart);
+
+        // Handle file:// URIs that may contain Windows drive letters (e.g. file:///C:/path or file://C:\path)
+        // Normalize backslashes to forward slashes for file:// URIs before parsing
+        String toParse = location;
+        if (scheme.equals("file")) {
+            toParse = location.substring(0, authorityStart) + location.substring(authorityStart).replace('\\', '/');
+        }
+
+        int pathStart = toParse.indexOf('/', authorityStart);
         String authority;
         String path;
 
         if (pathStart < 0) {
-            authority = location.substring(authorityStart);
+            authority = toParse.substring(authorityStart);
             path = "";
         } else {
-            authority = location.substring(authorityStart, pathStart);
-            path = location.substring(pathStart);
+            authority = toParse.substring(authorityStart, pathStart);
+            path = toParse.substring(pathStart);
+        }
+
+        // For file:// URIs with Windows drive letters like file://C:/path,
+        // the drive letter ends up as the authority. Fold it back into the path.
+        if (scheme.equals("file") && authority.length() == 2 && Character.isLetter(authority.charAt(0)) && authority.charAt(1) == ':') {
+            path = "/" + authority + path;
+            authority = "";
         }
 
         // Parse host and port from authority
@@ -120,6 +135,19 @@ public final class StoragePath {
     }
 
     public String path() {
+        return path;
+    }
+
+    /**
+     * Returns the path component adjusted for use as a local filesystem path.
+     * On Windows, file:// URIs produce paths like {@code /C:/dir/file} where the
+     * leading slash is invalid for the OS. This method strips it when a drive letter
+     * is detected so the result can be passed to {@code PathUtils.get()} safely.
+     */
+    public String localPath() {
+        if (path.length() >= 3 && path.charAt(0) == '/' && Character.isLetter(path.charAt(1)) && path.charAt(2) == ':') {
+            return path.substring(1);
+        }
         return path;
     }
 

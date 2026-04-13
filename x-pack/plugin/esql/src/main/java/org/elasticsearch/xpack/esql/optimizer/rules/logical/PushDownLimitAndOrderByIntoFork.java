@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
@@ -28,12 +25,12 @@ import java.util.Map;
 /**
  * Pushes down any SORT + LIMIT (TopN) that appear immediately after a FORK, into the FORK branches that have no pipeline breaker.
  * In the following example, assuming no FORK implicit limit is added, both FORK branches are missing a pipeline breaker:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM my-index
  * | FORK (WHERE x) (WHERE y)
  * | SORT z
  * | LIMIT 10
- * }</pre>
+ * }
  * By pushing down (TopN) in both branches, we reduce the number of rows that are returned to the coordinator.
  */
 public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
@@ -73,7 +70,7 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
     }
 
     private LogicalPlan maybePushDownLimitAndOrderByToForkBranch(Limit limit, Fork fork, OrderBy orderBy, LogicalPlan forkChild) {
-        if (shouldPushDownIntoForkBranch(forkChild) == false) {
+        if (PushDownUtils.shouldPushDownPipelineBreakerIntoForkBranch(forkChild) == false) {
             return forkChild;
         }
 
@@ -107,23 +104,5 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
             }
         }
         return outputMap;
-    }
-
-    private boolean shouldPushDownIntoForkBranch(LogicalPlan plan) {
-        // We only push down when no pipeline breaker can be found, and we query an index.
-        // If no EsRelation is found, we likely have a LocalRelation and we should definitely not push Limit and OrderBy
-        // as they will be removed by other optimizations.
-        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
-        Holder<Boolean> hasEsRelation = new Holder<>(false);
-        plan.forEachDown(p -> {
-            if (p instanceof PipelineBreaker) {
-                hasPipelineBreaker.set(true);
-            }
-            if (p instanceof EsRelation) {
-                hasEsRelation.set(true);
-            }
-        });
-
-        return hasEsRelation.get() && hasPipelineBreaker.get() == false;
     }
 }

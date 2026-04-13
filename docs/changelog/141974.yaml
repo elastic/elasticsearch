@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 141974
-summary: Fix cancellation race in `CancellableRateLimitedFluxIterator`
-type: bug

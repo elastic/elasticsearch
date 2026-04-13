@@ -34,6 +34,7 @@ setup:
         human: true
   - is_true: completed
   - match: { id: $taskId }
+  - match: { description: "reindex from [source] to [dest]" }
   - match: { cancelled: false }
   - exists: start_time
   - exists: start_time_in_millis

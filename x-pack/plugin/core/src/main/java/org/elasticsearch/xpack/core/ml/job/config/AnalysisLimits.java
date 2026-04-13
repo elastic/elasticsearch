@@ -116,6 +116,18 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         this(in.readOptionalLong(), in.readOptionalLong());
     }
 
+    public AnalysisLimits mergeWithUpdates(@Nullable AnalysisLimits updates) {
+        if (updates == null) {
+            return this;
+        }
+
+        Long updatedModelMemoryLimit = updates.getModelMemoryLimit() != null ? updates.getModelMemoryLimit() : this.modelMemoryLimit;
+        Long updatedCategorizationExamplesLimit = updates.getCategorizationExamplesLimit() != null
+            ? updates.getCategorizationExamplesLimit()
+            : this.categorizationExamplesLimit;
+        return new AnalysisLimits(updatedModelMemoryLimit, updatedCategorizationExamplesLimit);
+    }
+
     /**
      * Creates a new {@code AnalysisLimits} object after validating it against external limitations
      * and filling missing values with their defaults. Validations:

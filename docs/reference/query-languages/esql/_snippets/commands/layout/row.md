@@ -6,13 +6,13 @@ stack: ga
 The `ROW` source command produces a row with one or more columns with values
 that you specify. This can be useful for testing.
 
-**Syntax**
+## Syntax
 
 ```esql
 ROW column1 = value1[, ..., columnN = valueN]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The column name.
@@ -22,17 +22,23 @@ ROW column1 = value1[, ..., columnN = valueN]
 :   The value for the column. Can be a literal, an expression, or a
     [function](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
 
-**Examples**
+## Examples
+
+The following examples demonstrate common `ROW` patterns.
+
+### Create a row with literal values
 
 :::{include} ../examples/row.csv-spec/example.md
 :::
 
-Use square brackets to create multi-value columns:
+### Create multivalued columns
+
+Use square brackets to create a column with multiple values:
 
 :::{include} ../examples/row.csv-spec/multivalue.md
 :::
 
-`ROW` supports the use of [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions):
+### Use functions as values
 
 :::{include} ../examples/row.csv-spec/function.md
 :::

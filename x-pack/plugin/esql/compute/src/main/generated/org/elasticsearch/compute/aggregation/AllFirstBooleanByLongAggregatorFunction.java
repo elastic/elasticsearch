@@ -34,16 +34,10 @@ public final class AllFirstBooleanByLongAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  public AllFirstBooleanByLongAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, AllLongBooleanState state) {
+  AllFirstBooleanByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllFirstBooleanByLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllFirstBooleanByLongAggregatorFunction(driverContext, channels, AllFirstBooleanByLongAggregator.initSingle(driverContext));
+    this.state = AllFirstBooleanByLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

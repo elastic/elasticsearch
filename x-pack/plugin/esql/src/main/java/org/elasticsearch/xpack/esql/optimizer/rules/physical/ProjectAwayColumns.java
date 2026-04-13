@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -66,7 +67,14 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     newChildren.add(newChild);
                 }
-                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+                if (changed) {
+                    // Preserve the original MergeExec output (which uses the fork's NameIds) unless it is
+                    // empty — that happens when all branches had only the <no-fields> marker, which was
+                    // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
+                    var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();
+                    return new MergeExec(mergeExec.source(), newChildren, newOutput);
+                }
+                return mergeExec;
             }
 
             if (currentPlanNode instanceof ExchangeExec exec) {
@@ -76,8 +84,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 if (child instanceof FragmentExec fragmentExec) {
                     var logicalFragment = fragmentExec.fragment();
 
-                    // No need for projection when dealing with aggs or MetricsInfo.
-                    if (logicalFragment instanceof Aggregate == false && logicalFragment instanceof MetricsInfo == false) {
+                    // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
+                    if (logicalFragment instanceof Aggregate == false
+                        && logicalFragment instanceof MetricsInfo == false
+                        && logicalFragment instanceof TsInfo == false) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

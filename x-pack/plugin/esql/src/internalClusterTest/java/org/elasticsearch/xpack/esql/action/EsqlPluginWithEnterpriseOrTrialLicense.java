@@ -23,4 +23,9 @@ public class EsqlPluginWithEnterpriseOrTrialLicense extends EsqlPlugin {
         License.OperationMode operationMode = randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL);
         return new XPackLicenseState(() -> System.currentTimeMillis(), new XPackLicenseStatus(operationMode, true, "Test license expired"));
     }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+    }
 }

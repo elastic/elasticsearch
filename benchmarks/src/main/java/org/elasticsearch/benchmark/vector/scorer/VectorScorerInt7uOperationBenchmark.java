@@ -9,8 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -30,6 +29,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.concurrent.TimeUnit;
 
@@ -45,9 +45,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerInt7uOperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     byte[] byteArrayA;
@@ -84,9 +82,9 @@ public class VectorScorerInt7uOperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(byteArrayA.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
+        MemorySegment.copy(byteArrayA, 0, nativeSegA, ValueLayout.JAVA_BYTE, 0L, byteArrayA.length);
         nativeSegB = arena.allocate(byteArrayB.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
+        MemorySegment.copy(byteArrayB, 0, nativeSegB, ValueLayout.JAVA_BYTE, 0L, byteArrayB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;

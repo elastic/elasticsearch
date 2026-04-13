@@ -51,7 +51,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return ESClientYamlSuiteTestCase.createParameters("gpu/supported");
     }
 
     @Override

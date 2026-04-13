@@ -13,24 +13,24 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPercentile}.
+ * {@link ExpressionEvaluator} implementation for {@link MvPercentile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvPercentileIntegerEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvPercentileIntegerEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPercentileIntegerEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator values;
+  private final ExpressionEvaluator values;
 
-  private final EvalOperator.ExpressionEvaluator percentile;
+  private final ExpressionEvaluator percentile;
 
   private final MvPercentile.IntSortingScratch scratch;
 
@@ -38,8 +38,8 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
 
   private Warnings warnings;
 
-  public MvPercentileIntegerEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
-      EvalOperator.ExpressionEvaluator percentile, MvPercentile.IntSortingScratch scratch,
+  public MvPercentileIntegerEvaluator(Source source, ExpressionEvaluator values,
+      ExpressionEvaluator percentile, MvPercentile.IntSortingScratch scratch,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
@@ -116,17 +116,17 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory values;
+    private final ExpressionEvaluator.Factory values;
 
-    private final EvalOperator.ExpressionEvaluator.Factory percentile;
+    private final ExpressionEvaluator.Factory percentile;
 
     private final Function<DriverContext, MvPercentile.IntSortingScratch> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory values,
-        EvalOperator.ExpressionEvaluator.Factory percentile,
+    public Factory(Source source, ExpressionEvaluator.Factory values,
+        ExpressionEvaluator.Factory percentile,
         Function<DriverContext, MvPercentile.IntSortingScratch> scratch) {
       this.source = source;
       this.values = values;

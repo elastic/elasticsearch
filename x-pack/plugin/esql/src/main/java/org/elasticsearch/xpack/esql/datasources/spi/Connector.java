@@ -8,17 +8,22 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.io.Closeable;
-import java.util.List;
 
 /**
  * A live connection to an external data source.
  * Opened by {@link ConnectorFactory#open} and closed after query execution.
+ *
+ * Split discovery is handled by {@link SplitProvider} (via the factory), not
+ * by the connector itself. The framework passes each discovered
+ * {@link ExternalSplit} to {@link #execute(QueryRequest, ExternalSplit)}.
+ * Connectors that do not support parallel reads receive
+ * {@link Split#SINGLE} through the legacy overload.
  */
 public interface Connector extends Closeable {
 
-    default List<Split> discoverSplits(QueryRequest request) {
-        return List.of(Split.SINGLE);
-    }
-
     ResultCursor execute(QueryRequest request, Split split);
+
+    default ResultCursor execute(QueryRequest request, ExternalSplit split) {
+        return execute(request, Split.SINGLE);
+    }
 }

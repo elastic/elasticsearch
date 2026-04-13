@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 143302
+summary: Use max instead of median for merged bloom filter size
+type: enhancement

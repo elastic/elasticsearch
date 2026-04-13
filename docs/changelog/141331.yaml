@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141331
+summary: Use avg metric for AMD default metric
+type: enhancement

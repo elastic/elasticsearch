@@ -33,14 +33,19 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-gzip'))
+  clusterPlugins project(xpackModule('esql-datasource-zstd'))
+  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
 // The test fixtures are included directly in this module's javaRestTest/resources directory
@@ -48,6 +53,7 @@ dependencies {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
 
   // Increase timeouts for S3 operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

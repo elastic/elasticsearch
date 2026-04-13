@@ -19,11 +19,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ARGUMENTS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FUNCTION_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ID_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.NAME_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ARGUMENTS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public record ToolCall(String id, FunctionField function, String type) implements Writeable, ToXContentObject {

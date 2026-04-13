@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A query to boost scores based on their proximity to the given origin
  * for date, date_nanos and geo_point field types
  */
-public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
+public class DistanceFeatureQueryBuilder extends LeafQueryBuilder<DistanceFeatureQueryBuilder> {
     public static final String NAME = "distance_feature";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");

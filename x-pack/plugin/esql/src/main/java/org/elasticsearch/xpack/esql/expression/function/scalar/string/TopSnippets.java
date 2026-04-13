@@ -15,13 +15,17 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -45,21 +50,27 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class TopSnippets extends EsqlScalarFunction implements OptionalArgument {
+public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "TopSnippets",
         TopSnippets::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TopSnippets.class)
+        .ternary(TopSnippets::new)
+        .name("top_snippets");
 
     static final int DEFAULT_NUM_SNIPPETS = 5;
     static final int DEFAULT_WORD_SIZE = 300;
@@ -80,12 +91,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         preview = true,
         description = "Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.",
         detailedDescription = """
-                `TOP_SNIPPETS` can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                `TOP_SNIPPETS` can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 `TOP_SNIPPETS` will extract the best snippets for a given query string.
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
+            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "rerank", tag = "rerank-top-snippets", applies_to = "stack: preview 9.3.0", explanation = """
+                This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
+                size, we have more control over the number of tokens that are used for semantic reranking.
+                """) }
     )
     public TopSnippets(
         Source source,
@@ -116,7 +131,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
                 ),
                 @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
                     The maximum number of words to return in each snippet.
-                    This allows better control of inference costs by limiting the size of tokens per snippet.
                     """, valueHint = { "300" }) }
         ) Expression options
     ) {
@@ -159,8 +173,36 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
+        return resolveParams();
+    }
+
+    /**
+     * Resolves the type for the function parameters, as part of the type resolution for the function
+     *
+     */
+    private TypeResolution resolveParams() {
+        return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
             .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
+    }
+
+    /**
+     * Resolves the type for the query parameter, as part of the type resolution for the function
+     *
+     * @return type resolution for the query parameter
+     */
+    private TypeResolution resolveQuery() {
+        return isString(query(), sourceText(), SECOND).and(
+            () -> resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()))
+        );
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (query() != null && query() instanceof Literal == false) {
+            failures.add(
+                fail(query(), "second argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(query()))
+            );
+        }
     }
 
     private static void validateOptions(Map<String, Object> options) {
@@ -278,7 +320,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
         if (options != null) {

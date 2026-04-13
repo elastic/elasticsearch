@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -219,10 +220,12 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         long requiredBytes = requiredBytesOneGroup * numGroups;
         requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
         requiredBytes += 10 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // full allocations for the first few groups
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(requiredBytes));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(requiredBytes));
+        CircuitBreakerService breakerService = LimitedBreaker.service("test", ByteSizeValue.ofBytes(requiredBytes));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
         int precision = 14;
-        try (HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breaker, between(1, numGroups))) {
+        try (
+            HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breakerService.getBreaker(CircuitBreaker.REQUEST), 1)
+        ) {
             Map<Long, Set<Integer>> uniques = new HashMap<>();
             for (long g = 0; g < numGroups; g++) {
                 Set<Integer> sets = new HashSet<>();

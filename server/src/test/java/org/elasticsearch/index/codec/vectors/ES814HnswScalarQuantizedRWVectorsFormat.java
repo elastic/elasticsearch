@@ -18,6 +18,14 @@ import java.io.IOException;
 class ES814HnswScalarQuantizedRWVectorsFormat extends ES814HnswScalarQuantizedVectorsFormat {
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        return new Lucene99HnswVectorsWriter(
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state),
+            numMergeWorkers,
+            mergeExec,
+            0
+        );
     }
 }

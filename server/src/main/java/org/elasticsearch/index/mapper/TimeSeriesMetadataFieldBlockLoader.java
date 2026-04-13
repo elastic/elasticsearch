@@ -15,6 +15,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -29,11 +30,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
 
-    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
-        if (loadDimensions == false && loadMetrics == false) {
-            throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
-        }
-        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
+    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
+        this.metadataFields = timeSeriesMetadata(context, loadMetrics);
     }
 
     @Override
@@ -86,36 +84,39 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
     }
 
-    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadDimensions, boolean loadMetrics) {
-        if (ctx.indexSettings().getMode() == IndexMode.TIME_SERIES) {
-            Set<String> result = new LinkedHashSet<>();
-
-            if (loadDimensions && loadMetrics == false) {
-                IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-                List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-                if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                    result.addAll(dimensionFieldsFromSettings);
-                    return result;
-                }
-            }
-
-            MappingLookup mappingLookup = ctx.mappingLookup();
-            for (Mapper mapper : mappingLookup.fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper) {
-                    MappedFieldType fieldType = fieldMapper.fieldType();
-                    if (loadDimensions && fieldType.isDimension()) {
-                        result.add(fieldType.name());
-                    }
-
-                    if (loadMetrics && fieldType.getMetricType() != null) {
-                        result.add(fieldType.name());
-                    }
-                }
-            }
-
-            return result;
+    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadMetrics) {
+        if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+            throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
         }
-        throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
+
+        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
+
+        if (loadMetrics == false) {
+            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
+            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
+                result.removeAll(config.withoutFields());
+                return result;
+            }
+        }
+
+        Set<String> result = new LinkedHashSet<>();
+        MappingLookup mappingLookup = ctx.mappingLookup();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                MappedFieldType fieldType = fieldMapper.fieldType();
+                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
+                    result.add(fieldType.name());
+                }
+                if (loadMetrics && fieldType.getMetricType() != null) {
+                    result.add(fieldType.name());
+                }
+            }
+        }
+
+        return result;
     }
 
     @Override

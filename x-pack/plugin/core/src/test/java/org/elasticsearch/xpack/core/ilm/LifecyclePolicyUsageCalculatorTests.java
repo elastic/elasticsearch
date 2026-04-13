@@ -219,4 +219,27 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             equalTo(new ItemUsage(List.of("myindex"), null, List.of("mytemplate")))
         );
     }
+
+    public void testGetUsageWhenDataStreamHasNoTemplate() {
+        IndexMetadata index = IndexMetadata.builder("myindex")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index, false)
+            .put(DataStreamTestHelper.newInstance("myds", List.of(index.getIndex())))
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                    OperationMode.RUNNING
+                )
+            )
+            .build();
+
+        // Test where policy exists and is used by an index, datastream, but no template
+        assertThat(
+            new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
+            equalTo(new ItemUsage(List.of("myindex"), null, null))
+        );
+    }
 }

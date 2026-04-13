@@ -66,7 +66,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     );
     Function<IndexShardSnapshotStatus.Stage, IndexShardSnapshotStatus> dummyShardSnapshotStatusSupplier = (stage) -> {
         var shardGen = new ShardGeneration("shard-gen-string-for-test");
-        IndexShardSnapshotStatus newStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("shard-gen-string-for-test"));
+        IndexShardSnapshotStatus newStatus = IndexShardSnapshotStatus.newInitializing(
+            new ShardGeneration("shard-gen-string-for-test"),
+            randomLongBetween(1, Long.MAX_VALUE)
+        );
         switch (stage) {
             case DONE -> {
                 final long startTimeMillis = randomLongBetween(1, 1000);

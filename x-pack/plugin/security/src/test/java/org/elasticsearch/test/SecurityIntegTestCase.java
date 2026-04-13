@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -54,6 +55,8 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
@@ -404,11 +407,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                assertNotNull(securityIndex);
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                assertNotNull(indexRoutingTable);
-                assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                final Metadata metadata = clusterState.metadata();
+                assertThat(metadata.projects(), aMapWithSize(greaterThanOrEqualTo(1)));
+                for (ProjectMetadata projectMetadata : metadata.projects().values()) {
+                    Index securityIndex = resolveSecurityIndex(projectMetadata);
+                    assertNotNull(securityIndex);
+                    IndexRoutingTable indexRoutingTable = clusterState.routingTable(projectMetadata.id()).index(securityIndex);
+                    assertNotNull(indexRoutingTable);
+                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                }
             }, 30L, TimeUnit.SECONDS);
         }
     }
@@ -458,8 +465,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected static Index resolveSecurityIndex(Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+    protected static Index resolveSecurityIndex(ProjectMetadata project) {
+        final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0);
         }

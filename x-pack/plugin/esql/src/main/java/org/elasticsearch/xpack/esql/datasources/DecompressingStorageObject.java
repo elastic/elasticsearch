@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -22,6 +24,10 @@ import java.time.Instant;
  *
  * <p>Stream-only codecs (gzip, zstd) do not support random access. {@link #newStream(long, long)}
  * and {@link #length()} throw {@link UnsupportedOperationException}.
+ *
+ * <p>When the codec is a {@link SplittableDecompressionCodec}, {@link #newStream(long, long)}
+ * delegates to {@link SplittableDecompressionCodec#decompressRange} to support block-aligned
+ * split decompression.
  */
 final class DecompressingStorageObject implements StorageObject {
 
@@ -37,11 +43,20 @@ final class DecompressingStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
+        if (codec instanceof SplittableDecompressionCodec splittable && delegate instanceof RangeStorageObject range) {
+            return splittable.decompressRange(range.rawDelegate(), range.offset(), range.offset() + range.length());
+        }
         return codec.decompress(delegate.newStream());
     }
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
+        if (codec instanceof IndexedDecompressionCodec indexed) {
+            return indexed.decompressFrame(delegate, position, length);
+        }
+        if (codec instanceof SplittableDecompressionCodec splittable) {
+            return splittable.decompressRange(delegate, position, position + length);
+        }
         throw new UnsupportedOperationException(
             "Stream-only compression ("
                 + codec.name()

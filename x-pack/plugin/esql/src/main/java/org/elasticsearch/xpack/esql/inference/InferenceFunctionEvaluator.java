@@ -15,8 +15,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -109,7 +109,7 @@ public class InferenceFunctionEvaluator {
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
 
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).breaker(breaker).build(), null);
 
         // Create the inference operator for the specific function type using the provider
         try {
@@ -244,7 +244,7 @@ public class InferenceFunctionEvaluator {
          * @param e the foldable expression to create an evaluator factory for
          * @return an expression evaluator factory for the given expression
          */
-        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
+        private ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
             assert e.foldable() : "Input expression must be foldable";
             return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
         }

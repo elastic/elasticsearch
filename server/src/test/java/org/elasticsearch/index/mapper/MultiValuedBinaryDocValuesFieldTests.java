@@ -276,24 +276,13 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
     // addAllIgnoredValues tests
     // =====================================================================================================================================
 
-    public void testAddAllIgnoredValuesEmptyCollection() {
-        // given
-        LuceneDocument doc = new LuceneDocument();
-
-        // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(), "field", ValueOrdering.SORTED_UNIQUE, IndexVersion.current(), false);
-
-        // then — nothing added
-        assertTrue(doc.getFields().isEmpty());
-    }
-
-    public void testAddAllIgnoredValuesUsesSeparateCountForCurrentVersion() {
+    public void testAddIgnoredSourceValuesUsesSeparateCountForCurrentVersion() {
         // given
         LuceneDocument doc = new LuceneDocument();
         var nameValue = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("val"), doc);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+        MultiValuedBinaryDocValuesField.addIgnoredSourceValues(
             List.of(nameValue),
             "field",
             ValueOrdering.SORTED_UNIQUE,
@@ -312,14 +301,14 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertEquals(1L, ((NumericDocValuesField) countFields.getFirst()).numericValue().longValue());
     }
 
-    public void testAddAllIgnoredValuesUsesIntegratedCountForOldVersion() {
+    public void testAddIgnoredSourceValuesUsesIntegratedCountForOldVersion() {
         // given
         LuceneDocument doc = new LuceneDocument();
         IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         var nameValue = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("val"), doc);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(List.of(nameValue), "field", ValueOrdering.SORTED_UNIQUE, oldVersion, false);
+        MultiValuedBinaryDocValuesField.addIgnoredSourceValues(List.of(nameValue), "field", ValueOrdering.SORTED_UNIQUE, oldVersion, false);
 
         // then — IntegratedCount field added, no companion count field
         var fields = doc.getFields("field");
@@ -328,14 +317,14 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertTrue(doc.getFields("field.counts").isEmpty());
     }
 
-    public void testAddAllIgnoredValuesGroupsMultipleValuesPerDoc() {
+    public void testAddIgnoredValuesGroupsMultipleSourceValuesPerDoc() {
         // given
         LuceneDocument doc = new LuceneDocument();
         var nameValue1 = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("aaa"), doc);
         var nameValue2 = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("bbb"), doc);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+        MultiValuedBinaryDocValuesField.addIgnoredSourceValues(
             List.of(nameValue1, nameValue2),
             "field",
             ValueOrdering.SORTED_UNIQUE,
@@ -354,7 +343,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertEquals(2L, countFields.getFirst().numericValue().longValue());
     }
 
-    public void testAddAllIgnoredValuesSeparateFieldsPerDoc() {
+    public void testAddIgnoredSourceValuesSeparateFieldsPerDoc() {
         // given
         LuceneDocument doc1 = new LuceneDocument();
         LuceneDocument doc2 = new LuceneDocument();
@@ -362,7 +351,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         var nameValue2 = new IgnoredSourceFieldMapper.NameValue("field", 0, new BytesRef("bbb"), doc2);
 
         // when
-        MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+        MultiValuedBinaryDocValuesField.addIgnoredSourceValues(
             List.of(nameValue1, nameValue2),
             "field",
             ValueOrdering.SORTED_UNIQUE,

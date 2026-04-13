@@ -20,9 +20,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -116,43 +114,35 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     /**
-     * Utility method to add all ignored values to their respective document using MultiValuedBinaryDocValuesField.
+     * Utility method to add all ignored source values to their respective lucene document.
      */
-    public static void addAllIgnoredValues(
+    public static void addIgnoredSourceValues(
         Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         String fieldName,
         ValueOrdering ordering,
         IndexVersion indexVersion,
         boolean hasNestedDocs
     ) {
-        final boolean useIntegratedCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
-
-        // Nested docs store their own NameValue:
-        Map<LuceneDocument, List<BytesRef>> map;
+        assert ignoredFieldValues.isEmpty() == false;
         if (hasNestedDocs) {
-            map = new IdentityHashMap<>();
             for (var nameValue : ignoredFieldValues) {
-                List<BytesRef> values = map.computeIfAbsent(nameValue.doc(), d -> new ArrayList<>(4));
-                values.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue));
+                var encodedValue = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue);
+                addToBinaryFieldInDoc(nameValue.doc(), fieldName, encodedValue, ordering, indexVersion);
             }
         } else {
-            List<BytesRef> encodedIgnoredValues = new ArrayList<>(ignoredFieldValues.size());
-            map = Map.of(ignoredFieldValues.iterator().next().doc(), encodedIgnoredValues);
-            for (var nameValue : ignoredFieldValues) {
-                encodedIgnoredValues.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue));
-            }
-        }
-
-        for (var entry : map.entrySet()) {
+            // Avoid LuceneDocuemnt#addWithKey(...) calls when there is just one lucene document for all ignored values:
+            final boolean useIntegratedCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
             var ignoredSourceField = useIntegratedCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
-            for (BytesRef value : entry.getValue()) {
-                ignoredSourceField.add(value);
+            var luceneDocument = ignoredFieldValues.iterator().next().doc();
+            for (var value : ignoredFieldValues) {
+                assert value.doc() == luceneDocument;
+                ignoredSourceField.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(value));
             }
-            entry.getKey().add(ignoredSourceField);
+            luceneDocument.add(ignoredSourceField);
             if (useIntegratedCount) {
                 String countFieldName = fieldName + SeparateCount.COUNT_FIELD_SUFFIX;
                 var countField = NumericDocValuesField.indexedField(countFieldName, ignoredSourceField.count());
-                entry.getKey().add(countField);
+                luceneDocument.add(countField);
             }
         }
     }

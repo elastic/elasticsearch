@@ -563,7 +563,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs) {
-                MultiValuedBinaryDocValuesField.addAllIgnoredValues(
+                MultiValuedBinaryDocValuesField.addIgnoredSourceValues(
                     ignoredFieldValues,
                     NAME,
                     MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,

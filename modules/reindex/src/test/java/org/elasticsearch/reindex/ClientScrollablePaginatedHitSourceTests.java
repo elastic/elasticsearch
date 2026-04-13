@@ -126,8 +126,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                 new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
             );
         }
-
         paginatedHitSource.start();
+
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
             try (var ignored = threadContext.newStoredContext()) {
                 threadContext.putHeader(testHeaderName, randomIdentifier());

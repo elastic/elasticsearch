@@ -315,10 +315,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         );
 
         // then — field is NOT registered in keyedFields; only in the Lucene fields list.
-        // This avoids double storage: the field name would otherwise appear in both the keyedFields
-        // map and the fields list, with the keyedFields entry serving no purpose since single-value
-        // enforcement is already guaranteed by DocumentParserContext.enforceSingleValue() before
-        // addToBinaryFieldInDoc is ever reached.
+        // Single-value enforcement is handled by Lucene: BinaryDocValuesField rejects a second add for the same field.
         assertNull(doc.getByKey("field"));
         assertNull(doc.getByKey("field.counts"));
         assertNull(doc.getField("field.counts"));

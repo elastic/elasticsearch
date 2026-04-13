@@ -2460,12 +2460,6 @@ public class NumberFieldMapper extends FieldMapper {
      * fields that want to share the behavior of numeric fields.
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
-        // Single-value enforcement is handled here instead of in parse() because this method is called directly by composite mappers
-        // such as AggregateMetricDoubleFieldMapper, bypassing parse() entirely. Placing the check here covers both the normal
-        // document-parser path parse() → parseCreateField() → indexValue() and the direct-call path.
-        if (docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
-            context.enforceSingleValue(fieldType.name());
-        }
         final String name = fieldType.name();
         final LuceneDocument doc = context.doc();
 

@@ -191,22 +191,10 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
-    /**
-     * Returns {@code true} if this field is configured with {@code multi_value=no} and should reject multiple values per document.
-     * Subclasses that support the {@code multi_value} parameter should override this method.
-     */
-    protected boolean isSingleValueEnforced() {
-        return false;
-    }
-
     public void parse(DocumentParserContext context) throws IOException {
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
-            }
-
-            if (isSingleValueEnforced()) {
-                context.enforceSingleValue(fieldType().name());
             }
 
             parseCreateField(context);

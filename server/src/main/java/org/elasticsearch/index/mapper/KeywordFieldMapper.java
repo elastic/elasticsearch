@@ -1348,11 +1348,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters;
     }
 
-    @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
-    }
-
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         var value = context.parser().optimizedTextOrNull();
 

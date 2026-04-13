@@ -164,11 +164,6 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == FieldMapper.DocValuesParameter.Values.MultiValue.NO;
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 

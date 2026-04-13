@@ -1159,11 +1159,6 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
 
         long timestamp;

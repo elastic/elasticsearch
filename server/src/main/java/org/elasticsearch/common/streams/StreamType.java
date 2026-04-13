@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.core.Nullable;
 
-import java.util.Arrays;
 import java.util.List;
 
 public enum StreamType {
@@ -21,6 +20,9 @@ public enum StreamType {
     LOGS("logs"),
     LOGS_ECS("logs.ecs"),
     LOGS_OTEL("logs.otel");
+
+    // an allocation-free version of values() for hot code
+    private static final List<StreamType> VALUES = List.of(values());
 
     private final String streamName;
 
@@ -62,7 +64,7 @@ public enum StreamType {
      */
     @Nullable
     public static StreamType exactEnabledStreamMatch(ProjectMetadata projectMetadata, String indexName) {
-        return Arrays.stream(values())
+        return VALUES.stream()
             .filter(t -> t.streamTypeIsEnabled(projectMetadata))
             .filter(t -> t.getStreamName().equals(indexName))
             .findFirst()
@@ -81,13 +83,11 @@ public enum StreamType {
     @Nullable
     public static StreamType enabledParentStreamOf(ProjectMetadata projectMetadata, String indexName) {
         // Check for exact names first, in which case indexing is allowed
-        if (Arrays.stream(values())
-            .filter(t -> t.streamTypeIsEnabled(projectMetadata))
-            .anyMatch(t -> t.getStreamName().equals(indexName))) {
+        if (VALUES.stream().filter(t -> t.streamTypeIsEnabled(projectMetadata)).anyMatch(t -> t.getStreamName().equals(indexName))) {
             return null;
         } else {
             // Check that any enabled stream type isn't targeted by the index
-            List<StreamType> matchingStreamTypes = Arrays.stream(values())
+            List<StreamType> matchingStreamTypes = VALUES.stream()
                 .filter(t -> t.streamTypeIsEnabled(projectMetadata))
                 .filter(t -> t.matchesStreamPrefix(indexName))
                 .toList();

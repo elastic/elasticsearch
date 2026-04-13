@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 
 import java.util.List;
@@ -211,6 +213,13 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                    );
+                    case Embedding embedding -> new EmbeddingOperator.Factory(
+                        inferenceService,
+                        inferenceId(inferenceFunction, foldContext),
+                        expressionEvaluatorFactory(embedding.inputText(), foldContext),
+                        embedding.inputDataType(),
+                        embedding.inputTimeout()
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

@@ -139,6 +139,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float visitRatio
     ) throws IOException;
 
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
     protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
         return values.size();

@@ -278,7 +278,9 @@ public class ChangePointOperator implements Operator {
         while (currentGroupPages.isEmpty() == false) {
             Page page = currentGroupPages.peekFirst();
             int pageCpPos = -1;
-            if (changePointIndex >= 0 && changePointIndex >= cumulativeRows && changePointIndex < cumulativeRows + page.getPositionCount()) {
+            if (changePointIndex >= 0
+                && changePointIndex >= cumulativeRows
+                && changePointIndex < cumulativeRows + page.getPositionCount()) {
                 pageCpPos = changePointIndex - cumulativeRows;
             }
             Page annotated = annotatePageWithChangePoints(

@@ -41,8 +41,14 @@ public class ChangePointGenerator implements CommandGenerator {
         }
 
         StringBuilder cmd = new StringBuilder();
-        cmd.append(" | CHANGE_POINT ").append(numericField).append(" ON ").append(timestampField).append(" AS ")
-            .append(alias1).append(", ").append(alias2);
+        cmd.append(" | CHANGE_POINT ")
+            .append(numericField)
+            .append(" ON ")
+            .append(timestampField)
+            .append(" AS ")
+            .append(alias1)
+            .append(", ")
+            .append(alias2);
         List<Column> nonNull = previousOutput.stream()
             .filter(EsqlQueryGenerator::fieldCanBeUsed)
             .filter(x -> x.type().equals("null") == false)

@@ -36,12 +36,15 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -155,8 +158,18 @@ public class ViewResolver {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
         // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
         HashSet<String> seenWildcards = new HashSet<>();
+        // Tracks plans already resolved by view handlers (Fork, UR) to prevent double-processing.
+        // Without this, transformDown recurses into the children of resolved plans, causing wildcards
+        // in view subqueries to be re-resolved against sibling view names, producing false circular
+        // reference errors and deeply nested duplicate resolution.
+        Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.transformDown((p, planListener) -> {
+            if (resolvedPlans.contains(p)) {
+                // This plan was already resolved by a handler — skip it to prevent double-processing.
+                planListener.onResponse(p);
+                return;
+            }
             switch (p) {
                 case ViewUnionAll viewUnion -> {
                     // ViewUnionAll is the result of view resolution, so we skip it.
@@ -166,11 +179,25 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener);
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                        markResolved(result, resolvedPlans);
+                        l.onResponse(result);
+                    }));
                     return;
                 }
                 case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(ur, parser, seenInner, seenWildcards, viewQueries, depth, planListener);
+                    replaceViewsUnresolvedRelation(
+                        ur,
+                        parser,
+                        seenInner,
+                        seenWildcards,
+                        viewQueries,
+                        depth,
+                        planListener.delegateFailureAndWrap((l, result) -> {
+                            markResolved(result, resolvedPlans);
+                            l.onResponse(result);
+                        })
+                    );
                     return;
                 }
                 default -> {
@@ -178,6 +205,14 @@ public class ViewResolver {
             }
             planListener.onResponse(p);
         }, listener);
+    }
+
+    /**
+     * Marks a plan and all its descendants as already resolved, so the outer transformDown
+     * traversal will skip them and not re-process their view references.
+     */
+    private static void markResolved(LogicalPlan plan, Set<LogicalPlan> resolvedPlans) {
+        plan.forEachDown(resolvedPlans::add);
     }
 
     private void replaceViewsFork(
@@ -259,7 +294,6 @@ public class ViewResolver {
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
                 chain = chain.andThen(l2 -> {
-                    seenViews.add(view.name());
                     // Make sure we don't block sibling branches from containing the same views
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);

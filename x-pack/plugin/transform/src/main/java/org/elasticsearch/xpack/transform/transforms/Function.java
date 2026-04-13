@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
@@ -127,7 +128,9 @@ public interface Function {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
-        ActionListener<Map<String, String>> listener
+        ActionListener<Map<String, String>> listener,
+        CpsCredentialService cpsCredentialService,
+        @Nullable String cpsCredential
     );
 
     /**
@@ -196,7 +199,9 @@ public interface Function {
         Map<String, String> headers,
         SourceConfig sourceConfig,
         @Nullable TimeValue timeout,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        CpsCredentialService cpsCredentialService,
+        @Nullable String cpsCredential
     );
 
     /**

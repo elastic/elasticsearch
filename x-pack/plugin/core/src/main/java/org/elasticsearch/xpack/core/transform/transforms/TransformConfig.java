@@ -64,6 +64,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+    public static final ParseField CPS_CREDENTIAL = new ParseField("cps_credential");
 
     public static final FeatureFlag TRANSFORM_CROSS_PROJECT = new FeatureFlag("transform_cross_project");
 
@@ -101,6 +102,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     private Map<String, String> headers;
     private TransformConfigVersion transformVersion;
     private Instant createTime;
+    @Nullable
+    private String cpsCredential;
 
     private final PivotConfig pivotConfig;
     private final LatestConfig latestConfig;
@@ -208,6 +211,9 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             ObjectParser.ValueType.VALUE
         );
         parser.declareString(optionalConstructorArg(), TransformField.VERSION);
+        if (lenient) {
+            parser.declareString(TransformConfig::setCpsCredential, CPS_CREDENTIAL);
+        }
         return parser;
     }
 
@@ -293,6 +299,16 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     public TransformConfig setHeaders(Map<String, String> headers) {
         this.headers = headers;
+        return this;
+    }
+
+    @Nullable
+    public String getCpsCredential() {
+        return cpsCredential;
+    }
+
+    public TransformConfig setCpsCredential(@Nullable String cpsCredential) {
+        this.cpsCredential = cpsCredential;
         return this;
     }
 
@@ -487,6 +503,9 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             }
             if (forInternalStorage) {
                 builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+                if (cpsCredential != null) {
+                    builder.field(CPS_CREDENTIAL.getPreferredName(), cpsCredential);
+                }
             }
         }
         builder.field(TransformField.SOURCE.getPreferredName(), source, params);
@@ -539,6 +558,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             && Objects.equals(this.frequency, that.frequency)
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.headers, that.headers)
+            && Objects.equals(this.cpsCredential, that.cpsCredential)
             && Objects.equals(this.pivotConfig, that.pivotConfig)
             && Objects.equals(this.latestConfig, that.latestConfig)
             && Objects.equals(this.description, that.description)
@@ -558,6 +578,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             frequency,
             syncConfig,
             headers,
+            cpsCredential,
             pivotConfig,
             latestConfig,
             description,
@@ -703,6 +724,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         private SettingsConfig settings;
         private Map<String, Object> metadata;
         private RetentionPolicyConfig retentionPolicyConfig;
+        private String cpsCredential;
 
         public Builder() {}
 
@@ -720,6 +742,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             this.settings = config.settings;
             this.metadata = config.metadata;
             this.retentionPolicyConfig = config.retentionPolicyConfig;
+            this.cpsCredential = config.cpsCredential;
         }
 
         public Builder setId(String id) {
@@ -835,8 +858,17 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             return this;
         }
 
+        public Builder setCpsCredential(String cpsCredential) {
+            this.cpsCredential = cpsCredential;
+            return this;
+        }
+
+        String getCpsCredential() {
+            return cpsCredential;
+        }
+
         public TransformConfig build() {
-            return new TransformConfig(
+            var config = new TransformConfig(
                 id,
                 source,
                 dest,
@@ -852,6 +884,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 createTime,
                 transformVersion == null ? null : transformVersion.toString()
             );
+            config.setCpsCredential(cpsCredential);
+            return config;
         }
 
         @Override
@@ -872,6 +906,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 && Objects.equals(this.frequency, that.frequency)
                 && Objects.equals(this.syncConfig, that.syncConfig)
                 && Objects.equals(this.headers, that.headers)
+                && Objects.equals(this.cpsCredential, that.cpsCredential)
                 && Objects.equals(this.pivotConfig, that.pivotConfig)
                 && Objects.equals(this.latestConfig, that.latestConfig)
                 && Objects.equals(this.description, that.description)
@@ -891,6 +926,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 frequency,
                 syncConfig,
                 headers,
+                cpsCredential,
                 pivotConfig,
                 latestConfig,
                 description,

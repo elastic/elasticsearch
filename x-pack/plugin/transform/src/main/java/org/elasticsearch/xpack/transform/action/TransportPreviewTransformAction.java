@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
@@ -265,7 +266,15 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         });
 
-        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
+        function.deduceMappings(
+            parentTaskClient,
+            filteredHeaders,
+            transformId,
+            source,
+            deduceMappingsListener,
+            CpsCredentialService.NOOP,
+            null
+        );
     }
 
     @SuppressWarnings("unchecked")

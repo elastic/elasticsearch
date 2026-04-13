@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -586,7 +587,7 @@ public class PivotTests extends ESTestCase {
         }, e -> {
             exceptionHolder.set(e);
             latch.countDown();
-        }));
+        }), CpsCredentialService.NOOP, null);
 
         assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         if (expectValid && exceptionHolder.get() != null) {

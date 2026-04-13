@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -245,7 +246,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        projectId -> false
+                        projectId -> false,
+                        CpsCredentialService.NOOP
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -333,7 +335,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        projectId -> false
+                        projectId -> false,
+                        CpsCredentialService.NOOP
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -470,7 +473,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
-                    projectId -> false
+                    projectId -> false,
+                    CpsCredentialService.NOOP
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

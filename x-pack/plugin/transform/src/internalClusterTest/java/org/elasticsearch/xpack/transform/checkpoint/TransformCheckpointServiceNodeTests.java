@@ -21,6 +21,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
@@ -110,7 +111,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             Settings.EMPTY,
             StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            mockAuditor
+            mockAuditor,
+            CpsCredentialService.NOOP
         );
     }
 

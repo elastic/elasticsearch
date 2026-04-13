@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -60,6 +61,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
         private final TransformConfig config;
         private final boolean deferValidation;
+        @Nullable
+        private String cpsCredential;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
@@ -71,6 +74,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.config = new TransformConfig(in);
             this.deferValidation = in.readBoolean();
+            this.cpsCredential = in.readOptionalString();
         }
 
         public static Request fromXContent(
@@ -132,11 +136,21 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             return deferValidation;
         }
 
+        @Nullable
+        public String getCpsCredential() {
+            return cpsCredential;
+        }
+
+        public void setCpsCredential(@Nullable String cpsCredential) {
+            this.cpsCredential = cpsCredential;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
             out.writeBoolean(this.deferValidation);
+            out.writeOptionalString(this.cpsCredential);
         }
 
         @Override

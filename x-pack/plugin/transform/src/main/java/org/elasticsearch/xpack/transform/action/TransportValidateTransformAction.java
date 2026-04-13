@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
@@ -50,6 +51,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final CpsCredentialService cpsCredentialService;
 
     @Inject
     public TransportValidateTransformAction(
@@ -79,6 +81,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             License.OperationMode.BASIC.description()
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.cpsCredentialService = transformServices.cpsCredentialService();
     }
 
     @Override
@@ -136,7 +139,15 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getId(),
+                    config.getSource(),
+                    deduceMappingsListener,
+                    cpsCredentialService,
+                    config.getCpsCredential()
+                );
             }
         }, listener::onFailure);
 
@@ -145,7 +156,15 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 l.onResponse(true);
             } else {
-                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), l);
+                function.validateQuery(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getSource(),
+                    request.ackTimeout(),
+                    l,
+                    cpsCredentialService,
+                    config.getCpsCredential()
+                );
             }
         });
 

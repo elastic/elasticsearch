@@ -22,10 +22,12 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.transform.utils.CpsCredentialHelper;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -116,7 +118,9 @@ public final class SchemaUtil {
         final SettingsConfig settingsConfig,
         final PivotConfig pivotConfig,
         final SourceConfig sourceConfig,
-        final ActionListener<Map<String, String>> listener
+        final ActionListener<Map<String, String>> listener,
+        final CpsCredentialService cpsCredentialService,
+        final String cpsCredential
     ) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
@@ -164,6 +168,8 @@ public final class SchemaUtil {
             headers,
             sourceConfig,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
+            cpsCredentialService,
+            cpsCredential,
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -285,6 +291,8 @@ public final class SchemaUtil {
         Map<String, String> headers,
         SourceConfig sourceConfig,
         String[] fields,
+        CpsCredentialService cpsCredentialService,
+        String cpsCredential,
         ActionListener<Map<String, String>> listener
     ) {
         String[] index = sourceConfig.getIndex();
@@ -297,13 +305,15 @@ public final class SchemaUtil {
             .fields(fields)
             .runtimeFields(sourceConfig.getRuntimeMappings())
             .indicesOptions(sourceConfig.indicesOptions());
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
+            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure),
+            cpsCredentialService,
+            cpsCredential
         );
     }
 

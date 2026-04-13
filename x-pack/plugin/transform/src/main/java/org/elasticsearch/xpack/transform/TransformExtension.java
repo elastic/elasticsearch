@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 
 public interface TransformExtension {
 
@@ -26,5 +27,9 @@ public interface TransformExtension {
     // in the elasticsearch-serverless project is updated.
     default TimeValue getMinFrequency() {
         return TimeValue.timeValueSeconds(1);
+    }
+
+    default CpsCredentialService getCpsCredentialService() {
+        return CpsCredentialService.NOOP;
     }
 }

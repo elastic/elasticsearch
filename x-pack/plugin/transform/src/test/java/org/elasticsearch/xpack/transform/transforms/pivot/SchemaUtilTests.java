@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -119,6 +120,8 @@ public class SchemaUtilTests extends ESTestCase {
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     null,
+                    CpsCredentialService.NOOP,
+                    null,
                     listener
                 ),
                 mappings -> assertThat(mappings, anEmptyMap())
@@ -131,6 +134,8 @@ public class SchemaUtilTests extends ESTestCase {
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] {},
+                    CpsCredentialService.NOOP,
+                    null,
                     listener
                 ),
                 mappings -> assertThat(mappings, anEmptyMap())
@@ -143,6 +148,8 @@ public class SchemaUtilTests extends ESTestCase {
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] { "field-1", "field-2" },
+                    CpsCredentialService.NOOP,
+                    null,
                     listener
                 ),
                 mappings -> assertThat(mappings, matchesMap(Map.of("field-1", "long", "field-2", "long")))
@@ -160,6 +167,8 @@ public class SchemaUtilTests extends ESTestCase {
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings, null),
                     new String[] { "field-1", "field-2" },
+                    CpsCredentialService.NOOP,
+                    null,
                     listener
                 ),
                 mappings -> {
@@ -249,7 +258,9 @@ public class SchemaUtilTests extends ESTestCase {
                     new SettingsConfig.Builder().setDeduceMappings(randomBoolean() ? randomBoolean() : null).build(),
                     pivotConfig,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
-                    listener
+                    listener,
+                    CpsCredentialService.NOOP,
+                    null
                 ),
                 mappings -> assertThat(mappings, is(equalTo(expectedMappings)))
             );

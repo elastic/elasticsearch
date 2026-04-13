@@ -302,12 +302,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
+        var cpsCredentialService = getTransformExtension().getCpsCredentialService();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             settings,
             services.linkedProjectConfigService(),
             configManager,
-            auditor
+            auditor,
+            cpsCredentialService
         );
         TransformScheduler scheduler = new TransformScheduler(
             clock,
@@ -337,7 +339,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 scheduler,
                 transformNode,
                 crossProjectModeDecider,
-                hasLinkedProjects
+                hasLinkedProjects,
+                cpsCredentialService
             )
         );
 

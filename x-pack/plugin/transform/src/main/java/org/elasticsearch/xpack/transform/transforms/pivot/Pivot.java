@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -92,9 +93,21 @@ public class Pivot extends AbstractCompositeAggFunction {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
-        final ActionListener<Map<String, String>> listener
+        final ActionListener<Map<String, String>> listener,
+        CpsCredentialService cpsCredentialService,
+        String cpsCredential
     ) {
-        SchemaUtil.deduceMappings(client, headers, transformId, settings, config, sourceConfig, listener);
+        SchemaUtil.deduceMappings(
+            client,
+            headers,
+            transformId,
+            settings,
+            config,
+            sourceConfig,
+            listener,
+            cpsCredentialService,
+            cpsCredential
+        );
     }
 
     /**

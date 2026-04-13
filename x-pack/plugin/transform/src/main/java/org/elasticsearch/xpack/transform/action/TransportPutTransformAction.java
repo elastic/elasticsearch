@@ -50,9 +50,10 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
-import org.elasticsearch.xpack.transform.utils.PersistedMachineLearningHeaderService;
 
 import java.time.Instant;
+
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
@@ -66,7 +67,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final ProjectResolver projectResolver;
-    private final PersistedMachineLearningHeaderService persistedMachineLearningHeaderService;
 
     @Inject
     public TransportPutTransformAction(
@@ -100,11 +100,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         this.auditor = transformServices.auditor();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
         this.projectResolver = projectResolver;
-        this.persistedMachineLearningHeaderService = new PersistedMachineLearningHeaderService(
-            threadPool,
-            securityContext,
-            transformServices.crossProjectModeDecider()
-        );
     }
 
     @Override
@@ -122,7 +117,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         }
 
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
-        config.setHeaders(persistedMachineLearningHeaderService.getPersistedHeaders(clusterState));
+        config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
+
+        String cpsCredential = request.getCpsCredential();
+        if (cpsCredential != null) {
+            config.setCpsCredential(cpsCredential);
+        }
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name

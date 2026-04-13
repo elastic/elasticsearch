@@ -32,6 +32,7 @@ import org.elasticsearch.test.MockLog.LoggingExpectation;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -267,7 +268,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
 
         var latch = new CountDownLatch(1);
@@ -332,7 +334,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
 
         SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
@@ -390,7 +393,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
 
         SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
@@ -440,7 +444,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
 
         // Act: trigger checkpoint creation which calls getIndexCheckpoints
@@ -493,7 +498,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
 
         // Act: trigger checkpoint creation which calls getIndexCheckpoints
@@ -522,7 +528,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            CpsCredentialService.NOOP
         );
     }
 

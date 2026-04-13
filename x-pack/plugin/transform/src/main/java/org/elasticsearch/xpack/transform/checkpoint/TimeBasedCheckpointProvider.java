@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGrou
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.utils.CpsCredentialHelper;
 
 import java.time.Clock;
 import java.util.Map;
@@ -50,9 +52,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig
+        final TransformConfig transformConfig,
+        final CpsCredentialService cpsCredentialService
     ) {
-        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig, cpsCredentialService);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
     }
@@ -79,13 +82,15 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)
+            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure),
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 

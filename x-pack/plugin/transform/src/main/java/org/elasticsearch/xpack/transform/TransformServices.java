@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -30,7 +31,8 @@ public record TransformServices(
     TransformScheduler scheduler,
     TransformNode transformNode,
     CrossProjectModeDecider crossProjectModeDecider,
-    Function<ProjectId, Boolean> hasLinkedProjects
+    Function<ProjectId, Boolean> hasLinkedProjects,
+    CpsCredentialService cpsCredentialService
 ) {
     public TransformServices {
         Objects.requireNonNull(configManager);
@@ -40,5 +42,6 @@ public record TransformServices(
         Objects.requireNonNull(transformNode);
         Objects.requireNonNull(crossProjectModeDecider);
         Objects.requireNonNull(hasLinkedProjects);
+        Objects.requireNonNull(cpsCredentialService);
     }
 }

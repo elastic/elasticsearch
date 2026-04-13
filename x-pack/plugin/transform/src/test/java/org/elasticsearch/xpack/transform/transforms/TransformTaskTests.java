@@ -39,6 +39,7 @@ import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -216,7 +217,8 @@ public class TransformTaskTests extends ESTestCase {
             Settings.EMPTY,
             StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            auditor
+            auditor,
+            CpsCredentialService.NOOP
         );
         return new TransformServices(
             transformsConfigManager,
@@ -225,7 +227,8 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            projectId -> false
+            projectId -> false,
+            CpsCredentialService.NOOP
         );
     }
 

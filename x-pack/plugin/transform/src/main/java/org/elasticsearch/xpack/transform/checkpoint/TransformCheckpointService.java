@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -43,18 +44,21 @@ public class TransformCheckpointService {
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
     private final RemoteClusterResolver remoteClusterResolver;
+    private final CpsCredentialService cpsCredentialService;
 
     public TransformCheckpointService(
         final Clock clock,
         final Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         final TransformConfigManager transformConfigManager,
-        TransformAuditor transformAuditor
+        TransformAuditor transformAuditor,
+        CpsCredentialService cpsCredentialService
     ) {
         this.clock = clock;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
+        this.cpsCredentialService = cpsCredentialService;
     }
 
     public CheckpointProvider getCheckpointProvider(final ParentTaskAssigningClient client, final TransformConfig transformConfig) {
@@ -65,7 +69,8 @@ public class TransformCheckpointService {
                 remoteClusterResolver,
                 transformConfigManager,
                 transformAuditor,
-                transformConfig
+                transformConfig,
+                cpsCredentialService
             );
         }
 
@@ -75,7 +80,8 @@ public class TransformCheckpointService {
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
-            transformConfig
+            transformConfig,
+            cpsCredentialService
         );
     }
 

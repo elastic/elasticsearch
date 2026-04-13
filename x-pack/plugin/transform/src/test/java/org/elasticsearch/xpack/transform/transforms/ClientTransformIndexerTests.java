@@ -52,6 +52,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -342,7 +343,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                CpsCredentialService.NOOP
             ),
             client,
             config
@@ -402,7 +404,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> true
+                    projectId -> true,
+                    CpsCredentialService.NOOP
                 ),
                 client,
                 config
@@ -428,7 +431,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> false
+                    projectId -> false,
+                    CpsCredentialService.NOOP
                 ),
                 client,
                 config
@@ -603,7 +607,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                CpsCredentialService.NOOP
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -817,7 +822,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                CpsCredentialService.NOOP
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

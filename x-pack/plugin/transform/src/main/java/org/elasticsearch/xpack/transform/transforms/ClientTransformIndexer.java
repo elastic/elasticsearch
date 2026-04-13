@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
+import org.elasticsearch.xpack.transform.utils.CpsCredentialHelper;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.util.ArrayList;
@@ -93,6 +95,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final CpsCredentialService cpsCredentialService;
     private final boolean crossProjectEnabled;
     private final Function<ProjectId, Boolean> hasLinkedProjects;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
@@ -138,6 +141,7 @@ class ClientTransformIndexer extends TransformIndexer {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
+        this.cpsCredentialService = transformExtension.getCpsCredentialService();
         this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
@@ -184,13 +188,15 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportBulkAction.TYPE,
             request,
-            ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
+            ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure),
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 
@@ -264,13 +270,15 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
-            responseListener
+            responseListener,
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 
@@ -305,13 +313,15 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
             request,
-            responseListener
+            responseListener,
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 
@@ -526,7 +536,7 @@ class ClientTransformIndexer extends TransformIndexer {
         BytesReference oldPit = pit.getEncodedId();
 
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
@@ -537,7 +547,9 @@ class ClientTransformIndexer extends TransformIndexer {
             }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
                 logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
-            }), () -> listener.onResponse(null))
+            }), () -> listener.onResponse(null)),
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 
@@ -571,7 +583,7 @@ class ClientTransformIndexer extends TransformIndexer {
             pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
         }
 
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
@@ -617,7 +629,9 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                 }
                 listener.onResponse(namedSearchRequest);
-            })
+            }),
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 
@@ -641,7 +655,7 @@ class ClientTransformIndexer extends TransformIndexer {
         }
         logger.trace("searchRequest: [{}]", searchRequest);
 
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
@@ -667,13 +681,15 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     namedPits.remove(name);
                     originalRequest.source().pointInTimeBuilder(null);
-                    ClientHelper.executeWithHeadersAsync(
+                    CpsCredentialHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,
                         originalRequest,
-                        listener
+                        listener,
+                        cpsCredentialService,
+                        transformConfig.getCpsCredential()
                     );
                     return;
                 }
@@ -686,19 +702,23 @@ class ClientTransformIndexer extends TransformIndexer {
                      */
                     namedPits.remove(name);
                     originalRequest.source().pointInTimeBuilder(null);
-                    ClientHelper.executeWithHeadersAsync(
+                    CpsCredentialHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,
                         originalRequest,
-                        listener
+                        listener,
+                        cpsCredentialService,
+                        transformConfig.getCpsCredential()
                     );
                     return;
                 }
 
                 listener.onFailure(e);
-            })
+            }),
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
@@ -154,7 +155,9 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
-                listener
+                listener,
+                CpsCredentialService.NOOP,
+                null
             ),
             mappings -> {
                 assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
@@ -234,7 +237,9 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
-                listener
+                listener,
+                CpsCredentialService.NOOP,
+                null
             ),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());

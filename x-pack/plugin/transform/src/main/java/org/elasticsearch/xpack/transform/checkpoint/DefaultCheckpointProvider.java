@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.checkpoint.RemoteClusterResolver.ResolvedIndices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.utils.CpsCredentialHelper;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -60,6 +62,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
+    protected final CpsCredentialService cpsCredentialService;
 
     DefaultCheckpointProvider(
         final Clock clock,
@@ -67,7 +70,8 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig
+        final TransformConfig transformConfig,
+        final CpsCredentialService cpsCredentialService
     ) {
         this.clock = clock;
         this.client = client;
@@ -75,6 +79,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.transformConfig = transformConfig;
+        this.cpsCredentialService = cpsCredentialService;
     }
 
     @Override
@@ -212,13 +217,15 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             );
         }
 
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             threadContext,
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             getCheckpointRequest,
             checkpointListener,
-            client::getCheckpoint
+            client::getCheckpoint,
+            cpsCredentialService,
+            transformConfig.getCpsCredential()
         );
     }
 

@@ -27,12 +27,14 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
+import org.elasticsearch.xpack.transform.utils.CpsCredentialHelper;
 
 import java.util.Collections;
 import java.util.List;
@@ -120,10 +122,12 @@ public abstract class AbstractCompositeAggFunction implements Function {
         Map<String, String> headers,
         SourceConfig sourceConfig,
         TimeValue timeout,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        CpsCredentialService cpsCredentialService,
+        String cpsCredential
     ) {
         SearchRequest searchRequest = buildSearchRequestForValidation("validate", sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
-        ClientHelper.executeWithHeadersAsync(
+        CpsCredentialHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
@@ -164,7 +168,9 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 listener.onFailure(
                     new ValidationException(unwrapped).addValidationError(format("Failed to test query, received status: %s", status))
                 );
-            })
+            }),
+            cpsCredentialService,
+            cpsCredential
         );
     }
 

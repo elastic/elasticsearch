@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceB
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
@@ -119,7 +120,9 @@ public class Latest extends AbstractCompositeAggFunction {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
-        ActionListener<Map<String, String>> listener
+        ActionListener<Map<String, String>> listener,
+        CpsCredentialService cpsCredentialService,
+        String cpsCredential
     ) {
         listener.onResponse(emptyMap());
     }

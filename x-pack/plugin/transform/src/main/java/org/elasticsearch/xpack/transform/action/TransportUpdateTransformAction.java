@@ -53,12 +53,12 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
-import org.elasticsearch.xpack.transform.utils.PersistedMachineLearningHeaderService;
 
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
@@ -71,7 +71,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
-    private final PersistedMachineLearningHeaderService persistedMachineLearningHeaderService;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -105,11 +104,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
-        this.persistedMachineLearningHeaderService = new PersistedMachineLearningHeaderService(
-            threadPool,
-            securityContext,
-            transformServices.crossProjectModeDecider()
-        );
     }
 
     @Override
@@ -144,7 +138,9 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         }
 
         TransformConfigUpdate update = request.getUpdate();
-        update.setHeaders(persistedMachineLearningHeaderService.getPersistedHeaders(clusterState));
+        update.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
+
+        // TODO: extract CPS credential from ThreadContext header and set on update (same pattern as PutTransformAction)
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX

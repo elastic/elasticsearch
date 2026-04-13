@@ -376,6 +376,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
         private void runRefresh() {
             if (isCancelled() || isCompleted()) {
+                cancelScheduledRefresh();
                 return;
             }
             if (needRefresh) {

@@ -1,0 +1,281 @@
+// Tests for PromQL `without` grouping.
+// https://prometheus.io/docs/prometheus/latest/querying/operators/#group-modifiers
+
+
+// ------------------------------------------------
+// FUNCTIONAL
+// ------------------------------------------------
+
+sum_without_prefix_syntax
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+18.032269021739133     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+20.76903735632184      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Postfix form of `without`; equivalent to prefix syntax.
+sum_without_postfix_syntax
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+18.032269021739133     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+20.76903735632184      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Accepts a trailing comma in the `without` label list.
+sum_without_trailing_comma
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+18.032269021739133     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+20.76903735632184      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Excludes a single label; preserves all others.
+sum_without_single_label
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod) (network.cost))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
+18.625        | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+26.5          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Excludes multiple labels.
+sum_without_multiple_labels
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+26.5          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Basic aggregators with `without`: sum, max, min, count.
+max_without_over_average_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(max without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double         | step:datetime            | _timeseries:keyword
+6.46875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+7.262931034482759     | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+8.375                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+;
+
+
+// Basic aggregators with `without`: sum, max, min, count.
+min_without_over_average_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(min without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+4.0703125              | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+5.1826923076923075     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+6.635416666666667      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Basic aggregators with `without`: sum, max, min, count.
+count_without_over_average_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(count without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+;
+
+// ------------------------------------------------
+// EQUIVALENCE
+// WITHOUT(S) <=> BY(ALL - S)
+// ------------------------------------------------
+
+// `sum by (cluster)` matches `sum without (pod, region)`.
+equivalence_sum_by_cluster_matches_sum_without_pod_region
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(sum by (cluster) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | cluster:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | staging
+18.032269021739133     | 2024-05-10T00:00:00.000Z | prod
+20.76903735632184      | 2024-05-10T00:00:00.000Z | qa
+;
+
+
+// `max by (cluster)` matches `max without (pod, region)`.
+equivalence_max_by_cluster_matches_max_without_pod_region
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max by (cluster) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double         | step:datetime            | cluster:keyword
+6.46875               | 2024-05-10T00:00:00.000Z | staging
+7.262931034482759     | 2024-05-10T00:00:00.000Z | qa
+8.375                 | 2024-05-10T00:00:00.000Z | prod
+;
+
+
+// ------------------------------------------------
+// WITHOUT(S)(AGG...)
+// ------------------------------------------------
+
+max_over_sum_without
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(max(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double      | step:datetime
+20.76903735632184  | 2024-05-10T00:00:00.000Z
+;
+
+
+avg_over_sum_without
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double          | step:datetime
+18.774180117473318     | 2024-05-10T00:00:00.000Z
+;
+
+
+// Validates the output cardinality of `sum without (...)`.
+count_over_sum_without
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(count(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double | step:datetime
+3.0           | 2024-05-10T00:00:00.000Z
+;
+
+
+// Applies `without` to an exact child produced by `by`.
+sum_without_over_sum_by
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
+18.625        | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+26.5          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+// Applies `by` over a `without` result; `by` re-establishes exact grouping.
+by_over_without_re_exactifies
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (region) (sum by (cluster, region, pod) (network.cost))))
+| SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+
+// Full round-trip: `by -> without -> by`.
+by_over_without_over_by
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))
+| SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+
+// `by` cannot restore a label already removed by `without`.
+by_cannot_resurrect_removed_label
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
+
+result:double | step:datetime            | region:keyword
+61.0          | 2024-05-10T00:00:00.000Z | null
+;
+
+
+// ------------------------------------------------
+// SCALAR(WITHOUT(S))
+// ------------------------------------------------
+
+// `scalar(...)` over multiple output series returns NaN.
+scalar_over_sum_without_returns_nan
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double | step:datetime
+NaN           | 2024-05-10T00:00:00.000Z
+;
+
+
+// `scalar(...)` succeeds after reducing to one series.
+scalar_over_max_of_without
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))));
+
+result:double      | step:datetime
+20.76903735632184  | 2024-05-10T00:00:00.000Z
+;

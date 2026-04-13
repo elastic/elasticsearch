@@ -56,7 +56,7 @@ class CliToolLauncher {
         OutputStream originalStdOut = null;
         if (isRedirectStdoutToStderr()) {
             originalStdOut = System.out;
-            setOutToStderr();
+            installOutputMux();
         }
 
         ProcessInfo pinfo = ProcessInfo.fromSystem();
@@ -88,9 +88,11 @@ class CliToolLauncher {
             || "true".equalsIgnoreCase(System.getProperty("cli.redirectStdoutToStderr", ""));
     }
 
-    @SuppressForbidden(reason = "Redirect stdout to stderr so binary output can use real stdout")
-    private static void setOutToStderr() {
-        System.setOut(new PrintStream(System.err));
+    @SuppressForbidden(reason = "Multiplex stdout and stderr onto a single pipe so the launcher can demux them")
+    private static void installOutputMux() {
+        OutputStreamMux mux = new OutputStreamMux(System.err);
+        System.setOut(new PrintStream(mux.channel(OutputStreamMux.STDOUT_MODE), true));
+        System.setErr(new PrintStream(mux.channel(OutputStreamMux.STDERR_MODE), true));
     }
 
     // package private for tests

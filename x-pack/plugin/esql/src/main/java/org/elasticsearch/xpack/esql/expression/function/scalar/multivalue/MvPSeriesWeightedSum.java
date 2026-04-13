@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -51,6 +52,9 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         "MvPSeriesWeightedSum",
         MvPSeriesWeightedSum::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvPSeriesWeightedSum.class)
+        .binary(MvPSeriesWeightedSum::new)
+        .name("mv_pseries_weighted_sum");
 
     private final Expression field, p;
 
@@ -63,7 +67,11 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     )
     public MvPSeriesWeightedSum(
         Source source,
-        @Param(name = "number", type = { "double" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "p",
             type = { "double" },

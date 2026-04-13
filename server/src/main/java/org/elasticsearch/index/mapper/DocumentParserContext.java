@@ -49,10 +49,12 @@ public abstract class DocumentParserContext {
      */
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
+        private final boolean isWithinCopyTo; // cached to avoid method chain overhead and dynamic dispatch
 
         private Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
         }
 
         // Used to create a copy_to context.
@@ -60,6 +62,7 @@ public abstract class DocumentParserContext {
         private Wrapper(RootObjectMapper root, DocumentParserContext in) {
             super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
             this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
         }
 
         @Override
@@ -69,7 +72,7 @@ public abstract class DocumentParserContext {
 
         @Override
         public boolean isWithinCopyTo() {
-            return in.isWithinCopyTo();
+            return isWithinCopyTo;
         }
 
         @Override
@@ -185,10 +188,13 @@ public abstract class DocumentParserContext {
      * that copy_to field in introduced using a dynamic template
      * in this document and therefore is not present in mapping yet.
      */
+    private final Set<String> mappingCopyToFields;
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
+
+    private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from the mapping
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -208,6 +214,7 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
+        Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
         boolean recordedSource
@@ -229,9 +236,12 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
+        this.mappingCopyToFields = mappingCopyToFields;
+        assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -253,6 +263,7 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
+            in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
             in.recordedSource
@@ -284,7 +295,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
+            mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
+            new HashSet<>(),
             new DynamicMapperSize(),
             false
         );
@@ -421,7 +433,6 @@ public abstract class DocumentParserContext {
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldMapper != null) {
             fieldNamesFieldMapper.addFieldNames(this, field);
         }
@@ -497,7 +508,7 @@ public abstract class DocumentParserContext {
     }
 
     public boolean isCopyToDestinationField(String name) {
-        return copyToFields.contains(name);
+        return mappingCopyToFields.contains(name) || copyToFields.contains(name);
     }
 
     public void processArrayOffsets(DocumentParserContext context) throws IOException {
@@ -908,13 +919,7 @@ public abstract class DocumentParserContext {
      * @param fieldName   the name of the field to be flattened
      */
     public final DocumentParserContext createFlattenContext(String fieldName) {
-        XContentParser flatteningParser = new FlatteningXContentParser(parser(), fieldName);
-        return new Wrapper(this.parent(), this) {
-            @Override
-            public XContentParser parser() {
-                return flatteningParser;
-            }
-        };
+        return switchParser(new FlatteningXContentParser(parser(), fieldName));
     }
 
     /**

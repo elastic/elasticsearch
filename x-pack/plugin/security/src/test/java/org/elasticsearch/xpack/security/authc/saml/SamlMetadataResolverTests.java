@@ -33,7 +33,6 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -58,7 +57,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
     private TestThreadPool threadPool;
 
     @Before
-    public void setupEnv() throws PrivilegedActionException {
+    public void setupEnv() throws Exception {
         SamlUtils.initialize(logger);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         threadPool = new TestThreadPool("saml-metadata-resolver-tests", globalSettings);

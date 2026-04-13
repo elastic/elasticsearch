@@ -26,67 +26,6 @@ class ScalarOperations {
 
     private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
-    static float cosine(byte[] a, byte[] b) {
-        int sum = 0;
-        int norm1 = 0;
-        int norm2 = 0;
-
-        for (int i = 0; i < a.length; i++) {
-            byte elem1 = a[i];
-            byte elem2 = b[i];
-            sum += elem1 * elem2;
-            norm1 += elem1 * elem1;
-            norm2 += elem2 * elem2;
-        }
-        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
-    }
-
-    static float dotProduct(float[] a, float[] b) {
-        float res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static int dotProduct(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static float squareDistance(float[] a, float[] b) {
-        float res = 0;
-        for (int i = 0; i < a.length; i++) {
-            float diff = a[i] - b[i];
-            res += diff * diff;
-        }
-        return res;
-    }
-
-    static int squareDistance(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            int diff = a[i] - b[i];
-            res += diff * diff;
-        }
-        return res;
-    }
-
-    static int dotProductI4SinglePacked(byte[] unpacked, byte[] packed) {
-        int total = 0;
-        for (int i = 0; i < packed.length; i++) {
-            byte packedByte = packed[i];
-            byte unpacked1 = unpacked[i];
-            byte unpacked2 = unpacked[i + packed.length];
-            total += (packedByte & 0x0F) * unpacked2;
-            total += ((packedByte & 0xFF) >> 4) * unpacked1;
-        }
-        return total;
-    }
-
     public static float applyI4Corrections(
         int rawDot,
         int dims,

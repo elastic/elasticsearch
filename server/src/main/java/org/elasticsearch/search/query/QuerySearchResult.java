@@ -85,8 +85,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Nullable
     private Long timeRangeFilterFromMillis;
 
-    @Nullable
-    private ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue;
+    /**
+     * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
+     * concurrent {@link #registerTopHitsForRelease} calls cannot race on lazy queue creation.
+     */
+    private final ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
 
     public QuerySearchResult() {
         this(false);
@@ -299,7 +302,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasAggs = aggregations != null;
         // On the shard, register top_hits for release when there was no partial reduce (list empty).
         // When there was a partial reduce, the reduce context already registered merged refs here.
-        if (aggregations != null && (topHitsToReleaseQueue == null || topHitsToReleaseQueue.isEmpty())) {
+        if (aggregations != null && topHitsToReleaseQueue.isEmpty()) {
             InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
         }
         releaseAggsContext();
@@ -584,9 +587,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * instead (caller keeps the ref, no extra incRef).
      */
     public void registerTopHitsForRelease(SearchHits searchHits) {
-        if (topHitsToReleaseQueue == null) {
-            topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
-        }
         searchHits.incRef();
         topHitsToReleaseQueue.add(searchHits);
     }
@@ -597,31 +597,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
      */
     public Collection<SearchHits> topHitsToReleaseCollector() {
-        if (topHitsToReleaseQueue == null) {
-            topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
-        }
         return topHitsToReleaseQueue;
-    }
-
-    /**
-     * Clears the top-hits release list because ownership has been transferred (e.g. to the reduce
-     * context). Call this when the consumer has registered this result's aggregation tree's
-     * top_hits elsewhere so we do not double-release on decRef().
-     */
-    public void clearTopHitsToRelease() {
-        topHitsToReleaseQueue = null;
     }
 
     @Override
     public boolean decRef() {
         if (refCounted != null) {
             if (refCounted.decRef()) {
-                if (topHitsToReleaseQueue != null) {
-                    for (SearchHits h : topHitsToReleaseQueue) {
-                        h.decRef();
-                    }
-                    topHitsToReleaseQueue = null;
+                for (SearchHits h : topHitsToReleaseQueue) {
+                    h.decRef();
                 }
+                topHitsToReleaseQueue.clear();
                 if (aggsContextReleased != null) {
                     aggsContextReleased.onResponse(null);
                 }
@@ -629,6 +615,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
             return false;
         }
+        assert topHitsToReleaseQueue.isEmpty() : "topHitsToReleaseQueue not empty on unmanaged QuerySearchResult";
         return super.decRef();
     }
 

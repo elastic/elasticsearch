@@ -105,7 +105,7 @@ public class ArchiveTests extends PackagingTestCase {
             mv(installation.bundledJdk, relocatedJdk);
             // ask for elasticsearch version to avoid starting the app
             final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-            assertThat(runResult.stderr(), startsWith("Version: "));
+            assertThat(runResult.stdout(), startsWith("Version: "));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }

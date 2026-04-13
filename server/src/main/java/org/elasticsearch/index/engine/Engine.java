@@ -47,6 +47,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -711,6 +712,14 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index index : operations) {
+            results.add(index(index));
+        }
+        return results;
+    }
+
     /**
      * Perform document delete operation on the engine
      * @param delete operation to perform
@@ -988,6 +997,7 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
@@ -1087,6 +1097,13 @@ public abstract class Engine implements Closeable {
             releasable = null; // success - hand over the reference to the engine reader
             return reader;
         } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (StaleRequestException ex) {
+            // This is a special situation that can happen during resharding.
+            // It indicates that the request is not valid rather than the operation
+            // so we need to rethrow it without failing the engine.
+            // It is not ideal to do this check at such a low level
+            // but this is the most convenient place to do it.
             throw ex;
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);

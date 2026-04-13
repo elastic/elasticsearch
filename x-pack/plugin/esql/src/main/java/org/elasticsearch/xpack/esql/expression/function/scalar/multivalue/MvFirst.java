@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -38,6 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  */
 public class MvFirst extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvFirst", MvFirst::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFirst.class).unary(MvFirst::new).name("mv_first");
 
     @FunctionInfo(
         returnType = {
@@ -93,7 +95,7 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);

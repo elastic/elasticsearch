@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp;
 
 import com.google.protobuf.GeneratedMessage;
+import com.google.rpc.Status;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -26,7 +27,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
 
@@ -90,22 +90,50 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
                     }
                     var transportRequest = new OTLPActionRequest(content);
                     var release = Releasables.wrap(content, indexingPressureRelease);
-                    client.execute(type, transportRequest, ActionListener.releaseBefore(release, new RestResponseListener<>(channel) {
-                        @Override
-                        public RestResponse buildResponse(OTLPActionResponse r) {
-                            return new RestResponse(r.getStatus(), CONTENT_TYPE_PROTOBUF, r.getResponse());
-                        }
-                    }));
+                    client.execute(
+                        type,
+                        transportRequest,
+                        ActionListener.releaseBefore(
+                            release,
+                            ActionListener.wrap(
+                                r -> channel.sendResponse(new RestResponse(RestStatus.OK, CONTENT_TYPE_PROTOBUF, r.getResponse())),
+                                e -> sendFailureResponse(channel, e)
+                            )
+                        )
+                    );
                 }
 
                 @Override
                 public void onFailure(RestChannel channel, Exception e) {
-                    logger.debug("OTLP request failed during content aggregation", e);
-                    channel.sendResponse(new RestResponse(ExceptionsHelper.status(e), CONTENT_TYPE_PROTOBUF, BytesArray.EMPTY));
+                    sendFailureResponse(channel, e);
                 }
             },
             IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP
         );
+    }
+
+    /**
+     * Sends a failure response using a Protobuf-encoded {@link Status google.rpc.Status} message.
+     * <p>
+     * From the OTLP spec:
+     * "The response body for all HTTP 4xx and HTTP 5xx responses MUST be a Protobuf-encoded Status message
+     * that describes the problem."
+     *
+     * @see <a href="https://opentelemetry.io/docs/specs/otlp/#failures-1">OTLP Failures</a>
+     */
+    private static void sendFailureResponse(RestChannel channel, Exception e) {
+        logger.debug("OTLP request failed", e);
+        try {
+            // Per the OTLP spec, Status.code is not used over HTTP: "the server MAY omit Status.code field.
+            // The clients are not expected to alter their behavior based on Status.code field".
+            // The HTTP status code in the response is what drives client retry behavior.
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            Status status = Status.newBuilder().setMessage(message).build();
+            channel.sendResponse(new RestResponse(ExceptionsHelper.status(e), CONTENT_TYPE_PROTOBUF, new BytesArray(status.toByteArray())));
+        } catch (Exception sendException) {
+            sendException.addSuppressed(e);
+            logger.warn("failed to send failure response", sendException);
+        }
     }
 
 }

@@ -13,7 +13,7 @@ Practical use cases include:
 - **Retrieval augmented generation (RAG) workflows**: Provide more diverse context to the LLM, reducing redundancy in the prompt
 
 The retriever uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
-Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
+Similarity is determined based on the `field` parameter and any provided `query_vector` or `query_vector_builder`.
 :::{note}
 The ordering of results returned from the inner retriever is preserved.
 :::
@@ -29,7 +29,9 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Required, string)
 
     The name of the field that will use its values for the diversification process.
-    The field must be a `dense_vector` type.
+    The field type must be one of:
+      - `dense_vector`
+      - `semantic_text` (with dense vector embeddings). For `semantic_text` fields, you must also provide a `query_vector` or `query_vector_builder`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 
 `rank_window_size`
 :   (Optional, integer)
@@ -46,7 +48,7 @@ The ordering of results returned from the inner retriever is preserved.
     :::
 
 `query_vector`
-:   (Optional, array of `float` or `byte`, or string)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional, array of `float`, `byte` or string)
 
     Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be one of:
@@ -56,7 +58,7 @@ The ordering of results returned from the inner retriever is preserved.
     If you provide a `query_vector`, you cannot also provide a `query_vector_builder`.
 
 `query_vector_builder`
-:   (Optional, query vector builder object)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional, query vector builder object)
 
     Defines a [model](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to build a query vector.
     If you provide a `query_vector_builder`, you cannot also provide a `query_vector`.

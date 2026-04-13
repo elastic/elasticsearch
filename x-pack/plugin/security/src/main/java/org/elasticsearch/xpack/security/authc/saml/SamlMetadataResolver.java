@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.FilesystemMetadataResolver;
@@ -43,7 +43,6 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,7 +111,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         SSLService sslService,
         ResourceWatcherService watcherService,
         ThreadPool threadPool
-    ) throws ResolverException, ComponentInitializationException, PrivilegedActionException, IOException {
+    ) throws ResolverException, ComponentInitializationException, IOException {
         final String metadataPath = SamlRealm.require(config, SamlRealmSettings.IDP_METADATA_PATH);
         if (metadataPath.startsWith("http://")) {
             throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
@@ -319,7 +318,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
             assert assertNotTransportThread("fetching SAML metadata from a URL");
-            return PrivilegedHTTPMetadataResolver.super.fetchMetadata();
+            return super.fetchMetadata();
         }
     }
 
@@ -329,7 +328,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         String metadataPath,
         RealmConfig config,
         ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException, PrivilegedActionException {
+    ) throws ResolverException, ComponentInitializationException, IOException {
 
         final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
@@ -354,7 +353,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new PrivilegedFileWatcher(path);
+        FileWatcher watcher = new EntitledFileWatcher(path);
         watcher.addListener(new FileChangesListener() {
             @Override
             public void onFileCreated(Path file) {

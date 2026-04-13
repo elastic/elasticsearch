@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -51,6 +52,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         "StDistance",
         StDistance::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StDistance.class)
+        .binary(StDistance::new)
+        .name("st_distance");
 
     // public for test access with reflection
     public static final DistanceCalculator GEO = new GeoDistanceCalculator();

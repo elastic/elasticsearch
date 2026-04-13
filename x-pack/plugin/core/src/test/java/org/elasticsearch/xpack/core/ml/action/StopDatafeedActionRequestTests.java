@@ -29,6 +29,9 @@ public class StopDatafeedActionRequestTests extends AbstractXContentSerializingT
         if (randomBoolean()) {
             request.setResolvedStartedDatafeedIds(generateRandomStringArray(4, 8, false));
         }
+        if (randomBoolean()) {
+            request.setCloseJob(randomBoolean());
+        }
         return request;
     }
 

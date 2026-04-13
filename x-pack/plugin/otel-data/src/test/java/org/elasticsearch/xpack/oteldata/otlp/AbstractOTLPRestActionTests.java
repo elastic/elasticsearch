@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.rpc.Status;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +36,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -111,7 +113,7 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testTransportActionFailure() {
+    public void testTransportActionFailure() throws Exception {
         client = new NoOpNodeClient(threadPool) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -124,18 +126,21 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
         };
         try (var response = execute(1024, 64)) {
             assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+            assertThat(response.contentType(), equalTo(AbstractOTLPRestAction.CONTENT_TYPE_PROTOBUF));
+            assertThat(Status.parseFrom(response.content().array()).getMessage(), equalTo("ingest failed"));
         }
     }
 
-    public void testOversizedBodyReturns413() {
+    public void testOversizedBodyReturns413() throws Exception {
         try (var response = execute(100, 101)) {
             assertThat(response.status(), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
             assertThat(response.contentType(), equalTo(AbstractOTLPRestAction.CONTENT_TYPE_PROTOBUF));
-            assertThat(response.content().length(), equalTo(0));
+            Status status = Status.parseFrom(response.content().array());
+            assertThat(status.getMessage(), containsString("request body too large"));
         }
     }
 
-    public void testIndexingPressureRejectionReturns429() {
+    public void testIndexingPressureRejectionReturns429() throws Exception {
         long limitBytes = 1024;
         var tightPressure = new IndexingPressure(
             Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), ByteSizeValue.ofBytes(limitBytes)).build()
@@ -143,7 +148,8 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
         try (var response = execute(tightPressure, limitBytes + 1, 64)) {
             assertThat(response.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
             assertThat(response.contentType(), equalTo(AbstractOTLPRestAction.CONTENT_TYPE_PROTOBUF));
-            assertThat(response.content().length(), equalTo(0));
+            Status status = Status.parseFrom(response.content().array());
+            assertThat(status.getMessage(), containsString("rejected execution of coordinating operation"));
         }
     }
 
@@ -163,7 +169,7 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
             stream
         );
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
-        var channel = new FakeRestChannel(request, true, 1);
+        var channel = new FakeRestChannel(request, true);
         try {
             var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
             stream.setHandler(new HttpBody.ChunkHandler() {

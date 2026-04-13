@@ -43,7 +43,9 @@ public final class SearchShardsResponse extends ActionResponse {
     public static final TransportVersion SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName(
         "search_shards_resolved_index_expressions"
     );
+
     public static final TransportVersion SEARCH_SHARDS_NUM_SKIPPED = TransportVersion.fromName("search_shards_num_skipped");
+    public static final TransportVersion SEARCH_SHARDS_NUM_SKIPPED2 = TransportVersion.fromName("search_shards_num_skipped2");
 
     public SearchShardsResponse(
         Collection<SearchShardsGroup> groups,
@@ -77,7 +79,7 @@ public final class SearchShardsResponse extends ActionResponse {
         } else {
             this.resolvedIndexExpressions = null;
         }
-        if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED)) {
+        if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED2)) {
             this.numSkippedShards = in.readVInt();
         } else {
             this.numSkippedShards = 0;
@@ -92,7 +94,7 @@ public final class SearchShardsResponse extends ActionResponse {
         if (out.getTransportVersion().supports(SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
             out.writeOptionalWriteable(resolvedIndexExpressions);
         }
-        if (out.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED)) {
+        if (out.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED2)) {
             out.writeVInt(numSkippedShards);
         } else {
             assert numSkippedShards == 0;

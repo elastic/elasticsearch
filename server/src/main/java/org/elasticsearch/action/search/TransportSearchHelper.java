@@ -39,10 +39,21 @@ public final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Recycler<BytesRef> bytesRefRecycler) {
+    /**
+     * Encodes a scroll id including the search type used for subsequent scroll requests.
+     *
+     * @param isMultiShard whether this search targets more than one logical shard on the coordinator (including shards
+     *                     skipped by can_match). Must not be derived from {@code searchPhaseResults.length()} alone,
+     *                     which counts only shards that executed the query phase.
+     */
+    static String buildScrollId(
+        AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
+        Recycler<BytesRef> bytesRefRecycler,
+        boolean isMultiShard
+    ) {
         try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
             out.writeString(INCLUDE_CONTEXT_UUID);
-            out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
+            out.writeString(isMultiShard ? ParsedScrollId.QUERY_THEN_FETCH_TYPE : ParsedScrollId.QUERY_AND_FETCH_TYPE);
             out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
                 o.writeString(searchPhaseResult.getContextId().getSessionId());
                 o.writeLong(searchPhaseResult.getContextId().getId());

@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -312,7 +313,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage1 = new Page(rawHash1.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash1.nonEmpty()) {
+                intermediatePage1 = new Page(rawHash1.getKeys(nonEmpty)[0]);
+            }
 
             rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
                 private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -344,7 +347,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage2 = new Page(rawHash2.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash2.nonEmpty()) {
+                intermediatePage2 = new Page(rawHash2.getKeys(nonEmpty)[0]);
+            }
         } finally {
             page1.releaseBlocks();
             page2.releaseBlocks();
@@ -507,7 +512,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
                             new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                         )
                     )
@@ -529,7 +537,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
                             new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                         )
                     )
@@ -553,8 +564,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     .mode(AggregatorMode.FINAL)
                     .aggregators(
                         List.of(
-                            new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.FINAL,
+                                List.of(1, 2, 3)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
                         )
                     )
                     .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))
@@ -642,8 +656,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
         // Check the keys
         Block[] blocks = null;
-        try {
-            blocks = hash.getKeys();
+        try (IntVector nonEmpty = hash.nonEmpty()) {
+            blocks = hash.getKeys(nonEmpty);
             assertThat(blocks, arrayWithSize(1));
 
             var keysBlock = (BytesRefBlock) blocks[0];

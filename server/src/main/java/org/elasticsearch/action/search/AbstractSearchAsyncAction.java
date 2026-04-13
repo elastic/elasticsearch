@@ -614,7 +614,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 buildSearchResponse(
                     internalSearchResponse,
                     failures,
-                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()) : null,
+                    request.scroll() != null
+                        ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                        : null,
                     buildSearchContextId(failures)
                 )
             );

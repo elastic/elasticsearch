@@ -63,9 +63,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         URI uri = url != null ? ServiceUtils.createUri(url) : ServiceUtils.createUri(DEFAULT_URL);
         return new ContextualAiRerankServiceSettings(uri, modelId, rateLimitSettings);

@@ -213,6 +213,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             dataNode
         );
 
+        // waits for snapshot deletions to batch up
+        final var deletesEnqueuedListener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+            final var entries = SnapshotDeletionsInProgress.get(cs).getEntries();
+            return entries.size() == 1 && entries.getFirst().snapshots().size() == numSnapshots;
+        });
+
         final Collection<ListenableFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>();
         while (snapshotNames.isEmpty() == false) {
             final Collection<String> toDelete = randomSubsetOf(snapshotNames);
@@ -229,6 +235,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final long repoGenAfterInitialSnapshots = getRepositoryData(repoName).getGenId();
         assertThat(repoGenAfterInitialSnapshots, is(numSnapshots - 1L));
+
+        // wait for snapshot deletions to batch up before unblocking the snapshot holding them up
+        safeAwait(deletesEnqueuedListener);
         unblockNode(repoName, dataNode);
 
         final SnapshotInfo slowSnapshotInfo = assertSuccessful(createSlowFuture);
@@ -1003,7 +1012,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testBackToBackQueuedDeletes() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String masterName = internalCluster().startMasterOnlyNode(
+            Settings.builder()
+                // we block a snapshot thread, and SnapshotDeletionStartBatcher requires one, so we must have >=2 of them
+                .put("thread_pool.snapshot.max", 2)
+                .build()
+        );
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");

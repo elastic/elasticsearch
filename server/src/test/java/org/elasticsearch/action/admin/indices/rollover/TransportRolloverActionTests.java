@@ -386,7 +386,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(RerouteBehavior.class), any())).thenReturn(
             stateBefore
         );
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(RerouteBehavior.class), any(), any()))
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(), any(RerouteBehavior.class), any()))
             .thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
 

@@ -1161,26 +1161,6 @@ max:double | inc:double | time_bucket:datetime   | cluster:keyword
 dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: ts_rate_datenanos_2
-required_capability: rate_with_interpolation
-
-TS datenanos-k8s
-| WHERE cluster=="prod"
-| STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
-| KEEP max, inc, time_bucket, cluster
-| SORT time_bucket DESC 
-| LIMIT 3;
-
-max:double | inc:double | time_bucket:date_nanos   | cluster:keyword
-6.981      | 2094.198   | 2024-05-10T00:20:00.000Z | prod
-11.861     | 3558.242   | 2024-05-10T00:15:00.000Z | prod
-11.563     | 3468.821   | 2024-05-10T00:10:00.000Z | prod
-
-;
-
-dateNanosOneRateIncreaseWithBucketAndClusterThenFilter
-required_capability: ts_command_v0
-required_capability: ts_rate_datenanos_2
 
 TS datenanos-k8s
 | WHERE cluster=="prod"

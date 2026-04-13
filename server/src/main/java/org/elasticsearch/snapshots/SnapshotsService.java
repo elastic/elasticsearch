@@ -277,7 +277,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotId snapshotId = new SnapshotId(snapshotName, request.uuid());
         Repository repository = repositoriesService.repository(projectId, request.repository());
         if (repository.isReadOnly()) {
-            listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
+            listener.onFailure(
+                new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
+            );
             return;
         }
         submitCreateSnapshotRequest(
@@ -3125,7 +3127,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var projectMetadata = state.metadata().getProject(task.snapshot.getProjectId());
                         final var repoMeta = RepositoriesMetadata.get(projectMetadata).repository(task.snapshot.getRepository());
                         if (RepositoriesService.isReadOnly(repoMeta.settings())) {
-                            taskContext.onFailure(new RepositoryException(repoMeta.name(), "repository is readonly"));
+                            taskContext.onFailure(new IllegalArgumentException("[" + repoMeta.name() + "] repository is readonly"));
                             continue;
                         }
 

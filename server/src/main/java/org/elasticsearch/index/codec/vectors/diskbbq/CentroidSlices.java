@@ -18,7 +18,7 @@ public record CentroidSlices(int[] sliceOffsets, int[] sliceNumVectors, int maxS
     private static int computeMaxSliceSize(int[] sliceNumVectors) {
         int maxSliceSize = 0;
         for (int sliceNumVector : sliceNumVectors) {
-            maxSliceSize += sliceNumVector;
+            maxSliceSize  = Math.max(maxSliceSize, sliceNumVector);
         }
         return maxSliceSize;
     }

@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
 import java.util.Base64;
@@ -41,7 +41,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             assertFalse(requestIterator.hasNext());
@@ -61,7 +61,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             int totalPositionsProcessed = 0;
@@ -118,7 +118,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -164,7 +164,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -202,7 +202,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -243,7 +243,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 // First batch: "text1" with trailing null
@@ -287,7 +287,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
@@ -309,7 +309,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -354,7 +354,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 BytesRef scratch = new BytesRef();
@@ -394,7 +394,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -428,7 +428,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -455,7 +455,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 dataType,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             BytesRef scratch = new BytesRef();

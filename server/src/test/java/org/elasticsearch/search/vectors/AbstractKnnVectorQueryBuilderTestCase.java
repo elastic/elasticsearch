@@ -662,6 +662,60 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewritten.isAutoPrefilteringEnabled(), equalTo(knnVectorQueryBuilder.isAutoPrefilteringEnabled()));
     }
 
+    public void testRewriteWithQueryVectorBuilderSkipsInferenceIdUpdateWhenNoIndex() throws Exception {
+        float[] expectedArray = new float[] { 1.0f, 2.0f, 3.0f };
+        KnnVectorQueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray, "test-inference-id"),
+            null,
+            5,
+            10f,
+            1f
+        );
+
+        // Context with no fullyQualifiedIndex — mapping update should be skipped gracefully
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<QueryBuilder> knnFuture = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(knnVectorQueryBuilder, context, knnFuture);
+        KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) knnFuture.get();
+        assertThat(rewritten.queryVector().asFloatVector(), equalTo(expectedArray));
+        assertThat(rewritten.queryVectorBuilder(), nullValue());
+    }
+
+    public void testRewriteWithQueryVectorBuilderSkipsInferenceIdUpdateWhenNoInferenceId() throws Exception {
+        float[] expectedArray = new float[] { 1.0f, 2.0f, 3.0f };
+        // TestQueryVectorBuilder with no inference ID (default)
+        KnnVectorQueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
+            null,
+            5,
+            10f,
+            1f
+        );
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<QueryBuilder> knnFuture = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(knnVectorQueryBuilder, context, knnFuture);
+        KnnVectorQueryBuilder rewritten = (KnnVectorQueryBuilder) knnFuture.get();
+        assertThat(rewritten.queryVector().asFloatVector(), equalTo(expectedArray));
+        assertThat(rewritten.queryVectorBuilder(), nullValue());
+    }
+
+    public void testQueryVectorBuilderGetInferenceId() {
+        float[] vector = new float[] { 1.0f, 2.0f, 3.0f };
+        TestQueryVectorBuilderPlugin.TestQueryVectorBuilder withoutInferenceId = new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(
+            vector
+        );
+        assertNull(withoutInferenceId.getInferenceId());
+
+        TestQueryVectorBuilderPlugin.TestQueryVectorBuilder withInferenceId = new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(
+            vector,
+            "my-endpoint"
+        );
+        assertEquals("my-endpoint", withInferenceId.getInferenceId());
+    }
+
     public void testSetFilterQueries() {
         KnnVectorQueryBuilder knnQueryBuilder = doCreateTestQueryBuilder();
         List<QueryBuilder> newFilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));

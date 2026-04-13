@@ -16,10 +16,15 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -35,11 +40,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,6 +67,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
 public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilder> {
+
+    private static final Logger logger = LogManager.getLogger(KnnVectorQueryBuilder.class);
 
     public static final TransportVersion AUTO_PREFILTERING = TransportVersion.fromName("knn_vector_query_auto_prefiltering");
 
@@ -429,9 +439,11 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             if (queryVectorSupplier.get() == null) {
                 return this;
             }
+            float[] resolvedVector = queryVectorSupplier.get();
+            maybeUpdateInferenceIdMapping(ctx, resolvedVector);
             return new KnnVectorQueryBuilder(
                 fieldName,
-                queryVectorSupplier.get(),
+                resolvedVector,
                 k,
                 numCands,
                 visitPercentage,
@@ -496,6 +508,86 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             }
         }
         return this;
+    }
+
+    /**
+     * If the target dense_vector field has no inference_id set, and the query vector builder provides one,
+     * and the resolved vector's dimensions match the field's configured dimensions, fires a best-effort
+     * async mapping update to persist the inference_id. Failures are logged and swallowed — the search
+     * is never affected.
+     */
+    private void maybeUpdateInferenceIdMapping(QueryRewriteContext ctx, float[] resolvedVector) {
+        if (queryVectorBuilder == null) {
+            return;
+        }
+        String inferenceId = queryVectorBuilder.getInferenceId();
+        if (inferenceId == null) {
+            return;
+        }
+        Index index = ctx.getFullyQualifiedIndex();
+        if (index == null) {
+            return;
+        }
+        MappedFieldType mappedFieldType;
+        try {
+            mappedFieldType = ctx.getFieldType(fieldName);
+        } catch (Exception e) {
+            return;
+        }
+        if (mappedFieldType instanceof DenseVectorFieldType == false) {
+            return;
+        }
+        DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mappedFieldType;
+        if (denseVectorFieldType.getInferenceId() != null) {
+            return;
+        }
+        if (denseVectorFieldType.getDims() != null && denseVectorFieldType.getDims() != resolvedVector.length) {
+            return;
+        }
+        ctx.registerAsyncAction((client, listener) -> {
+            try {
+                PutMappingRequest request = new PutMappingRequest();
+                request.setConcreteIndex(index);
+                XContentBuilder builder = JsonXContent.contentBuilder();
+                builder.startObject();
+                builder.startObject("properties");
+                builder.startObject(fieldName);
+                builder.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
+                builder.field("inference_id", inferenceId);
+                builder.endObject();
+                builder.endObject();
+                builder.endObject();
+                request.source(builder);
+                request.masterNodeTimeout(TimeValue.timeValueSeconds(30));
+                request.ackTimeout(TimeValue.ZERO);
+                client.execute(TransportAutoPutMappingAction.TYPE, request, ActionListener.wrap(response -> {
+                    logger.debug("Updated inference_id [{}] on dense_vector field [{}] in index [{}]", inferenceId, fieldName, index);
+                    listener.onResponse(null);
+                }, failure -> {
+                    logger.debug(
+                        () -> format(
+                            "Failed to update inference_id [%s] on dense_vector field [%s] in index [%s]",
+                            inferenceId,
+                            fieldName,
+                            index
+                        ),
+                        failure
+                    );
+                    listener.onResponse(null);
+                }));
+            } catch (Exception e) {
+                logger.debug(
+                    () -> format(
+                        "Failed to build mapping update for inference_id [%s] on field [%s] in index [%s]",
+                        inferenceId,
+                        fieldName,
+                        index
+                    ),
+                    e
+                );
+                listener.onResponse(null);
+            }
+        });
     }
 
     @Override

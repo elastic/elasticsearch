@@ -2826,6 +2826,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return similarity;
         }
 
+        public Integer getDims() {
+            return dims;
+        }
+
         public String getInferenceId() {
             return inferenceId;
         }

@@ -1547,7 +1547,8 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
         int valueChannel = layout.get(changePoint.value().id()).channel();
-        List<Integer> groupingChannels = changePoint.groupings().stream()
+        List<Integer> groupingChannels = changePoint.groupings()
+            .stream()
             .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
             .toList();
         return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source()), layout);

@@ -39,6 +39,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
+ *
+ * @param startTime Start time in millis since the epoch. In some API responses, this may be the start time of a task whose work this task
+ *     is continuing.
+ * @param runningTimeNanos Approximate running time in nanos (relative to the start time given by {@link #startTime}: see notes there)
+ * @param originalTaskId If this task is continuing the work of another task on a node that was shut down, this is the ID of the original
+ *     task; otherwise, this will be the same as taskId
+ * @param originalStartTimeMillis The {@link #startTime} of the task given by {@link #originalTaskId}
  */
 public record TaskInfo(
     TaskId taskId,
@@ -47,16 +54,14 @@ public record TaskInfo(
     String action,
     String description,
     Task.Status status,
-    long startTime, // In millis since the epoch
+    long startTime,
     long runningTimeNanos,
     boolean cancellable,
     boolean cancelled,
     TaskId parentTaskId,
     Map<String, String> headers,
-    // If this task is continuing the work of another task on a node that was shut down, originalTaskId gives the ID of the original task.
-    // Otherwise, originalTaskId will be the same as taskId.
     TaskId originalTaskId,
-    long originalStartTimeMillis // The startTime of the task given by originalTaskId
+    long originalStartTimeMillis
 ) implements Writeable, ToXContentFragment {
 
     private static final TransportVersion INCLUDE_ORIGINAL_TASK = TransportVersion.fromName("task_info_include_original_task");

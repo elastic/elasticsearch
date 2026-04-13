@@ -558,6 +558,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     /**
+     * Returns whether a dataset exists with provided dataset name.
+     *
+     * @param datasetName The provided dataset name
+     * @return whether a dataset exists with provided dataset name
+     */
+    public boolean hasDataset(String datasetName) {
+        return custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY).get(datasetName) != null;
+    }
+
+    /**
      * Returns whether an alias exists with provided alias name.
      *
      * @param aliasName The provided alias name

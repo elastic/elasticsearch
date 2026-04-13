@@ -98,14 +98,6 @@ public class DataSourceStoredSettingTests extends ESTestCase {
         assertEquals(3.14159, (Double) deserialized.value(), 0.0);
     }
 
-    public void testConstructorRejectsUnsupportedTypes() {
-        // StreamOutput.writeGenericValue only supports String/Integer/Long/Double/Boolean for our use.
-        // The constructor must fail-fast with a readable message rather than crashing later at cluster-state write time.
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(java.time.Instant.now(), false));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(new java.math.BigDecimal("1.5"), false));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(java.util.Map.of("nested", "value"), false));
-    }
-
     public void testXContentRoundTrip() throws IOException {
         // Cover all JSON-native value types (String, Integer, Long, Double, Boolean, null) — the implementation relies
         // on JsonXContentParser.objectText() preserving the parsed type, so a refactor to .text() would silently

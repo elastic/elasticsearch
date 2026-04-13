@@ -19,9 +19,9 @@ CHANGE_POINT value [ON key] [AS type_name, pvalue_name]
 ```
 :::
 
-:::{applies-item} { "stack": "preview 9.4", "serverless": "preview" }
+:::{applies-item} { "stack": "preview 9.5", "serverless": "preview" }
 ```esql
-CHANGE_POINT value [ON key] [BY group] [AS type_name, pvalue_name]
+CHANGE_POINT value [ON key] [AS type_name, pvalue_name] [BY grouping_expression1[, ..., grouping_expressionN]]
 ```
 :::
 
@@ -36,7 +36,7 @@ CHANGE_POINT value [ON key] [BY group] [AS type_name, pvalue_name]
 `key`
 :   The column with the key to order the values by. If not specified, `@timestamp` is used.
 
-`group` {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+`group` {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 :   The column to group values by. When specified, change point detection is performed independently for each group.
 
 `type_name`
@@ -61,7 +61,7 @@ The possible change point types are:
 ::::{note}
 There must be at least 22 values for change point detection. Any values beyond the first 1,000 are ignored.
 
-When a `BY` clause is provided, these rules apply per group. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+When a `BY` clause is provided, these rules apply per group. {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 ::::
 
 ## Examples
@@ -71,7 +71,7 @@ The following example detects a step change in a metric:
 :::{include} ../examples/change_point.csv-spec/changePointForDocs.md
 :::
 
-The following example detects a step change independently for each group: {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+The following example detects a step change independently for each group: {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 
 :::{include} ../examples/change_point.csv-spec/changePointForDocsByGroup.md
 :::

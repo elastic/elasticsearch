@@ -414,6 +414,7 @@ public class TestAnalyzer {
         addInferenceResolution("reranking-inference-id", TaskType.RERANK);
         addInferenceResolution("completion-inference-id", TaskType.COMPLETION);
         addInferenceResolution("text-embedding-inference-id", TaskType.TEXT_EMBEDDING);
+        addInferenceResolution("embedding-inference-id", TaskType.EMBEDDING);
         addInferenceResolution("chat-completion-inference-id", TaskType.CHAT_COMPLETION);
         addInferenceResolution("sparse-embedding-inference-id", TaskType.SPARSE_EMBEDDING);
         return addInferenceResolutionError("error-inference-id", "error with inference resolution");

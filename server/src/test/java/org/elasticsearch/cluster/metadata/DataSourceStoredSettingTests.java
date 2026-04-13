@@ -105,7 +105,9 @@ public class DataSourceStoredSettingTests extends ESTestCase {
         assertXContentRoundTrip(new DataSourceStoredSetting("my-value", true));
         assertXContentRoundTrip(new DataSourceStoredSetting(42, false));
         assertXContentRoundTrip(new DataSourceStoredSetting(9_999_999_999L, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(9_999_999_999L, true));
         assertXContentRoundTrip(new DataSourceStoredSetting(3.14159, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(3.14159, true));
         assertXContentRoundTrip(new DataSourceStoredSetting(true, false));
         assertXContentRoundTrip(new DataSourceStoredSetting(null, false));
     }

@@ -25,10 +25,17 @@ import java.util.Objects;
  * A validated datasource or dataset setting value paired with its sensitivity classification.
  * This is the representation stored in cluster state as part of datasource metadata.
  *
- * <p>Secret values are masked on GET responses and encrypted when the encryption
- * layer is available. Values preserve their original JSON type (String, Integer,
- * Long, Double, Boolean, or null) for non-lossy REST API round-trips; round-trip
- * is verified by {@code DataSourceStoredSettingTests}.
+ * <p>{@link #toString()} and {@link #maskedOrDecryptedValue()} mask secret values;
+ * {@link #decryptedValue()} returns the raw value. Values preserve their original JSON type
+ * (String, Integer, Long, Double, Boolean, or null).
+ *
+ * <p><b>Encryption contract.</b> No encryption layer is wired in yet. The {@code value} field
+ * is stored as-is and {@link #toXContent} writes it as-is — which means GATEWAY and SNAPSHOT
+ * persistence carry raw values today. Callers producing user-visible output must use
+ * {@link #maskedOrDecryptedValue()}. When the encryption layer lands, the contract is that
+ * either {@code value} holds an encrypted payload (transparent to the write path) or
+ * {@link #toXContent} is updated to encrypt before emitting. The {@code secret} flag is the
+ * classification the encryption layer hooks into.
  */
 public final class DataSourceStoredSetting implements Writeable, ToXContentObject {
 

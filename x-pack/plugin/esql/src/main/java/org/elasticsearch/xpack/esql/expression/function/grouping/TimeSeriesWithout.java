@@ -20,6 +20,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -31,18 +36,32 @@ import java.util.Set;
  * Grouping function that keeps time-series grouping generic while excluding the specified dimensions.
  * An empty field list means "group by all dimensions".
  */
-public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFunction {
+public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "TimeSeriesWithout",
         TimeSeriesWithout::new
     );
 
-    public TimeSeriesWithout(Source source, List<Expression> fields) {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TimeSeriesWithout.class)
+        .nAry(TimeSeriesWithout::new)
+        .name("without");
+
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Groups by all time-series dimensions except the specified ones. "
+            + "When called with no arguments, groups by all dimensions.",
+        type = FunctionType.GROUPING
+    )
+    public TimeSeriesWithout(
+        Source source,
+        @Param(name = "field", type = { "keyword" }, description = "Dimension fields to exclude from grouping", optional = true) List<
+            Expression> fields
+    ) {
         super(source, fields);
     }
 
-    public TimeSeriesWithout(StreamInput in) throws IOException {
+    private TimeSeriesWithout(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 

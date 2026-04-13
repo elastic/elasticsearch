@@ -52,18 +52,29 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private boolean indexDimensionsTsidStrategyEnabledSetting;
     private boolean expectedIndexDimensionsTsidOptimizationEnabled;
     private IndexVersion indexVersion;
+    private boolean expectedDisabledSequenceNumbers;
 
     @Before
     public void setup() {
         provider = new DataStreamIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
         );
-        indexVersion = randomBoolean()
-            ? IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING)
-            : IndexVersionUtils.randomVersionBetween(IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
+        if (randomBoolean()) {
+            indexVersion = IndexVersion.current();
+        } else if (randomBoolean()) {
+            indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
+        } else {
+            indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING);
+        }
+        expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
+    }
+
+    int maybeAdjustIndexSettingCount(int baseCount) {
+        // We need to adjust to account for the seq_no removal and synthetic id settings
+        return expectedDisabledSequenceNumbers ? baseCount + 2 : baseCount;
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
@@ -120,7 +131,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -130,6 +141,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
         }
     }
 
@@ -175,10 +189,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {
@@ -251,7 +268,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -261,6 +278,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field1", "field3"));
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
         }
     }
 
@@ -286,10 +306,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
@@ -315,10 +338,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsLookBackTime() throws Exception {
@@ -344,10 +370,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookBackTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
@@ -377,12 +406,15 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         var result = additionalSettings.build();
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(2)));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
             equalTo(FORMATTER.format(now.plusMillis(lookAheadTime.getMillis())))
         );
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
@@ -475,10 +507,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(3));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(3)));
         assertThat(result.get(IndexSettings.MODE.getKey()), equalTo("time_series"));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {
@@ -540,13 +575,17 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
+
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntries() throws Exception {
@@ -582,7 +621,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -591,6 +630,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
         );
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntriesMultiFields() throws Exception {
@@ -631,7 +673,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -640,6 +682,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
         );
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
@@ -684,12 +729,15 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGenerateNonDimensionDynamicTemplate() throws Exception {
@@ -722,7 +770,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -732,6 +780,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id"));
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
         }
     }
 
@@ -810,7 +861,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -820,6 +871,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
         }
     }
 
@@ -851,7 +905,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(maybeAdjustIndexSettingCount(4)));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -859,6 +913,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // we can't use index.dimensions as it would add non-dimension fields to the tsid
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testAddNewDimension() throws Exception {
@@ -1033,6 +1090,130 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings.Builder additionalSettings = builder();
         provider.onUpdateMappings(im, documentMapper, additionalSettings);
         return additionalSettings.build();
+    }
+
+    public void testClusterSettingsDefineSeqNoDisabledDefault() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
+        String dataStreamName = "metrics-app1";
+
+        // With seq_no_disabled=false, the provider must NOT set index.disable_sequence_numbers
+        DataStreamIndexSettingsProvider providerWithSeqNoEnabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false).build()
+        );
+        Settings.Builder additionalSettings = builder();
+        providerWithSeqNoEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
+
+        // With seq_no_disabled=true (default), the provider must set index.disable_sequence_numbers=true
+        DataStreamIndexSettingsProvider providerWithSeqNoDisabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), true).build()
+        );
+        additionalSettings = builder();
+        providerWithSeqNoDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(additionalSettings.build()), equalTo(true));
+
+        // When index.disable_sequence_numbers is explicitly set in the template, the cluster setting must not override it
+        additionalSettings = builder();
+        providerWithSeqNoDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false).build(),
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
+    }
+
+    public void testClusterSettingsDefineSyntheticIdEnabledDefault() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
+            IndexVersion.current()
+        );
+        String dataStreamName = "metrics-app1";
+
+        // With synthetic_id_enabled=false, the provider must set index.mapping.synthetic_id=false
+        DataStreamIndexSettingsProvider providerWithSyntheticIdDisabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false).build()
+        );
+        Settings.Builder additionalSettings = builder();
+        providerWithSyntheticIdDisabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), true), equalTo(false));
+
+        // With synthetic_id_enabled=true (default), the provider must set index.mapping.synthetic_id=true
+        DataStreamIndexSettingsProvider providerWithSyntheticIdEnabled = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), true).build()
+        );
+        additionalSettings = builder();
+        providerWithSyntheticIdEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.EMPTY,
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertThat(additionalSettings.build().getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), false), equalTo(true));
+
+        // When index.mapping.synthetic_id is explicitly set in the template, the cluster setting must not override it
+        additionalSettings = builder();
+        providerWithSyntheticIdEnabled.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            now,
+            Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build(),
+            List.of(),
+            version,
+            additionalSettings
+        );
+        assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
     }
 
 }

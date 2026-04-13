@@ -15,11 +15,8 @@ import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantizedVectorScorer {
 
@@ -48,16 +45,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);
             var indexQuantizedComponentSum = Short.toUnsignedInt(segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, numBytes + 3 * Float.BYTES));
 
-            final long qcDist;
-            if (SUPPORTS_HEAP_SEGMENTS) {
-                qcDist = Similarities.dotProductD1Q4(segment, MemorySegment.ofArray(q), numBytes);
-            } else {
-                try (var arena = Arena.ofConfined()) {
-                    var querySegment = arena.allocate(q.length, 64);
-                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                    qcDist = Similarities.dotProductD1Q4(segment, querySegment, numBytes);
-                }
-            }
+            long qcDist = Similarities.dotProductD1Q4(segment, MemorySegment.ofArray(q), numBytes);
             return applyCorrections(
                 dimensions,
                 similarityFunction,
@@ -88,69 +76,51 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         float[] scores,
         int bulkSize
     ) throws IOException {
-        slice.seek(0);
-        return IndexInputUtils.withSlice(slice, slice.length(), this::getScratch, segment -> {
-            if (SUPPORTS_HEAP_SEGMENTS) {
-                Similarities.dotProductD1Q4BulkWithOffsets(
-                    segment,
-                    MemorySegment.ofArray(q),
-                    numBytes,
-                    byteSize,
-                    MemorySegment.ofArray(nodes),
-                    bulkSize,
-                    MemorySegment.ofArray(scores)
-                );
-            } else {
-                try (var arena = Arena.ofConfined()) {
-                    var querySegment = arena.allocate(q.length, 64);
-                    var offsetsSegment = arena.allocate((long) bulkSize * Integer.BYTES, 64);
-                    var scoresSegment = arena.allocate((long) bulkSize * Float.BYTES, 64);
-                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                    MemorySegment.copy(nodes, 0, offsetsSegment, ValueLayout.JAVA_INT, 0, bulkSize);
-                    Similarities.dotProductD1Q4BulkWithOffsets(
-                        segment,
-                        querySegment,
-                        numBytes,
-                        byteSize,
-                        offsetsSegment,
-                        bulkSize,
-                        scoresSegment
-                    );
-                    MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, bulkSize);
-                }
-            }
+        if (bulkSize == 0) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        long[] vectorOffsets = new long[bulkSize];
+        for (int i = 0; i < bulkSize; i++) {
+            vectorOffsets[i] = (long) nodes[i] * byteSize;
+        }
 
-            // We can consider optimizing this loop with SIMD instructions/native code. However profiling shows that the cost of this
-            // is negligible.
-            float maxScore = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < bulkSize; i++) {
-                var offset = ((long) nodes[i] * byteSize);
-
-                var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes);
-                var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + Float.BYTES);
-                var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + 2 * Float.BYTES);
-                var indexQuantizedComponentSum = Short.toUnsignedInt(
-                    segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, offset + numBytes + 3 * Float.BYTES)
-                );
-
-                scores[i] = applyCorrections(
-                    dimensions,
-                    similarityFunction,
-                    centroidDp,
-                    scores[i],
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryAdditionalCorrection,
-                    queryQuantizedComponentSum,
-                    indexLowerInterval,
-                    indexUpperInterval,
-                    indexAdditionalCorrection,
-                    indexQuantizedComponentSum
-                );
-                maxScore = Math.max(maxScore, scores[i]);
-            }
-            return maxScore;
+        float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, numBytes, bulkSize, addrs -> {
+            var scoresSegment = MemorySegment.ofArray(scores);
+            Similarities.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
+            maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                similarityFunction,
+                addrs,
+                bulkSize,
+                numBytes,
+                byteSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                FOUR_BIT_SCALE,
+                1.0f,
+                centroidDp,
+                scoresSegment
+            );
         });
+
+        if (resolved == false) {
+            return super.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                nodes,
+                scores,
+                bulkSize
+            );
+        }
+        return maxScore[0];
     }
 
     protected byte[] getScratch(int len) {

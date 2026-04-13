@@ -30,12 +30,12 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public long getMinCompetitiveDocScore() {
-        return queue.size() > 0 ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
+        return queue.size() >= k() ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = queue.size() > 0 ? queue.peek() : LEAST_COMPETITIVE;
+        long queueMinCompetitiveDocScore = queue.size() >= k() ? queue.peek() : LEAST_COMPETITIVE;
         this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
         this.minCompetitiveSimilarity = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }

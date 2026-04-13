@@ -77,7 +77,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                     // Should have exactly one non-null position (the iterator processes one text at a time)
                     assertThat("Each batch should have exactly one non-null position", nonNullCount, equalTo(1));
 
-                    InferenceAction.Request request = requestItem.inferenceRequest();
+                    InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
                     assertThat(request.getInput().size(), equalTo(1));
@@ -113,7 +113,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem1.positionValueCounts()[0], equalTo(0)); // null
                 assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem1.positionValueCounts()[2], equalTo(1)); // "text1"
-                assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("text1"));
+                assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
 
                 // Second batch: processes second non-null
                 assertTrue(requestIterator.hasNext());
@@ -122,7 +122,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 // Position value counts should be [1] for just the second text
                 assertThat(requestItem2.positionValueCounts().length, equalTo(1));
                 assertThat(requestItem2.positionValueCounts()[0], equalTo(1)); // "text2"
-                assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("text2"));
+                assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("text2"));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -152,7 +152,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem.positionValueCounts()[0], equalTo(1)); // "text1"
                 assertThat(requestItem.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem.positionValueCounts()[2], equalTo(0)); // null
-                assertThat(requestItem.inferenceRequest().getInput().getFirst(), equalTo("text1"));
+                assertThat(((InferenceAction.Request) requestItem.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -215,7 +215,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem1.positionValueCounts().length, equalTo(2));
                 assertThat(requestItem1.positionValueCounts()[0], equalTo(1)); // "text1"
                 assertThat(requestItem1.positionValueCounts()[1], equalTo(0)); // null
-                assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("text1"));
+                assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("text1"));
 
                 // Second batch: "text2" with trailing nulls
                 assertTrue(requestIterator.hasNext());
@@ -224,14 +224,14 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(requestItem2.positionValueCounts()[0], equalTo(1)); // "text2"
                 assertThat(requestItem2.positionValueCounts()[1], equalTo(0)); // null
                 assertThat(requestItem2.positionValueCounts()[2], equalTo(0)); // null
-                assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("text2"));
+                assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("text2"));
 
                 // Third batch: "text3" alone
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem3 = requestIterator.next();
                 assertThat(requestItem3.positionValueCounts().length, equalTo(1));
                 assertThat(requestItem3.positionValueCounts()[0], equalTo(1)); // "text3"
-                assertThat(requestItem3.inferenceRequest().getInput().getFirst(), equalTo("text3"));
+                assertThat(((InferenceAction.Request) requestItem3.inferenceRequest()).getInput().getFirst(), equalTo("text3"));
 
                 assertFalse(requestIterator.hasNext());
             }
@@ -279,7 +279,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
 
                 while (requestIterator.hasNext()) {
                     BulkInferenceRequestItem requestItem = requestIterator.next();
-                    InferenceAction.Request request = requestItem.inferenceRequest();
+                    InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
 
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
@@ -299,6 +299,23 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    public void testTaskTypeIsPassedThrough() throws Exception {
+        final String inferenceId = randomIdentifier();
+
+        try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(1)) {
+            blockBuilder.appendBytesRef(new BytesRef("test text"));
+            BytesRefBlock inputBlock = blockBuilder.build();
+
+            try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock)) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem requestItem = requestIterator.next();
+                assertThat(requestItem.inferenceRequest().getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
     private void assertIterate(int size) throws Exception {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(size);
@@ -309,7 +326,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                InferenceAction.Request request = requestItem.inferenceRequest();
+                InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));

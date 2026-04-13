@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.textembedding;
+package org.elasticsearch.xpack.esql.inference.embedding;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,7 +25,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
+/**
+ * Tests for {@link EmbeddingOutputBuilder}, the base class used by both text and typed embedding operations.
+ */
+public class EmbeddingOutputBuilderTests extends ComputeTestCase {
     private static final int EMBEDDING_DIM = 384; // Common embedding dimension
 
     public void testBuildSmallOutput() throws Exception {
@@ -40,7 +43,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = between(10, 100);
         final Page inputPage = randomInputPage(size, between(1, 20));
 
-        TextEmbeddingOutputBuilder outputBuilder = new TextEmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
@@ -79,7 +82,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = between(10, 100);
         final Page inputPage = randomInputPage(size, 2);
 
-        TextEmbeddingOutputBuilder outputBuilder = new TextEmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
@@ -116,7 +119,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = 5;
         final Page inputPage = randomInputPage(size, 2);
 
-        TextEmbeddingOutputBuilder outputBuilder = new TextEmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         // Create a single response that covers all 5 positions with all nulls
@@ -140,7 +143,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
         final int size = 10;
         final Page inputPage = randomInputPage(size, 1);
 
-        TextEmbeddingOutputBuilder outputBuilder = new TextEmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
         List<float[]> expectedEmbeddings = new ArrayList<>();
 
@@ -180,7 +183,7 @@ public class TextEmbeddingOutputBuilderTests extends ComputeTestCase {
     private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
 
-        TextEmbeddingOutputBuilder outputBuilder = new TextEmbeddingOutputBuilder(blockFactory());
+        EmbeddingOutputBuilder outputBuilder = new EmbeddingOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = new ArrayList<>();
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {

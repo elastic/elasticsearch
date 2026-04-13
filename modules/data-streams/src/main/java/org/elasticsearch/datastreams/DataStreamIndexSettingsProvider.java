@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedFunction;
@@ -51,10 +52,29 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
+    public static final Setting<Boolean> SUPPORT_SEQ_NO_DISABLED = Setting.boolSetting(
+        "cluster.time_series.support_seq_no_disabled",
+        true,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> SUPPORT_SYNTHETIC_ID = Setting.boolSetting(
+        "cluster.time_series.support_synthetic_id",
+        true,
+        Setting.Property.NodeScope
+    );
+
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final boolean supportSeqNoDisabled;
+    private final boolean supportSyntheticId;
 
     DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+        this(mapperServiceFactory, Settings.EMPTY);
+    }
+
+    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory, Settings settings) {
         this.mapperServiceFactory = mapperServiceFactory;
+        this.supportSeqNoDisabled = SUPPORT_SEQ_NO_DISABLED.get(settings);
+        this.supportSyntheticId = SUPPORT_SYNTHETIC_ID.get(settings);
     }
 
     @Override
@@ -119,9 +139,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
-                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT)
+                    if (supportSeqNoDisabled
+                        && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT)
                         && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()) == false) {
                         additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+                    }
+
+                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)
+                        && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.SYNTHETIC_ID.getKey()) == false) {
+                        additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
                     }
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false

@@ -1732,8 +1732,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private static final DataType[] GEO_TYPES = new DataType[] { NULL, GEO_POINT, GEO_SHAPE };
-        private static final DataType[] NON_GEO_TYPES = new DataType[] { NULL, KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE, NULL };
+        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME, NULL };
 
         private DataType[] allowedEnrichTypes(String matchType) {
             return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;

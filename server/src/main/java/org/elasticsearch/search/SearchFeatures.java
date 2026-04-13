@@ -31,7 +31,7 @@ public final class SearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE, SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA);
+        return Set.of(LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE);
     }
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
@@ -98,7 +98,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ
+            DEFAULT_DISK_BBQ,
+            SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA
         );
     }
 }

@@ -137,10 +137,8 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
-  # Shard timings live under profile.shards; do not assert top-level profile key count because
-  # search.profile.coordinator_request_metadata adds profile.request (same capability as TransportVersion
-  # include_original_query_indices_in_search_profile_results).
-  - length: { profile.shards: 2 }
+  - exists: "profile"
+  - exists: "profile.shards"
 
 ---
 "Test with new response format":

@@ -85,7 +85,7 @@ public class IpFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSet(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -187,6 +187,11 @@ public class IpFieldMapper extends FieldMapper {
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
+            }
+            var docValuesParams = docValuesParameters.getValue();
+            if (docValuesParams.enabled() && docValuesParams.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+                // Disable skippers if using binary doc values
+                return IndexType.points(indexed.get(), true);
             }
             if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 return IndexType.skippers();
@@ -699,7 +704,10 @@ public class IpFieldMapper extends FieldMapper {
             doc.add(address);
         }
         if (fieldType().indexType.hasDocValues()) {
-            if (fieldType().indexType.hasDocValuesSkipper()) {
+            if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+                assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
+                MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(doc, fieldType().name(), address.binaryValue());
+            } else if (fieldType().indexType.hasDocValuesSkipper()) {
                 doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
             } else {
                 doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));

@@ -324,9 +324,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         private final IndexBalanceMetrics indexBalanceMetrics;
         private final AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState = new AtomicReference<>();
         private final ClusterStateListener routingTableChangedListener;
-        private final AtomicReference<Scheduler.Cancellable> scheduledRefresh = new AtomicReference<>();
         private final Supplier<TimeValue> pollIntervalSupplier;
         private final Object lifecycleLock = new Object();
+        private Scheduler.Cancellable scheduledRefresh;
         /** Set when routing table changes; consumed by the refresh runnable. */
         private volatile boolean needRefresh;
         private volatile boolean stopped;
@@ -396,8 +396,8 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             if (threadPool.scheduler().isShutdown()) {
                 return;
             }
-            final var cancellable = threadPool.scheduleWithFixedDelay(this::runRefresh, interval, managementExecutor);
-            scheduledRefresh.set(cancellable);
+            assert scheduledRefresh == null : "Must not already have a scheduled refresh";
+            scheduledRefresh = threadPool.scheduleWithFixedDelay(this::runRefresh, interval, managementExecutor);
         }
 
         private void runRefresh() {
@@ -413,9 +413,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
         private void cancelScheduledRefresh() {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
-            final var previous = scheduledRefresh.getAndSet(null);
-            if (previous != null) {
-                previous.cancel();
+            if (scheduledRefresh != null) {
+                scheduledRefresh.cancel();
+                scheduledRefresh = null;
             }
         }
 
@@ -430,7 +430,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         /** Package-visible for testing: returns the current scheduled refresh cancellable, or null if none. */
         @Nullable
         Scheduler.Cancellable getScheduledRefresh() {
-            return scheduledRefresh.get();
+            return scheduledRefresh;
         }
 
         /** Returns the index balance metrics persistent task from the cluster state, or {@code null} if not present. */

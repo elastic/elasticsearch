@@ -900,7 +900,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     continue;
                 }
                 final int vectorOrdStar = iterator.index();
-                final int docEnd = iterator.advance(sliceDocEnd);
+                final int docEnd = vectorDocStar == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
                 final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS
                     ? floatVectorValues.size()
                     : iterator.index();

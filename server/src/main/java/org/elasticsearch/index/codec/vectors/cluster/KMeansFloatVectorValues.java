@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 
@@ -72,50 +71,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
     @Override
     public DocIndexIterator iterator() {
-        return new DocIndexIterator() {
-
-            private int index = -1;
-
-            @Override
-            public int index() {
-                return index;
-            }
-
-            @Override
-            public int docID() {
-                if (index == NO_MORE_DOCS) {
-                    return DocIdSetIterator.NO_MORE_DOCS;
-                } else if (index == -1) {
-                    return -1;
-                }
-                return ordToDoc(index);
-            }
-
-            @Override
-            public int nextDoc() {
-                if (index == NO_MORE_DOCS || index == size() - 1) {
-                    index = NO_MORE_DOCS;
-                } else {
-                    index++;
-                }
-                return docID();
-            }
-
-            @Override
-            public int advance(int target) {
-                assert target >= docID();
-                int doc;
-                while (target > (doc = docID())) {
-                    nextDoc();
-                }
-                return doc;
-            }
-
-            @Override
-            public long cost() {
-                return size();
-            }
-        };
+        return docs == null ? createDenseIterator() : createSparseIterator();
     }
 
     @Override
@@ -130,10 +86,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
     @Override
     public int ordToDoc(int ord) {
-        if (docs == null) {
-            return ord;
-        }
-        return docs.ordToDoc(ord);
+        return docs == null ? ord : docs.ordToDoc(ord);
     }
 
     private sealed interface VectorSupplier permits OffHeapVectorSupplier, OnHeapVectorSupplier {

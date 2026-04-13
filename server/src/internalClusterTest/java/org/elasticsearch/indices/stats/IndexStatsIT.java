@@ -30,8 +30,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -50,7 +48,6 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -84,6 +81,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.persistGlobalCheckpointOnPrimaryShards;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1119,7 +1117,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             prepareIndex("index").setId("1").setSource("foo", "bar"),
             prepareIndex("index").setId("2").setSource("foo", "baz")
         );
-        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
+        persistGlobalCheckpointOnPrimaryShards("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 
@@ -1152,7 +1150,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        persistGlobalCheckpoint("index");
+        persistGlobalCheckpointOnPrimaryShards("index");
         assertBusy(() -> {
             for (final ShardStats shardStats : indicesAdmin().prepareStats("index").get().getIndex("index").getShards()) {
                 final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
@@ -1367,41 +1365,5 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(indexStatsAfterIndexing, is(notNullValue()));
             assertThat(indexStatsAfterIndexing.getPrimaries().getIndexing().getTotal().getWriteLoad(), is(greaterThan(0.0)));
         });
-    }
-
-    /**
-     * Persist the global checkpoint on all shards of the given index into disk.
-     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
-     */
-    private static void persistGlobalCheckpoint(String index) throws IOException {
-        final var future = new PlainActionFuture<Void>();
-        try (var listeners = new RefCountingListener(future)) {
-            for (String node : internalCluster().nodesInclude(index)) {
-                for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
-                    for (IndexShard indexShard : indexService) {
-                        if (indexShard.routingEntry().primary() == false || indexShard.routingEntry().active() == false) {
-                            continue;
-                        }
-                        indexShard.sync();
-                        final var lastKnownGlobalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
-                        final var listener = listeners.acquire(
-                            __ -> assertThat(
-                                "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
-                                indexShard.getLastSyncedGlobalCheckpoint(),
-                                equalTo(lastKnownGlobalCheckpoint)
-                            )
-                        );
-                        indexShard.syncGlobalCheckpoint(lastKnownGlobalCheckpoint, e -> {
-                            if (e == null) {
-                                listener.onResponse(null);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        future.actionGet(10, TimeUnit.SECONDS);
     }
 }

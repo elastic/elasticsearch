@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  */
-public sealed abstract class Rounding implements Writeable {
+public abstract sealed class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     public enum DateTimeUnit {

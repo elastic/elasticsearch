@@ -157,8 +157,8 @@ public class Task implements Traceable {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
-        OriginalTaskInfo originalTaskInfo = getOriginalTaskInfo();
         TaskId taskId = new TaskId(localNodeId, getId());
+        OriginalTaskInfo originalTaskInfo = getOriginalTaskInfo();
         return new TaskInfo(
             taskId,
             getType(),

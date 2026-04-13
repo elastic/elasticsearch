@@ -357,7 +357,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         synchronized void startScheduledRefresh() {
-            if (isCancelled() || isCompleted()) {
+            if (isNotRunning()) {
                 return;
             }
             logger.info("Starting index balance metrics task");
@@ -367,7 +367,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         void requestReschedule() {
-            if (isCancelled() || isCompleted()) {
+            if (isNotRunning()) {
                 return;
             }
             cancelScheduledRefresh();
@@ -375,7 +375,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         private void scheduleRefresh(TimeValue interval) {
-            if (isCancelled() || isCompleted() || threadPool.scheduler().isShutdown()) {
+            if (isNotRunning() || threadPool.scheduler().isShutdown()) {
                 return;
             }
             final var cancellable = threadPool.scheduleWithFixedDelay(this::runRefresh, interval, managementExecutor);
@@ -383,7 +383,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         private void runRefresh() {
-            if (isCancelled() || isCompleted()) {
+            if (isNotRunning()) {
                 cancelScheduledRefresh();
                 return;
             }
@@ -443,7 +443,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
          */
         @Nullable
         public IndexBalanceMetrics.IndexBalanceState getLastState() {
-            if (isCancelled() || isCompleted()) {
+            if (isNotRunning()) {
                 return null;
             }
             return lastState.get();

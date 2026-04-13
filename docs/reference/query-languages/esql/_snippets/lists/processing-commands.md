@@ -19,6 +19,6 @@
 * [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) {applies_to}`stack: preview 9.1` {applies_to}`serverless: preview`
 * [`SORT`](/reference/query-languages/esql/commands/sort.md)
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
-% * [`USER_AGENT`](/reference/query-languages/esql/commands/user-agent.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`USER_AGENT`](/reference/query-languages/esql/commands/user-agent.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`URI_PARTS`](/reference/query-languages/esql/commands/uri-parts.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`WHERE`](/reference/query-languages/esql/commands/where.md)

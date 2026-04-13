@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -167,6 +166,9 @@ public final class Datasource implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        // Do NOT delegate to Strings.toString(this) / toXContent(): that would write the raw (pre-encryption) secret
+        // values for secret settings, which can leak into logs via any code that logs a Datasource instance. Return a
+        // minimal summary instead; callers that need the full content with masking can use toMaskedMap() explicitly.
+        return "Datasource{name='" + name + "', type='" + type + "', settings=" + settings.size() + " entries}";
     }
 }

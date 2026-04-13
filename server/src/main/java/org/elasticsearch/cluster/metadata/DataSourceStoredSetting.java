@@ -27,7 +27,8 @@ import java.util.Objects;
  *
  * <p>Secret values are masked on GET responses and encrypted when the encryption
  * layer is available. Values preserve their original JSON type (String, Integer,
- * Boolean, etc.) for non-lossy REST API round-trips.
+ * Long, Double, Boolean, or null) for non-lossy REST API round-trips; round-trip
+ * is verified by {@code DataSourceStoredSettingTests}.
  */
 public final class DataSourceStoredSetting implements Writeable, ToXContentObject {
 

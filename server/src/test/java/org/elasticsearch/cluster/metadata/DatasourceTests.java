@@ -96,6 +96,29 @@ public class DatasourceTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new Datasource("test", "s3", null, null));
     }
 
+    public void testToStringDoesNotLeakSecrets() {
+        // Regression guard: Datasource.toString() must not include raw secret values, since it often ends up in logs.
+        // DataSourceStoredSetting.toString() already masks; this verifies the Datasource-level summary doesn't pull in
+        // the raw secret through toXContent.
+        var datasource = new Datasource(
+            "my-s3",
+            "s3",
+            "Production S3 bucket",
+            Map.of(
+                "access_key",
+                new DataSourceStoredSetting("AKIA_ABSOLUTELY_SECRET", true),
+                "secret_key",
+                new DataSourceStoredSetting("wJal_VERY_PRIVATE", true),
+                "region",
+                new DataSourceStoredSetting("us-east-1", false)
+            )
+        );
+        String summary = datasource.toString();
+        assertFalse("raw access_key leaked in toString: " + summary, summary.contains("AKIA_ABSOLUTELY_SECRET"));
+        assertFalse("raw secret_key leaked in toString: " + summary, summary.contains("wJal_VERY_PRIVATE"));
+        // Non-secret identifiers are fine to include, but the toString format is free to decide — we only assert on the leak contract.
+    }
+
     public void testXContentRoundTripHeterogeneousSettings() throws IOException {
         // Exercises all JSON-native value types inside the settings map (String, Integer, Boolean)
         // to verify both the per-setting XContent contract and the containing Datasource's map serialization.

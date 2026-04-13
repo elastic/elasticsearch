@@ -541,7 +541,7 @@ public class Verifier {
      * </ul>
      * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
      * <ul>
-     *     <li>RENAME foo as x/li>
+     *     <li>RENAME foo as x</li>
      *     <li>EVAL x = foo</li>
      *     <li>WHERE foo > 1</li>
      * </ul>

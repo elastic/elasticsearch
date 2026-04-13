@@ -264,13 +264,9 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_V5,
 
         /**
-         * Do not depend on mentioning fields in expressions to trigger loading them.
-         * Otherwise, {@code SET unmapped_fields="load"; FROM logs-*} will return nulls
-         * for partially mapped keyword fields, while {@code FROM logs-* | KEEP *} will
-         * trigger their loading.
+         * Unconditionally load partially mapped keyword fields, whether they are mentioned in expressions or not.
          * <p>
-         * Also, always load values of partially mapped fields from the indices where
-         * they are mapped.
+         * Also, always load values of partially mapped fields from the indices where they are mapped.
          * <p>
          * Fixes https://github.com/elastic/elasticsearch/issues/141994
          * and https://github.com/elastic/elasticsearch/issues/145206

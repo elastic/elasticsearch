@@ -21,6 +21,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,11 +66,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -476,14 +481,83 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
+        // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
+        // that are less prone to concurrency issues.
+        doTestConcurrentSeekExact(new NIOFSDirectory(createTempDir()));
+    }
+
+    public void testConcurrentSeekExactRandomDirectory() throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        doTestConcurrentSeekExact(directory);
+    }
+
+    private void doTestConcurrentSeekExact(Directory directory) throws IOException {
+        runTestWithRandomDocs(directory, 25, 100, (writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final var ids = new ArrayList<>(finalDocs.keySet());
+
+                // N threads each do terms("_id").iterator().seekExact(id), mirroring the
+                // PerThreadIDVersionAndSeqNoLookup pattern: each thread has its own TermsEnum
+                // but all share the same DelegatingBloomFilterFieldsProducer and its underlying BloomFilter.
+                final int numThreads = 16;
+                final int iterationsPerThread = 1_000;
+                final var errors = new CopyOnWriteArrayList<Throwable>();
+                final var startLatch = new CountDownLatch(1);
+                final var doneLatch = new CountDownLatch(numThreads);
+
+                for (int t = 0; t < numThreads; t++) {
+                    final int threadIdx = t;
+                    new Thread(() -> {
+                        try {
+                            final TermsEnum termsEnum = leafReader.terms(IdFieldMapper.NAME).iterator();
+                            startLatch.await();
+                            for (int i = 0; i < iterationsPerThread; i++) {
+                                final BytesRef id = ids.get((i + threadIdx) % ids.size());
+                                termsEnum.seekExact(id);
+                            }
+                        } catch (Throwable e) {
+                            logger.error("unexpected exception", e);
+                            errors.add(e);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    }, "seek-thread-" + t).start();
+                }
+
+                startLatch.countDown();
+                safeAwait(doneLatch);
+                assertThat(errors, empty());
+            }
+        });
+    }
+
     /**
      * Indexes random documents with synthetic id in a time-series Lucene index.
      *
      * See {@link #runTest(CheckedBiConsumer)}.
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        directory.setCheckIndexOnClose(false);
+        runTestWithRandomDocs(directory, test);
+    }
+
+    public static void runTestWithRandomDocs(Directory directory, CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test)
+        throws IOException {
+        runTestWithRandomDocs(directory, randomIntBetween(1, 25), randomIntBetween(1, 100), test);
+    }
+
+    private static void runTestWithRandomDocs(
+        Directory directory,
+        int maxHosts,
+        int maxMetricsPerHost,
+        CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test
+    ) throws IOException {
         final int routing = randomNonNegativeInt();
-        final int maxHosts = randomIntBetween(1, 25);
 
         // Generate a list of unique random documents
         // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
@@ -491,14 +565,13 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         for (int host = 0; host < maxHosts; host++) {
             var timestamp = Instant.now();
 
-            int maxMetricsPerHost = randomIntBetween(1, 100);
             for (int metric = 0; metric < maxMetricsPerHost; metric++) {
                 randomDocs.add(new Doc(timestamp.toEpochMilli(), "vm-prod-" + host, "cpu-load", metric, 1, routing));
                 timestamp = timestamp.plus(randomIntBetween(1, 59), randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES));
             }
         }
 
-        runTest((writer, parser) -> {
+        runTest(directory, (writer, parser) -> {
             // Last version of docs, keyed by their synthetic id term
             final var finalDocs = new TreeMap<BytesRef, Doc>();
 
@@ -554,18 +627,22 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
     private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+        final var directory = newDirectory();
+        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
+        // that is not supported in TSDBSyntheticIdFieldsProducer today.
+        //
+        // TODO would be nice to enable check-index-on-close
+        directory.setCheckIndexOnClose(false);
+        runTest(directory, test);
+    }
+
+    private static void runTest(Directory directory, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
         final var documentParser = buildDocumentParser(mapperService);
 
-        try (var directory = newDirectory()) {
-            // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-            // that is not supported in TSDBSyntheticIdFieldsProducer today.
-            //
-            // TODO would be nice to enable check-index-on-close
-            directory.setCheckIndexOnClose(false);
-
+        try (directory) {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(

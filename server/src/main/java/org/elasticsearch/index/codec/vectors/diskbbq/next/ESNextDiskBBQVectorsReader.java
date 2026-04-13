@@ -191,21 +191,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             );
         }
         int initialCentroidBatch = computeInitialCentroidBatchSize(centroidRatioForBatch, numCentroids, acceptCentroids);
-        int docBits = fieldEntry.quantEncoding.bits();
-        int ringPrefetchDepth = depthFromBudget(visitRatio, docBits);
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, initialCentroidBatch, ringPrefetchDepth);
-    }
-
-    private int depthFromBudget(float visitRatio, int docBits) {
-        if (visitRatio >= 0.75f || docBits >= 4) {
-            return 1;
-        } else if (visitRatio >= 0.5f && docBits <= 2) {
-            return 2;
-        } else if (visitRatio >= 0.25f && docBits <= 2) {
-            return 3;
-        } else {
-            return PREFETCH_DEPTH;
-        }
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, initialCentroidBatch, PREFETCH_DEPTH);
     }
 
     @Override

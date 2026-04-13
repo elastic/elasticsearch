@@ -185,6 +185,14 @@ public class TaskResultsService {
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
+
+                            builder.startObject("original_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("original_start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

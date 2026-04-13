@@ -2477,6 +2477,11 @@ public class EsqlCapabilities {
         FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
 
         /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Optimization that rewrites two or more {@code SUM(x ± c)} expressions sharing the
          * same {@code x}. Changes multi-value warning behavior: only one warning is emitted
          * (attributed to the first matching expression's source position), rather than one

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -86,7 +86,10 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var inference = embedding(
             inferenceEntityId,
             List.of(
-                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(5)),
+                new InferenceString(
+                    DataType.IMAGE,
+                    "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5))
+                ),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             )

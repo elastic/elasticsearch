@@ -107,6 +107,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
     private void startThreadPools() {
         synchronized (this) {
             if (closing.get() == false) {
+                assert schedulerThreadExecutor == null : "previous executor existed but it should not";
                 schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                     EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-cleanup-scheduler")
                 );
@@ -152,6 +153,12 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
         return closing.get();
     }
 
+    /**
+     * Checks for and removes orphaned DLM frozen transition artifacts across all projects.
+     * Scans for orphaned {@code dlm-clone-*} indices whose source index no longer exists in
+     * the same project and deletes them. Also scans the default snapshot repository for
+     * DLM-managed snapshots that are no longer needed and deletes those too.
+     */
     // visible for testing
     void checkForOrphanedResources() {
         try {
@@ -189,6 +196,8 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 .map(IndexMetadata::getIndex)
                 .toList();
 
+            // TODO: These deletes could be collected and issued as a single batched request in the
+            // future. Since orphaned clones are expected to be rare, individual deletes are sufficient for now.
             for (Index index : indicesToDelete) {
                 if (Thread.currentThread().isInterrupted() || closing.get()) {
                     return;

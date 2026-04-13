@@ -254,16 +254,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         assertThat(client.capturedGetSnapshotsRequest, nullValue());
     }
 
-    public void testCheckForOrphanedResourcesSkipsSnapshotCleanupWhenNoRepositoryConfigured() {
-        ProjectId projectId = randomUniqueProjectId();
-        setClusterState(Settings.EMPTY, ProjectMetadata.builder(projectId));
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, nullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
     public void testCheckForOrphanedResourcesSkipsSnapshotWhenIndexExistsInSameProject() {
         String repository = randomAlphaOfLength(8);
         String snapshotIndexName = randomAlphaOfLength(10);

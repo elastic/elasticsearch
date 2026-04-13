@@ -2476,6 +2476,11 @@ public class EsqlCapabilities {
          */
         FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
 
+        /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

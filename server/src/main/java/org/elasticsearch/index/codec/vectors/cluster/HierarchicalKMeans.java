@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;

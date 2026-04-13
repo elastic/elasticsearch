@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
@@ -96,7 +97,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private static final Set<String> LOCAL_ONLY_INFERENCE_CAPABILITIES = Set.of(
         RERANK.capabilityName(),
         COMPLETION.capabilityName(),
-        TEXT_EMBEDDING_FUNCTION.capabilityName()
+        TEXT_EMBEDDING_FUNCTION.capabilityName(),
+        EMBEDDING_FUNCTION.capabilityName()
     );
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()

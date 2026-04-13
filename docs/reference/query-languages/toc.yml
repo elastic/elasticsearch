@@ -131,7 +131,7 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
-                  - hidden: esql/commands/user-agent.md
+                  - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
@@ -314,6 +314,7 @@ toc:
                   - file: esql/functions-operators/string-functions/url_decode.md
               - file: esql/functions-operators/dense-vector-functions.md
                 children:
+                  - hidden: esql/functions-operators/dense-vector-functions/embedding.md
                   - file: esql/functions-operators/dense-vector-functions/knn.md
                   - file: esql/functions-operators/dense-vector-functions/text_embedding.md
                   - file: esql/functions-operators/dense-vector-functions/v_cosine.md
@@ -384,6 +385,7 @@ toc:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
+          - file: esql/esql-query-approximation.md          
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

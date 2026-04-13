@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.textembedding;
+package org.elasticsearch.xpack.esql.inference.embedding;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -23,17 +23,20 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * Builds output pages for text embedding inference operations.
+ * Builds output pages for embedding inference operations.
  * <p>
  * Converts {@link DenseEmbeddingResults} from inference responses into a {@link FloatBlock} that is appended
  * to the input page. Each embedding vector is stored as a multi-valued position containing the vector components.
  * </p>
+ * <p>
+ * This base class is used by both text embedding and typed embedding operations.
+ * </p>
  */
-class TextEmbeddingOutputBuilder implements OutputBuilder {
+public class EmbeddingOutputBuilder implements OutputBuilder {
 
     private final BlockFactory blockFactory;
 
-    TextEmbeddingOutputBuilder(BlockFactory blockFactory) {
+    public EmbeddingOutputBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
 
@@ -110,7 +113,7 @@ class TextEmbeddingOutputBuilder implements OutputBuilder {
             DenseEmbeddingResults<?> embeddingResults = extractEmbeddingResults(response);
             embeddings = embeddingResults.embeddings()
                 .stream()
-                .map(TextEmbeddingOutputBuilder::getEmbeddingAsFloatArray)
+                .map(EmbeddingOutputBuilder::getEmbeddingAsFloatArray)
                 .toArray(float[][]::new);
         }
 

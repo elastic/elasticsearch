@@ -155,7 +155,6 @@ public abstract class PaginatedHitSource {
         try (var ignored = rootStoredContextSupplier.get()) {
             doFirstSearch(searchListener);
         }
-
     }
 
     // following is the SPI to be implemented.

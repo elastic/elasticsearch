@@ -1,0 +1,89 @@
+// Tests for human-readable formatting functions: FMT_BYTES, FMT_BYTES_SI, FMT_DURATION, FMT_PERCENT
+
+// tag::fmt_bytes[]
+fmtBytes
+required_capability: fn_fmt_bytes
+row a = 0, b = 1023, c = 1024, d = 1536, e = 1048576 | eval r = fmt_bytes(a), s = fmt_bytes(b), t = fmt_bytes(c), u = fmt_bytes(d), v = fmt_bytes(e);
+
+a:integer | b:integer | c:integer | d:integer | e:integer | r:keyword | s:keyword | t:keyword | u:keyword | v:keyword
+0         | 1023      | 1024      | 1536      | 1048576   | 0b        | 1023b     | 1kb       | 1.5kb     | 1mb
+;
+// end::fmt_bytes[]
+
+fmtBytesLong
+required_capability: fn_fmt_bytes
+row a = 1073741824L, b = 1099511627776L | eval r = fmt_bytes(a), s = fmt_bytes(b);
+
+a:long      | b:long         | r:keyword | s:keyword
+1073741824  | 1099511627776  | 1gb       | 1tb
+;
+
+fmtBytesNegative
+required_capability: fn_fmt_bytes
+row a = -1 | eval r = fmt_bytes(a);
+
+a:integer | r:keyword
+-1        | -1b
+;
+
+// tag::fmt_bytes_si[]
+fmtBytesSi
+required_capability: fn_fmt_bytes_si
+row a = 0, b = 999, c = 1000, d = 1500, e = 1000000 | eval r = fmt_bytes_si(a), s = fmt_bytes_si(b), t = fmt_bytes_si(c), u = fmt_bytes_si(d), v = fmt_bytes_si(e);
+
+a:integer | b:integer | c:integer | d:integer | e:integer | r:keyword | s:keyword | t:keyword | u:keyword | v:keyword
+0         | 999       | 1000      | 1500      | 1000000   | 0B        | 999B      | 1kB       | 1.5kB     | 1MB
+;
+// end::fmt_bytes_si[]
+
+fmtBytesSiLarge
+required_capability: fn_fmt_bytes_si
+row a = 1000000000L, b = 1000000000000L | eval r = fmt_bytes_si(a), s = fmt_bytes_si(b);
+
+a:long       | b:long          | r:keyword | s:keyword
+1000000000   | 1000000000000   | 1GB       | 1TB
+;
+
+// tag::fmt_duration[]
+fmtDuration
+required_capability: fn_fmt_duration
+row a = 500, b = 1500000, c = 1500000000, d = 90000000000L | eval r = fmt_duration(a), s = fmt_duration(b), t = fmt_duration(c), u = fmt_duration(d);
+
+a:integer | b:integer | c:integer | d:long         | r:keyword | s:keyword | t:keyword | u:keyword
+500       | 1500000   | 1500000000| 90000000000    | 500nanos  | 1.5ms     | 1.5s      | 1.5m
+;
+// end::fmt_duration[]
+
+fmtDurationZero
+required_capability: fn_fmt_duration
+row a = 0 | eval r = fmt_duration(a);
+
+a:integer | r:keyword
+0         | 0s
+;
+
+fmtDurationHours
+required_capability: fn_fmt_duration
+row a = 5400000000000L | eval r = fmt_duration(a);
+
+a:long          | r:keyword
+5400000000000   | 1.5h
+;
+
+// tag::fmt_percent[]
+fmtPercent
+required_capability: fn_fmt_percent
+row a = 0.0, b = 0.5, c = 1.0, d = 0.123 | eval r = fmt_percent(a), s = fmt_percent(b), t = fmt_percent(c), u = fmt_percent(d);
+
+a:double | b:double | c:double | d:double | r:keyword | s:keyword | t:keyword  | u:keyword
+0.0      | 0.5      | 1.0      | 0.123    | 0%        | 50%       | 100%       | 12.3%
+;
+// end::fmt_percent[]
+
+fmtPercentInteger
+required_capability: fn_fmt_percent
+row a = 0, b = 1 | eval r = fmt_percent(a), s = fmt_percent(b);
+
+a:integer | b:integer | r:keyword | s:keyword
+0         | 1         | 0%        | 100%
+;

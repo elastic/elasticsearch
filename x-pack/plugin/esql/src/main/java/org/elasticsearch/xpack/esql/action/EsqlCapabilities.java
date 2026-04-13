@@ -2481,6 +2481,26 @@ public class EsqlCapabilities {
          */
         EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
+        /**
+         * Support for the {@code FMT_BYTES} function that formats a byte count using binary (base-1024) units.
+         */
+        FN_FMT_BYTES,
+
+        /**
+         * Support for the {@code FMT_BYTES_SI} function that formats a byte count using SI (base-1000) units.
+         */
+        FN_FMT_BYTES_SI,
+
+        /**
+         * Support for the {@code FMT_DURATION} function that formats a nanosecond duration as a human-readable string.
+         */
+        FN_FMT_DURATION,
+
+        /**
+         * Support for the {@code FMT_PERCENT} function that formats a ratio as a percentage string.
+         */
+        FN_FMT_PERCENT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

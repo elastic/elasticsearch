@@ -122,6 +122,29 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertCompletedReindexResponse(completedResult);
     }
 
+    /**
+     * Tests that {@code GET _tasks/{originalTaskId}?follow_relocations=false} returns the raw task result
+     * with the {@code task_relocated_exception} error instead of transparently following the relocation chain.
+     */
+    public void testGetTaskWithFollowRelocationsFalse() throws Exception {
+        final ClusterSetup setup = startClusterAndReindex();
+
+        shutdownAndRelocate(setup.reindexNodeName);
+        final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
+
+        final Request restRequest = new Request("GET", "/_tasks/" + setup.originalTaskId);
+        restRequest.addParameter("follow_relocations", "false");
+        final Response restResponse = getRestClient().performRequest(restRequest);
+        final Map<String, Object> restBody = ESRestTestCase.entityAsMap(restResponse);
+        assertThat("task is completed", restBody.get("completed"), is(true));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> error = (Map<String, Object>) restBody.get("error");
+        assertThat("error type is task_relocated_exception", error.get("type"), equalTo("task_relocated_exception"));
+        assertThat("relocated_task_id is present", error.get("relocated_task_id"), equalTo(relocatedTaskId.toString()));
+
+        unthrottleReindex(relocatedTaskId);
+    }
+
     // --- Setup ---
 
     private record ClusterSetup(

@@ -1,11 +1,19 @@
+use super::ASYNC_RUNTIME;
 use super::jni_utils::*;
+use super::objstore;
 use arrow::datatypes::{DataType as ArrowDataType, TimeUnit};
+use datafusion::execution::object_store::ObjectStoreUrl;
 use jni::{EnvUnowned, jni_str};
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{JClass, JObject, JObjectArray, JString};
 use jni::sys::jint;
+use object_store::ObjectStoreExt;
+use parquet::arrow::arrow_reader::ArrowReaderMetadata;
+use parquet::arrow::async_reader::ParquetObjectReader;
 use parquet::arrow::parquet_to_arrow_schema;
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 type MetadataError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -63,11 +71,45 @@ struct SchemaEntry {
     element_type_id: jint,
 }
 
-fn read_schema(file_path: &str) -> Result<Vec<SchemaEntry>, MetadataError> {
-    let file = std::fs::File::open(file_path)?;
-    let reader = SerializedFileReader::new(file)?;
-    let parquet_metadata = reader.metadata();
-    let file_metadata = parquet_metadata.file_metadata();
+fn is_remote(file_path: &str) -> bool {
+    file_path.starts_with("s3://")
+        || file_path.starts_with("gs://")
+        || file_path.starts_with("gcs://")
+        || file_path.starts_with("az://")
+        || file_path.starts_with("azure://")
+        || file_path.starts_with("abfs://")
+        || file_path.starts_with("http://")
+        || file_path.starts_with("https://")
+}
+
+/// Reads Parquet metadata using object_store for remote files.
+async fn read_parquet_metadata(
+    file_path: &str,
+    config: &HashMap<String, String>,
+) -> Result<Arc<parquet::file::metadata::ParquetMetaData>, MetadataError> {
+    if is_remote(file_path) {
+        let ctx = objstore::create_session(file_path, 1024, config)?;
+        let parsed = url::Url::parse(file_path)?;
+        let base = format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or(""));
+        let store_url = ObjectStoreUrl::parse(&base)?;
+        let store = ctx.runtime_env().object_store(&store_url)?;
+        let obj_path = object_store::path::Path::from_url_path(parsed.path())?;
+        let meta = store.head(&obj_path).await?;
+        let mut reader = ParquetObjectReader::new(store, obj_path)
+            .with_file_size(meta.size as u64);
+        let arrow_meta = ArrowReaderMetadata::load_async(&mut reader, Default::default()).await?;
+        Ok(Arc::new(arrow_meta.metadata().as_ref().clone()))
+    } else {
+        let file = std::fs::File::open(file_path)?;
+        let reader = SerializedFileReader::new(file)?;
+        Ok(Arc::new(reader.metadata().clone()))
+    }
+}
+
+fn read_schema_from_metadata(
+    metadata: &parquet::file::metadata::ParquetMetaData,
+) -> Result<Vec<SchemaEntry>, MetadataError> {
+    let file_metadata = metadata.file_metadata();
     let arrow_schema = parquet_to_arrow_schema(
         file_metadata.schema_descr(),
         file_metadata.key_value_metadata(),
@@ -89,19 +131,16 @@ struct FileStats {
     total_bytes: i64,
 }
 
-fn read_statistics(file_path: &str) -> Result<FileStats, MetadataError> {
-    let file = std::fs::File::open(file_path)?;
-    let reader = SerializedFileReader::new(file)?;
-    let parquet_metadata = reader.metadata();
-
+fn read_statistics_from_metadata(
+    metadata: &parquet::file::metadata::ParquetMetaData,
+) -> FileStats {
     let mut total_rows: i64 = 0;
     let mut total_bytes: i64 = 0;
-    for rg in parquet_metadata.row_groups() {
+    for rg in metadata.row_groups() {
         total_rows += rg.num_rows();
         total_bytes += rg.total_byte_size();
     }
-
-    Ok(FileStats { total_rows, total_bytes })
+    FileStats { total_rows, total_bytes }
 }
 
 struct ColumnStats {
@@ -111,16 +150,13 @@ struct ColumnStats {
     max_value: Option<String>,
 }
 
-fn read_column_statistics(file_path: &str) -> Result<Vec<ColumnStats>, MetadataError> {
-    use parquet::file::statistics::Statistics;
-
-    let file = std::fs::File::open(file_path)?;
-    let reader = SerializedFileReader::new(file)?;
-    let parquet_metadata = reader.metadata();
-    let file_metadata = parquet_metadata.file_metadata();
+fn read_column_statistics_from_metadata(
+    metadata: &parquet::file::metadata::ParquetMetaData,
+) -> Result<Vec<ColumnStats>, MetadataError> {
+    let file_metadata = metadata.file_metadata();
     let schema = file_metadata.schema_descr();
     let num_columns = schema.num_columns();
-    let num_row_groups = parquet_metadata.num_row_groups();
+    let num_row_groups = metadata.num_row_groups();
 
     let mut columns: Vec<ColumnStats> = Vec::with_capacity(num_columns);
     for col_idx in 0..num_columns {
@@ -131,7 +167,7 @@ fn read_column_statistics(file_path: &str) -> Result<Vec<ColumnStats>, MetadataE
         let mut global_max: Option<String> = None;
 
         for rg_idx in 0..num_row_groups {
-            let rg = parquet_metadata.row_group(rg_idx);
+            let rg = metadata.row_group(rg_idx);
             let col_meta = rg.column(col_idx);
 
             if let Some(stats) = col_meta.statistics() {
@@ -198,10 +234,16 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_keys: JObjectArray<'local>,
+    config_values: JObjectArray<'local>,
 ) -> jni::objects::JObjectArray<'local> {
     env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
         let path = file_path.try_to_string(env)?;
-        let entries = read_schema(&path).map_err(jni_err)?;
+        let config = string_arrays_to_map(&config_keys, &config_values, env)?;
+        let metadata = ASYNC_RUNTIME
+            .block_on(read_parquet_metadata(&path, &config))
+            .map_err(jni_err)?;
+        let entries = read_schema_from_metadata(&metadata).map_err(jni_err)?;
 
         let string_class = env.find_class(jni_str!("java/lang/String"))?;
         let arr_len = (entries.len() * 3) as i32;
@@ -229,10 +271,16 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_keys: JObjectArray<'local>,
+    config_values: JObjectArray<'local>,
 ) -> jni::objects::JObjectArray<'local> {
     env.with_env(|env| -> JniResult<jni::objects::JObjectArray<'local>> {
         let path = file_path.try_to_string(env)?;
-        let columns = read_column_statistics(&path).map_err(jni_err)?;
+        let config = string_arrays_to_map(&config_keys, &config_values, env)?;
+        let metadata = ASYNC_RUNTIME
+            .block_on(read_parquet_metadata(&path, &config))
+            .map_err(jni_err)?;
+        let columns = read_column_statistics_from_metadata(&metadata).map_err(jni_err)?;
 
         let string_class = env.find_class(jni_str!("java/lang/String"))?;
         let arr_len = (columns.len() * 4) as i32;
@@ -261,10 +309,16 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     file_path: JString<'local>,
+    config_keys: JObjectArray<'local>,
+    config_values: JObjectArray<'local>,
 ) -> jni::sys::jlongArray {
     env.with_env(|env| -> JniResult<jni::sys::jlongArray> {
         let path = file_path.try_to_string(env)?;
-        let stats = read_statistics(&path).map_err(jni_err)?;
+        let config = string_arrays_to_map(&config_keys, &config_values, env)?;
+        let metadata = ASYNC_RUNTIME
+            .block_on(read_parquet_metadata(&path, &config))
+            .map_err(jni_err)?;
+        let stats = read_statistics_from_metadata(&metadata);
 
         let arr = env.new_long_array(2)?;
         let buf: [i64; 2] = [stats.total_rows, stats.total_bytes];

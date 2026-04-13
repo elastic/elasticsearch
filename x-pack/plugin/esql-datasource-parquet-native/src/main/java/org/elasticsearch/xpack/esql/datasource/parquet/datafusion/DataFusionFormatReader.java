@@ -54,6 +54,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +65,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * FormatReader backed by a Rust DataFusion native library via JNI.
@@ -77,14 +82,19 @@ public class DataFusionFormatReader implements FormatReader {
 
     private final BlockFactory blockFactory;
     private final long filterHandle;
+    private final String[] configKeys;
+    private final String[] configValues;
+    private final ConcurrentHashMap<String, String> tempFileCache = new ConcurrentHashMap<>();
 
     public DataFusionFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, 0);
+        this(blockFactory, 0, null, null);
     }
 
-    private DataFusionFormatReader(BlockFactory blockFactory, long filterHandle) {
+    private DataFusionFormatReader(BlockFactory blockFactory, long filterHandle, String[] configKeys, String[] configValues) {
         this.blockFactory = blockFactory;
         this.filterHandle = filterHandle;
+        this.configKeys = configKeys;
+        this.configValues = configValues;
     }
 
     @Override
@@ -100,18 +110,34 @@ public class DataFusionFormatReader implements FormatReader {
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof DataFusionPushedFilter df) {
-            return new DataFusionFormatReader(blockFactory, df.exprHandle());
+            return new DataFusionFormatReader(blockFactory, df.exprHandle(), configKeys, configValues);
         }
         return this;
     }
 
     @Override
+    public FormatReader withConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return this;
+        }
+        String[] keys = new String[config.size()];
+        String[] values = new String[config.size()];
+        int i = 0;
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            keys[i] = entry.getKey();
+            values[i] = String.valueOf(entry.getValue());
+            i++;
+        }
+        return new DataFusionFormatReader(blockFactory, filterHandle, keys, values);
+    }
+
+    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        String path = resolveLocalPath(object);
-        String[] rawSchema = DataFusionBridge.getSchema(path);
+        String path = resolveNativePath(object);
+        String[] rawSchema = DataFusionBridge.getSchema(path, configKeys, configValues);
         List<Attribute> attributes = parseSchema(rawSchema);
 
-        long[] stats = DataFusionBridge.getStatistics(path);
+        long[] stats = DataFusionBridge.getStatistics(path, configKeys, configValues);
         SourceStatistics statistics = null;
         if (stats != null && stats.length >= 2) {
             long totalRows = stats[0];
@@ -139,8 +165,8 @@ public class DataFusionFormatReader implements FormatReader {
         return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
     }
 
-    private static Map<String, SourceStatistics.ColumnStatistics> parseColumnStatistics(String path, List<Attribute> attributes) {
-        String[] raw = DataFusionBridge.getColumnStatistics(path);
+    private Map<String, SourceStatistics.ColumnStatistics> parseColumnStatistics(String path, List<Attribute> attributes) {
+        String[] raw = DataFusionBridge.getColumnStatistics(path, configKeys, configValues);
         if (raw == null || raw.length == 0) {
             return Map.of();
         }
@@ -206,7 +232,7 @@ public class DataFusionFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        String path = resolveLocalPath(object);
+        String path = resolveNativePath(object);
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
@@ -214,7 +240,7 @@ public class DataFusionFormatReader implements FormatReader {
         String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
-        long handle = DataFusionBridge.openReader(path, columns, batchSize, limit, filterHandle);
+        long handle = DataFusionBridge.openReader(path, columns, batchSize, limit, filterHandle, configKeys, configValues);
         String executionPlan = DataFusionBridge.getExecutionPlan(handle);
         return new DataFusionBatchIterator(handle, blockFactory, executionPlan);
     }
@@ -230,14 +256,47 @@ public class DataFusionFormatReader implements FormatReader {
     }
 
     @Override
-    public void close() throws IOException {}
-
-    private static String resolveLocalPath(StorageObject object) {
-        String path = object.path().toString();
-        if (path.startsWith("file://")) {
-            path = path.substring(7);
+    public void close() throws IOException {
+        if (filterHandle != 0) {
+            DataFusionBridge.freeExpr(filterHandle);
         }
-        return path;
+        for (String tempPath : tempFileCache.values()) {
+            try {
+                Files.deleteIfExists(Path.of(tempPath));
+            } catch (IOException e) {
+                logger.warn("Failed to delete temp file [{}]", tempPath);
+            }
+        }
+        tempFileCache.clear();
+    }
+
+    /**
+     * Converts a StorageObject path to the path the native reader understands.
+     * For local files, strips the file:// prefix. For S3, returns the s3:// URI as-is
+     * (the Rust reader handles S3 natively via object_store). For other remote schemes
+     * (GCS, Azure, HTTP), downloads to a temp file since their auth mechanisms require
+     * custom integration not yet available in the native reader.
+     */
+    private String resolveNativePath(StorageObject object) throws IOException {
+        String uri = object.path().toString();
+        if (uri.startsWith("file://")) {
+            return uri.substring(7);
+        }
+        if (uri.startsWith("s3://")) {
+            return uri;
+        }
+        return tempFileCache.computeIfAbsent(uri, k -> {
+            try {
+                Path tempFile = Files.createTempFile("esql-parquet-", ".parquet");
+                try (InputStream in = object.newStream(); OutputStream out = Files.newOutputStream(tempFile)) {
+                    in.transferTo(out);
+                }
+                logger.debug("Downloaded remote parquet file [{}] to temp [{}]", uri, tempFile);
+                return tempFile.toAbsolutePath().toString();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to download remote parquet file: " + uri, e);
+            }
+        });
     }
 
     private static final int TYPE_LIST = 13;
@@ -289,6 +348,10 @@ public class DataFusionFormatReader implements FormatReader {
 
         @Override
         public String describe() {
+            return executionPlan;
+        }
+
+        String executionPlan() {
             return executionPlan;
         }
 

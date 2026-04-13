@@ -11,6 +11,8 @@ package org.elasticsearch.xpack.esql.datasource.parquet.datafusion;
  * Opaque wrapper around a native DataFusion {@code Expr} handle representing a pushed filter.
  * <p>
  * The handle is a pointer to a heap-allocated {@code Box<Expr>} on the Rust side.
- * Ownership is transferred to {@link DataFusionBridge#openReader} when the reader opens.
+ * The native side clones the Expr on each {@link DataFusionBridge#openReader} call so
+ * the handle remains valid across multiple files. The caller must free the handle via
+ * {@link DataFusionBridge#freeExpr} when the reader is closed.
  */
 record DataFusionPushedFilter(long exprHandle) {}

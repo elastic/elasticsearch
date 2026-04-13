@@ -28,9 +28,19 @@ final class DataFusionBridge {
      * Opens a DataFusion reader with optional filter.
      *
      * @param filterHandle opaque handle to a DataFusion Expr built via create* methods, or 0 for no filter.
-     *                     Ownership is transferred: the native side frees the Expr when the reader opens.
+     *                     The native side clones the Expr; the handle remains valid for reuse across files.
+     * @param configKeys keys from the ESQL WITH clause config map (parallel with configValues), or null
+     * @param configValues values from the ESQL WITH clause config map (parallel with configKeys), or null
      */
-    static native long openReader(String filePath, String[] projectedColumns, int batchSize, long limit, long filterHandle);
+    static native long openReader(
+        String filePath,
+        String[] projectedColumns,
+        int batchSize,
+        long limit,
+        long filterHandle,
+        String[] configKeys,
+        String[] configValues
+    );
 
     static native boolean nextBatch(long handle, long schemaAddr, long arrayAddr);
 
@@ -41,12 +51,12 @@ final class DataFusionBridge {
 
     // ---- Metadata ----
 
-    static native String[] getSchema(String filePath);
+    static native String[] getSchema(String filePath, String[] configKeys, String[] configValues);
 
-    static native long[] getStatistics(String filePath);
+    static native long[] getStatistics(String filePath, String[] configKeys, String[] configValues);
 
     /** Returns column statistics as [name0, nullCount0, min0, max0, name1, ...]. Empty string = absent. */
-    static native String[] getColumnStatistics(String filePath);
+    static native String[] getColumnStatistics(String filePath, String[] configKeys, String[] configValues);
 
     // ---- Filter expression building ----
     // Each create* method returns an opaque handle (boxed Expr on Rust heap).

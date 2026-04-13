@@ -1,5 +1,6 @@
 use super::ASYNC_RUNTIME;
 use super::jni_utils::*;
+use super::objstore;
 use arrow::array::{Array, StructArray};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use datafusion::common::Column;
@@ -58,11 +59,9 @@ async fn open_stream(
     batch_size: usize,
     limit: Option<usize>,
     filter: Option<Expr>,
+    config: &HashMap<String, String>,
 ) -> Result<ReaderState, ReaderError> {
-    let mut config = SessionConfig::new().with_batch_size(batch_size);
-    config.options_mut().execution.parquet.schema_force_view_types = false;
-
-    let ctx = SessionContext::new_with_config(config);
+    let ctx = objstore::create_session(file_path, batch_size, config)?;
 
     let parquet_opts = ParquetReadOptions::default();
     ctx.register_parquet("data", file_path, parquet_opts).await?;
@@ -95,7 +94,9 @@ async fn open_stream(
     let execution_plan = datafusion::physical_plan::displayable(plan.as_ref())
         .indent(false)
         .to_string();
+
     let stream = df.execute_stream().await?;
+
     Ok(ReaderState {
         _ctx: ctx,
         stream,
@@ -116,13 +117,17 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     batch_size: jni::sys::jint,
     limit: jlong,
     filter_handle: jlong,
+    config_keys: JObjectArray,
+    config_values: JObjectArray,
 ) -> jlong {
     env.with_env(|env| -> JniResult<jlong> {
         let filter = if filter_handle != 0 {
-            Some(unsafe { *Box::from_raw(filter_handle as *mut Expr) })
+            Some(unsafe { &*(filter_handle as *const Expr) }.clone())
         } else {
             None
         };
+
+        let config = string_arrays_to_map(&config_keys, &config_values, env)?;
 
         let state = ASYNC_RUNTIME
             .block_on(open_stream(
@@ -131,10 +136,12 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
                 batch_size as usize,
                 jlong_to_opt_usize(limit),
                 filter,
+                &config,
             ))
             .map_err(jni_err)?;
 
-        Ok(Box::into_raw(Box::new(state)) as jlong)
+        let handle = Box::into_raw(Box::new(state)) as jlong;
+        Ok(handle)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
 }

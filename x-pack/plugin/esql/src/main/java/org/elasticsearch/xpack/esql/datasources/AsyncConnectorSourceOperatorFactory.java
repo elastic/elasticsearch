@@ -72,7 +72,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
         int rowLimit = baseRequest.rowLimit();
         if (sliceQueue != null) {
-            executor.execute(() -> {
+            Thread.startVirtualThread(() -> {
                 try {
                     int rowsRemaining = rowLimit;
                     ExternalSplit split;
@@ -90,6 +90,9 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
                     buffer.finish(false);
                 } catch (Exception e) {
                     buffer.onFailure(e);
+                } catch (Error e) {
+                    buffer.onFailure(e);
+                    throw e;
                 } finally {
                     try {
                         connector.close();
@@ -99,12 +102,15 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
                 }
             });
         } else {
-            executor.execute(() -> {
+            Thread.startVirtualThread(() -> {
                 try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
                     ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer, rowLimit);
                     buffer.finish(false);
                 } catch (Exception e) {
                     buffer.onFailure(e);
+                } catch (Error e) {
+                    buffer.onFailure(e);
+                    throw e;
                 } finally {
                     try {
                         connector.close();

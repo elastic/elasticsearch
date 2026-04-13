@@ -71,11 +71,11 @@ public enum StreamType {
 
     /**
      * For a given index name, return the enabled stream of which it would be part.
-     *
+     * <p>
      * For example, for an index 'logs.ecs.foo' if the LOGS_ECS stream type is enabled,
      * this will return LOGS_ECS. If LOGS_ECS were not enabled but LOGS was, then LOGS
      * would be returned. If neither were enabled, null would be returned.
-     *
+     * <p>
      * If no enabled stream type matches, returns null.
      */
     @Nullable

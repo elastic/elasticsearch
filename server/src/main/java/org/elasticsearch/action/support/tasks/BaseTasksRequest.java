@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +36,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private String[] nodes = ALL_NODES;
 
+    @Nullable
     private TimeValue timeout;
 
     private String[] actions = ALL_ACTIONS;
@@ -161,6 +163,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return setTargetParentTaskId(parentTaskId);
     }
 
+    @Nullable
     public TimeValue getTimeout() {
         return this.timeout;
     }

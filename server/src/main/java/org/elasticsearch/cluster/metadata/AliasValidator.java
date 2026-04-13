@@ -88,10 +88,11 @@ public class AliasValidator {
 
         String sameNameAsAlias = lookup.apply(alias);
         if (sameNameAsAlias != null) {
-            throw new InvalidAliasNameException(
-                alias,
-                "an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-            );
+            // Note: this message intentionally does not mention "dataset" because datasets are not yet
+            // user-visible (no CRUD API, no releases). The lookup above does catch dataset collisions (datasets
+            // are in indicesLookup), but for user-facing clusters today no dataset can exist, so the omission
+            // is accurate. Update this message when the dataset CRUD feature ships.
+            throw new InvalidAliasNameException(alias, "an index, data stream, or ESQL view exists with the same name as the alias");
         }
     }
 

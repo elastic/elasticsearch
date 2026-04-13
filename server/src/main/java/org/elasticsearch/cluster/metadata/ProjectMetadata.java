@@ -1847,8 +1847,14 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
             if (duplicates.isEmpty() == false) {
+                // Note: the preamble intentionally does not mention "dataset" because datasets are not yet
+                // user-visible (no CRUD API, no releases). Mentioning them here would leak the concept into error
+                // messages users hit during ordinary index/alias/data-stream/view operations. The specific duplicate
+                // strings below DO mention "dataset" when a dataset is actually involved in a collision, but that
+                // path is gated by dataset existence, which is impossible for user-facing clusters today.
+                // Update this preamble when the CRUD feature ships.
                 throw new IllegalStateException(
-                    "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates "
+                    "index, alias, data stream, and view names need to be unique, but the following duplicates "
                         + "were found ["
                         + Strings.collectionToCommaDelimitedString(duplicates)
                         + "]"

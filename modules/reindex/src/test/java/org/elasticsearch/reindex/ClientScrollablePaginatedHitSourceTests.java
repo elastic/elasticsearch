@@ -119,6 +119,9 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                         Request request,
                         ActionListener<Response> listener
                     ) {
+                        // Verify that the action is always invoked in the initial thread context, even though this header is set to
+                        // different random values in the rest of the test. This ensures we don't accumulate a deeply-nested tree of spans
+                        // when tracing these requests for APM.
                         assertEquals(testHeaderInitialValue, threadContext.getHeader(testHeaderName));
                         super.doExecute(action, request, listener);
                     }

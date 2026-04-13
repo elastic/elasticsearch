@@ -169,6 +169,9 @@ public record TaskInfo(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node", node);
         builder.field("id", taskId.getId());
+        if (!originalTaskId.equals(taskId)) {
+            builder.field("original_task_id", originalTaskId.toString());
+        }
         builder.field("type", type);
         builder.field("action", action);
         if (status != null) {
@@ -182,6 +185,9 @@ public record TaskInfo(
             builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
+        if (!originalTaskId.equals(taskId)) {
+            builder.timestampFieldsFromUnixEpochMillis("original_start_time_in_millis", "original_start_time", originalStartTimeMillis);
+        }
         builder.field("cancellable", cancellable);
 
         if (params.paramAsBoolean(INCLUDE_CANCELLED_PARAM, true) && cancellable) {
@@ -197,10 +203,6 @@ public record TaskInfo(
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
-        if (!originalTaskId.equals(taskId)) {
-            builder.field("original_task_id", originalTaskId.toString());
-            builder.timestampFieldsFromUnixEpochMillis("original_start_time_in_millis", "original_start_time", originalStartTimeMillis);
-        }
         return builder;
     }
 

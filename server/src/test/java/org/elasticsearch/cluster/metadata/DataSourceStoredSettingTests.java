@@ -84,12 +84,36 @@ public class DataSourceStoredSettingTests extends ESTestCase {
         assertNotEquals(a, d);
     }
 
+    public void testWriteableRoundTripLong() throws IOException {
+        var setting = new DataSourceStoredSetting(9_999_999_999L, false);
+        var deserialized = writeableRoundTrip(setting);
+        assertEquals(setting, deserialized);
+        assertEquals(9_999_999_999L, deserialized.value());
+    }
+
+    public void testWriteableRoundTripDouble() throws IOException {
+        var setting = new DataSourceStoredSetting(3.14159, false);
+        var deserialized = writeableRoundTrip(setting);
+        assertEquals(setting, deserialized);
+        assertEquals(3.14159, (Double) deserialized.value(), 0.0);
+    }
+
+    public void testConstructorRejectsUnsupportedTypes() {
+        // StreamOutput.writeGenericValue only supports String/Integer/Long/Double/Boolean for our use.
+        // The constructor must fail-fast with a readable message rather than crashing later at cluster-state write time.
+        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(java.time.Instant.now(), false));
+        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(new java.math.BigDecimal("1.5"), false));
+        expectThrows(IllegalArgumentException.class, () -> new DataSourceStoredSetting(java.util.Map.of("nested", "value"), false));
+    }
+
     public void testXContentRoundTrip() throws IOException {
-        // Cover all JSON-native value types (String, Integer, Boolean, null) — the implementation relies on
-        // JsonXContentParser.objectText() preserving the parsed type, so a refactor to .text() would silently
+        // Cover all JSON-native value types (String, Integer, Long, Double, Boolean, null) — the implementation relies
+        // on JsonXContentParser.objectText() preserving the parsed type, so a refactor to .text() would silently
         // stringify non-string values without this coverage.
         assertXContentRoundTrip(new DataSourceStoredSetting("my-value", true));
         assertXContentRoundTrip(new DataSourceStoredSetting(42, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(9_999_999_999L, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(3.14159, false));
         assertXContentRoundTrip(new DataSourceStoredSetting(true, false));
         assertXContentRoundTrip(new DataSourceStoredSetting(null, false));
     }

@@ -172,6 +172,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return false;
     }
 
+    // Unlike View.equals() which compares only name+query, Dataset equality covers all fields so cluster-state diff
+    // correctly detects updates to any of datasource, resource, description, or settings.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

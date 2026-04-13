@@ -54,6 +54,21 @@ public final class DataSourceStoredSetting implements Writeable, ToXContentObjec
     private final boolean secret;
 
     public DataSourceStoredSetting(Object value, boolean secret) {
+        // Validate the value type at construction rather than letting it surface as an opaque crash at cluster-state
+        // serialization time (StreamOutput.writeGenericValue throws "can not write type [...]" for unsupported types).
+        // Restrict to the JSON-native primitive types that survive both the Writeable and XContent round-trips.
+        if (value != null
+            && value instanceof String == false
+            && value instanceof Integer == false
+            && value instanceof Long == false
+            && value instanceof Double == false
+            && value instanceof Boolean == false) {
+            throw new IllegalArgumentException(
+                "DataSourceStoredSetting value must be String, Integer, Long, Double, Boolean, or null; got ["
+                    + value.getClass().getName()
+                    + "]"
+            );
+        }
         this.value = value;
         this.secret = secret;
     }

@@ -101,7 +101,11 @@ public final class Datasource implements Writeable, ToXContentObject {
         return settings;
     }
 
-    /** Flatten settings for the query pipeline, decrypting values. */
+    /**
+     * Flatten settings for the query pipeline, decrypting values. Scaffolding for the CRUD REST API follow-up;
+     * not invoked by anything in this PR. The query-execution path will call this to get the plaintext settings
+     * map needed to construct storage/format clients.
+     */
     public Map<String, Object> toPlainMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
@@ -110,7 +114,11 @@ public final class Datasource implements Writeable, ToXContentObject {
         return result;
     }
 
-    /** Settings with secrets masked for API responses. */
+    /**
+     * Settings with secrets masked for API responses. Scaffolding for the CRUD REST API follow-up; not invoked by
+     * anything in this PR. The GET handler will call this so secret fields appear as {@code "**********"} rather
+     * than their stored (eventually-encrypted) values.
+     */
     public Map<String, Object> toMaskedMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {

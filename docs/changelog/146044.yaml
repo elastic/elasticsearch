@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 146045
+pr: 146044
+summary: Add GET /_prometheus/api/v1/metadata endpoint
+type: enhancement

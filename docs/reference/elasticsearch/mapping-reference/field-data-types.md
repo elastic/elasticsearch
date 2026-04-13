@@ -80,7 +80,7 @@ Dates
 [`exponential_histogram`](/reference/elasticsearch/mapping-reference/exponential-histogram.md)
 :   Pre-aggregated numerical values in the form of an exponential histogram.
 
-[`tdigest`](/reference/elasticsearch/mapping-reference/t-digest.md) {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+[`tdigest`](/reference/elasticsearch/mapping-reference/t-digest.md) {applies_to}`stack: preview =9.3, ga 9.4+`
 :   Pre-aggregated numerical values in the form of a T-Digest.
 
 

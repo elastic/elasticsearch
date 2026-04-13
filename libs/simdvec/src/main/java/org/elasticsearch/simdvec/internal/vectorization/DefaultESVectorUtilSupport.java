@@ -36,6 +36,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            float diff = a[i] - b[i];
+            sum = fma(diff, diff, sum);
+        }
+        return sum;
+    }
+
+    @Override
     public float cosine(byte[] a, byte[] b) {
         return VectorUtil.cosine(a, b);
     }
@@ -329,6 +340,24 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+    }
+
+    @Override
     public void soarDistanceBulk(
         float[] v1,
         float[] c0,
@@ -558,5 +587,10 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int j = 0; j < v1.length; j++) {
             result[j] = (float) Math.pow(2, (a + v1[j] - v2[j]) / eps);
         }
+    }
+
+    @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
     }
 }

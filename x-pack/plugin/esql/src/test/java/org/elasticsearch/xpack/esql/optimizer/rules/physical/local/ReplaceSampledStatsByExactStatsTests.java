@@ -42,18 +42,18 @@ import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
 
     /**
      * COUNT(*) is pushable to Lucene, so SampledAggregateExec should be replaced
-     * by AggregateExec wrapped in EvalExec that nullifies bucket columns.
+     * by AggregateExec wrapped in EvalExec that replicates original values to buckets.
      *
      * Plan: SampledAggregateExec(INITIAL) -> EvalExec($bucket_id) -> EsQueryExec
-     * Expected: EvalExec(null buckets) -> AggregateExec(INITIAL) -> EsQueryExec
+     * Expected: EvalExec(replicated buckets) -> AggregateExec(INITIAL) -> EsQueryExec
      */
     public void testReplace_countStar() {
         Alias count = countAlias(Literal.keyword(Source.EMPTY, "*"));
@@ -63,8 +63,7 @@ public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
 
         assertThat(result, instanceOf(EvalExec.class));
         EvalExec evalExec = (EvalExec) result;
-        assertAllFieldsNull(evalExec);
-
+        assertBucketsReplicateOriginal(evalExec, sampledAgg.originalIntermediateAttributes());
         assertThat(evalExec.child(), instanceOf(AggregateExec.class));
         AggregateExec aggExec = (AggregateExec) evalExec.child();
         assertThat(aggExec.getMode(), is(AggregatorMode.INITIAL));
@@ -75,7 +74,7 @@ public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
     }
 
     /**
-     * COUNT(field) on a single-value field is pushable, so the same replacement should happen.
+     * COUNT(field) on a single-valued field is pushable, so the same replacement should happen.
      */
     public void testReplace_countFieldSingleValue() {
         FieldAttribute field = fieldAttribute("emp_no", DataType.INTEGER);
@@ -86,8 +85,7 @@ public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
 
         assertThat(result, instanceOf(EvalExec.class));
         EvalExec evalExec = (EvalExec) result;
-        assertAllFieldsNull(evalExec);
-
+        assertBucketsReplicateOriginal(evalExec, sampledAgg.originalIntermediateAttributes());
         assertThat(evalExec.child(), instanceOf(AggregateExec.class));
         AggregateExec aggExec = (AggregateExec) evalExec.child();
         assertThat(aggExec.getMode(), is(AggregatorMode.INITIAL));
@@ -308,15 +306,24 @@ public class ReplaceSampledStatsByExactStatsTests extends ESTestCase {
         return AbstractPhysicalOperationProviders.intermediateAttributes(aggregates, List.of());
     }
 
-    private static void assertAllFieldsNull(EvalExec evalExec) {
-        assertThat("at least one null bucket field expected", evalExec.fields().isEmpty(), is(false));
+    /**
+     * Asserts that all bucket fields in the EvalExec replicate original
+     * intermediate values. Each bucket field should reference an original
+     * intermediate attribute (not be null or a computed expression).
+     */
+    private static void assertBucketsReplicateOriginal(EvalExec evalExec, List<Attribute> originalAttributes) {
+        assertThat("at least one bucket field expected", evalExec.fields().isEmpty(), is(false));
         for (Alias field : evalExec.fields()) {
             assertThat(
-                "bucket field '" + field.name() + "' should be set to null",
-                field.child() instanceof Literal lit && lit.value() == null,
-                is(true)
+                "bucket field '" + field.name() + "' should alias an original attribute",
+                field.child(),
+                instanceOf(Attribute.class)
             );
-            assertThat(field.child().fold(FoldContext.small()), nullValue());
+            assertThat(
+                "bucket field '" + field.name() + "' should alias an original attribute",
+                (Attribute) field.child(),
+                in(originalAttributes)
+            );
         }
     }
 

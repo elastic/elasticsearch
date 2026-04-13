@@ -15,9 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -67,6 +70,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     // maximum number of delete failures for individual blob
     private static final int MAX_DELETE_FAILURES = 3;
 
+    private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
+
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
         this.mockGcsBlobStore = new MockGcsBlobStore();
@@ -103,8 +108,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
                 final String prefix = params.getOrDefault("prefix", "");
                 final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
                 final String delimiter = params.getOrDefault("delimiter", "");
@@ -215,8 +219,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
                 final String blobName = params.get("name");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
@@ -242,8 +245,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/" + bucket + "/o?*uploadType=resumable*", request)) {
                 // Resumable upload https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final var params = RequestParams.from(exchange.getRequestURI());
 
                 final String contentRangeValue = requireHeader(exchange, "Content-Range");
                 final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(contentRangeValue);
@@ -267,6 +269,50 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // don't fail deletes here, fixture will inject failures before reaching this point
                 final var deleteStatus = deleteObject(object);
                 exchange.sendResponseHeaders(deleteStatus.getStatus(), -1);
+            } else if (Regex.simpleMatch("POST /storage/v1/b/" + bucket + "/o*/rewriteTo/b/" + bucket + "/o/*", request)) {
+                final var matcher = REWRITE_PATTERN.matcher(request);
+                if (matcher.find() == false) {
+                    throw failAndThrow("Cannot parse rewrite request: " + request);
+                }
+                final String srcBucket = matcher.group("srcBucket");
+                if (bucket.equals(srcBucket) == false) {
+                    throw failAndThrow("Source bucket " + srcBucket + " does not match " + bucket);
+                }
+                final String dstBucket = matcher.group("dstBucket");
+                if (bucket.equals(dstBucket) == false) {
+                    throw failAndThrow("Destination bucket " + dstBucket + " does not match " + bucket);
+                }
+                final String srcObject = URLDecoder.decode(matcher.group("srcObject"), UTF_8);
+                final String dstObject = URLDecoder.decode(matcher.group("dstObject"), UTF_8);
+
+                final RequestParams params = RequestParams.from(exchange.getRequestURI());
+                final String rewriteToken = params.get("rewriteToken");
+                final String maxBytesStr = params.get("maxBytesRewrittenPerCall");
+                final long maxBytesRewrittenPerCall = maxBytesStr != null
+                    ? Long.parseLong(maxBytesStr)
+                    : DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL;
+
+                var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
+                try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                    builder.startObject();
+                    builder.field("kind", "storage#rewriteResponse");
+                    builder.field("totalBytesRewritten", Long.toString(rewriteResponse.totalBytesRewritten()));
+                    builder.field("objectSize", Long.toString(rewriteResponse.objectSize()));
+                    boolean done = rewriteResponse.rewriteToken() == null;
+                    builder.field("done", done);
+                    if (done) {
+                        assert rewriteResponse.dstBlob() != null;
+                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket, "resource");
+                    } else {
+                        builder.field("rewriteToken", rewriteResponse.rewriteToken());
+                    }
+                    builder.endObject();
+
+                    BytesReference responseBytes = BytesReference.bytes(builder);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
+                    responseBytes.writeTo(exchange.getResponseBody());
+                }
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -279,13 +325,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private void writeBlobVersionAsJson(HttpExchange exchange, MockGcsBlobStore.BlobVersion newBlobVersion) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            writeBlobAsXContent(newBlobVersion, builder, bucket);
+            writeBlobAsXContent(newBlobVersion, builder, bucket, null);
             BytesReference responseBytes = BytesReference.bytes(builder);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
     }
+
+    static final Pattern REWRITE_PATTERN = Pattern.compile(
+        "POST .+/v1/b/(?<srcBucket>[^/]+)/o/(?<srcObject>[^?]+)" + "/rewriteTo/b/(?<dstBucket>[^/]+)/o/(?<dstObject>[^?\\s]+)"
+    );
 
     // Example of request line
     static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile(
@@ -409,7 +459,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
             builder.startArray("items");
             for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
-                writeBlobAsXContent(blobVersion, builder, bucket);
+                writeBlobAsXContent(blobVersion, builder, bucket, null);
             }
             builder.endArray();
             builder.field("prefixes", pageOfBlobs.prefixes());
@@ -418,9 +468,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
-    private static void writeBlobAsXContent(MockGcsBlobStore.BlobVersion blobVersion, XContentBuilder builder, String bucket)
-        throws IOException {
-        builder.startObject();
+    private static void writeBlobAsXContent(
+        MockGcsBlobStore.BlobVersion blobVersion,
+        XContentBuilder builder,
+        String bucket,
+        @Nullable String fieldName
+    ) throws IOException {
+        if (fieldName == null) {
+            builder.startObject();
+        } else {
+            builder.startObject(fieldName);
+        }
         builder.field("kind", "storage#object");
         builder.field("bucket", bucket);
         builder.field("name", blobVersion.path());
@@ -471,8 +529,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private static Long parseOptionalLongParameter(HttpExchange exchange, String parameterName) {
-        final Map<String, String> params = new HashMap<>();
-        RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+        final var params = RequestParams.from(exchange.getRequestURI());
         if (params.containsKey(parameterName)) {
             try {
                 return Long.parseLong(params.get(parameterName));

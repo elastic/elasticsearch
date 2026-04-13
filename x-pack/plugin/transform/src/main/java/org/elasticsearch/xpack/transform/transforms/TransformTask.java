@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
@@ -124,7 +125,14 @@ public class TransformTask extends AllocatedPersistentTask
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
 
-        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, transform.from(), this);
+        this.context = new TransformContext(
+            initialTaskState,
+            initialReason,
+            initialCheckpoint,
+            transform.from(),
+            this,
+            ProjectId.ofNullable(getProjectId(), ProjectId.DEFAULT)
+        );
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }

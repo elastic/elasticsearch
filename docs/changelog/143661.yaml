@@ -1,0 +1,17 @@
+area: ES|QL
+issues: []
+pr: 143661
+summary: Support window smaller than time bucket
+type: enhancement
+highlight:
+  title: "Time series aggregations support windows that are smaller than the time bucket"
+  notable: true
+  body: |-
+    Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
+
+    [source,yaml]
+    ----
+    TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
+    ----
+
+    Previously, only window values that were equal or exact multiples of the time bucket were supported.

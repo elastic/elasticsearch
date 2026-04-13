@@ -722,6 +722,124 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(ex);
         assertThat(ex, instanceOf(IndexNotFoundException.class));
+        assertThat(ex.getMessage(), containsString("no such index [shared-index-missing*]"));
+    }
+
+    public void testMissingConcreteIndicesWithIgnoreUnavailableAndStrictAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, Map.of(), Map.of());
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
+    }
+
+    public void testMultipleMissingConcreteIndicesWithIgnoreUnavailableAndStrictAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "metrics",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("metrics"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, Map.of(), Map.of());
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs,metrics]"));
+    }
+
+    public void testMissingConcreteIndicesWithLinkedProjectAndStrictAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, remote, Map.of());
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
+    }
+
+    public void testMixedExistingAndMissingConcreteIndicesWithStrictAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "missing",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("missing"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of()
+                )
+            )
+        );
+
+        // One index exists so the overall result is non-empty — no error expected
+        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, Map.of(), Map.of()));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {

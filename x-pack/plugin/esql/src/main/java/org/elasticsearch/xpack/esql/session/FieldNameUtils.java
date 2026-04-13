@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -36,36 +38,39 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
-        TRange.NAME.toLowerCase(Locale.ROOT)
+        TRange.NAME.toLowerCase(Locale.ROOT),
+        Earliest.NAME.toLowerCase(Locale.ROOT),
+        Latest.NAME.toLowerCase(Locale.ROOT)
     );
 
-    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
+    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
@@ -297,21 +302,60 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            Set<String> allFields = new HashSet<>();
+            for (String name : fieldNames) {
+                addRelatedFields(includePrefixFields, allFields, name);
+            }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 
-    private static Stream<String> withSubfields(String name) {
-        return name.endsWith(WILDCARD) ? Stream.of(name) : Stream.of(name, name + ".*");
+    /**
+     * Expands a field name into a set of names to request from field caps. For example, "a.b.c" will be expanded to:
+     * <ul>
+     * <li>The field itself: "a.b.c"</li>
+     * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
+     * implicitly used in some queries.</li>
+     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
+     * parents, so the verifier can detect subfields of flattened.</li>
+     * </ul>
+     */
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+        allFields.add(name);
+
+        if (name.endsWith(WILDCARD) == false) {
+            allFields.add(name + ".*");
+        }
+
+        if (includeFieldParentPrefixes) {
+            allFields.addAll(parentPrefixes(name));
+        }
+    }
+
+    /**
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"].
+     */
+    public static List<String> parentPrefixes(String name) {
+        List<String> prefixes = new ArrayList<>();
+        int pos = name.indexOf('.');
+
+        while (pos != -1) {
+            prefixes.add(name.substring(0, pos));
+            pos = name.indexOf('.', pos + 1);
+        }
+
+        return prefixes;
     }
 
     /**
      * Indicates whether the given plan gives an exact list of fields that we need to collect from field_caps.
      */
     private static boolean shouldCollectReferencedFields(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
-        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false);
+        return plan instanceof Project || (plan instanceof Aggregate agg && inlinestatsAggs.contains(agg) == false)
+        // no need to collect fields for metrics_info or ts_info
+            || plan instanceof MetricsInfo
+            || plan instanceof TsInfo;
     }
 
     /**

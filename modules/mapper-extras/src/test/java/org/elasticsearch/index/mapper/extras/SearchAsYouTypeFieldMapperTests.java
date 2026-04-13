@@ -99,7 +99,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "search_as_you_type");
             b.field("norms", true);
         }, b -> {
@@ -107,16 +107,17 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("norms", false);
         }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
+        checker.registerIgnoredParameter("doc_values");
     }
 
     @Override

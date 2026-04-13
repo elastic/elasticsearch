@@ -16,11 +16,13 @@ import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
@@ -114,4 +116,27 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
     }
 
+    protected static float[] randomFloatArray(int length) {
+        float[] fa = new float[length];
+        for (int i = 0; i < length; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
+        assertScoresEquals(expectedScores, expectedScoresSeg, 0f);
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg, float delta) {
+        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
+        for (int i = 0; i < expectedScores.length; i++) {
+            assertEquals(
+                "Difference at offset " + i,
+                expectedScores[i],
+                expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES),
+                delta
+            );
+        }
+    }
 }

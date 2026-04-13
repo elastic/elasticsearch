@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -77,6 +78,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return values.get(position, scratch);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -141,6 +147,21 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
             valuesSize = Math.round(valuesSize * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valuesSize;
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
     }
 
     @Override

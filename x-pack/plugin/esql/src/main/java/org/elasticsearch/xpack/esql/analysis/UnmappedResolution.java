@@ -14,9 +14,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  */
 public enum UnmappedResolution {
     /**
-     * Don't attempt to patch the plan: in case the query uses such a field not present in the index mapping, fail the query.
+     * Use the default behavior for the query type: standard ESQL queries fail when referencing unmapped fields, while other query types
+     * (e.g. PROMQL) may treat them differently.
      */
-    FAIL,
+    DEFAULT,
 
     /**
      * In case the query references a field that's not present in the index mapping, alias this field to value {@code null} of type

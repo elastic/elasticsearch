@@ -23,7 +23,9 @@ import java.util.Map;
 /**
  * A mutable version of AnalyzerContext that allows temporarily changing the transport version.
  * This is useful for testing scenarios where different transport versions need to be tested.
+ * @deprecated use {@link org.elasticsearch.xpack.esql.TestAnalyzer}
  */
+@Deprecated
 public class MutableAnalyzerContext extends AnalyzerContext {
     private TransportVersion currentVersion;
 

@@ -180,6 +180,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfi
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -806,8 +807,20 @@ public class InferencePlugin extends Plugin
         return singletonList(shardBulkInferenceActionFilter.get());
     }
 
+    @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return List.of(
+            new QueryVectorBuilderSpec<>(
+                EmbeddingQueryVectorBuilder.NAME,
+                EmbeddingQueryVectorBuilder::new,
+                EmbeddingQueryVectorBuilder.PARSER
+            )
+        );
     }
 
     @Override

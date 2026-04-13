@@ -245,6 +245,9 @@ public class Analysis {
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
+            if (isNotEntitled(ioe)) {
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ioe);
+            }
             String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
         } catch (SecurityException ace) {
@@ -349,6 +352,12 @@ public class Analysis {
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
+            if (isNotEntitled(ioe)) {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Access denied trying to read file %s_path: %s", settingPrefix, path.toString()),
+                    ioe
+                );
+            }
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
@@ -396,4 +405,12 @@ public class Analysis {
         return new StringReader(sb.toString());
     }
 
+    private static boolean isNotEntitled(IOException ioe) {
+        for (Throwable cause = ioe.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -154,6 +155,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -179,6 +181,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -229,13 +232,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveConfigurationAware(),
-            new ResolveTimestampBoundsAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
+            new ResolveTimestampBoundsAware(),
             new ResolveInference(),
             new DateMillisToNanosInEsRelation()
         ),
@@ -274,11 +277,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+        LogicalPlan analyzed = execute(plan);
+        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
-        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics, context().unmappedResolution());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -476,7 +480,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileList());
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -658,6 +662,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 case Row row -> resolveRow(row);
+                case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1086,7 +1091,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.FAIL);
+                    if (forkColumns.isEmpty()) {
+                        // When forkColumns is empty (all branches only have no-fields), resolveKeep with empty
+                        // projections would resolve to all child output including no-fields. Create a Project with
+                        // empty output directly so the no-fields marker doesn't leak into the fork branch output.
+                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
+                    } else {
+                        logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                    }
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -1205,7 +1217,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1213,18 +1226,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa) {
-            var name = fa.name();
-            EsField field = fa.field() instanceof InvalidMappedField imf
-                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
-                : new InvalidMappedField(
-                    name,
-                    Strings.format(
-                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
-                        fa.dataType().typeName()
-                    )
-                );
-            return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
+            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, esIndex));
+            return new FieldAttribute(fa.source(), null, fa.qualifier(), fa.name(), field);
+        }
+
+        private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {
+            if (fa.field() instanceof InvalidMappedField imf) {
+                return imf.getTypesToIndices();
+            }
+            // Field isn't currently invalid, meaning it's mapped to a single type in all the indices where it's actually mapped.
+            TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
+            indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
+            return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {
@@ -1246,18 +1260,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
-                var isInsisted = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
-                if (isInsisted == false) {
-                    var existing = insistedMap.get(fa);
-                    if (existing != null) { // field shows up multiple times in the node; return first processing
-                        return existing;
-                    }
-                    // Field is partially unmapped.
-                    if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
-                        insistedMap.put(fa, newFA);
-                        return newFA;
-                    }
+                if (esField instanceof PotentiallyUnmappedKeywordEsField
+                    || esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
+                    return fa;
+                }
+                var existing = insistedMap.get(fa);
+                if (existing != null) { // field shows up multiple times in the node; return first processing
+                    return existing;
+                }
+
+                if (indexResolutions.isEmpty()) {
+                    throw new IllegalStateException("Unmapped fields with empty index resolutions.");
+                }
+                EsIndex esIndex = indexResolutions.getFirst().get();
+                if (esIndex.isPartiallyUnmappedField(fa.name())) {
+                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);
+                    insistedMap.put(fa, newFA);
+                    return newFA;
                 }
                 return fa;
             });
@@ -1367,6 +1386,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            // When the index pattern resolves to no concrete indices (e.g. the data stream hasn't been created yet),
+            // the EsRelation has an empty mapping. Trying to resolve the metric field name would leave it as an
+            // UnresolvedAttribute, causing a VerificationException.
+            // Prometheus expects empty results (not errors) so we short-circuit to an empty local relation.
+            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
+                var source = promql.source();
+                var localRelation = new LocalRelation(
+                    source,
+                    List.of(promql.valueAttribute(), promql.stepAttribute()),
+                    EmptyLocalSupplier.EMPTY
+                );
+                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
+                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
+                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
+            }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
             // resolve the nested plan
@@ -1477,7 +1511,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
-            return unmappedResolution == UnmappedResolution.FAIL
+            return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
         }
@@ -1529,7 +1563,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
-            return unmappedResolution == UnmappedResolution.FAIL
+            return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
                 : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
         }
@@ -1565,7 +1599,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
-            return unmappedResolution == UnmappedResolution.FAIL
+            return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),
@@ -1677,6 +1711,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return enrich;
+        }
+
+        private LogicalPlan resolveMMR(MMR mmr, List<Attribute> childrenOutput) {
+            MMR resolved = (MMR) mmr.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+
+            Expression queryVector = resolved.queryVector();
+
+            if (queryVector != null && (queryVector.dataType().isNumeric() || queryVector.dataType() == KEYWORD)) {
+                return new MMR(
+                    resolved.source(),
+                    resolved.child(),
+                    resolved.diversifyField(),
+                    resolved.limit(),
+                    new ToDenseVector(resolved.queryVector().source(), resolved.queryVector()),
+                    resolved.options()
+                );
+            }
+
+            return resolved;
         }
 
         private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
@@ -2432,9 +2485,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
+                Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
+                    ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
+                    : null;
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
                 if (typeResolutions.size() == imf.getTypesToIndices().size()) {
-                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
+                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
@@ -2463,12 +2519,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
+                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
+                        // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
+                        // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
+                        if (mtf.getPotentiallyUnmappedExpression() != null) {
+                            throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
+                        }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
                             fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions,
-                            fa.field().getTimeSeriesFieldType()
+                            fa.field().getTimeSeriesFieldType(),
+                            null
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2511,7 +2574,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static MultiTypeEsField resolvedMultiTypeEsField(
             FieldAttribute fa,
-            HashMap<TypeResolutionKey, Expression> typeResolutions
+            Map<TypeResolutionKey, Expression> typeResolutions,
+            @Nullable Expression potentiallyUnmappedConversion
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
@@ -2522,7 +2586,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
+            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                .withPotentiallyUnmappedExpression(potentiallyUnmappedConversion);
         }
 
         private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
@@ -2582,23 +2647,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+                p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::checkUnresolved)
             );
-        }
-
-        static Attribute checkUnresolved(FieldAttribute fa) {
-            if (fa.field() instanceof InvalidMappedField imf) {
-                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                List<String> types = imf.getTypesToIndices().keySet().stream().toList();
-                return new UnsupportedAttribute(
-                    fa.source(),
-                    fa.name(),
-                    new UnsupportedEsField(imf.getName(), types),
-                    unresolvedMessage,
-                    fa.id()
-                );
-            }
-            return fa;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -2628,11 +2678,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation;
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                    if (f.field() instanceof InvalidMappedField imf && allDates(context, relation, imf)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        // This rule runs in the "Initialize" batch, before ResolveUnmapped. The isFieldMappedInAllIndices
+                        // check above should prevent reaching here for fields that are unmapped in any index when in LOAD mode.
+                        if (imf.isPotentiallyUnmapped()) {
+                            throw new IllegalStateException(
+                                "Unexpected potentially unmapped field [" + imf.getName() + "] in DateMillisToNanosInEsRelation"
+                            );
+                        }
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
                             f.source(),
                             f.parentName(),
@@ -2647,6 +2704,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return f;
                 });
             });
+        }
+
+        private static boolean allDates(AnalyzerContext context, EsRelation relation, InvalidMappedField imf) {
+            if (imf.types().stream().allMatch(DataType::isDate) == false) {
+                return false;
+            }
+            // If we need to load the fields from unmapped indices, we will treat it as a keyword, i.e., not all types are dates.
+            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                return true;
+            }
+            // Since DateMillisToNanosInEsRelation runs before ResolveUnmapped, isPotentiallyUnmapped isn't set yet.
+            int mappedCount = imf.getTypesToIndices().values().stream().mapToInt(Set::size).sum();
+            int totalCount = relation.concreteIndices().values().stream().mapToInt(List::size).sum();
+            return mappedCount >= totalCount;
         }
     }
 
@@ -2676,10 +2747,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, this::doRule);
         }
 
-        private LogicalPlan doRule(Aggregate plan) {
+        private LogicalPlan doRule(LogicalPlan plan) {
+            if (plan instanceof EsRelation || plan instanceof Project || plan.childrenResolved() == false) {
+                return plan;
+            }
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
@@ -2690,11 +2764,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields);
                 }
                 return child;
+            }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
+                Expression left = comparison.left();
+                Expression right = comparison.right();
+                Holder<Boolean> modified = new Holder<>(Boolean.FALSE);
+                left = tryToTransformBinaryComparison(comparison, left, modified, unionFields);
+                right = tryToTransformBinaryComparison(comparison, right, modified, unionFields);
+                if (modified.get() == false) {
+                    return comparison;
+                }
+                return comparison.replaceChildren(List.of(left, right));
             });
             if (unionFields.isEmpty() || aborted.get()) {
                 return plan;
             }
             return ResolveUnionTypes.addGeneratedFieldsToEsRelations(newPlan, unionFields.values().stream().toList());
+        }
+
+        private Expression tryToTransformBinaryComparison(
+            EsqlBinaryComparison comparison,
+            Expression original,
+            Holder<Boolean> modified,
+            Map<String, FieldAttribute> unionFields
+        ) {
+            if (original instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf && canBeCasted(imf)) {
+                Map<String, Expression> typeConverters = new HashMap<>();
+                for (DataType type : imf.types()) {
+                    ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
+                        ? FromAggregateMetricDouble.withMetric(comparison.source(), fa, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT)
+                        : new ToDouble(fa.source(), fa);
+                    Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, imf);
+                    typeConverters.put(type.typeName(), expression);
+                }
+                var newField = unionFields.computeIfAbsent(
+                    Attribute.rawTemporaryName(fa.name(), comparison.functionName(), comparison.sourceText()),
+                    newName -> new FieldAttribute(
+                        fa.source(),
+                        fa.parentName(),
+                        fa.qualifier(),
+                        newName,
+                        MultiTypeEsField.resolveFrom(imf, typeConverters),
+                        fa.nullable(),
+                        null,
+                        true
+                    )
+                );
+                modified.set(true);
+                return newField;
+            }
+            return original;
+        }
+
+        private static boolean canBeCasted(InvalidMappedField imf) {
+            return imf.types().contains(AGGREGATE_METRIC_DOUBLE)
+                && imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
 
         private Expression tryToTransformFunction(
@@ -2704,8 +2827,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                if (imf.types().contains(AGGREGATE_METRIC_DOUBLE) == false
-                    || imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric()) == false) {
+                if (canBeCasted(imf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
                 }
@@ -2832,7 +2954,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class InsertFromAggregateMetricDouble extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p))
+                .transformExpressionsUp(EsqlBinaryComparison.class, this::doRule);
+        }
+
+        private Expression doRule(EsqlBinaryComparison comparison) {
+            Expression left = comparison.left();
+            Expression right = comparison.right();
+            boolean modified = false;
+            if (left.resolved() == false || right.resolved() == false) {
+                return comparison;
+            }
+            if (left.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                left = FromAggregateMetricDouble.withMetric(left.source(), left, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (right.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                right = FromAggregateMetricDouble.withMetric(right.source(), right, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (modified == false) {
+                return comparison;
+            }
+            return comparison.replaceChildren(List.of(left, right));
         }
 
         private LogicalPlan doRule(Aggregate plan) {
@@ -3063,7 +3207,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**
@@ -3110,7 +3254,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
 
-            Map<Integer, DataType> indexToCommonType = new HashMap<>();
+            // Collect UnsupportedAttributes by column index so that rebuildUnionAllOutput
+            // can use them for the UnionAll output, preserving original_types metadata.
+            // Also doubles as the common type override: any column in this map has common type UNSUPPORTED.
+            Map<Integer, UnsupportedAttribute> unsupportedAttributes = new HashMap<>();
 
             // Cast each branch's output to the common type
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
@@ -3130,7 +3277,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         unionAll,
                         outputToPlans,
                         newAliases,
-                        indexToCommonType,
+                        unsupportedAttributes,
                         configuration
                     );
                     newChildOutput.add(resolved);
@@ -3142,10 +3289,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 
-            // Update common types with overrides
-            indexToCommonType.forEach(commonTypes::set);
+            // Update common types: any column with unsupported attributes gets UNSUPPORTED
+            unsupportedAttributes.keySet().forEach(i -> commonTypes.set(i, UNSUPPORTED));
 
-            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput) : unionAll;
+            return outputChanged
+                ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput, unsupportedAttributes)
+                : unionAll;
         }
 
         /**
@@ -3196,8 +3345,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Resolve the attribute to the target type, if target type is null, create:
-         * an UnsupportedAttribute if the attribute is referenced in the parent plans,
-         * a Null alias with keyword type if the attribute is not referenced in the parent plans.
+         * an UnsupportedAttribute if the attribute is referenced in the parent plans (returned directly, causes verification error),
+         * a Null alias with keyword type if the attribute is not referenced (returned for child output),
+         * with UnsupportedAttribute stored in the side-channel map for the UnionAll output in both cases.
          */
         private static Attribute resolveAttribute(
             Attribute oldAttr,
@@ -3207,11 +3357,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             UnionAll unionAll,
             Map<Attribute, List<LogicalPlan>> outputToPlans,
             List<Alias> newAliases,
-            Map<Integer, DataType> indexToCommonType,
+            Map<Integer, UnsupportedAttribute> unsupportedAttributes,
             Configuration configuration
         ) {
             if (targetType == null) {
-                return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, indexToCommonType);
+                return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, unsupportedAttributes);
             }
 
             if (targetType != NULL && oldAttr.dataType() != targetType) {
@@ -3235,28 +3385,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             UnionAll unionAll,
             Map<Attribute, List<LogicalPlan>> outputToPlans,
             List<Alias> newAliases,
-            Map<Integer, DataType> indexToCommonType
+            Map<Integer, UnsupportedAttribute> unsupportedAttributes
         ) {
             Attribute unionAttr = unionAll.output().get(columnIndex);
-
-            if (outputToPlans.containsKey(unionAttr)) {
-                // Unsupported attribute
-                List<String> dataTypes = collectIncompatibleTypes(columnIndex, outputs);
-                UnsupportedAttribute unsupported = new UnsupportedAttribute(
+            // Create the UnsupportedAttribute once — used in both branches.
+            // Its presence in unsupportedAttributes also signals that commonType should be UNSUPPORTED.
+            UnsupportedAttribute unsupported = unsupportedAttributes.computeIfAbsent(columnIndex, k -> {
+                List<String> dataTypes = collectIncompatibleTypes(k, outputs);
+                return new UnsupportedAttribute(
                     oldAttr.source(),
                     oldAttr.name(),
                     new UnsupportedEsField(oldAttr.name(), dataTypes),
                     "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
                     oldAttr.id()
                 );
+            });
+
+            if (outputToPlans.containsKey(unionAttr)) {
+                // Referenced by downstream plans — return UnsupportedAttribute directly (causes verification error)
                 newAliases.add(new Alias(oldAttr.source(), oldAttr.name(), unsupported));
-                indexToCommonType.putIfAbsent(columnIndex, UNSUPPORTED);
                 return unsupported;
             } else {
-                // Null alias with keyword type
+                // Not referenced by downstream plans:
+                // Return a null KEYWORD alias for the child output (so child plans work correctly).
+                // The UnsupportedAttribute is already stored in the side-channel map above
+                // for rebuildUnionAllOutput to use in the UnionAll output, preserving original_types metadata.
                 Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, KEYWORD));
                 newAliases.add(nullAlias);
-                indexToCommonType.putIfAbsent(columnIndex, KEYWORD);
                 return nullAlias.toAttribute();
             }
         }
@@ -3282,7 +3437,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             UnionAll unionAll,
             List<LogicalPlan> newChildren,
             List<DataType> commonTypes,
-            List<Attribute> updatedUnionAllOutput
+            List<Attribute> updatedUnionAllOutput,
+            Map<Integer, UnsupportedAttribute> unsupportedAttributes
         ) {
             // Rebuild the newUnionAll's output to ensure the correct attributes are used
             List<Attribute> oldOutput = unionAll.output();
@@ -3293,23 +3449,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 DataType commonType = commonTypes.get(i);
 
                 if (oldAttr.dataType() != commonType) {
-                    // keep the id unchanged, otherwise the downstream operators won't recognize the attribute
-                    ReferenceAttribute newAttr = new ReferenceAttribute(
-                        oldAttr.source(),
-                        null,
-                        oldAttr.name(),
-                        commonType,
-                        oldAttr.nullable(),
-                        oldAttr.id(),
-                        oldAttr.synthetic()
-                    );
+                    Attribute newAttr;
+                    UnsupportedAttribute ua = unsupportedAttributes.get(i);
+                    if (commonType == UNSUPPORTED && ua != null) {
+                        // Use the UnsupportedAttribute directly so that original_types metadata
+                        // is preserved and flows through to the response output.
+                        // Keep the id unchanged, otherwise the downstream operators won't recognize the attribute.
+                        newAttr = new UnsupportedAttribute(
+                            oldAttr.source(),
+                            ua.qualifier(),
+                            oldAttr.name(),
+                            ua.field(),
+                            ua.hasCustomMessage() ? ua.unresolvedMessage() : null,
+                            oldAttr.id()
+                        );
+                    } else {
+                        // keep the id unchanged, otherwise the downstream operators won't recognize the attribute
+                        newAttr = new ReferenceAttribute(
+                            oldAttr.source(),
+                            null,
+                            oldAttr.name(),
+                            commonType,
+                            oldAttr.nullable(),
+                            oldAttr.id(),
+                            oldAttr.synthetic()
+                        );
+                    }
                     newOutput.add(newAttr);
                     updatedUnionAllOutput.add(newAttr);
                 } else {
                     newOutput.add(oldAttr);
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**

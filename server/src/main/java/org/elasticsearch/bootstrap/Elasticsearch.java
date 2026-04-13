@@ -357,12 +357,21 @@ class Elasticsearch {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
             } catch (Exception e) {
-                if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException") == false) {
-                    throw new IllegalStateException("Failed entitlement protection self-test", e);
+                if (isCausedByNotEntitledException(e)) {
+                    return;
                 }
-                return;
+                throw new IllegalStateException("Failed entitlement protection self-test", e);
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+        }
+
+        private static boolean isCausedByNotEntitledException(Throwable e) {
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {

@@ -9,11 +9,14 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,6 +39,12 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         scratch.bytes = value.bytes;
         scratch.offset = value.offset;
         scratch.length = value.length;
+        return scratch;
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
         return scratch;
     }
 
@@ -103,6 +112,15 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
             return ReleasableIterator.single(positions.blockFactory().newConstantBytesRefBlockWith(value, positions.getPositionCount()));
         }
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
     }
 
     @Override

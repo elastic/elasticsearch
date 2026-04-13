@@ -27,9 +27,10 @@ import java.util.Objects;
  * which must be fully accumulated before processing. It provides backpressure by reserving memory
  * up front and rejecting oversized requests with a 413 status.
  * <p>
- * The caller must reserve memory via {@link IndexingPressure#markCoordinatingOperationStarted} before
- * constructing this aggregator. If the reservation fails ({@code EsRejectedExecutionException}),
- * the caller should let it propagate to produce a 429 response.
+ * When {@link #accept(RestChannel)} is called, the aggregator reserves memory via
+ * {@link IndexingPressure#markCoordinatingOperationStarted}. If the reservation fails
+ * (e.g. {@code EsRejectedExecutionException} under heavy load), the {@link CompletionHandler#onFailure}
+ * callback is invoked so the caller can produce a format-appropriate error response (e.g. protobuf).
  * <p>
  * Once all chunks are accumulated, the reservation is lowered to the actual size and the
  * {@link CompletionHandler} is invoked with the aggregated content and the pressure reservation
@@ -73,7 +74,8 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         void onComplete(RestChannel channel, ReleasableBytesReference content, Releasable indexingPressureRelease);
 
         /**
-         * Called when the request body exceeds the maximum allowed size.
+         * Called when a failure occurs during content accumulation, such as the request body
+         * exceeding the maximum allowed size or the indexing pressure reservation being rejected.
          *
          * @param channel the REST channel for sending the error response
          * @param e the exception describing the failure
@@ -82,24 +84,25 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
     }
 
     private final RestRequest request;
-    private final IndexingPressure.Coordinating coordinating;
+    private final IndexingPressure indexingPressure;
     private final long maxRequestSize;
     private final CompletionHandler completionHandler;
     private final BodyPostProcessor bodyPostProcessor;
 
+    private IndexingPressure.Coordinating coordinating;
     private ArrayList<ReleasableBytesReference> chunks;
     private long accumulatedSize;
     private boolean closed;
 
     public IndexingPressureAwareContentAggregator(
         RestRequest request,
-        IndexingPressure.Coordinating coordinating,
+        IndexingPressure indexingPressure,
         long maxRequestSize,
         CompletionHandler completionHandler,
         BodyPostProcessor bodyPostProcessor
     ) {
         this.request = request;
-        this.coordinating = coordinating;
+        this.indexingPressure = indexingPressure;
         this.maxRequestSize = maxRequestSize;
         this.completionHandler = completionHandler;
         this.bodyPostProcessor = Objects.requireNonNull(bodyPostProcessor);
@@ -107,6 +110,13 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
 
     @Override
     public void accept(RestChannel channel) {
+        try {
+            coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSize, false);
+        } catch (Exception e) {
+            closed = true;
+            completionHandler.onFailure(channel, e);
+            return;
+        }
         request.contentStream().next();
     }
 

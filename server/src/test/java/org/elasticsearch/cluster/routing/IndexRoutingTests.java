@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -664,8 +665,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
-        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", useSyntheticId);
+        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", randomBoolean());
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -684,13 +684,16 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersion.current(),
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            ),
             8,
             "dim.*,other.*,top",
-            useSyntheticId
+            randomBoolean()
         );
+        assertFalse(TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         /*
          * These are the expected shards after tsid based routing. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -710,6 +713,27 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
         assertIndexShard(fixture, Map.of("dim.a", true), 5);
         assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
+    }
+
+    public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
+        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            8,
+            "dim.*,other.*,top",
+            randomBoolean()
+        );
+        assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+        assertIndexShard(fixture, Map.of("top", "a"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", true), 3);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
     public void testRoutingPathReadWithInvalidString() {
@@ -789,10 +813,8 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRerouteToTargetTsid() {
         int shards = between(2, 500);
         Settings.Builder settingsBuilder = settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "top")
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        }
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(settingsBuilder)
             .numberOfShards(shards)
@@ -1069,8 +1091,7 @@ public class IndexRoutingTests extends ESTestCase {
         // old way of routing paths created during routing
         // current way of routing paths created during routing via tsid
         String setting = randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey();
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
-        return getIndexRoutingWithSetting(IndexVersion.current(), shards, path, setting, useSyntheticId);
+        return getIndexRoutingWithSetting(IndexVersion.current(), shards, path, setting, randomBoolean());
     }
 
     private TimeSeriesRoutingFixture indexRoutingForRoutingPath(
@@ -1103,11 +1124,10 @@ public class IndexRoutingTests extends ESTestCase {
     ) {
         if (useSyntheticId) {
             assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
-            assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG : "Can't use synthetic id without feature flag";
         }
         Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+        if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }
         return new TimeSeriesRoutingFixture(
@@ -1236,7 +1256,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int hash(IndexRouting routing, List<Object> keysAndValues) {
         if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
-            return tsidBasedRoutingHash(keysAndValues);
+            return tsidBasedRoutingHash(keysAndValues, routing.creationVersion);
         }
         return legacyRoutingHash(keysAndValues);
     }
@@ -1252,7 +1272,7 @@ public class IndexRoutingTests extends ESTestCase {
         return hash;
     }
 
-    private static int tsidBasedRoutingHash(List<Object> keysAndValues) {
+    private static int tsidBasedRoutingHash(List<Object> keysAndValues, IndexVersion indexVersion) {
         TsidBuilder tsidBuilder = new TsidBuilder();
         for (int i = 0; i < keysAndValues.size(); i += 2) {
             String key = keysAndValues.get(i).toString();
@@ -1271,6 +1291,6 @@ public class IndexRoutingTests extends ESTestCase {
                 throw new IllegalArgumentException("Unsupported value type for TSID routing: " + value.getClass());
             }
         }
-        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(), 0);
+        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(indexVersion), 0);
     }
 }

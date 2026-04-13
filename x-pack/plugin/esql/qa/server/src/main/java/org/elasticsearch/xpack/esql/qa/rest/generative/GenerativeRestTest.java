@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
@@ -19,8 +20,18 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -66,6 +77,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
         "Unbounded SORT not supported yet",
+        "MV_EXPAND .* cannot yet have an unbounded SORT .* before it",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
@@ -75,10 +87,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
         "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
-        // multi_match query receiving a non-boolean value for a boolean type field
+        // full-text function receiving a non-boolean value for a boolean type field
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
+        // full-text function trying to parse a non-IP string
+        "is not an IP string literal",
+        // a values(<that field>) agg could more than 100,000 values into a single multi-valued field, and a subsequent
+        // inline stats … by <that field> hits the hard limit Block.MAX_LOOKUP = 100_000 in the compute layer
+        // throwing IllegalArgumentException via PackedValuesBlockHash
+        // see https://github.com/elastic/elasticsearch/issues/145694
+        "Found a single entry with .* entries",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -89,15 +108,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
-        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
-        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
-        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
-        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
+        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -211,18 +232,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
                     final String command = current.commandString();
 
-                    final QueryExecuted result = previousResult == null
+                    QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
 
+                    // Strip the artificial query approximation columns, that are added after
+                    // query execution, and trailing all other columns. These columns confuse
+                    // follow-up command generation (that try to reference them), and result
+                    // validation (that expect columns added after them).
+                    if (FromGenerator.hasApproximationSettings(result.query())) {
+                        result = stripApproximationColumns(result);
+                    }
+
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
+                            .success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkException(result, commands, currentSchema);
+                            checkPipelineException(result, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
@@ -283,8 +313,51 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
+    /**
+     * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX) == false
+                && qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX) == false) {
+                keepIndices.add(i);
+            }
+        }
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
+        }
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
+    }
+
     protected CommandGenerator sourceCommand() {
         return EsqlQueryGenerator.sourceCommand();
+    }
+
+    protected CommandGenerator.ValidationResult checkPipelineResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        return checkResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+    }
+
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousCommands, currentSchema);
     }
 
     private record FailureContext(
@@ -342,13 +415,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.outputSchema(),
             result.result()
         );
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
+    }
+
+    protected static void failOnUnexpectedValidationError(
+        CommandGenerator.ValidationResult outputValidation,
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         if (outputValidation.success() == false) {
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
-                return outputValidation;
+                return;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
-        return outputValidation;
     }
 
     protected void checkException(
@@ -372,7 +454,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
     }
 
-    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+    protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
@@ -391,7 +473,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage, String query) {
-        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+        return isUnmappedFieldPrefixError(errorMessage, query, SET_UNMAPPED_FIELDS_PREFIX);
+    }
+
+    protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
+        if (query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
@@ -464,6 +550,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile("\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*");
 
     /**
+     * Matches {@code | rename X as Y} segments embedded in a LOOKUP JOIN command string.
+     * {@link LookupJoinGenerator} prepends rename commands to align the left-side key columns
+     * with the lookup index key names; these renames are part of a single {@link CommandGenerator.CommandDescription}
+     * and must be accounted for when propagating {@link Column#indexMapped()} flags.
+     */
+    private static final Pattern EMBEDDED_RENAME_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*rename\\s+(`[^`]+`|[^\\s|]+)\\s+as\\s+(`[^`]+`|[^\\s|]+)"
+    );
+
+    /**
      * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
      * <p>
      * The REST API does not expose attribute-type information, so this method infers it from:
@@ -500,19 +596,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Set<String> createdColumns = new HashSet<>();
 
         switch (commandName) {
-            case "eval" -> {
+            case EvalGenerator.EVAL -> {
                 Object newCols = command.context().get(EvalGenerator.NEW_COLUMNS);
                 if (newCols instanceof List<?> list) {
                     list.forEach(name -> createdColumns.add((String) name));
                 }
             }
-            case "grok" -> {
+            case GrokGenerator.GROK -> {
                 Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (gm.find()) {
                     createdColumns.add(unquote(gm.group(1)));
                 }
             }
-            case "dissect" -> {
+            case DissectGenerator.DISSECT -> {
                 Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (dm.find()) {
                     String generated = dm.group(1);
@@ -521,19 +617,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "mv_expand" -> {
+            case MvExpandGenerator.MV_EXPAND -> {
                 String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
                 // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
                 // https://github.com/elastic/elasticsearch/issues/142713
                 createdColumns.add(unquote(expanded));
             }
-            case "stats", "inline stats" -> {
+            case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
             }
-            case "rename" -> {
+            case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
             }
-            case "registered_domain" -> {
+            case RegisteredDomainGenerator.REGISTERED_DOMAIN -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (String subField : List.of("domain", "registered_domain", "top_level_domain", "subdomain")) {
@@ -541,7 +637,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "uri_parts" -> {
+            case UriPartsGenerator.URI_PARTS -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (Column col : newSchema) {
@@ -551,12 +647,26 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "enrich" -> {
+            case EnrichGenerator.ENRICH -> {
                 // Enrich fields can shadow existing index columns, so we use the policy's declared enrich_fields
                 // from the context to ensure they are marked as non-index-mapped even when names collide.
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
                 if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case LookupJoinGenerator.LOOKUP_JOIN -> {
+                // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
+                // left-side key columns with lookup index key names. Process these renames so that
+                // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
+                // instead of picking up the old indexMapped status of a same-named existing field.
+                Matcher rm = EMBEDDED_RENAME_PATTERN.matcher(command.commandString());
+                while (rm.find()) {
+                    String oldName = unquote(rm.group(1).trim());
+                    String newName = unquote(rm.group(2).trim());
+                    boolean wasMapped = prevMapped.getOrDefault(oldName, false);
+                    prevMapped.remove(oldName);
+                    prevMapped.put(newName, wasMapped);
                 }
             }
             default -> {
@@ -645,7 +755,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 
@@ -658,9 +768,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
         "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
     );
@@ -676,9 +783,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
             return false;
         }
-        return MULTI_MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+        return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
     @Override

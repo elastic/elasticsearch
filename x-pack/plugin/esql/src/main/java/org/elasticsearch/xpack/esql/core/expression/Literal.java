@@ -13,10 +13,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.LiteralsEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -39,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Literal or constant.
  */
-public class Literal extends LeafExpression implements Accountable {
+public class Literal extends LeafExpression implements Accountable, EvaluatorMapper {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Literal.class);
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -176,8 +179,8 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString(format) + "[" + dataType + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(toString(format)).append("[").append(dataType).append("]");
     }
 
     @Override
@@ -189,6 +192,11 @@ public class Literal extends LeafExpression implements Accountable {
             ramBytesUsed += RamUsageEstimator.sizeOfObject(value);
         }
         return ramBytesUsed;
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new LiteralsEvaluator.Factory(this);
     }
 
     /**

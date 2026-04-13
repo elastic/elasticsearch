@@ -171,11 +171,11 @@ public class StreamingXContentResponseIT extends ESIntegTestCase {
                 ThrottledIterator.run(
                     fragmentIterator,
                     (ref, fragment) -> randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic()).execute(
-                        ActionRunnable.run(ActionListener.releaseAfter(refs.acquireListener(), ref), () -> {
+                        ActionRunnable.wrap(ActionListener.releaseAfter(refs.acquireListener(), ref), l -> {
                             Thread.yield();
                             streamingXContentResponse.writeFragment(
                                 p -> ChunkedToXContentHelper.chunk((b, xp) -> b.field(fragment.getKey(), fragment.getValue())),
-                                refs.acquire()
+                                () -> l.onResponse(null)
                             );
                         })
                     ),

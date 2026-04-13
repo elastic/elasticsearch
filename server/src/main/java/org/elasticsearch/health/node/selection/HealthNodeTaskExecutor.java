@@ -9,29 +9,19 @@
 
 package org.elasticsearch.health.node.selection;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -40,9 +30,20 @@ import java.util.Map;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-/**
- * Persistent task executor that is managing the {@link HealthNode}.
- */
+/// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
+///
+/// The task lifecycle (start / stop) is managed externally by the [PersistentTaskLifecycleManager],
+/// which reconciles the desired state on every cluster state update based on [HealthNodeTaskExecutor#ENABLED_SETTING].
+///
+/// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
+/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
+/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode]
+/// to discover it.
+///
+/// @see HealthNode
+/// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.metadata.HealthMetadataService
+///
 public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
@@ -55,35 +56,15 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     );
 
     private final ClusterService clusterService;
-    private final PersistentTasksService persistentTasksService;
-    private volatile boolean enabled;
 
-    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
+    public HealthNodeTaskExecutor(ClusterService clusterService) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        this.persistentTasksService = persistentTasksService;
-        this.enabled = ENABLED_SETTING.get(settings);
     }
 
     @Override
     public Scope scope() {
         return Scope.CLUSTER;
-    }
-
-    public static HealthNodeTaskExecutor create(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
-        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
-        healthNodeTaskExecutor.registerListeners(clusterSettings);
-        return healthNodeTaskExecutor;
-    }
-
-    private void registerListeners(ClusterSettings clusterSettings) {
-        clusterService.addListener(this::reconcileTask);
-        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, enabled -> this.enabled = enabled);
     }
 
     @Override
@@ -102,49 +83,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         Map<String, String> headers
     ) {
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
-    }
-
-    /**
-     * Reconciles the health node task with the desired state on every cluster state update.
-     * Only the master node triggers the lifecycle update. Other nodes return early.
-     */
-    private void reconcileTask(ClusterChangedEvent event) {
-        if (event.localNodeMaster() == false) {
-            return;
-        }
-        if (enabled && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
-            persistentTasksService.sendClusterStartRequest(
-                TASK_NAME,
-                TASK_NAME,
-                new HealthNodeTaskParams(),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
-                ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
-                    if (e instanceof NodeClosedException) {
-                        logger.debug("Failed to create health node task because node is shutting down", e);
-                        return;
-                    }
-                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                    if (t instanceof ResourceAlreadyExistsException == false) {
-                        logger.error("Failed to create the health node task", e);
-                    }
-                })
-            );
-        } else if (enabled == false && HealthNode.findTask(event.state()) != null) {
-            persistentTasksService.sendClusterRemoveRequest(
-                TASK_NAME,
-                TimeValue.THIRTY_SECONDS,
-                ActionListener.wrap(r -> logger.debug("Removed the health node task"), e -> {
-                    if (e instanceof NodeClosedException) {
-                        logger.debug("Failed to remove health node task because node is shutting down", e);
-                        return;
-                    }
-                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                    if (t instanceof ResourceNotFoundException == false) {
-                        logger.error("Failed to remove the health node task", e);
-                    }
-                })
-            );
-        }
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

@@ -66,9 +66,7 @@ public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
             CustomServiceEmbeddingType.FLOAT
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new DenseEmbeddingResponseParser(path, embeddingType);
     }

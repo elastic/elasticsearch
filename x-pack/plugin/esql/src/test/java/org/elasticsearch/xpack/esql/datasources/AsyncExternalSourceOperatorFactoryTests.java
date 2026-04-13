@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -20,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -151,7 +154,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("sync-wrapper"));
         assertTrue(description.contains("file:///data/test.csv"));
         assertTrue(description.contains("500"));
-        assertTrue(description.contains("10"));
+        assertTrue(description.contains("maxBufferBytes="));
     }
 
     public void testDescribeNativeAsyncMode() {
@@ -354,7 +357,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -382,7 +385,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -405,7 +408,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadUnresolvedFileSetFallsBackToSingleFile() throws Exception {
+    public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
@@ -462,7 +465,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/bad.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/never.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new FailOnSecondFileFormatReader();
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -490,7 +493,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -514,12 +517,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadFileSetAccessor() {
+    public void testMultiFileReadGenericFileListAccessor() {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/a.parquet"), 10, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/b.parquet"), 20, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/*.parquet");
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -535,12 +538,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run,
-            fileSet
+            fileList
         );
 
-        assertSame(fileSet, factory.fileSet());
-        assertTrue(factory.fileSet().isResolved());
-        assertEquals(2, factory.fileSet().size());
+        assertSame(fileList, factory.fileList());
+        assertTrue(factory.fileList().isResolved());
+        assertEquals(2, factory.fileList().fileCount());
     }
 
     // ===== Slice Queue tests =====
@@ -1258,6 +1261,59 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         String description = factory.describe();
         assertTrue("describe should show sync-wrapper when parallelism is 1", description.contains("sync-wrapper"));
+    }
+
+    // ===== Byte-based backpressure tests =====
+
+    public void testByteBasedBackpressureEndToEnd() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            2,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
+        assertNotNull(status);
+        assertTrue("bytesBuffered should be reported in status", status.bytesBuffered() >= 0);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
     }
 
     // ===== Helpers =====

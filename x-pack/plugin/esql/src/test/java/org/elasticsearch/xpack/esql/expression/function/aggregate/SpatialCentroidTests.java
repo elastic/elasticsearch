@@ -17,6 +17,9 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.license.License;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -79,23 +82,16 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var values = fieldTypedData.multiRowData();
 
-            // Use CentroidCalculator to compute the expected centroid for all geometry types
-            var calculator = new CentroidCalculator();
-            for (var value : values) {
-                var wkb = (BytesRef) value;
-                Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
-                calculator.add(geometry);
-            }
-
-            var expectedX = calculator.getX();
-            var expectedY = calculator.getY();
+            // All spatial centroid aggregators quantize per-document centroids through the CoordinateEncoder
+            var encoder = DataType.isSpatialGeo(fieldSupplier.type()) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
+            double[] expected = computeQuantizedCentroid(values, encoder);
 
             // The result type is always a point (geo_point or cartesian_point) based on the input type family
             DataType expectedType = DataType.isSpatialGeo(fieldTypedData.type()) ? DataType.GEO_POINT : DataType.CARTESIAN_POINT;
 
             // Use relative error for very large values (cartesian shapes can have very large coordinates)
-            double absExpectedX = Math.abs(expectedX);
-            double absExpectedY = Math.abs(expectedY);
+            double absExpectedX = Math.abs(expected[0]);
+            double absExpectedY = Math.abs(expected[1]);
             double error = Math.max(1e-10, Math.max(absExpectedX, absExpectedY) * 1e-14);
 
             // Both point and shape types share unified source-values aggregators
@@ -105,9 +101,46 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
                 List.of(fieldTypedData),
                 aggregatorName + "SourceValues",
                 expectedType,
-                centroidMatches(expectedX, expectedY, error)
+                centroidMatches(expected[0], expected[1], error)
             );
         });
+    }
+
+    /**
+     * Computes the expected centroid by quantizing per-document centroids, matching the aggregator behavior.
+     * Each document's centroid is encoded/decoded through the CoordinateEncoder before aggregation.
+     * Works for both point and shape types since CentroidCalculator handles all geometry types.
+     */
+    private static double[] computeQuantizedCentroid(List<Object> values, CoordinateEncoder encoder) {
+        CompensatedSum xSum = new CompensatedSum(0, 0);
+        CompensatedSum ySum = new CompensatedSum(0, 0);
+        double totalWeight = 0;
+        DimensionalShapeType currentShapeType = DimensionalShapeType.POINT;
+
+        for (var value : values) {
+            var wkb = (BytesRef) value;
+            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+            var calculator = new CentroidCalculator();
+            calculator.add(geometry);
+            double weight = calculator.sumWeight();
+            if (weight > 0) {
+                double x = encoder.decodeX(encoder.encodeX(encoder.normalizeX(calculator.getX())));
+                double y = encoder.decodeY(encoder.encodeY(encoder.normalizeY(calculator.getY())));
+                DimensionalShapeType shapeType = calculator.getDimensionalShapeType();
+                int cmp = shapeType.compareTo(currentShapeType);
+                if (cmp == 0) {
+                    xSum.add(x * weight);
+                    ySum.add(y * weight);
+                    totalWeight += weight;
+                } else if (cmp > 0) {
+                    xSum.reset(x * weight, 0);
+                    ySum.reset(y * weight, 0);
+                    totalWeight = weight;
+                    currentShapeType = shapeType;
+                }
+            }
+        }
+        return new double[] { xSum.value() / totalWeight, ySum.value() / totalWeight };
     }
 
     @SuppressWarnings("SameParameterValue")

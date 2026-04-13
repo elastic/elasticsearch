@@ -209,6 +209,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return () -> Arrays.stream(BBQType.values()).iterator();
         }
 
+        private static String getOpName(Operation op) {
+            return switch (op) {
+                case SINGLE -> "";
+                case BULK -> "_bulk";
+                case BULK_OFFSETS -> "_bulk_offsets";
+                case BULK_SPARSE -> "_bulk_sparse";
+            };
+        }
+
+        private static String getFuncName(Function f) {
+            return switch (f) {
+                case COSINE -> "cos";
+                case DOT_PRODUCT -> "dot";
+                case SQUARE_DISTANCE -> "sqr";
+            };
+        }
+
         public Map<OperationSignature<?>, MethodHandle> build(BiFunction<String, FunctionDescriptor, MethodHandle> binder) {
             Map<OperationSignature<?>, MethodHandle> handles = new HashMap<>();
             for (NativeFunction<?> f : nativeFunctions) {
@@ -327,23 +344,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
-    }
-
-    private static String getOpName(Operation op) {
-        return switch (op) {
-            case SINGLE -> "";
-            case BULK -> "_bulk";
-            case BULK_OFFSETS -> "_bulk_offsets";
-            case BULK_SPARSE -> "_bulk_sparse";
-        };
-    }
-
-    private static String getFuncName(Function f) {
-        return switch (f) {
-            case COSINE -> "cos";
-            case DOT_PRODUCT -> "dot";
-            case SQUARE_DISTANCE -> "sqr";
-        };
     }
 
     public JdkVectorLibrary() {}

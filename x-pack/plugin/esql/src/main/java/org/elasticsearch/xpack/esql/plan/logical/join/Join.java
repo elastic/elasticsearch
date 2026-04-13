@@ -350,8 +350,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
-        if (leftType == NULL || rightType == NULL) {
+        if (leftType == NULL) {
             // A field can have NULL type when UNMAPPED_FIELDS="NULLIFY" resolves a missing field to null.
+            // Only the left side needs checking: lookup indices are excluded from nullification (see ResolveUnmapped#nullify),
+            // and for INLINE STATS the right side's grouping key inherits its type from the left.
             return true;
         }
         if (leftType.isNumeric() && rightType.isNumeric()) {

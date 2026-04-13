@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+
 import java.util.EnumSet;
 
 /**
@@ -27,6 +29,14 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             FROM employees
             | ENRICH languages ON does_not_exist
+            """, STAGES);
+    }
+
+    public void testInlineStatsGroupByNullField() throws Exception {
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINESTATS.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees
+            | INLINE STATS s = MAX(salary) BY does_not_exist
             """, STAGES);
     }
 }

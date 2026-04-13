@@ -420,7 +420,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, distances);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
     }
 
     /**

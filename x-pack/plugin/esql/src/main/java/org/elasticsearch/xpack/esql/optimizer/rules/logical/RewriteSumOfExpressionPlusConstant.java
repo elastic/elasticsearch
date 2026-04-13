@@ -97,6 +97,9 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext context) {
+        if (context.minimumVersion().supports(MvSingleValueOrNull.TRANSPORT_VERSION) == false) {
+            return aggregate;
+        }
         var source = aggregate.source();
 
         // Pass 1: count matches per (expression, summationMode) key.

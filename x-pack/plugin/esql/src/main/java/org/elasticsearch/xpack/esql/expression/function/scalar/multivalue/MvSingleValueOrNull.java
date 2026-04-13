@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -38,6 +39,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * </p>
  */
 public class MvSingleValueOrNull extends AbstractMultivalueFunction {
+    public static final TransportVersion TRANSPORT_VERSION = TransportVersion.fromName("esql_mv_single_value_or_null");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvSingleValueOrNull",

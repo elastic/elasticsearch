@@ -104,10 +104,11 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
             @Override
             public int advance(int target) {
                 assert target >= docID();
-                while (target > docID()) {
+                int doc;
+                while (target > (doc = docID())) {
                     nextDoc();
                 }
-                return docID();
+                return doc;
             }
 
             @Override

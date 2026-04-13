@@ -9,9 +9,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -102,5 +106,37 @@ public class DatasetTests extends ESTestCase {
 
     public void testRequiresResource() {
         expectThrows(NullPointerException.class, () -> new Dataset("test", "ds", null, null, Map.of()));
+    }
+
+    public void testXContentRoundTrip() throws IOException {
+        var dataset = new Dataset(
+            "access_logs",
+            "my-s3",
+            "s3://bucket/logs/*.parquet",
+            "Access logs dataset",
+            Map.of("partition_detection", "hive", "schema_sample_size", 50, "error_mode", "skip_row")
+        );
+        assertXContentRoundTrip(dataset);
+    }
+
+    public void testXContentRoundTripNoDescription() throws IOException {
+        // description is optional and omitted from the serialized form when null — verify the parser handles the absence
+        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", null, Map.of("partition_detection", "hive"));
+        assertXContentRoundTrip(dataset);
+    }
+
+    public void testXContentRoundTripEmptySettings() throws IOException {
+        // settings is optional and omitted from the serialized form when empty — verify the parser handles the absence
+        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", "desc", Map.of());
+        assertXContentRoundTrip(dataset);
+    }
+
+    private void assertXContentRoundTrip(Dataset dataset) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        dataset.toXContent(builder, null);
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        Dataset deserialized = Dataset.fromXContent(parser);
+        assertEquals(dataset, deserialized);
     }
 }

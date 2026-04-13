@@ -9,9 +9,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -90,5 +94,45 @@ public class DatasourceTests extends ESTestCase {
 
     public void testRequiresSettings() {
         expectThrows(NullPointerException.class, () -> new Datasource("test", "s3", null, null));
+    }
+
+    public void testXContentRoundTripHeterogeneousSettings() throws IOException {
+        // Exercises all JSON-native value types inside the settings map (String, Integer, Boolean)
+        // to verify both the per-setting XContent contract and the containing Datasource's map serialization.
+        var datasource = new Datasource(
+            "my-s3",
+            "s3",
+            "Production S3 bucket",
+            Map.of(
+                "access_key",
+                new DataSourceStoredSetting("AKIA123", true),
+                "region",
+                new DataSourceStoredSetting("us-east-1", false),
+                "max_retries",
+                new DataSourceStoredSetting(7, false),
+                "use_path_style",
+                new DataSourceStoredSetting(true, false)
+            )
+        );
+        assertXContentRoundTrip(datasource);
+    }
+
+    public void testXContentRoundTripNoDescription() throws IOException {
+        var datasource = new Datasource("my-s3", "s3", null, Map.of("region", new DataSourceStoredSetting("us-east-1", false)));
+        assertXContentRoundTrip(datasource);
+    }
+
+    public void testXContentRoundTripEmptySettings() throws IOException {
+        var datasource = new Datasource("my-s3", "s3", "desc", Map.of());
+        assertXContentRoundTrip(datasource);
+    }
+
+    private void assertXContentRoundTrip(Datasource datasource) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        datasource.toXContent(builder, null);
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        Datasource deserialized = Datasource.fromXContent(parser);
+        assertEquals(datasource, deserialized);
     }
 }

@@ -48,7 +48,12 @@ public final class DatasourceMetadata extends AbstractNamedDiffable<Metadata.Pro
     );
     public static final DatasourceMetadata EMPTY = new DatasourceMetadata(Collections.emptyMap());
 
-    private static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
+    /**
+     * Shared transport version for {@link DatasourceMetadata} and {@link DatasetMetadata}. Both metadata
+     * containers are introduced together and evolve together, so they share a single version gate.
+     */
+    static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
+
     private static final ParseField DATASOURCES = new ParseField("datasources");
 
     private final Map<String, Datasource> datasources;

@@ -997,6 +997,60 @@ public class ProjectMetadataTests extends ESTestCase {
         );
     }
 
+    public void testBuilderRejectsDatasetThatConflictsWithIndex() {
+        final String conflictingName = "shared_name";
+        IndexMetadata idx = IndexMetadata.builder(conflictingName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Dataset dataset = new Dataset(conflictingName, "my-datasource", "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(idx, false)
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found "
+                    + "[dataset ["
+                    + conflictingName
+                    + "] conflicts with index]"
+            )
+        );
+    }
+
+    public void testBuilderRejectsAliasThatConflictsWithDataset() {
+        final String conflictingName = "shared_name";
+        IndexMetadata idx = IndexMetadata.builder("some_index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder(conflictingName).build())
+            .build();
+        Dataset dataset = new Dataset(conflictingName, "my-datasource", "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(idx, false)
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("alias and dataset have the same name (" + conflictingName + ")"));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithDataset() {
+        final String conflictingName = "shared_name";
+        IndexMetadata backing = createFirstBackingIndex(conflictingName).build();
+        Dataset dataset = new Dataset(conflictingName, "my-datasource", "s3://b/p", null, Map.of());
+        ProjectMetadata.Builder b = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(backing, false)
+            .put(newInstance(conflictingName, List.of(backing.getIndex())))
+            .datasets(Map.of(conflictingName, dataset));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + conflictingName + "] conflicts with dataset"));
+    }
+
     public void testBuilderRejectsAliasThatRefersToDataStreamBackingIndex() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);

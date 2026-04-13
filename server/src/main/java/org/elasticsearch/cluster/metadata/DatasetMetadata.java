@@ -45,8 +45,6 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
     );
     public static final DatasetMetadata EMPTY = new DatasetMetadata(Collections.emptyMap());
 
-    // Shares transport version with DatasourceMetadata — one version for the feature
-    private static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
     private static final ParseField DATASETS = new ParseField("datasets");
 
     private final Map<String, Dataset> datasets;
@@ -97,7 +95,8 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ESQL_DATASOURCES;
+        // Shared with DatasourceMetadata — both metadata containers ship together
+        return DatasourceMetadata.ESQL_DATASOURCES;
     }
 
     @Override

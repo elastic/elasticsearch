@@ -73,7 +73,8 @@ public final class Datasource implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.type = in.readString();
         this.description = in.readOptionalString();
-        this.settings = in.readMap(DataSourceStoredSetting::new);
+        // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
+        this.settings = Collections.unmodifiableMap(in.readMap(DataSourceStoredSetting::new));
     }
 
     @Override

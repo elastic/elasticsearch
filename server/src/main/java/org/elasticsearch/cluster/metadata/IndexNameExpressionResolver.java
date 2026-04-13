@@ -1746,7 +1746,8 @@ public class IndexNameExpressionResolver {
 
             if (context.includeDataStreams() == false
                 && context.getOptions().ignoreAliases()
-                && context.getOptions().indexAbstractionOptions().resolveViews() == false) {
+                && context.getOptions().indexAbstractionOptions().resolveViews() == false
+                && context.getOptions().indexAbstractionOptions().resolveDatasets() == false) {
                 return concreteIndices;
             }
 

@@ -85,7 +85,16 @@ public class DataSourceStoredSettingTests extends ESTestCase {
     }
 
     public void testXContentRoundTrip() throws IOException {
-        var setting = new DataSourceStoredSetting("my-value", true);
+        // Cover all JSON-native value types (String, Integer, Boolean, null) — the implementation relies on
+        // JsonXContentParser.objectText() preserving the parsed type, so a refactor to .text() would silently
+        // stringify non-string values without this coverage.
+        assertXContentRoundTrip(new DataSourceStoredSetting("my-value", true));
+        assertXContentRoundTrip(new DataSourceStoredSetting(42, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(true, false));
+        assertXContentRoundTrip(new DataSourceStoredSetting(null, false));
+    }
+
+    private void assertXContentRoundTrip(DataSourceStoredSetting setting) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         setting.toXContent(builder, null);
 

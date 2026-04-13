@@ -321,6 +321,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/146130
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146137
 
 # Examples:
 #

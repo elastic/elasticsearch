@@ -217,9 +217,11 @@ public final class SequenceNumbersTestUtils {
                         if (indexShard.routingEntry().primary() == false) {
                             continue;
                         }
-                        assertThat("Shard " + indexShard.getShardUuid()  + " should be active",
+                        assertThat(
+                            "Shard " + indexShard.getShardUuid() + " should be active",
                             indexShard.routingEntry().active(),
-                            equalTo(true));
+                            equalTo(true)
+                        );
 
                         final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
                         final var listener = listeners.acquire(

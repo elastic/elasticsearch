@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -35,12 +40,14 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
@@ -326,19 +333,13 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     // ---- ROUND_TO push tests (TS mode) ----
     //
-    // These tests exercise {@link PushExpressionsToFieldLoad} and verify that it
-    // replaces ROUND_TO with a FunctionEsField-backed FieldAttribute when the source
-    // is a TS (time-series) command. The TS plan structure differs from FROM
-    // (different source node and plan shape), so these complement the FROM-based
-    // ROUND_TO tests above.
-    //
-    // For the query-and-tags rewrite of BUCKET/ROUND_TO in TS mode (filter-by-filter
-    // execution via {@link ReplaceRoundToWithQueryAndTags}), see
-    // SubstituteRoundToTests.testRoundToWithTimeSeriesIndices.
+    // These tests verify that ROUND_TO is NOT pushed to the block loader in TS
+    // mode. The TS command uses a different execution strategy for ROUND_TO
+    // (query-and-tags rewrite via {@link ReplaceRoundToWithQueryAndTags}), so the
+    // block loader push must be skipped.
 
     /**
-     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO on a long field
-     * is pushed to the block loader in TS mode.
+     * Verifies ROUND_TO on a long field is NOT pushed to the block loader in TS mode.
      */
     public void testRoundToInTsEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
@@ -348,15 +349,15 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT @timestamp
             | LIMIT 10
             | KEEP r
-            """, new EsqlTestUtils.TestSearchStats());
+            """, tsSearchStats());
 
         List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
-        assertThat(pushed, hasSize(1));
+        assertThat(pushed, hasSize(0));
     }
 
     /**
-     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO on a datetime
-     * field ({@code @timestamp}) is pushed to the block loader in TS mode.
+     * Verifies ROUND_TO on a datetime field ({@code @timestamp}) is NOT pushed
+     * to the block loader in TS mode.
      */
     public void testRoundToTimestampInTsEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
@@ -366,35 +367,28 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT @timestamp
             | LIMIT 10
             | KEEP r
-            """, new EsqlTestUtils.TestSearchStats());
+            """, tsSearchStats());
 
         List<FieldAttribute> pushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
-        assertThat(pushed, hasSize(1));
+        assertThat(pushed, hasSize(0));
     }
 
     /**
-     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO in a WHERE
-     * filter is pushed to the block loader in TS mode.
+     * Verifies ROUND_TO in a WHERE filter is NOT pushed to the block loader in TS mode.
      */
     public void testRoundToInTsWhere() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         PhysicalPlan plan = tsPlannerOptimizer.plan("""
             TS k8s
             | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
-            """, new EsqlTestUtils.TestSearchStats());
+            """, tsSearchStats());
 
         List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
-        assertThat(pushed, hasSize(1));
-
-        FilterExec filterExec = findFirst(plan, FilterExec.class);
-        assertNotNull("Should find FilterExec", filterExec);
-        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
-        assertRoundToPushdown(gt.left(), "events_received");
+        assertThat(pushed, hasSize(0));
     }
 
     /**
-     * Exercises {@link PushExpressionsToFieldLoad}: verifies that duplicate ROUND_TO
-     * on the same field in WHERE and EVAL is deduplicated to one pushed field in TS mode.
+     * Verifies that ROUND_TO in both WHERE and EVAL is NOT pushed in TS mode.
      */
     public void testRoundToInTsWhereAndEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
@@ -402,15 +396,14 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             TS k8s
             | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
             | EVAL r = ROUND_TO(events_received, 100, 200, 300)
-            """, new EsqlTestUtils.TestSearchStats());
+            """, tsSearchStats());
 
         List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
-        assertThat("Duplicate ROUND_TO(events_received, ...) should be deduplicated to one pushed field", pushed, hasSize(1));
+        assertThat(pushed, hasSize(0));
     }
 
     /**
-     * Exercises {@link PushExpressionsToFieldLoad}: verifies that ROUND_TO on two
-     * different fields each get their own pushed field in TS mode.
+     * Verifies that ROUND_TO on two different fields is NOT pushed in TS mode.
      */
     public void testRoundToTwoFieldsInTs() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
@@ -421,13 +414,32 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT @timestamp
             | LIMIT 10
             | KEEP t, e
-            """, new EsqlTestUtils.TestSearchStats());
+            """, tsSearchStats());
 
         List<FieldAttribute> timestampPushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
         List<FieldAttribute> eventsPushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
 
-        assertThat(timestampPushed, hasSize(1));
-        assertThat(eventsPushed, hasSize(1));
+        assertThat(timestampPushed, hasSize(0));
+        assertThat(eventsPushed, hasSize(0));
+    }
+
+    /**
+     * Verifies ROUND_TO is NOT pushed when using FROM against a time-series index.
+     * The check is based on index metadata, not the source command, so FROM queries
+     * targeting time-series indices are also skipped.
+     */
+    public void testRoundToInFromAgainstTimeSeriesIndex() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            FROM k8s
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, tsSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(0));
     }
 
     // ---- Vector function push tests ----
@@ -831,5 +843,17 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         List<T> result = new ArrayList<>();
         plan.forEachDown(type, result::add);
         return result;
+    }
+
+    private static SearchStats tsSearchStats() {
+        return new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public Map<ShardId, IndexMetadata> targetShards() {
+                IndexMetadata indexMetadata = IndexMetadata.builder("k8s")
+                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name()))
+                    .build();
+                return Map.of(new ShardId(new Index("k8s", "n/a"), 0), indexMetadata);
+            }
+        };
     }
 }

@@ -30,6 +30,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -59,7 +61,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -71,7 +72,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -1106,7 +1106,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/124447")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -1374,20 +1373,35 @@ public class IndexStatsIT extends ESIntegTestCase {
      * Persist the global checkpoint on all shards of the given index into disk.
      * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
      */
-    private void persistGlobalCheckpoint(String index) throws Exception {
-        final Set<String> nodes = internalCluster().nodesInclude(index);
-        for (String node : nodes) {
-            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    indexShard.sync();
-                    assertThat(
-                        "Routing entry for shard " + indexShard.routingEntry().toString(),
-                        indexShard.getLastSyncedGlobalCheckpoint(),
-                        equalTo(indexShard.getLastKnownGlobalCheckpoint())
-                    );
+    private static void persistGlobalCheckpoint(String index) throws IOException {
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            for (String node : internalCluster().nodesInclude(index)) {
+                for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary() == false || indexShard.routingEntry().active() == false) {
+                            continue;
+                        }
+                        indexShard.sync();
+                        final var lastKnownGlobalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
+                        final var listener = listeners.acquire(
+                            __ -> assertThat(
+                                "Global checkpoint not synced for shard: " + indexShard.routingEntry(),
+                                indexShard.getLastSyncedGlobalCheckpoint(),
+                                equalTo(lastKnownGlobalCheckpoint)
+                            )
+                        );
+                        indexShard.syncGlobalCheckpoint(lastKnownGlobalCheckpoint, e -> {
+                            if (e == null) {
+                                listener.onResponse(null);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        });
+                    }
                 }
             }
         }
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 }

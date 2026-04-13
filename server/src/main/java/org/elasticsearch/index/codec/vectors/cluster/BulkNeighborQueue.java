@@ -143,7 +143,7 @@ public class BulkNeighborQueue {
         private ReservoirTopK(int maxSize, boolean scannFast) {
             this.maxSize = maxSize;
             this.scannFast = scannFast;
-            this.capacity = Math.max(maxSize, maxSize * 2);
+            this.capacity = maxSize * 2;
             this.values = new long[capacity];
         }
 
@@ -200,7 +200,7 @@ public class BulkNeighborQueue {
 
         private void drain(LongConsumer consumer) {
             compactTo(maxSize);
-            Arrays.sort(values, 0, size);
+            sortValues(size);
             for (int i = 0; i < size; i++) {
                 consumer.accept(values[i]);
             }
@@ -208,6 +208,17 @@ public class BulkNeighborQueue {
             threshold = Long.MIN_VALUE;
             thresholdScore = Float.NEGATIVE_INFINITY;
             thresholdNode = Integer.MAX_VALUE;
+        }
+
+        private void sortValues(int length) {
+            if (length <= 1) {
+                return;
+            }
+            if (length < 64) {
+                Arrays.sort(values, 0, length);
+                return;
+            }
+            radixSortPositive(values, new long[length], new int[256], length);
         }
 
         private void onCapacityReached() {
@@ -261,11 +272,80 @@ public class BulkNeighborQueue {
     }
 
     private static final int SINGLE_MEDIAN_THRESHOLD = 40;
+    private static final int RADIX_SELECT_MIN_SIZE = 128;
+    private static final int RADIX_SELECT_FALLBACK_SIZE = 32;
 
     /**
      * This is copied and mutated from Apache Lucene's IntroSelector logic.
      */
     private static void quickSelect(long[] values, int left, int right, int k) {
+        int length = right - left + 1;
+        if (length >= RADIX_SELECT_MIN_SIZE) {
+            radixSelectNonNegative(values, left, right, k);
+            return;
+        }
+        quickSelectIntro(values, left, right, k);
+    }
+
+    private static void radixSelectNonNegative(long[] values, int left, int right, int k) {
+        int from = left;
+        int to = right + 1;
+        long[] scratch = new long[to - from];
+        int[] counts = new int[256];
+        int[] offsets = new int[256];
+
+        for (int shift = Long.SIZE - Byte.SIZE; shift >= 0 && to - from > RADIX_SELECT_FALLBACK_SIZE; shift -= Byte.SIZE) {
+            Arrays.fill(counts, 0);
+            for (int i = from; i < to; i++) {
+                counts[(int) ((values[i] >>> shift) & 0xFFL)]++;
+            }
+
+            int targetRank = k - from;
+            int cumulative = 0;
+            int bucketStart = 0;
+            int bucketEnd = 0;
+            int targetBucket = -1;
+            for (int bucket = 0; bucket < counts.length; bucket++) {
+                int next = cumulative + counts[bucket];
+                if (targetRank < next) {
+                    targetBucket = bucket;
+                    bucketStart = cumulative;
+                    bucketEnd = next;
+                    break;
+                }
+                cumulative = next;
+            }
+            if (targetBucket == -1) {
+                break;
+            }
+            if (counts[targetBucket] == to - from) {
+                continue;
+            }
+
+            int running = 0;
+            for (int bucket = 0; bucket < counts.length; bucket++) {
+                offsets[bucket] = running;
+                running += counts[bucket];
+            }
+            for (int i = from; i < to; i++) {
+                int bucket = (int) ((values[i] >>> shift) & 0xFFL);
+                scratch[offsets[bucket]++] = values[i];
+            }
+
+            int range = to - from;
+            System.arraycopy(scratch, 0, values, from, range);
+            int newFrom = from + bucketStart;
+            int newTo = from + bucketEnd;
+            from = newFrom;
+            to = newTo;
+        }
+
+        if (to - from > 1) {
+            quickSelectIntro(values, from, to - 1, k);
+        }
+    }
+
+    private static void quickSelectIntro(long[] values, int left, int right, int k) {
         int from = left;
         int to = right + 1; // Convert to an exclusive upper bound.
         int maxDepth = 2 * log2(to - from);
@@ -411,6 +491,38 @@ public class BulkNeighborQueue {
         long tmp = values[i];
         values[i] = values[j];
         values[j] = tmp;
+    }
+
+    /**
+     * Radix sort for encoded values that are always non-negative.
+     */
+    private static void radixSortPositive(long[] values, long[] scratch, int[] counts, int length) {
+        long[] src = values;
+        long[] dst = scratch;
+        for (int shift = 0; shift < Long.SIZE; shift += Byte.SIZE) {
+            Arrays.fill(counts, 0);
+            for (int i = 0; i < length; i++) {
+                int bucket = (int) ((src[i] >>> shift) & 0xFFL);
+                counts[bucket]++;
+            }
+            int sum = 0;
+            for (int i = 0; i < counts.length; i++) {
+                int count = counts[i];
+                counts[i] = sum;
+                sum += count;
+            }
+            for (int i = 0; i < length; i++) {
+                long value = src[i];
+                int bucket = (int) ((value >>> shift) & 0xFFL);
+                dst[counts[bucket]++] = value;
+            }
+            long[] tmp = src;
+            src = dst;
+            dst = tmp;
+        }
+        if (src != values) {
+            System.arraycopy(src, 0, values, 0, length);
+        }
     }
 
     private static int minValueIndex(long[] values, int size) {

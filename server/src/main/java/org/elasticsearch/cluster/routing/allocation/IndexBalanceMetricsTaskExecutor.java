@@ -161,12 +161,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         Settings settings,
         MeterRegistry meterRegistry
     ) {
-        final var task = new IndexBalanceMetricsTaskExecutor(clusterService, persistentTasksService, meterRegistry);
+        final var executor = new IndexBalanceMetricsTaskExecutor(clusterService, persistentTasksService, meterRegistry);
         // Master nodes are responsible for creating the task if it doesn't exist
         if (DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addListener(task::startTask);
+            clusterService.addListener(executor::startTask);
         }
-        return task;
+        return executor;
     }
 
     private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
@@ -211,8 +211,8 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         final var indexBalanceMetricsTask = (Task) task;
         final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
         if (existingTask != null) {
+            assert existingTask.stopped : "We should never start a new task when there's still one running";
             existingTask.markAsCompleted();
-            assert existingTask.isNotRunning() : "We should never start a new task when there's still one running";
         }
         indexBalanceMetricsTask.startScheduledRefresh();
     }
@@ -326,8 +326,10 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         private final ClusterStateListener routingTableChangedListener;
         private final AtomicReference<Scheduler.Cancellable> scheduledRefresh = new AtomicReference<>();
         private final Supplier<TimeValue> pollIntervalSupplier;
+        private final Object lifecycleLock = new Object();
         /** Set when routing table changes; consumed by the refresh runnable. */
         private volatile boolean needRefresh;
+        private volatile boolean stopped;
 
         Task(
             long id,
@@ -356,26 +358,41 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             }
         }
 
-        synchronized void startScheduledRefresh() {
-            if (isNotRunning()) {
-                return;
+        void startScheduledRefresh() {
+            synchronized (lifecycleLock) {
+                if (stopped) {
+                    return;
+                }
+                logger.info("Starting index balance metrics task");
+                needRefresh = true;
+                clusterService.addListener(routingTableChangedListener);
+                scheduleRefresh(pollIntervalSupplier.get());
             }
-            logger.info("Starting index balance metrics task");
-            needRefresh = true;
-            clusterService.addListener(routingTableChangedListener);
-            scheduleRefresh(pollIntervalSupplier.get());
         }
 
         void requestReschedule() {
-            if (isNotRunning()) {
-                return;
+            synchronized (lifecycleLock) {
+                if (stopped) {
+                    return;
+                }
+                cancelScheduledRefresh();
+                scheduleRefresh(pollIntervalSupplier.get());
             }
-            cancelScheduledRefresh();
-            scheduleRefresh(pollIntervalSupplier.get());
+        }
+
+        @Override
+        public void markAsCompleted() {
+            super.markAsCompleted();
+            stopListeningAndCancelRefresh();
+        }
+
+        @Override
+        protected void onCancelled() {
+            stopListeningAndCancelRefresh();
         }
 
         private void scheduleRefresh(TimeValue interval) {
-            if (isNotRunning() || threadPool.scheduler().isShutdown()) {
+            if (threadPool.scheduler().isShutdown()) {
                 return;
             }
             final var cancellable = threadPool.scheduleWithFixedDelay(this::runRefresh, interval, managementExecutor);
@@ -383,8 +400,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         private void runRefresh() {
-            if (isNotRunning()) {
-                cancelScheduledRefresh();
+            if (stopped) {
                 return;
             }
             if (needRefresh) {
@@ -401,27 +417,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             }
         }
 
-        @Override
-        public void markAsCompleted() {
-            super.markAsCompleted();
-            stopListeningAndCancelRefresh();
-        }
-
-        @Override
-        protected void onCancelled() {
-            stopListeningAndCancelRefresh();
-        }
-
-        /**
-         * @return true if the task is cancelled or completed, false otherwise
-         */
-        public boolean isNotRunning() {
-            return isCancelled() || isCompleted();
-        }
-
-        private synchronized void stopListeningAndCancelRefresh() {
-            clusterService.removeListener(routingTableChangedListener);
-            cancelScheduledRefresh();
+        private void stopListeningAndCancelRefresh() {
+            synchronized (lifecycleLock) {
+                stopped = true;
+                clusterService.removeListener(routingTableChangedListener);
+                cancelScheduledRefresh();
+            }
         }
 
         /** Package-visible for testing: returns the current scheduled refresh cancellable, or null if none. */
@@ -443,7 +444,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
          */
         @Nullable
         public IndexBalanceMetrics.IndexBalanceState getLastState() {
-            if (isNotRunning()) {
+            if (stopped) {
                 return null;
             }
             return lastState.get();

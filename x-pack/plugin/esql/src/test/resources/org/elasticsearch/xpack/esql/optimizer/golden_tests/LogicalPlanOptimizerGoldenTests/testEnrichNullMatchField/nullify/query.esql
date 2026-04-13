@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| ENRICH languages ON does_not_exist

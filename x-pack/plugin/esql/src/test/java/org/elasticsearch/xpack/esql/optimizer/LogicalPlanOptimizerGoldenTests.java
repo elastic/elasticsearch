@@ -22,4 +22,11 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             """, STAGES);
     }
+
+    public void testEnrichNullMatchField() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | ENRICH languages ON does_not_exist
+            """, STAGES);
+    }
 }

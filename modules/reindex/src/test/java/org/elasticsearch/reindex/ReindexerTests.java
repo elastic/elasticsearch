@@ -539,6 +539,7 @@ public class ReindexerTests extends ESTestCase {
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         reindexer.execute(task, request, mock(Client.class), future);
 
+        assertTrue(future.isDone());
         verify(taskResultsService).storeResult(any(TaskResult.class), any());
     }
 

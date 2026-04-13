@@ -65,7 +65,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     public static final String TASK_NAME = "index-balance-metrics";
 
     /**
-     * Node-scope setting controlling whether the index balance metrics task is enabled.
+     * Dynamic setting controlling whether the index balance metrics task is enabled.
      * Intended for serverless deployments; defaults to false.
      */
     public static final Setting<Boolean> INDEX_BALANCE_METRICS_ENABLED_SETTING = Setting.boolSetting(

@@ -355,8 +355,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         ) {
             ProjectIndexName projectIndex = new ProjectIndexName(projectId, routing.getIndexName());
             Settings indexSettings = state.metadata().getProject(projectId).index(routing.index()).getSettings();
-            long now = Instant.now().toEpochMilli();
-            long gracePeriodCutoffTime = now - unassignedBufferTime.millis();
+            long gracePeriodCutoffTime = Instant.now().toEpochMilli() - unassignedBufferTime.millis();
 
             boolean isNew = isUnassignedDueToNewInitialization(projectId, routing, state);
             boolean isWithinGracePeriod = unassignedBufferTime.millis() > 0

@@ -1,0 +1,162 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.dense_vector.inference_id"]
+      reason: 'inference_id support for dense_vector was added'
+
+---
+"Create index with inference_id":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                inference_id: my_inference_id
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.type: dense_vector }
+  - match: { test.mappings.properties.vector.dims: 5 }
+  - match: { test.mappings.properties.vector.inference_id: my_inference_id }
+
+---
+"Create index without inference_id does not serialize it":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.type: dense_vector }
+  - match: { test.mappings.properties.vector.dims: 5 }
+  - is_false: test.mappings.properties.vector.inference_id
+
+---
+"Update mapping to add inference_id":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - is_false: test.mappings.properties.vector.inference_id
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 5
+              inference_id: my_inference_id
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.inference_id: my_inference_id }
+
+---
+"Update mapping to change inference_id":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                inference_id: old_inference_id
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.inference_id: old_inference_id }
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 5
+              inference_id: new_inference_id
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.vector.inference_id: new_inference_id }
+
+---
+"Indexing and search still works with inference_id":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 3
+                similarity: cosine
+                inference_id: my_inference_id
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          vector: [1.0, 2.0, 3.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          vector: [4.0, 5.0, 6.0]
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+        body:
+          knn:
+            field: vector
+            query_vector: [1.0, 2.0, 3.0]
+            k: 2
+            num_candidates: 10
+
+  - match: { hits.total.value: 2 }

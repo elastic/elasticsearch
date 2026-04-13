@@ -16,6 +16,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DENSE_VECTOR_INFERENCE_ID;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
@@ -145,7 +146,8 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             ES940_DISK_BBQ,
-            FLATTENED_PASSTHROUGH_FEATURE
+            FLATTENED_PASSTHROUGH_FEATURE,
+            DENSE_VECTOR_INFERENCE_ID
         );
     }
 }

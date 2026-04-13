@@ -47,7 +47,7 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
         String pitId = instance.pitId();
         String searchAfter = instance.searchAfter();
 
-        if (pitId != null || searchAfter != null) {
+        if (instance.usePit()) {
             // Mutate a PIT-based request
             switch (between(0, 3)) {
                 case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());

@@ -32,7 +32,7 @@ public class TransportGetSynonymsAction extends HandledTransportAction<GetSynony
 
     @Override
     protected void doExecute(Task task, GetSynonymsAction.Request request, ActionListener<GetSynonymsAction.Response> listener) {
-        if (request.pitId() != null || request.searchAfter() != null) {
+        if (request.usePit()) {
             synonymsManagementAPIService.getSynonymSetRulesWithPit(
                 request.synonymsSetId(),
                 request.size(),

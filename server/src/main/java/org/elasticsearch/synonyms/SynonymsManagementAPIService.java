@@ -435,7 +435,7 @@ public class SynonymsManagementAPIService {
                 TransportOpenPointInTimeAction.TYPE,
                 pitRequest,
                 new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
-                    doSinglePageWithPit(synonymSetId, size, pitResponse.getPointInTimeId(), null, l);
+                    doSinglePageWithPit(synonymSetId, size, pitResponse.getPointInTimeId(), searchAfter, l);
                 })
             );
         } else {
@@ -488,6 +488,14 @@ public class SynonymsManagementAPIService {
             }
 
             SynonymRule[] rules = Arrays.stream(hits).map(SynonymsManagementAPIService::hitToSynonymRule).toArray(SynonymRule[]::new);
+            if (hits.length < size) {
+                // Fewer results than requested — this is the last page; close the PIT now and return no cursor.
+                closePitAndThen(
+                    updatedPitId,
+                    () -> listener.onResponse(new SynonymRulesWithCursor(new PagedResult<>(totalHits, rules), null, null))
+                );
+                return;
+            }
             String nextSearchAfter = rules[rules.length - 1].id();
             String nextPitId = updatedPitId.utf8ToString();
             listener.onResponse(new SynonymRulesWithCursor(new PagedResult<>(totalHits, rules), nextPitId, nextSearchAfter));

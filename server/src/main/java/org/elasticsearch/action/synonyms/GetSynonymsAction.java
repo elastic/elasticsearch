@@ -34,6 +34,12 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
 
     public static class Request extends AbstractSynonymsPagedResultAction.Request {
         private final String synonymsSetId;
+        /**
+         * True when this request should use PIT + search_after pagination. When {@code true}, {@code from}
+         * is always 0 and the response will carry cursor fields. When {@code false}, legacy offset pagination
+         * is used and no cursor fields are returned.
+         */
+        private final boolean usePit;
         private final String pitId;
         private final String searchAfter;
 
@@ -41,9 +47,11 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             super(in);
             this.synonymsSetId = in.readString();
             if (in.getTransportVersion().supports(SYNONYMS_GET_PIT)) {
+                this.usePit = in.readBoolean();
                 this.pitId = in.readOptionalString();
                 this.searchAfter = in.readOptionalString();
             } else {
+                this.usePit = false;
                 this.pitId = null;
                 this.searchAfter = null;
             }
@@ -53,6 +61,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             super(from, size);
             Objects.requireNonNull(synonymsSetId, "Synonym set ID cannot be null");
             this.synonymsSetId = synonymsSetId;
+            this.usePit = false;
             this.pitId = null;
             this.searchAfter = null;
         }
@@ -66,6 +75,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             super(0, size);
             Objects.requireNonNull(synonymsSetId, "Synonym set ID cannot be null");
             this.synonymsSetId = synonymsSetId;
+            this.usePit = true;
             this.pitId = pitId;
             this.searchAfter = searchAfter;
         }
@@ -75,6 +85,7 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             super.writeTo(out);
             out.writeString(synonymsSetId);
             if (out.getTransportVersion().supports(SYNONYMS_GET_PIT)) {
+                out.writeBoolean(usePit);
                 out.writeOptionalString(pitId);
                 out.writeOptionalString(searchAfter);
             }
@@ -82,6 +93,10 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
 
         public String synonymsSetId() {
             return synonymsSetId;
+        }
+
+        public boolean usePit() {
+            return usePit;
         }
 
         public String pitId() {
@@ -98,14 +113,15 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
             if (o == null || getClass() != o.getClass()) return false;
             if (super.equals(o) == false) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId)
+            return usePit == request.usePit
+                && Objects.equals(synonymsSetId, request.synonymsSetId)
                 && Objects.equals(pitId, request.pitId)
                 && Objects.equals(searchAfter, request.searchAfter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), synonymsSetId, pitId, searchAfter);
+            return Objects.hash(super.hashCode(), synonymsSetId, usePit, pitId, searchAfter);
         }
     }
 

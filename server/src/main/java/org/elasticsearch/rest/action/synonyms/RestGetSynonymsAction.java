@@ -49,8 +49,11 @@ public class RestGetSynonymsAction extends BaseRestHandler {
         String pitId = restRequest.param("pit_id");
         String searchAfter = restRequest.param("search_after");
 
+        // Use PIT-based cursor pagination when the caller has not explicitly requested offset-based
+        // pagination via "from". Cursor mode is the default for new clients; "from" is preserved for
+        // backwards compatibility with existing integrations.
         final GetSynonymsAction.Request request;
-        if (pitId != null || searchAfter != null) {
+        if (pitId != null || searchAfter != null || restRequest.hasParam("from") == false) {
             request = new GetSynonymsAction.Request(
                 restRequest.param("synonymsSet"),
                 restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM),

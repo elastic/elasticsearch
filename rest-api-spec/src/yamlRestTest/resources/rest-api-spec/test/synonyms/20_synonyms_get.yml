@@ -107,7 +107,7 @@ setup:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: GET
-          path: /_synonyms/{rule_id}
+          path: /_synonyms/{synonymsSet}
           capabilities: [ synonyms_get_pit_search_after ]
       reason: "synonyms_get_pit_search_after capability needed"
 

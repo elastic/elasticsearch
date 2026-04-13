@@ -33,7 +33,6 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
     private final int miniBatchSize; // the mini-batch size
     private final float learningRateShift; // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift)
 
-
     BalancedASKMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
@@ -64,21 +63,26 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
         }
     }
 
-    private void assignMiniBatch(float[][] distances, float[] cumulativeClusterWeights, float weightClusterSizes, IntToIntFunction assigner,
-                                 NeighborHood[] neighborhoods, int[] localAssignments) {
+    private void assignMiniBatch(
+        float[][] distances,
+        float[] cumulativeClusterWeights,
+        float weightClusterSizes,
+        IntToIntFunction assigner,
+        NeighborHood[] neighborhoods,
+        int[] localAssignments
+    ) {
         if (neighborhoods == null) {
             for (int i = 0; i < distances.length; i++) {
                 ESVectorUtil.linearCombination(weightClusterSizes, cumulativeClusterWeights, 1, distances[i]);
                 localAssignments[i] = argMin(distances[i]);
             }
-        }
-        else {
+        } else {
             for (int i = 0; i < distances.length; i++) {
                 final int previouslySelected = assigner.apply(i);
                 int[] neighbors = neighborhoods[previouslySelected].neighbors();
 
                 distances[i][0] += weightClusterSizes * cumulativeClusterWeights[previouslySelected];
-                for  (int j = 1; j < distances[i].length; j++) {
+                for (int j = 1; j < distances[i].length; j++) {
                     distances[i][j] += weightClusterSizes * cumulativeClusterWeights[neighbors[j - 1]];
                 }
                 final int localSelected = argMin(distances[i]);
@@ -149,8 +153,8 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
     }
 
     @Override
-    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate,
-                                NeighborHood[] neighborhoods) throws IOException {
+    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+        throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();
@@ -161,11 +165,11 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
             return;
         }
 
-        int miniBatchSizeLocal = (miniBatchSize < 0)? Math.abs(miniBatchSize) * k:  miniBatchSize;
+        int miniBatchSizeLocal = (miniBatchSize < 0) ? Math.abs(miniBatchSize) * k : miniBatchSize;
         miniBatchSizeLocal = Math.min(miniBatchSizeLocal, n);
 
         // Tolerance for the relative difference between centroids in two consecutive iterations. Used to check convergence
-        float convergenceRelativeTolerance = (vectors.dimension() < 100)? 1e-3f: 1e-2f;
+        float convergenceRelativeTolerance = (vectors.dimension() < 100) ? 1e-3f : 1e-2f;
 
         int[] localAssignments; // assignments of sampledVectors in the mini batch to centroids
         float[][] distances; // distances from sampledVectors in the mini batch to centroids
@@ -212,7 +216,7 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
                     // Getting the range of the median estimator from the first batch.
                     // Since the estimator snaps the values to the provided range, this is a safe operation.
                     float maxDistance = Float.NEGATIVE_INFINITY;
-                    for (float[] dist: distances) {
+                    for (float[] dist : distances) {
                         for (float d : dist) {
                             maxDistance = Math.max(maxDistance, d);
                         }
@@ -220,7 +224,7 @@ abstract class BalancedASKMeansLocal extends KMeansLocal {
                     medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
                 }
 
-                for (float[] dist: distances) {
+                for (float[] dist : distances) {
                     medianEstimator.updateEstimate(dist);
                 }
 

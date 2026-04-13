@@ -19,10 +19,14 @@ import java.io.IOException;
  */
 class BalancedASKMeansLocalSerial extends BalancedASKMeansLocal {
 
-    BalancedASKMeansLocalSerial(int sampleSize, int maxIterations) { super(sampleSize, maxIterations); }
+    BalancedASKMeansLocalSerial(int sampleSize, int maxIterations) {
+        super(sampleSize, maxIterations);
+    }
 
     @Override
-    protected int numWorkers() { return 1; }
+    protected int numWorkers() {
+        return 1;
+    }
 
     @Override
     protected void assign(
@@ -36,7 +40,6 @@ class BalancedASKMeansLocalSerial extends BalancedASKMeansLocal {
         assert centroidChangedSlices.length == 1;
         stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
-
 
     @Override
     protected void assignSpilled(

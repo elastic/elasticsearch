@@ -18,7 +18,7 @@ public class LogSinkhornTests extends ESTestCase {
     public void testLogSumExp() {
         // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
         float[] x = new float[19];
-        for  (int i = 0; i < x.length; i++) {
+        for (int i = 0; i < x.length; i++) {
             x[i] = randomFloat();
         }
 
@@ -30,12 +30,12 @@ public class LogSinkhornTests extends ESTestCase {
         assertEquals(naiveResult, ESVectorUtil.logSumExpBase2(x), 1e-6);
 
         // Example with large numbers prone to overflow in naive implementation
-        float[] largeX = {1000.0f, 1000.1f, 1000.2f};
+        float[] largeX = { 1000.0f, 1000.1f, 1000.2f };
         // A naive implementation like Math.log(Math.exp(1000.0) + ...) would overflow
         assertFalse(Double.isInfinite(ESVectorUtil.logSumExpBase2(largeX)));
 
         // Example with very small numbers prone to underflow
-        float[] smallX = {-800.0f, -801.0f, -802.0f};
+        float[] smallX = { -800.0f, -801.0f, -802.0f };
         // A naive implementation would likely underflow to 0 inside the exp() and return -Infinity
         assertFalse(Double.isInfinite(ESVectorUtil.logSumExpBase2(smallX)));
     }
@@ -53,7 +53,7 @@ public class LogSinkhornTests extends ESTestCase {
 
         for (int i = 0; i < nRows; i++) {
             for (int j = 0; j < nCols; j++) {
-                x[i][j] =  random.nextFloat();
+                x[i][j] = random.nextFloat();
             }
         }
 

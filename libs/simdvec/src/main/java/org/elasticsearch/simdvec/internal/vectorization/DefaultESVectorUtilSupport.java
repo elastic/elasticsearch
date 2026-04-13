@@ -568,7 +568,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float maxVal = Float.NEGATIVE_INFINITY;
         float sum = 0.0f;
         for (int i = 0; i < v1.length; i++) {
-            float v =  (v1[i] - v2[i]) / eps;
+            float v = (v1[i] - v2[i]) / eps;
             float newMaxVal = Math.max(maxVal, v);
             sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
             sum += MathUtils.pow2NQT(v - newMaxVal);

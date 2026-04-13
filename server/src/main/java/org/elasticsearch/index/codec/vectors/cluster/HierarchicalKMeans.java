@@ -28,7 +28,7 @@ public class HierarchicalKMeans {
     private static final int MIN_VECTORS_PRE_THREAD = 64;
 
     public static final boolean USE_BALANCING = true;
-    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING? 2: 6;
+    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING ? 2 : 6;
 
     final int dimension;
     final int maxIterations;
@@ -153,7 +153,6 @@ public class HierarchicalKMeans {
         System.out.println("clusterSizes STD: " + clusterSizesStandardDeviation(clusterSizes));
         System.out.println("inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
         System.out.println("**********************************");
-
 
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());

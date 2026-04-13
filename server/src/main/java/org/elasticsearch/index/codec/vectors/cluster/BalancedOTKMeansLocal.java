@@ -34,7 +34,6 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
     private final float forgettingFactor; // multiplicative factor in (0, 1], that allows forgetting the old soft assignments
     private final int miniBatchSize; // the mini-batch size
 
-
     BalancedOTKMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
@@ -53,11 +52,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
     protected abstract int numWorkers();
 
     /** compute the distance from every vector to every centroid **/
-    private void computeDistances(
-        ClusteringFloatVectorValues vectors,
-        float[][] centroids,
-        float[][] distances
-    ) throws IOException {
+    private void computeDistances(ClusteringFloatVectorValues vectors, float[][] centroids, float[][] distances) throws IOException {
         vectors.computeSquaredDistances(0, vectors.size(), centroids, distances);
     }
 
@@ -74,7 +69,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
             float[] vec = vectors.vectorValue(idx);
             for (int k = 0; k < centroids.length; k++) {
                 float[] centroid = centroids[k];
-                //  add 1 to cumulativeClusterWeights[k] to avoid 1 / epsilon numerical issues.
+                // add 1 to cumulativeClusterWeights[k] to avoid 1 / epsilon numerical issues.
                 float learning_rate = 1.f / (1.f + cumulativeClusterWeights[k]);
                 float w = learning_rate * centroids.length * softAssignments[idx][k];
                 ESVectorUtil.linearCombination(w, vec, 1 - w, centroid);
@@ -127,11 +122,11 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
             return;
         }
 
-        int miniBatchSizeLocal = (miniBatchSize < 0)? Math.abs(miniBatchSize) * k:  miniBatchSize;
+        int miniBatchSizeLocal = (miniBatchSize < 0) ? Math.abs(miniBatchSize) * k : miniBatchSize;
         miniBatchSizeLocal = Math.min(miniBatchSizeLocal, n);
 
         // Tolerance for the relative difference between centroids in two consecutive iterations. Used to check convergence
-        float convergenceRelativeTolerance = (vectors.dimension() < 100)? 1e-3f: 1e-2f;
+        float convergenceRelativeTolerance = (vectors.dimension() < 100) ? 1e-3f : 1e-2f;
 
         float[][] distances = new float[miniBatchSizeLocal][k]; // distances from sampledVectors in the mini batch to centroids
         float[][] softAssignments = new float[miniBatchSizeLocal][k]; // soft-assignments of sampledVectors in the mini batch to centroids
@@ -163,7 +158,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
                     // Getting the range of the median estimator from the first batch.
                     // Since the estimator snaps the values to the provided range, this is a safe operation.
                     float maxDistance = Float.NEGATIVE_INFINITY;
-                    for (float[] dist: distances) {
+                    for (float[] dist : distances) {
                         for (float d : dist) {
                             maxDistance = Math.max(maxDistance, d);
                         }
@@ -171,7 +166,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
                     medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
                 }
 
-                for (float[] dist: distances) {
+                for (float[] dist : distances) {
                     medianEstimator.updateEstimate(dist);
                 }
 

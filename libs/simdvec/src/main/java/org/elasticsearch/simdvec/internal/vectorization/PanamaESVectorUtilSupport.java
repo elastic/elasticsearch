@@ -23,8 +23,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.simdvec.internal.Similarities;
 import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 
@@ -1442,7 +1442,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         // tail
         for (; i < v1.length; i++) {
-            float v =  (v1[i] - v2[i]) / eps;
+            float v = (v1[i] - v2[i]) / eps;
             float newMaxVal = Math.max(maxVal, v);
             reducedSum *= MathUtils.pow2NQT(maxVal - newMaxVal);
             reducedSum += MathUtils.pow2NQT(v - newMaxVal);

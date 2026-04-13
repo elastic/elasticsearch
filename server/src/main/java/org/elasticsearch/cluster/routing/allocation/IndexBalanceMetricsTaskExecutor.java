@@ -80,7 +80,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
      * Default is 1 minute, minimum 100 milliseconds.
      */
     public static final Setting<TimeValue> INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.routing.allocation.index_balance_metric_refresh_interval",
+        "cluster.routing.allocation.index_balance_metrics.refresh_interval",
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMillis(100),
         Setting.Property.Dynamic,

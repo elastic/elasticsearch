@@ -536,7 +536,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
-        executor.execute(() -> {
+        Thread.startVirtualThread(() -> {
             try {
                 int rowsRemaining = rowLimit;
                 ExternalSplit split;
@@ -627,7 +627,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
 
-        executor.execute(() -> {
+        Thread.startVirtualThread(() -> {
             try {
                 int rowsRemaining = rowLimit;
                 boolean useParallel = rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader;
@@ -715,7 +715,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        executor.execute(() -> {
+        Thread.startVirtualThread(() -> {
             CloseableIterator<Page> pages = null;
             try {
                 if (rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader segmentable) {
@@ -753,7 +753,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        executor.execute(() -> {
+        Thread.startVirtualThread(() -> {
             try {
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {

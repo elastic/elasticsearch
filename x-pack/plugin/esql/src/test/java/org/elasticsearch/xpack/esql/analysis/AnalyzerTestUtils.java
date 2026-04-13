@@ -150,6 +150,16 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {
-        return IndexResolver.mergedMappings(indexPattern, false, fieldsInfoOnCurrentVersion(caps), IndexResolver.DO_NOT_GROUP);
+        return mergedResolution(indexPattern, caps, false);
+    }
+
+    public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps, boolean trackUnmappedFieldIndices) {
+        return IndexResolver.mergedMappings(
+            indexPattern,
+            false,
+            fieldsInfoOnCurrentVersion(caps),
+            trackUnmappedFieldIndices,
+            IndexResolver.DO_NOT_GROUP
+        );
     }
 }

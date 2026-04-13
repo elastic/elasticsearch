@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -84,14 +85,37 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         this.bigArrays = bigArrays;
     }
 
-    public void append(BytesRef key) {
+    /**
+     * Appends the contents of the {@code value}, leaving it unchanged.
+     */
+    public void append(BytesRef value) {
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
-        startOffsets.set(size + 1, startOffset + key.length);
+        startOffsets.set(size + 1, startOffset + value.length);
         ++size;
-        if (key.length > 0) {
-            bytes = bigArrays.grow(bytes, startOffset + key.length);
-            bytes.set(startOffset, key.bytes, key.offset, key.length);
+        if (value.length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + value.length);
+            bytes.set(startOffset, value.bytes, value.offset, value.length);
+        }
+    }
+
+    /**
+     * Appends the remaining contents of the {@code cursor}, entirely draining it.
+     * This does <strong>not</strong> change the cursor's underlying bytes, but it
+     * does advance the cursor to its end.
+     */
+    public void append(PagedBytesCursor cursor) {
+        final int length = cursor.remaining();
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + length);
+        ++size;
+        if (length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + length);
+            long writeOffset = startOffset;
+            while (cursor.remaining() > 0) {
+                writeOffset += cursor.copyPageInto(bytes, writeOffset);
+            }
         }
     }
 
@@ -104,6 +128,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
         return dest;
+    }
+
+    public PagedBytesCursor get(long id, PagedBytesCursor scratch) {
+        final long startOffset = startOffsets.get(id);
+        final int length = (int) (startOffsets.get(id + 1) - startOffset);
+        return bytes.get(startOffset, length, scratch);
     }
 
     public long size() {

@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
@@ -57,6 +60,18 @@ $endif$
         return this;
     }
 
+$if(BytesRef)$
+    @Override
+    public BytesRefBlockBuilder append(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+$endif$
     @Override
     protected int elementSize() {
         return $if(BytesRef)$-1$else$$BYTES$$endif$;

@@ -2409,11 +2409,6 @@ public class EsqlCapabilities {
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
-        /**
-         * Support CHANGE_POINT arguments in any order
-         */
-        CHANGE_POINT_ARGS_ANY_ORDER,
-
         FIX_DIV_ERROR_MESSAGE,
 
         /**

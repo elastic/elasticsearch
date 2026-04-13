@@ -142,9 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143697
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithInvalidApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/143646
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800
@@ -187,9 +184,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
-  method: testRetriesAndOperationsAreTrackedSeparately
-  issue: https://github.com/elastic/elasticsearch/issues/145281
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
@@ -210,6 +204,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145519
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
+  method: testTopNByKeyEncoderTooMuchMemory
+  issue: https://github.com/elastic/elasticsearch/issues/145627
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/145654
@@ -222,9 +219,9 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testApplicationDefaultCredentialsFallbackToComputeEngine
-  issue: https://github.com/elastic/elasticsearch/issues/145689
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/145855
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/145877
@@ -291,6 +288,42 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
+- class: org.elasticsearch.search.fetch.FetchPhaseDocsIteratorTests
+  method: testIterateAsyncVisitsLeavesInDocIdOrder
+  issue: https://github.com/elastic/elasticsearch/issues/146078
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146091
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146092
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146091
+- class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
+  method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
+  issue: https://github.com/elastic/elasticsearch/issues/146102
+- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
+  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
+  issue: https://github.com/elastic/elasticsearch/issues/146106
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsNoMappings
+  issue: https://github.com/elastic/elasticsearch/issues/146108
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined
+  issue: https://github.com/elastic/elasticsearch/issues/146109
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMigrateToTsdb
+  issue: https://github.com/elastic/elasticsearch/issues/146112
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146130
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146130
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146137
 
 # Examples:
 #

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.datageneration.FieldType;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,20 +79,17 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     }
 
     /**
-     * Tries to parse a string as a number, matching the behavior of UnsignedLongFieldMapper.parseUnsignedLong().
+     * Tries to parse a string as a number, matching the behavior of numeric field mappers.
      * Returns null if the string cannot be parsed as a valid number.
+     *
+     * <p>The default implementation uses {@link Double#parseDouble(String)} which matches the coercion
+     * behavior of most numeric field mappers.
      */
-    private Number tryParseString(String s) {
+    protected Number tryParseString(String s) {
         try {
-            return Long.parseUnsignedLong(s);
-        } catch (NumberFormatException ex1) {
-            try {
-                BigDecimal bd = new BigDecimal(s);
-                return bd.toBigIntegerExact();
-            } catch (NumberFormatException | ArithmeticException ex2) {
-                // not a valid number
-                return null;
-            }
+            return Double.parseDouble(s);
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 

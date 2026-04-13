@@ -65,7 +65,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
      * This can be used to force binding to functions from a lower tier (e.g. AVX2 on a AVX-512
      * capable processor), or to disable native functions completely (by passing 0).
      * Usage: {@code -Des.vec_caps_override=1}.
-     * For benchmarks, add {@code --jvmArgsPrepend "-Des.vec_caps_override=..."} to {@code --args}.
+     * For benchmarks, add {@code --jvmArgsPrepend "--add-modules=jdk.incubator.vector -Des.vec_caps_override=..."}
+     * to {@code --args}. Note: {@code --jvmArgsPrepend} on the CLI replaces the {@code @Fork} annotation's
+     * {@code jvmArgsPrepend}, so {@code --add-modules=jdk.incubator.vector} must be included explicitly.
      *
      * @return the caps override value, or -1 if the property is not defined or invalid.
      */

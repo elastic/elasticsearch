@@ -138,74 +138,12 @@ public class HierarchicalKMeans {
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
 
-        int[] clusterSizes = new int[kMeansIntermediate.centroids().length];
-        int[] assignmentsTemp = kMeansIntermediate.assignments();
-        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
-            int kk = assignmentsTemp[iii];
-            clusterSizes[kk]++;
-        }
-        System.out.println("**********************************");
-        System.out.println("nVectors: " + vectors.size());
-        System.out.println("nCluster: " + kMeansIntermediate.centroids().length);
-        System.out.println("targetSize: " + targetSize);
-        System.out.println("clusterSizes min: " + Arrays.stream(clusterSizes).min().getAsInt());
-        System.out.println("clusterSizes max: " + Arrays.stream(clusterSizes).max().getAsInt());
-        System.out.println("clusterSizes STD: " + clusterSizesStandardDeviation(clusterSizes));
-        System.out.println("inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
-        System.out.println("**********************************");
-
-
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
-
-        Arrays.fill(clusterSizes, 0);
-        assignmentsTemp = kMeansIntermediate.assignments();
-        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
-            int kk = assignmentsTemp[iii];
-            clusterSizes[kk]++;
-        }
-        assignmentsTemp = kMeansIntermediate.soarAssignments();
-        for (int iii = 0; iii < assignmentsTemp.length; iii++) {
-            int kk = assignmentsTemp[iii];
-            if (kk >= 0) {
-                clusterSizes[kk]++;
-            }
-        }
-
-        System.out.println("----------------------------");
-        System.out.println("nVectors: " + vectors.size());
-        System.out.println("nCluster: " + kMeansIntermediate.centroids().length);
-        System.out.println("targetSize: " + targetSize);
-        System.out.println("clusterSizes min: " + Arrays.stream(clusterSizes).min().getAsInt());
-        System.out.println("clusterSizes max: " + Arrays.stream(clusterSizes).max().getAsInt());
-        System.out.println("clusterSizes STD: " + clusterSizesStandardDeviation(clusterSizes));
-        System.out.println("inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
-        System.out.println("----------------------------");
-
         return kMeansIntermediate;
-    }
-
-    static float clusterSizesStandardDeviation(int[] clusterSizes) {
-        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
-        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
-        return (float) Math.sqrt(varSize);
-    }
-
-    static float kMeansMeanInertia(ClusteringFloatVectorValues vectors, KMeansResult kMeansIntermediate) throws IOException {
-        int[] assignments = kMeansIntermediate.assignments();
-        float[][] centroids = kMeansIntermediate.centroids();
-
-        float mse = 0;
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vec = vectors.vectorValue(i);
-            float[] cent = centroids[assignments[i]];
-            float dist = VectorUtil.squareDistance(vec, cent);
-            mse += dist / vectors.size();
-        }
-        return mse;
     }
 
     private KMeansIntermediate clusterAndSplit(final ClusteringFloatVectorValues vectors, final int targetSize) throws IOException {

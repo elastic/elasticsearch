@@ -112,7 +112,8 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
     }
 
     @Override
-    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods) throws IOException {
+    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+        throws IOException {
         assert neighborhoods == null;
 
         float[][] centroids = kMeansIntermediate.centroids();

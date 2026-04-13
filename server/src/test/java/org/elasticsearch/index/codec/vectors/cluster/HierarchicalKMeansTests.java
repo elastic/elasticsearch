@@ -92,7 +92,8 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
             assertEquals(Arrays.stream(serialClusterSizes).min().getAsInt(), Arrays.stream(concurrentClusterSizes).min().getAsInt(), 5);
             assertEquals(Arrays.stream(serialClusterSizes).max().getAsInt(), Arrays.stream(concurrentClusterSizes).max().getAsInt(), 1);
-            assertEquals(clusterSizesStandardDeviation(serialClusterSizes), clusterSizesStandardDeviation(concurrentClusterSizes), 1e-1 * clusterSizesStandardDeviation(serialClusterSizes));
+            assertEquals(clusterSizesStandardDeviation(serialClusterSizes), clusterSizesStandardDeviation(concurrentClusterSizes),
+                1e-1 * clusterSizesStandardDeviation(serialClusterSizes));
         }
     }
 

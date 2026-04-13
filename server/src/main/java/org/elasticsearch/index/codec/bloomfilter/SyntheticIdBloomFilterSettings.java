@@ -21,8 +21,7 @@ import java.util.function.Consumer;
 
 /**
  * Holds the index-level settings that configure the bloom filter used for the synthetic {@code _id} field.
- * All settings are only permitted when {@link IndexSettings#SYNTHETIC_ID} is enabled, and are therefore
- * registered conditionally on {@link IndexSettings#TSDB_SYNTHETIC_ID_FEATURE_FLAG}.
+ * All settings are only permitted when {@link IndexSettings#SYNTHETIC_ID} is enabled.
  */
 public final class SyntheticIdBloomFilterSettings {
 

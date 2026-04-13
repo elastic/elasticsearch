@@ -208,8 +208,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
-        Task indexBalanceMetricsTask = (Task) task;
-        executorNodeTask.set(indexBalanceMetricsTask);
+        final var indexBalanceMetricsTask = (Task) task;
+        final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
+        if (existingTask != null) {
+            existingTask.markAsCompleted();
+            assert existingTask.isNotRunning() : "We should never start a new task when there's still one running";
+        }
         indexBalanceMetricsTask.startScheduledRefresh();
     }
 
@@ -403,6 +407,13 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         @Override
         protected void onCancelled() {
             stopListeningAndCancelRefresh();
+        }
+
+        /**
+         * @return true if the task is cancelled or completed, false otherwise
+         */
+        public boolean isNotRunning() {
+            return isCancelled() || isCompleted();
         }
 
         private void stopListeningAndCancelRefresh() {

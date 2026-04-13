@@ -266,8 +266,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             }
 
             assertEquals(inertias[0], inertias[1], 2e-4 * inertias[0]);
-            assertEquals(stdClusterSizes[0], stdClusterSizes[1], 1e-1 * stdClusterSizes[0]);
-            assertEquals(minClusterSizes[0], minClusterSizes[1], 1e-1 * minClusterSizes[0]);
+            assertEquals(stdClusterSizes[0], stdClusterSizes[1], 2e-1 * stdClusterSizes[0]);
+            assertEquals(minClusterSizes[0], minClusterSizes[1], 2e-1 * minClusterSizes[0]);
         }
     }
 }

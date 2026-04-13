@@ -133,7 +133,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * Create a {@link SubscribableListener} which has already succeeded with the given result.
      */
     public static <T> SubscribableListener<T> newSucceeded(T result) {
-        return new SubscribableListener<>(new SuccessResult<>(result));
+        return result == null ? nullSuccess() : new SubscribableListener<>(SuccessResult.of(result));
     }
 
     /**
@@ -280,7 +280,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     @Override
     public final void onResponse(T result) {
-        setResult(new SuccessResult<T>(result));
+        setResult(SuccessResult.of(result));
     }
 
     @Override
@@ -422,6 +422,15 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     private record SuccessResult<T>(T result) {
+
+        @SuppressWarnings("rawtypes")
+        private static final SuccessResult NULL_SUCCESS_RESULT = new SuccessResult<>(null);
+
+        @SuppressWarnings("unchecked")
+        static <T> SuccessResult<T> of(T result) {
+            return result == null ? NULL_SUCCESS_RESULT : new SuccessResult<>(result);
+        }
+
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);
@@ -640,7 +649,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+    private static final SubscribableListener NULL_SUCCESS = new SubscribableListener<>(SuccessResult.of(null));
 
     /**
      * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.

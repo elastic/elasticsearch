@@ -94,17 +94,16 @@ public final class GlobExpander {
             return HivePartitionDetector.INSTANCE;
         }
         return switch (config.strategy()) {
-            case PartitionConfig.NONE -> null;
-            case PartitionConfig.HIVE -> HivePartitionDetector.INSTANCE;
-            case PartitionConfig.TEMPLATE -> {
+            case NONE -> null;
+            case HIVE -> HivePartitionDetector.INSTANCE;
+            case TEMPLATE -> {
                 String template = config.pathTemplate();
                 if (template == null || template.isEmpty()) {
                     yield null;
                 }
                 yield new TemplatePartitionDetector(template);
             }
-            case PartitionConfig.AUTO -> AutoPartitionDetector.fromConfig(config);
-            default -> HivePartitionDetector.INSTANCE;
+            case AUTO -> AutoPartitionDetector.fromConfig(config);
         };
     }
 
@@ -214,7 +213,7 @@ public final class GlobExpander {
         if (hivePartitioning == false && partitionConfig == null) {
             return null;
         }
-        if (partitionConfig != null && PartitionConfig.NONE.equals(partitionConfig.strategy())) {
+        if (partitionConfig != null && PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
             return null;
         }
 

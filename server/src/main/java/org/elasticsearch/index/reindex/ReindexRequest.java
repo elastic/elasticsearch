@@ -25,6 +25,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -157,6 +158,32 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             this.getSearchRequest().indices(sourceIndices);
         }
         return this;
+    }
+
+    /**
+     * After opening a point-in-time, mutates this request's {@link SearchRequest} to use that PIT for pagination.
+     * <p>
+     * This method:
+     * <ol>
+     *     <li>Sets the PIT on the search source</li>
+     *     <li>Clears the scroll since PIT and scroll are mutually exclusive</li>
+     *     <li>Copies the current {@link SearchRequest#indices()} to {@link #setSourceIndicesForDescription} so the
+     *     task descriptions remain correct</li>
+     *     <li>Clears indices on the search request (the PIT defines index context)</li>
+     *     <li>Clears project routing since it is fixed at open-PIT time</li>
+     * </ol>
+     *
+     * @param pitId      encoded PIT identifier from {@code open_point_in_time}
+     * @param keepAlive  keep-alive for the PIT on the search request
+     */
+    public void convertSearchRequestToUsePit(BytesReference pitId, TimeValue keepAlive) {
+        SearchRequest searchRequest = getSearchRequest();
+        String[] indices = searchRequest.indices();
+        searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive));
+        searchRequest.scroll(null);
+        setSourceIndicesForDescription(indices);
+        searchRequest.indices(Strings.EMPTY_ARRAY);
+        searchRequest.clearProjectRouting();
     }
 
     /**

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -62,6 +63,9 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         "CIDRMatch",
         CIDRMatch::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CIDRMatch.class)
+        .unaryVariadic(CIDRMatch::new)
+        .name("cidr_match");
 
     private final Expression ipField;
     private final List<Expression> matches;

@@ -21,21 +21,27 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
         builder("""
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
-            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION)).run();
+            """).stages(STAGES)
+            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .run();
     }
 
     public void testTwoSumsOfFieldPlusConstantWithGroupBy() {
         builder("""
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
-            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION)).run();
+            """).stages(STAGES)
+            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .run();
     }
 
     public void testTwoSumsOfFieldMinusConstant() {
         builder("""
             FROM employees
             | STATS s1 = SUM(salary - 1), s2 = SUM(2 - salary)
-            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION)).run();
+            """).stages(STAGES)
+            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .run();
     }
 
     public void testSingleSumNotRewritten() {

@@ -353,6 +353,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         void startScheduledRefresh() {
+            logger.info("Starting index balance metrics task");
             needRefresh = true;
             clusterService.addListener(routingTableChangedListener);
             scheduleRefresh(pollIntervalSupplier.get());

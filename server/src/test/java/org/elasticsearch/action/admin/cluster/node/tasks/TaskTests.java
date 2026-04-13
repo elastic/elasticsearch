@@ -102,6 +102,6 @@ public class TaskTests extends ESTestCase {
         }
         assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
         assertEquals(map.get("original_task_id"), originalTaskId.toString());
-        assertEquals(map.get("original_start_time_in_millis"), originalStartTimeMillis);
+        assertEquals(asInstanceOf(Number.class, map.get("original_start_time_in_millis")).longValue(), originalStartTimeMillis);
     }
 }

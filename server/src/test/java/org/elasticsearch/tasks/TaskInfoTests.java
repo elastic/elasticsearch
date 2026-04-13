@@ -317,7 +317,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
         boolean isTaskRelocated = randomBoolean();
-        TaskId originalTaskId = isTaskRelocated ? randomTaskId(nodeId) : taskId;
+        TaskId originalTaskId = isTaskRelocated ? randomValueOtherThan(taskId, () -> randomTaskId(nodeId)) : taskId;
         long originalStartTimeMillis = isTaskRelocated ? randomLong() : startTime;
         return new TaskInfo(
             taskId,

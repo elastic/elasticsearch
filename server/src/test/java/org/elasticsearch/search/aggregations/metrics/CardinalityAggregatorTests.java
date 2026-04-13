@@ -245,6 +245,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     IndexVersion.current(),
                     false
                 ),
+                null,
                 new HashMap<>(),
                 false
             );

@@ -269,6 +269,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<DenseVectorIndexOptions> indexOptions;
 
         private final Parameter<Boolean> indexed;
+        private final Parameter<String> inferenceId;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
@@ -399,6 +400,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             });
+            this.inferenceId = Parameter.stringParam("inference_id", true, m -> toType(m).fieldType().inferenceId, null)
+                .acceptsNull()
+                .setSerializerCheck((id, ic, v) -> v != null);
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -473,7 +477,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, inferenceId, meta };
         }
 
         public Builder similarity(VectorSimilarity vectorSimilarity) {
@@ -493,6 +497,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Builder indexOptions(DenseVectorIndexOptions indexOptions) {
             this.indexOptions.setValue(indexOptions);
+            return this;
+        }
+
+        public Builder inferenceId(String inferenceId) {
+            this.inferenceId.setValue(inferenceId);
             return this;
         }
 
@@ -517,6 +526,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexed.getValue(),
                     similarity.getValue(),
                     indexOptions.getValue(),
+                    inferenceId.getValue(),
                     meta.getValue(),
                     context.isSourceSynthetic()
                 ),
@@ -2785,6 +2795,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
+        private final String inferenceId;
         private final boolean isSyntheticSource;
 
         public DenseVectorFieldType(
@@ -2795,6 +2806,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean indexed,
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
+            String inferenceId,
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
@@ -2805,11 +2817,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
+            this.inferenceId = inferenceId;
             this.isSyntheticSource = isSyntheticSource;
         }
 
         public VectorSimilarity similarity() {
             return similarity;
+        }
+
+        public String getInferenceId() {
+            return inferenceId;
         }
 
         @Override

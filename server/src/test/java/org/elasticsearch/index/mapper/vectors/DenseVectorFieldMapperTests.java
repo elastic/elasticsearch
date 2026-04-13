@@ -604,6 +604,17 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
+
+        checker.registerUpdateCheck(
+            "inference_id",
+            b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", "dot_product"),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims)
+                .field("index", true)
+                .field("similarity", "dot_product")
+                .field("inference_id", "my_inference_id"),
+            m -> assertEquals("my_inference_id", ((DenseVectorFieldMapper) m).fieldType().getInferenceId())
+        );
     }
 
     @Override

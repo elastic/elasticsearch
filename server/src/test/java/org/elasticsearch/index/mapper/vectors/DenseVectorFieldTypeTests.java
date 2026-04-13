@@ -188,6 +188,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             indexed,
             VectorSimilarity.COSINE,
             indexed ? randomIndexOptionsAll() : null,
+            null,
             Collections.emptyMap(),
             false
         );
@@ -202,6 +203,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -268,6 +270,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             indexed,
             VectorSimilarity.COSINE,
             indexed ? randomIndexOptionsAll() : null,
+            null,
             Collections.emptyMap(),
             false
         );
@@ -285,6 +288,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             indexed,
             VectorSimilarity.COSINE,
             indexed ? randomIndexOptionsAll() : null,
+            null,
             Collections.emptyMap(),
             false
         );
@@ -319,6 +323,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -358,6 +363,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -421,6 +427,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -440,6 +447,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -460,6 +468,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             4,
             false,
             VectorSimilarity.COSINE,
+            null,
             null,
             Collections.emptyMap(),
             false
@@ -489,6 +498,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.DOT_PRODUCT,
             randomIndexOptionsAll(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -521,6 +531,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsAll(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -552,6 +563,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -590,6 +602,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -627,6 +640,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             false,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -655,6 +669,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -703,6 +718,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -748,6 +764,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsHnswQuantized(),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -770,6 +787,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(randomFloatBetween(1.1f, 9.9f, false))),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -800,6 +818,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(0)),
+            null,
             Collections.emptyMap(),
             false
         );
@@ -840,6 +859,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsHnswQuantized(),
+                null,
                 Collections.emptyMap(),
                 false
             );

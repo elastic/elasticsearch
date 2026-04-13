@@ -97,8 +97,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * Completion suggestion option hits to release when this response is released (1 ref per hit).
+     * Never null; empty when there are no such hits to release.
      */
-    @Nullable
     private final List<SearchHit> completionOptionHitsToRelease;
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
@@ -117,7 +117,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
-        this.completionOptionHitsToRelease = this.suggest != null ? this.suggest.collectCompletionOptionHits(false) : null;
+        this.completionOptionHitsToRelease = this.suggest != null
+            ? Objects.requireNonNullElse(this.suggest.collectCompletionOptionHits(false), List.of())
+            : List.of();
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
         this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
@@ -240,9 +242,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = suggest;
-        this.completionOptionHitsToRelease = completionOptionHitsToRelease != null
-            ? completionOptionHitsToRelease
-            : (suggest != null ? suggest.collectCompletionOptionHits(true) : null);
+        this.completionOptionHitsToRelease = Objects.requireNonNullElse(
+            completionOptionHitsToRelease != null
+                ? completionOptionHitsToRelease
+                : (suggest != null ? suggest.collectCompletionOptionHits(true) : null),
+            List.of()
+        );
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -285,10 +290,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
             }
-            if (completionOptionHitsToRelease != null) {
-                for (SearchHit hit : completionOptionHitsToRelease) {
-                    hit.decRef();
-                }
+            for (SearchHit hit : completionOptionHitsToRelease) {
+                hit.decRef();
             }
             hits.decRef();
             return true;

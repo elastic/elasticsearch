@@ -233,10 +233,11 @@ public final class SearchPhaseController {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            // Take refs on completion option hits before returning (fetch result is released when caller exits try-with-resources)
-            var completionOptionHitsToRelease = reducedQueryPhase.suggest != null
-                ? reducedQueryPhase.suggest.collectCompletionOptionHits(true)
-                : null;
+            // Own refs for suggestion option hits so they survive fetch result release (caller exits try-with-resources).
+            // Refs are incremented inside Suggest#collectCompletionOptionHits when passed true, not in mergeSuggest above.
+            List<SearchHit> completionOptionHitsToRelease = reducedQueryPhase.suggest == null
+                ? List.of()
+                : Objects.requireNonNullElse(reducedQueryPhase.suggest.collectCompletionOptionHits(true), List.of());
             var res = reducedQueryPhase.buildResponse(hits, fetchResults, completionOptionHitsToRelease);
             hits = null;
             return res;

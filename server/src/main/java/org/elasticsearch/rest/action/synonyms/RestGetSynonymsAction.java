@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -39,12 +40,30 @@ public class RestGetSynonymsAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedCapabilities() {
+        return SynonymCapabilities.GET_SYNONYMS_CAPABILITIES;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetSynonymsAction.Request request = new GetSynonymsAction.Request(
-            restRequest.param("synonymsSet"),
-            restRequest.paramAsInt("from", DEFAULT_FROM_PARAM),
-            restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM)
-        );
+        String pitId = restRequest.param("pit_id");
+        String searchAfter = restRequest.param("search_after");
+
+        final GetSynonymsAction.Request request;
+        if (pitId != null || searchAfter != null) {
+            request = new GetSynonymsAction.Request(
+                restRequest.param("synonymsSet"),
+                restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM),
+                pitId,
+                searchAfter
+            );
+        } else {
+            request = new GetSynonymsAction.Request(
+                restRequest.param("synonymsSet"),
+                restRequest.paramAsInt("from", DEFAULT_FROM_PARAM),
+                restRequest.paramAsInt("size", DEFAULT_SIZE_PARAM)
+            );
+        }
         return channel -> client.execute(GetSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -37,6 +37,14 @@
         "type": "int",
         "description": "specifies a max number of results to get",
         "default": 10
+      },
+      "pit_id": {
+        "type": "string",
+        "description": "Point in time ID from a previous page response, used for cursor-based pagination"
+      },
+      "search_after": {
+        "type": "string",
+        "description": "Last synonym rule ID from a previous page response, used as the search_after cursor"
       }
     }
   }

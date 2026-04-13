@@ -102,6 +102,46 @@ setup:
           id: "test-id-3"
 
 ---
+"PIT cursor pagination":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_get_pit_search_after ]
+      reason: "synonyms_get_pit_search_after capability needed"
+
+  # First page: size=2, no pit_id — opens a new PIT and returns first 2 rules
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 2 }
+  - match: { synonyms_set.0.id: "test-id-1" }
+  - match: { synonyms_set.1.id: "test-id-2" }
+  - is_true: pit_id
+  - is_true: next_search_after
+  - set: { pit_id: pit_id }
+  - set: { next_search_after: next_search_after }
+
+  # Second page: resume with pit_id and search_after — returns remaining rule and closes PIT
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+        pit_id: $pit_id
+        search_after: $next_search_after
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 1 }
+  - match: { synonyms_set.0.id: "test-id-3" }
+  # PIT is closed; no cursor fields returned
+  - not_exists: pit_id
+  - not_exists: next_search_after
+
+---
 "Synonyms set with same IDs":
   - do:
       synonyms.put_synonym:

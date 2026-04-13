@@ -43,6 +43,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -72,6 +73,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -398,6 +400,98 @@ public class SynonymsManagementAPIService {
                     .toArray(SynonymRule[]::new);
                 searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));
+    }
+
+    /**
+     * Holds a single page of synonym rules together with the cursor values needed to fetch the next page.
+     * {@code nextPitId} and {@code nextSearchAfter} are {@code null} when this is the last (possibly empty) page,
+     * indicating the PIT has already been closed.
+     */
+    public record SynonymRulesWithCursor(PagedResult<SynonymRule> result, String nextPitId, String nextSearchAfter) {}
+
+    /**
+     * Retrieves a single page of synonym rules for a synonym set using PIT + search_after for stable pagination.
+     * On the first call pass {@code null} for {@code encodedPitId} and {@code searchAfter} to open a new PIT.
+     * Pass the {@code pit_id} and {@code next_search_after} values from the previous response to fetch
+     * subsequent pages. When the last page has been returned the PIT is closed and both cursor fields in the
+     * result will be {@code null}.
+     *
+     * @param synonymSetId   the synonym set to paginate
+     * @param size           number of rules per page
+     * @param encodedPitId   PIT ID from a previous response, or {@code null} for the first page
+     * @param searchAfter    last rule ID from a previous response, or {@code null} for the first page
+     * @param listener       receives the page result with cursor values for the next page
+     */
+    public void getSynonymSetRulesWithPit(
+        String synonymSetId,
+        int size,
+        String encodedPitId,
+        String searchAfter,
+        ActionListener<SynonymRulesWithCursor> listener
+    ) {
+        if (encodedPitId == null) {
+            OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
+            client.execute(
+                TransportOpenPointInTimeAction.TYPE,
+                pitRequest,
+                new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
+                    doSinglePageWithPit(synonymSetId, size, pitResponse.getPointInTimeId(), null, l);
+                })
+            );
+        } else {
+            BytesReference pitId = new BytesArray(encodedPitId.getBytes(StandardCharsets.UTF_8));
+            doSinglePageWithPit(synonymSetId, size, pitId, searchAfter, listener);
+        }
+    }
+
+    private void doSinglePageWithPit(
+        String synonymSetId,
+        int size,
+        BytesReference pitId,
+        String searchAfter,
+        ActionListener<SynonymRulesWithCursor> listener
+    ) {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+        )
+            .size(size)
+            .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
+            .trackTotalHits(true)
+            .fetchSource(false)
+            .fetchField(SYNONYM_RULE_ID_FIELD)
+            .fetchField(SYNONYMS_FIELD)
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
+
+        if (searchAfter != null) {
+            source.searchAfter(new Object[] { searchAfter });
+        }
+
+        client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            long totalHits = response.getHits().getTotalHits().value();
+            assert response.pointInTimeId() != null;
+            BytesReference updatedPitId = response.pointInTimeId();
+
+            if (hits.length == 0) {
+                closePitAndThen(updatedPitId, () -> {
+                    if (totalHits == 0) {
+                        checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                            l.onResponse(new SynonymRulesWithCursor(new PagedResult<>(0, new SynonymRule[0]), null, null));
+                        }));
+                    } else {
+                        listener.onResponse(new SynonymRulesWithCursor(new PagedResult<>(totalHits, new SynonymRule[0]), null, null));
+                    }
+                });
+                return;
+            }
+
+            SynonymRule[] rules = Arrays.stream(hits).map(SynonymsManagementAPIService::hitToSynonymRule).toArray(SynonymRule[]::new);
+            String nextSearchAfter = rules[rules.length - 1].id();
+            String nextPitId = updatedPitId.utf8ToString();
+            listener.onResponse(new SynonymRulesWithCursor(new PagedResult<>(totalHits, rules), nextPitId, nextSearchAfter));
+        }, e -> closePitAndThen(pitId, () -> listener.onFailure(e))));
     }
 
     private static SynonymRule hitToSynonymRule(SearchHit hit) {

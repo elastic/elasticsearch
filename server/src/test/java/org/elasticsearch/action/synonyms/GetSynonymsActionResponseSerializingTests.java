@@ -27,16 +27,31 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response createTestInstance() {
-        return new GetSynonymsAction.Response(new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet()));
+        PagedResult<SynonymRule> result = new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet());
+        if (randomBoolean()) {
+            return new GetSynonymsAction.Response(
+                result,
+                randomBoolean() ? randomIdentifier() : null,
+                randomBoolean() ? randomIdentifier() : null
+            );
+        }
+        return new GetSynonymsAction.Response(result);
     }
 
     @Override
     protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
-        PagedResult<SynonymRule> originalResults = instance.getResults();
-        PagedResult<SynonymRule> mutatedResults = randomValueOtherThan(
-            originalResults,
-            () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
-        );
-        return new GetSynonymsAction.Response(mutatedResults);
+        PagedResult<SynonymRule> results = instance.getResults();
+        String nextPitId = instance.nextPitId();
+        String nextSearchAfter = instance.nextSearchAfter();
+        switch (between(0, 2)) {
+            case 0 -> results = randomValueOtherThan(
+                results,
+                () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
+            );
+            case 1 -> nextPitId = randomValueOtherThan(nextPitId, () -> randomBoolean() ? randomIdentifier() : null);
+            case 2 -> nextSearchAfter = randomValueOtherThan(nextSearchAfter, () -> randomBoolean() ? randomIdentifier() : null);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetSynonymsAction.Response(results, nextPitId, nextSearchAfter);
     }
 }

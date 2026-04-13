@@ -21,6 +21,8 @@ public final class SynonymCapabilities {
     }
 
     private static final String SYNONYMS_REFRESH_PARAM = "synonyms_refresh_param";
+    public static final String SYNONYMS_GET_PIT_SEARCH_AFTER = "synonyms_get_pit_search_after";
 
     public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM);
+    public static final Set<String> GET_SYNONYMS_CAPABILITIES = Set.of(SYNONYMS_GET_PIT_SEARCH_AFTER);
 }

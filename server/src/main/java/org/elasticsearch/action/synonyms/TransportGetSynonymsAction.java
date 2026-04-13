@@ -32,11 +32,21 @@ public class TransportGetSynonymsAction extends HandledTransportAction<GetSynony
 
     @Override
     protected void doExecute(Task task, GetSynonymsAction.Request request, ActionListener<GetSynonymsAction.Response> listener) {
-        synonymsManagementAPIService.getSynonymSetRules(
-            request.synonymsSetId(),
-            request.from(),
-            request.size(),
-            listener.map(GetSynonymsAction.Response::new)
-        );
+        if (request.pitId() != null || request.searchAfter() != null) {
+            synonymsManagementAPIService.getSynonymSetRulesWithPit(
+                request.synonymsSetId(),
+                request.size(),
+                request.pitId(),
+                request.searchAfter(),
+                listener.map(cursor -> new GetSynonymsAction.Response(cursor.result(), cursor.nextPitId(), cursor.nextSearchAfter()))
+            );
+        } else {
+            synonymsManagementAPIService.getSynonymSetRules(
+                request.synonymsSetId(),
+                request.from(),
+                request.size(),
+                listener.map(GetSynonymsAction.Response::new)
+            );
+        }
     }
 }

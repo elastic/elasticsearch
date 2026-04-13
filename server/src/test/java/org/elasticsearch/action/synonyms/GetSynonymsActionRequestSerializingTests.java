@@ -23,6 +23,15 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected GetSynonymsAction.Request createTestInstance() {
+        if (randomBoolean()) {
+            // PIT-based request
+            return new GetSynonymsAction.Request(
+                randomIdentifier(),
+                randomIntBetween(1, 100),
+                randomBoolean() ? randomIdentifier() : null,
+                randomBoolean() ? randomIdentifier() : null
+            );
+        }
         return new GetSynonymsAction.Request(
             randomIdentifier(),
             randomIntBetween(0, Integer.MAX_VALUE),
@@ -35,12 +44,28 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
         String synonymsSetId = instance.synonymsSetId();
         int from = instance.from();
         int size = instance.size();
-        switch (between(0, 2)) {
-            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
-            case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(0, Integer.MAX_VALUE));
-            case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
-            default -> throw new AssertionError("Illegal randomisation branch");
+        String pitId = instance.pitId();
+        String searchAfter = instance.searchAfter();
+
+        if (pitId != null || searchAfter != null) {
+            // Mutate a PIT-based request
+            switch (between(0, 3)) {
+                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+                case 1 -> size = randomValueOtherThan(size, () -> randomIntBetween(1, 100));
+                case 2 -> pitId = randomValueOtherThan(pitId, () -> randomBoolean() ? randomIdentifier() : null);
+                case 3 -> searchAfter = randomValueOtherThan(searchAfter, () -> randomBoolean() ? randomIdentifier() : null);
+                default -> throw new AssertionError("Illegal randomisation branch");
+            }
+            return new GetSynonymsAction.Request(synonymsSetId, size, pitId, searchAfter);
+        } else {
+            // Mutate a regular request
+            switch (between(0, 2)) {
+                case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+                case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(0, Integer.MAX_VALUE));
+                case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
+                default -> throw new AssertionError("Illegal randomisation branch");
+            }
+            return new GetSynonymsAction.Request(synonymsSetId, from, size);
         }
-        return new GetSynonymsAction.Request(synonymsSetId, from, size);
     }
 }

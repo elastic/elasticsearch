@@ -275,7 +275,7 @@ public record TaskInfo(
     private static long parseOriginalStartTimeMillis(
         @Nullable Long optionalOriginalStartTimeMillis,
         long startTime,
-        String originalTaskIdString
+        @Nullable String originalTaskIdString
     ) {
         if (originalTaskIdString == null) {
             if (optionalOriginalStartTimeMillis == null) {

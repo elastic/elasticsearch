@@ -195,24 +195,21 @@ FROM partial_mapping_no_source_sample_data
 2024-10-23T12:15:03.360Z | null
 ;
 
-statsByUnmappedFieldExistsInSource
+simpleUnmappedLoad
 required_capability: optional_fields_v5
 
 // tag::unmapped-load-sample[]
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
-| STATS s = SUM(event_duration), c = COUNT(*) BY unmapped_message
-| SORT unmapped_message
+| KEEP event*, unmapped_message
+| SORT event_duration
+| LIMIT 1
 // end::unmapped-load-sample[]
 ;
 
 // tag::unmapped-load-sample-result[]
-s:long       | c:long | unmapped_message:keyword
-1232381      | 1      | 43
-1756466      | 1      | Disconnected from 10.1.0.1
-2764888      | 1      | Disconnected from 10.1.0.2
-3450232      | 1      | Disconnected from 10.1.0.3
-14027353     | 3      | Disconnection error
+event_duration:long | unmapped_message:null
+725447              | null
 // end::unmapped-load-sample-result[]
 ;
 

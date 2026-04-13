@@ -10,47 +10,60 @@ This setting determines how unmapped fields are treated. Possible values are:
 - `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
 may treat them differently.
 - `NULLIFY` - Treats unmapped fields as null values.
-- `LOAD` - Attempts to load unmapped fields  from the stored JSON
-[`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md). {applies_to}`stack: preview 9.4`
+- `LOAD` - Attempts to load unmapped fields from the stored JSON
+[`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`.
+{applies_to}`stack: preview 9.4`
 
-In the simplest form, an unmapped field is one referenced in a query while absent from the mapping of the index being queried.
-If querying multiple indices, a field is considered unmapped if it was referenced in the query while absent from the mapping of
-at least one of the indices; partially unmapped.
+In the simplest form, an `unmapped field` is one referenced in a query while absent from the mapping of the index being queried.
+If querying multiple indices, a field is considered `partially unmapped` if it was referenced in the query while absent from the
+mapping of at least one of the indices.
+
+Special notes about the `LOAD` option:
+- `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+- Referencing subfields of `flattened` parents is not supported.
+- Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
+unless referenced in a `KEEP` or `DROP`.
+
 
 **Type**: `keyword`
 
 ## Example
 
-Make the field null if it is unmapped.
+Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+however, in the stored JSON `_source` of all documents in this index.
+
+The `NULLIFY` option should treat this field as `null`.
+
 
 ```esql
 SET unmapped_fields="nullify";
-FROM employees
-| KEEP emp_*, foo
-| SORT emp_no
+FROM partial_mapping_sample_data
+| KEEP event*, unmapped_message
+| SORT event_duration
 | LIMIT 1
 ```
 
-| emp_no:integer | foo:null |
+| event_duration:long | unmapped_message:null |
 | --- | --- |
-| 10001 | null |
+| 725447 | null |
 
 ## Example
 
-Load the field from `_source` if it is unmapped.
+Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+however, in the stored JSON `_source` of all documents in this index.
+
+The `LOAD` option should load this field from `_source`.
+
 
 ```esql
 SET unmapped_fields="load";
 FROM partial_mapping_sample_data
-| STATS s = SUM(event_duration), c = COUNT(*) BY unmapped_message
-| SORT unmapped_message
+| KEEP event*, unmapped_message
+| SORT event_duration
+| LIMIT 1
 ```
 
-| s:long | c:long | unmapped_message:keyword |
-| --- | --- | --- |
-| 1232381 | 1 | 43 |
-| 1756466 | 1 | Disconnected from 10.1.0.1 |
-| 2764888 | 1 | Disconnected from 10.1.0.2 |
-| 3450232 | 1 | Disconnected from 10.1.0.3 |
-| 14027353 | 3 | Disconnection error |
+| event_duration:long | unmapped_message:null |
+| --- | --- |
+| 725447 | null |
 

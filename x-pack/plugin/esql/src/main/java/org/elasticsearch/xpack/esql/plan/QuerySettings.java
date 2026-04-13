@@ -74,31 +74,38 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    @Param(
-        name = "unmapped_fields",
-        type = { "keyword" },
-        since = "9.3.0",
-        description = """
-            This setting determines how unmapped fields are treated. Possible values are:
+    @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
+        This setting determines how unmapped fields are treated. Possible values are:
 
-            - `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
-            may treat them differently.
-            - `NULLIFY` - Treats unmapped fields as null values.
-            - `LOAD` - Attempts to load unmapped fields from the stored JSON
-            [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) as `keyword`s. {applies_to}`stack: preview 9.4`
+        - `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+        may treat them differently.
+        - `NULLIFY` - Treats unmapped fields as null values.
+        - `LOAD` - Attempts to load unmapped fields from the stored JSON
+        [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`.
+        {applies_to}`stack: preview 9.4`
 
-            In the simplest form, an `unmapped field` is one referenced in a query while absent from the mapping of the index being queried.
-            If querying multiple indices, a field is considered `partially unmapped` if it was referenced in the query while absent from the mapping of
-            at least one of the indices.
+        In the simplest form, an `unmapped field` is one referenced in a query while absent from the mapping of the index being queried.
+        If querying multiple indices, a field is considered `partially unmapped` if it was referenced in the query while absent from the
+        mapping of at least one of the indices.
 
-            Special notes about the `LOAD` option:
-            - `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
-            - Referencing subfields of `flattened` parents is not supported.
-            - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function, unless referenced in a `KEEP` or `DROP`
-         """
-    )
-    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
-    @Example(file = "unmapped-load", tag = "unmapped-load-sample", description = "Load the field from `_source` if it is unmapped.")
+        Special notes about the `LOAD` option:
+        - `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+        - Referencing subfields of `flattened` parents is not supported.
+        - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
+        unless referenced in a `KEEP` or `DROP`.
+        """)
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
+        Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+        however, in the stored JSON `_source` of all documents in this index.
+
+        The `NULLIFY` option should treat this field as `null`.
+        """)
+    @Example(file = "unmapped-load", tag = "unmapped-load-sample", description = """
+        Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
+        however, in the stored JSON `_source` of all documents in this index.
+
+        The `LOAD` option should load this field from `_source`.
+        """)
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,

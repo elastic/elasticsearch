@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * </p>
  */
 public class MvSingleValueOrNull extends AbstractMultivalueFunction {
-    public static final TransportVersion TRANSPORT_VERSION = TransportVersion.fromName("esql_mv_single_value_or_null");
+    public static final TransportVersion MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION = TransportVersion.fromName("esql_mv_single_value_or_null");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

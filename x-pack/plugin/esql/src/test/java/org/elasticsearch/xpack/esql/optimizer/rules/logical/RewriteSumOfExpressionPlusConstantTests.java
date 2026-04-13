@@ -34,7 +34,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -83,7 +83,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no - 2), s2 = sum(3 - emp_no)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -120,7 +120,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2) by languages
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -143,7 +143,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), bare = sum(emp_no), s2 = sum(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -169,7 +169,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
             from test
             | stats s = sum(emp_no + 1), s = sum(emp_no + 2)
             | limit 10
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         // After shadowing, only one SUM remains — below the 2-match threshold.
         boolean hasMvSingleValueOrNull = plan.anyMatch(
@@ -184,7 +184,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats c = count(emp_no), s1 = sum(emp_no + 1), s2 = sum(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -209,7 +209,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats a = avg(emp_no + 1), b = avg(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         boolean hasMvSingleValueOrNull = plan.anyMatch(
             node -> node instanceof Eval e
@@ -222,7 +222,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + (5 - 2)), s2 = sum(emp_no + 1)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -245,7 +245,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + length("abc")), s2 = sum(emp_no + 1)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -267,7 +267,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1 + 2), s2 = sum(emp_no + 1 + 3)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -285,7 +285,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2), s3 = sum(emp_no + 3)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -304,7 +304,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2), s3 = sum(salary + 1), s4 = sum(salary + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -326,7 +326,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(null + 1), s2 = sum(null + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         boolean hasMvSingleValueOrNull = plan.anyMatch(
             node -> node instanceof Eval e
@@ -339,7 +339,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2) by l = languages
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);
@@ -361,7 +361,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
             from test
             | stats s1 = sum(emp_no + 1), c = sum(emp_no), c = count(emp_no), s2 = sum(emp_no + 2)
             | limit 10
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         // After RemoveStatsOverride drops c = sum(emp_no), s1 and s2 still satisfy the 2-match threshold.
         assertTrue(
@@ -384,7 +384,7 @@ public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlan
         var plan = plan("""
             from test
             | inline stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.TRANSPORT_VERSION));
+            """, new TestSubstitutionOnlyOptimizer(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
 
         assertTrue(
             "Expected RewriteSumOfExpressionPlusConstant to fire for INLINE STATS",

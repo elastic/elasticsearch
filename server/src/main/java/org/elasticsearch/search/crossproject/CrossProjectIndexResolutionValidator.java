@@ -89,6 +89,14 @@ public class CrossProjectIndexResolutionValidator {
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         Map<String, Exception> remoteExceptions
     ) {
+        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
+        // This can happen for flat expressions where the resolved expressions don't include remote expressions for views.
+        for (Exception remoteEx : remoteExceptions.values()) {
+            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
+                return viewException;
+            }
+        }
+
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
             return null;
@@ -254,14 +262,6 @@ public class CrossProjectIndexResolutionValidator {
                         notFoundException = new IndexNotFoundException(remoteExpressions.getFirst());
                     }
                 }
-            }
-        }
-
-        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
-        // This can happen for flat expressions where the resolved expressions don't include remote expressions for views.
-        for (Exception remoteEx : remoteExceptions.values()) {
-            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
-                return viewException;
             }
         }
 

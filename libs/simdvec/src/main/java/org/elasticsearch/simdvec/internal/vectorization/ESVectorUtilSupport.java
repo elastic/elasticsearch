@@ -72,7 +72,17 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
-    void squareDistanceBulk(float[] query, int queryOffset, int length, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
+    void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    );
 
     void soarDistanceBulk(
         float[] v1,

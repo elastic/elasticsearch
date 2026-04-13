@@ -200,12 +200,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      * @param centroids        the centroid vectors to compare against
      * @param squaredDistances array of distances indexed by document ordinal
      */
-    final void computeSquaredDistances(
-        int startOrd,
-        int endOrd,
-        float[][] centroids,
-        float[][] squaredDistances
-    ) throws IOException {
+    final void computeSquaredDistances(int startOrd, int endOrd, float[][] centroids, float[][] squaredDistances) throws IOException {
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
             computeSquaredDistances(vector, centroids, squaredDistances[i]);

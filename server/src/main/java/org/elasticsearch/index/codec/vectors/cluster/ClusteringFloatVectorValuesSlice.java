@@ -29,7 +29,7 @@ final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues
         assert size <= allValues.size();
         this.allValues = allValues;
         // TODO maybe use bigArrays?
-        this.slice =  new int[size];
+        this.slice = new int[size];
     }
 
     @Override

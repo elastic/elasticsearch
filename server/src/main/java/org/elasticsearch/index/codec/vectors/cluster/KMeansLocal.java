@@ -189,8 +189,11 @@ abstract class KMeansLocal {
         }
     }
 
-    protected abstract void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate,
-                                         NeighborHood[] neighborhoods) throws IOException;
+    protected abstract void innerCluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        NeighborHood[] neighborhoods
+    ) throws IOException;
 
     protected static void deepCopy(float[][] source, float[][] destination) {
         for (int i = 0; i < source.length; i++) {

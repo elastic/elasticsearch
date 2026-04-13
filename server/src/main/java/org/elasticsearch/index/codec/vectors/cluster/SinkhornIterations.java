@@ -31,7 +31,7 @@ public class SinkhornIterations {
     SinkhornIterations(int nRows, int nColumns) {
         logRowSums = new float[nRows];
         logColumnSums = new float[nColumns];
-        transposedInput = new  float[nColumns][nRows];
+        transposedInput = new float[nColumns][nRows];
         rawLogRowSumTarget = MathUtils.log2NQT(nRows);
         rawLogColumnSumTarget = MathUtils.log2NQT(nColumns);
     }
@@ -74,8 +74,7 @@ public class SinkhornIterations {
     // Creates the Sinkhorn plan:
     // result = np.pow(2, (rowVector + columnVector.T - matrix) / eps)
     // Instead of base-2 logarithms and powers, it uses NQT.
-    private static void createTransportPlan(float[] rowVector, float[] columnvector, float[][] matrix, float eps,
-                                            float[][] result) {
+    private static void createTransportPlan(float[] rowVector, float[] columnvector, float[][] matrix, float eps, float[][] result) {
         for (int i = 0; i < rowVector.length; i++) {
             ESVectorUtil.pow2CombineAndScale(columnvector, matrix[i], rowVector[i], eps, result[i]);
         }

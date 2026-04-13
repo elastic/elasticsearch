@@ -33,7 +33,9 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
     }
 
     @Override
-    protected int numWorkers() { return numWorkers; }
+    protected int numWorkers() {
+        return numWorkers;
+    }
 
     @Override
     protected void assign(
@@ -52,8 +54,7 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments,
-                    neighborHoods, start, end)
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
             );
         }
         executor.invokeAll(runners);

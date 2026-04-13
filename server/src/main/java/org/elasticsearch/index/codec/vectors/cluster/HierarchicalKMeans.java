@@ -28,7 +28,7 @@ public class HierarchicalKMeans {
     private static final int MIN_VECTORS_PRE_THREAD = 64;
 
     public static final boolean USE_BALANCING = true;
-    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING? 2: 6;
+    public static final int MAX_ITERATIONS_DEFAULT = USE_BALANCING ? 2 : 6;
 
     final int dimension;
     final int maxIterations;

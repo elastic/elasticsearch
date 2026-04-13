@@ -372,7 +372,15 @@ public class ESVectorUtil {
      *
      * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
      */
-    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+    public static void squareDistanceBulk(
+        float[] q,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
         if (q.length != v0.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
         }
@@ -596,7 +604,9 @@ public class ESVectorUtil {
      * @param vector The input array of double values (log probabilities/values).
      * @return The log-sum-exp result.
      */
-    public static float logSumExpNQT(float[] vector) { return IMPL.logSumExpNQT(vector); }
+    public static float logSumExpNQT(float[] vector) {
+        return IMPL.logSumExpNQT(vector);
+    }
 
     /**
      * Calculates a shifted and scaled LogSumExp of the input arrays in base 2, according to the formula:

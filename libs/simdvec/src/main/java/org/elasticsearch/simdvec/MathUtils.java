@@ -35,7 +35,7 @@ public class MathUtils {
         float result;
         if (p >= 0) {
             result = m * (1 << p);
-        } else  {
+        } else {
             result = m / (1 << Math.abs(p));
         }
         return Math.max(result, 0);

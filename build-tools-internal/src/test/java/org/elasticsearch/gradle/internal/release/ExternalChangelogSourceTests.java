@@ -11,6 +11,8 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.junit.Test;
 
+import java.io.UncheckedIOException;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -88,6 +90,39 @@ public class ExternalChangelogSourceTests {
         assertThat(BundleChangelogsTask.isShaRef("9.3"), equalTo(false));
         assertThat(BundleChangelogsTask.isShaRef("upstream/main"), equalTo(false));
         assertThat(BundleChangelogsTask.isShaRef("feature/foo"), equalTo(false));
+    }
+
+    @Test
+    public void testParseStringSetSourceRepoManually() {
+        String yaml = """
+            pr: 100
+            summary: "A change"
+            area: Machine Learning
+            type: bug
+            """;
+
+        ChangelogEntry entry = ChangelogEntry.parse(yaml);
+        assertThat(entry.getSourceRepo(), nullValue());
+        assertThat(entry.getRepoUrl(), equalTo("https://github.com/elastic/elasticsearch"));
+
+        entry.setSourceRepo("elastic/ml-cpp");
+        assertThat(entry.getSourceRepo(), equalTo("elastic/ml-cpp"));
+        assertThat(entry.getRepoUrl(), equalTo("https://github.com/elastic/ml-cpp"));
+    }
+
+    @Test
+    public void testParseStringInvalidYamlThrows() {
+        assertThrows(UncheckedIOException.class, () -> ChangelogEntry.parse("not: [valid: yaml: for: changelog"));
+    }
+
+    @Test
+    public void testIsShaRefEdgeCases() {
+        assertThat("6 chars (too short)", BundleChangelogsTask.isShaRef("abc123"), equalTo(false));
+        assertThat("7 chars (minimum)", BundleChangelogsTask.isShaRef("abc1234"), equalTo(true));
+        assertThat("40 chars (full SHA)", BundleChangelogsTask.isShaRef("a".repeat(40)), equalTo(true));
+        assertThat("41 chars (too long)", BundleChangelogsTask.isShaRef("a".repeat(41)), equalTo(false));
+        assertThat("contains non-hex", BundleChangelogsTask.isShaRef("abc123g"), equalTo(false));
+        assertThat("empty string", BundleChangelogsTask.isShaRef(""), equalTo(false));
     }
 
     @Test

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -28,16 +27,13 @@ import java.util.List;
 
 public class Abs extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.unary(Abs.class, Abs::new, "abs")
-        .withSubCapabilities(
-            List.of(
-                /*
-                 * Produce a {@code warning} and {@code null} when you run
-                 * {@code ABS} on {@code Long.MIN_VALUE}.
-                 */
-                "min_warning"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
+        .unary(Abs::new)
+        .capabilities(
+            // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
+            "min_warning"
+        )
+        .name("abs");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },

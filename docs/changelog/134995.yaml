@@ -5,6 +5,7 @@ type: feature
 issues: []
 highlight:
   title: "ES|QL Views support"
+  notable: true
   body: |-
     ES|QL now supports Views, allowing users to create reusable query components that can be referenced in multiple queries.
     This feature enhances query modularity and maintainability,

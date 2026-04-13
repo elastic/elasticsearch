@@ -151,7 +151,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidIndexMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
 
@@ -177,7 +176,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
@@ -210,7 +208,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
@@ -456,7 +453,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
@@ -583,7 +579,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoveredOperations() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // ensure a couple of nodes to have some operations coordinated
@@ -828,7 +823,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         final var dataStreamName = randomIdentifier();
@@ -1136,7 +1130,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * Assert that we can still search by synthetic _id after restoring index from snapshot
      */
     public void testCreateSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // create index
@@ -1256,8 +1249,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testMerge() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 
@@ -1306,8 +1297,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testBestCompressionCodec() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         String indexName = randomIndexName();
 
         // Set best_compression codec
@@ -1376,8 +1365,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testDefaultSetting() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         String indexName = randomIndexName();
 
         // Don't set IndexSettings.SYNTHETIC_ID to test default behavior.
@@ -1427,7 +1414,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
         String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
         IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
-        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD));
         String syntheticIdSetting = getSettingsResponse.getSetting(indexName, IndexSettings.SYNTHETIC_ID.getKey());
         assertThat(syntheticIdSetting, Matchers.nullValue());
 
@@ -1442,8 +1429,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testBloomFilterSettings() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         final var maxSize = ByteSizeValue.ofKb(64);
         // small_segment_max_docs must be strictly less than large_segment_min_docs; high >= low bits/doc
@@ -1597,7 +1582,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * synthetic id until node B has been upgraded.
      */
     public void testIndexCreationIsBlockByIndexVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         String indexName = randomIndexName();
         // IndexVersion is too low for synthetic id to be allowed
         IndexVersion tooLowIndexVersion = IndexVersionUtils.randomPreviousCompatibleWriteVersion(
@@ -1789,7 +1773,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);  // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
         }
@@ -1885,7 +1870,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * {@link IndexShard#newChangesSnapshot}, and that GET/search by synthetic _id work correctly after each scenario.
      */
     public void testNoopTombstones() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         internalCluster().startMasterOnlyNode();
         List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
 
@@ -2306,8 +2290,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testTermInSetQueryWithSyntheticIds() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 

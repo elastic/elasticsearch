@@ -28,7 +28,6 @@ import java.util.function.LongConsumer;
  * A bulk-only neighbor queue that supports insert-with-overflow from arrays.
  */
 public class BulkNeighborQueue {
-
     public enum Strategy {
         AUTO_V2,
         FAISS_RESERVOIR,
@@ -59,7 +58,7 @@ public class BulkNeighborQueue {
         }
         this.maxSize = maxSize;
         Strategy resolved = resolveStrategy(strategy, maxSize);
-        this.collector = resolved == Strategy.SCANN_FAST ? new ScannFastTopK(maxSize) : new FaissReservoirTopK(maxSize);
+        this.collector = new ReservoirTopK(maxSize, resolved == Strategy.SCANN_FAST);
         this.sentinelWorst = encodeRaw(0, Float.NEGATIVE_INFINITY);
     }
 
@@ -131,20 +130,22 @@ public class BulkNeighborQueue {
         collector.drain(consumer);
     }
 
-    private sealed abstract static class ReservoirTopK permits FaissReservoirTopK, ScannFastTopK {
-        protected final int maxSize;
-        protected final long[] values;
-        protected int size;
+    private static final class ReservoirTopK {
+        private final int maxSize;
+        private final boolean scannFast;
+        private final int capacity;
+        private final long[] values;
+        private int size;
         private long threshold = Long.MIN_VALUE;
         private float thresholdScore = Float.NEGATIVE_INFINITY;
         private int thresholdNode = Integer.MAX_VALUE;
 
-        private ReservoirTopK(int maxSize, int capacityMultiplier) {
+        private ReservoirTopK(int maxSize, boolean scannFast) {
             this.maxSize = maxSize;
-            this.values = new long[Math.max(maxSize, maxSize * capacityMultiplier)];
+            this.scannFast = scannFast;
+            this.capacity = Math.max(maxSize, maxSize * 2);
+            this.values = new long[capacity];
         }
-
-        protected abstract void onCapacityReached();
 
         private int size() {
             return Math.min(size, maxSize);
@@ -176,28 +177,49 @@ public class BulkNeighborQueue {
             if (bestScore < thresholdScore) {
                 return accepted;
             }
-            for (; i < count; i++) {
-                if (scoreDoesNotBeatThreshold(docs[i], scores[i])) {
-                    continue;
-                }
-                long encoded = encodeRaw(docs[i], scores[i]);
-                values[size++] = encoded;
-                accepted++;
-                if (size == values.length) {
+            return accepted + insertBranchless(docs, scores, i, count);
+        }
+
+        private int insertBranchless(int[] docs, float[] scores, int start, int count) {
+            int accepted = 0;
+            for (int i = start; i < count; i++) {
+                float score = scores[i];
+                int doc = docs[i];
+                long encoded = encodeRaw(doc, score);
+                values[size] = encoded;
+                boolean beatsThreshold = score > thresholdScore || (score == thresholdScore && doc < thresholdNode);
+                int acceptedDelta = beatsThreshold && encoded > threshold ? 1 : 0;
+                size += acceptedDelta;
+                accepted += acceptedDelta;
+                if (size == capacity) {
                     onCapacityReached();
                 }
             }
             return accepted;
         }
 
-        private boolean scoreDoesNotBeatThreshold(int doc, float score) {
-            if (score < thresholdScore) {
-                return true;
+        private void drain(LongConsumer consumer) {
+            compactTo(maxSize);
+            Arrays.sort(values, 0, size);
+            for (int i = 0; i < size; i++) {
+                consumer.accept(values[i]);
             }
-            if (score > thresholdScore) {
-                return false;
+            size = 0;
+            threshold = Long.MIN_VALUE;
+            thresholdScore = Float.NEGATIVE_INFINITY;
+            thresholdNode = Integer.MAX_VALUE;
+        }
+
+        private void onCapacityReached() {
+            if (scannFast) {
+                int keepMax = (maxSize + capacity) / 2 - 1;
+                if (keepMax < maxSize) {
+                    keepMax = maxSize;
+                }
+                compactTo(keepMax);
+            } else {
+                compactTo(maxSize);
             }
-            return doc >= thresholdNode;
         }
 
         private void initializeThresholdOnFirstFull() {
@@ -205,7 +227,7 @@ public class BulkNeighborQueue {
             refreshThresholdCache();
         }
 
-        protected final void compactTo(int keepMax) {
+        private void compactTo(int keepMax) {
             if (size <= keepMax) {
                 if (size == maxSize) {
                     refreshThresholdFromValues();
@@ -236,81 +258,159 @@ public class BulkNeighborQueue {
             thresholdScore = decodeScoreRaw(threshold);
             thresholdNode = (int) ~threshold;
         }
-
-        private void drain(LongConsumer consumer) {
-            compactTo(maxSize);
-            Arrays.sort(values, 0, size);
-            for (int i = 0; i < size; i++) {
-                consumer.accept(values[i]);
-            }
-            size = 0;
-            threshold = Long.MIN_VALUE;
-            thresholdScore = Float.NEGATIVE_INFINITY;
-            thresholdNode = Integer.MAX_VALUE;
-        }
     }
 
-    private static final class FaissReservoirTopK extends ReservoirTopK {
+    private static final int SINGLE_MEDIAN_THRESHOLD = 40;
 
-        private FaissReservoirTopK(int maxSize) {
-            super(maxSize, 2);
-        }
-
-        @Override
-        protected void onCapacityReached() {
-            compactTo(maxSize);
-        }
-    }
-
-    private static final class ScannFastTopK extends ReservoirTopK {
-
-        private final int maxSize;
-        private final int capacity;
-
-        private ScannFastTopK(int maxSize) {
-            super(maxSize, 2);
-            this.maxSize = maxSize;
-            this.capacity = Math.max(maxSize, maxSize * 2);
-        }
-
-        @Override
-        protected void onCapacityReached() {
-            int keepMax = (maxSize + capacity) / 2 - 1;
-            if (keepMax < maxSize) {
-                keepMax = maxSize;
-            }
-            compactTo(keepMax);
-        }
-    }
-
+    /**
+     * This is copied and mutated from Apache Lucene's IntroSelector logic.
+     */
     private static void quickSelect(long[] values, int left, int right, int k) {
-        while (left < right) {
-            long pivot = values[left + ((right - left) >>> 1)];
-            int i = left;
-            int j = right;
-            while (i <= j) {
-                while (values[i] < pivot) {
-                    i++;
-                }
-                while (values[j] > pivot) {
-                    j--;
-                }
-                if (i <= j) {
-                    long tmp = values[i];
-                    values[i] = values[j];
-                    values[j] = tmp;
-                    i++;
-                    j--;
+        int from = left;
+        int to = right + 1; // Convert to an exclusive upper bound.
+        int maxDepth = 2 * log2(to - from);
+
+        int size;
+        while ((size = to - from) > 3) {
+            if (--maxDepth == -1) {
+                Arrays.sort(values, from, to);
+                return;
+            }
+
+            int last = to - 1;
+            int mid = (from + last) >>> 1;
+            int pivot;
+            if (size <= SINGLE_MEDIAN_THRESHOLD) {
+                int range = size >>> 2;
+                pivot = medianIndex(values, mid - range, mid, mid + range);
+            } else {
+                int range = size >>> 3;
+                int doubleRange = range << 1;
+                int medianFirst = medianIndex(values, from, from + range, from + doubleRange);
+                int medianMiddle = medianIndex(values, mid - range, mid, mid + range);
+                int medianLast = medianIndex(values, last - doubleRange, last - range, last);
+                if (k - from < range) {
+                    pivot = minIndex(values, medianFirst, medianMiddle, medianLast);
+                } else if (to - k <= range) {
+                    pivot = maxIndex(values, medianFirst, medianMiddle, medianLast);
+                } else {
+                    pivot = medianIndex(values, medianFirst, medianMiddle, medianLast);
                 }
             }
+
+            long pivotValue = values[pivot];
+            swap(values, from, pivot);
+            int i = from;
+            int j = to;
+            int p = from + 1;
+            int q = last;
+            while (true) {
+                long leftValue;
+                long rightValue;
+                while ((leftValue = values[++i]) < pivotValue) {
+                }
+                while ((rightValue = values[--j]) > pivotValue) {
+                }
+                if (i >= j) {
+                    if (i == j && rightValue == pivotValue) {
+                        swap(values, i, p);
+                    }
+                    break;
+                }
+                swap(values, i, j);
+                if (rightValue == pivotValue) {
+                    swap(values, i, p++);
+                }
+                if (leftValue == pivotValue) {
+                    swap(values, j, q--);
+                }
+            }
+            i = j + 1;
+            for (int l = from; l < p;) {
+                swap(values, l++, j--);
+            }
+            for (int l = last; l > q;) {
+                swap(values, l--, i++);
+            }
+
             if (k <= j) {
-                right = j;
+                to = j + 1;
             } else if (k >= i) {
-                left = i;
+                from = i;
             } else {
                 return;
             }
         }
+
+        switch (size) {
+            case 2:
+                if (values[from] > values[from + 1]) {
+                    swap(values, from, from + 1);
+                }
+                break;
+            case 3:
+                sort3(values, from);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private static int minIndex(long[] values, int i, int j, int k) {
+        if (values[i] <= values[j]) {
+            return values[i] <= values[k] ? i : k;
+        }
+        return values[j] <= values[k] ? j : k;
+    }
+
+    private static int maxIndex(long[] values, int i, int j, int k) {
+        if (values[i] <= values[j]) {
+            return values[j] < values[k] ? k : j;
+        }
+        return values[i] < values[k] ? k : i;
+    }
+
+    private static int medianIndex(long[] values, int i, int j, int k) {
+        if (values[i] < values[j]) {
+            if (values[j] <= values[k]) {
+                return j;
+            }
+            return values[i] < values[k] ? k : i;
+        }
+        if (values[j] >= values[k]) {
+            return j;
+        }
+        return values[i] < values[k] ? i : k;
+    }
+
+    private static void sort3(long[] values, int from) {
+        int mid = from + 1;
+        int last = from + 2;
+        if (values[from] <= values[mid]) {
+            if (values[mid] > values[last]) {
+                swap(values, mid, last);
+                if (values[from] > values[mid]) {
+                    swap(values, from, mid);
+                }
+            }
+        } else if (values[mid] >= values[last]) {
+            swap(values, from, last);
+        } else {
+            swap(values, from, mid);
+            if (values[mid] > values[last]) {
+                swap(values, mid, last);
+            }
+        }
+    }
+
+    private static int log2(int value) {
+        return 31 - Integer.numberOfLeadingZeros(value);
+    }
+
+    private static void swap(long[] values, int i, int j) {
+        long tmp = values[i];
+        values[i] = values[j];
+        values[j] = tmp;
     }
 
     private static int minValueIndex(long[] values, int size) {
@@ -324,5 +424,4 @@ public class BulkNeighborQueue {
         }
         return minIndex;
     }
-
 }

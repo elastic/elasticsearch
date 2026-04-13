@@ -217,7 +217,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        ignoredSourceFormat(context.indexSettings()).writeIgnoredFields(context.getIgnoredFieldValues());
+        ignoredSourceFormat(context.indexSettings()).writeIgnoredFields(
+            context.getIgnoredFieldValues(),
+            context.indexSettings().getIndexVersionCreated()
+        );
     }
 
     // In rare cases decoding values stored in this field can fail leading to entire source
@@ -551,13 +554,19 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
+                writeIgnoredFields(ignoredFieldValues, IndexVersion.current());
+            }
+
+            @Override
+            public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion) {
                 for (NameValue nameValue : ignoredFieldValues) {
-                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) nameValue.doc().getByKey(NAME);
-                    if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(NAME, true, false);
-                        nameValue.doc().addWithKey(NAME, field);
-                    }
-                    field.add(SingularIgnoredSourceEncoding.encode(nameValue));
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        nameValue.doc(),
+                        NAME,
+                        SingularIgnoredSourceEncoding.encode(nameValue),
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                        indexVersion
+                    );
                 }
             }
 
@@ -584,6 +593,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         ) throws IOException;
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);
+
+        public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion) {
+            writeIgnoredFields(ignoredFieldValues);
+        }
 
         public abstract BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException;
     }

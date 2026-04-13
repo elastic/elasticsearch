@@ -143,6 +143,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
         return completed;
     }
 
+    public TaskResult withError(Exception newError) throws IOException {
+        return new TaskResult(completed, task, toXContent(newError), response);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

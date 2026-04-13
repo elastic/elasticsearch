@@ -201,8 +201,10 @@ public final class SequenceNumbersTestUtils {
     }
 
     /**
-     * Persist the global checkpoint on all shards of the given index into disk.
+     * Persist the global checkpoint on all primary shards of the given index into disk.
      * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
+     *
+     * This helper method is useful if you do not use replicas in your test setup.
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
@@ -215,7 +217,9 @@ public final class SequenceNumbersTestUtils {
                         if (indexShard.routingEntry().primary() == false) {
                             continue;
                         }
-                        assertThat("Shard should be active", indexShard.routingEntry().active(), equalTo(true));
+                        assertThat("Shard " + indexShard.getShardUuid()  + " should be active",
+                            indexShard.routingEntry().active(),
+                            equalTo(true));
 
                         final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
                         final var listener = listeners.acquire(

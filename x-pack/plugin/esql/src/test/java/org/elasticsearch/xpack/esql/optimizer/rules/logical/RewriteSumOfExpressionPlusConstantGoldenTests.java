@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -22,7 +21,7 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
             """).stages(STAGES)
-            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .transportVersion(TransportVersion.current())
             .run();
     }
 
@@ -31,7 +30,7 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
             """).stages(STAGES)
-            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .transportVersion(TransportVersion.current())
             .run();
     }
 
@@ -40,7 +39,7 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
             FROM employees
             | STATS s1 = SUM(salary - 1), s2 = SUM(2 - salary)
             """).stages(STAGES)
-            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
+            .transportVersion(TransportVersion.current())
             .run();
     }
 

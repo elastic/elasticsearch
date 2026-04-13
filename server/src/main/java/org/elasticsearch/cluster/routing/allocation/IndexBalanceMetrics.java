@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 
 /**
  * Computes index balance metrics from cluster state.
- * Used by {@link IndexBalanceMetricsTask} which periodically triggers computation and
+ * Used by {@link IndexBalanceMetricsTaskExecutor} which periodically triggers computation and
  * publishes the result via MeterRegistry.
  *
  * <p>Balance is computed per sub-group (primaries on {@link DiscoveryNodeRole#INDEX_ROLE} nodes,
@@ -48,10 +48,7 @@ public final class IndexBalanceMetrics {
      * Histogram of index balance values for primary and replica sub-groups.
      * Each histogram has {@link #BUCKET_COUNT} buckets; see {@link #compute(ClusterState)} for the bucket scheme.
      */
-    public record IndexBalanceState(int[] primaryBalanceHistogram, int[] replicaBalanceHistogram) {
-
-        public static final IndexBalanceState EMPTY = new IndexBalanceState(new int[BUCKET_COUNT], new int[BUCKET_COUNT]);
-    }
+    public record IndexBalanceState(int[] primaryBalanceHistogram, int[] replicaBalanceHistogram) {}
 
     /**
      * Compute index balance from the current cluster state.

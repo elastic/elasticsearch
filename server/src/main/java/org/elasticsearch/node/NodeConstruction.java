@@ -62,7 +62,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTask;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -635,7 +635,7 @@ class NodeConstruction {
                 pluginsService.flatMap(Plugin::getNamedXContent),
                 ClusterModule.getNamedXWriteables().stream(),
                 HealthNodeTaskExecutor.getNamedXContentParsers().stream(),
-                IndexBalanceMetricsTask.getNamedXContentParsers().stream()
+                IndexBalanceMetricsTaskExecutor.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
         modules.add(b -> {
@@ -1860,15 +1860,10 @@ class NodeConstruction {
             HealthNodeTaskExecutor.ENABLED_SETTING,
             () -> HealthNodeTaskParams.INSTANCE
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors;
-        if (IndexBalanceMetricsTask.INDEX_BALANCE_METRICS_ENABLED_SETTING.get(settingsModule.getSettings())) {
-            builtinTaskExecutors = Stream.of(
-                healthNodeTaskExecutor,
-                new IndexBalanceMetricsTask(clusterService, persistentTasksService, clusterService.getClusterSettings(), meterRegistry)
-            );
-        } else {
-            builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
-        }
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(
+            healthNodeTaskExecutor,
+            IndexBalanceMetricsTaskExecutor.create(clusterService, persistentTasksService, clusterService.getSettings(), meterRegistry)
+        );
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

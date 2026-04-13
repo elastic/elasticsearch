@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Integration tests for {@link IndexBalanceMetricsTask} verifying task lifecycle and metric publication
+ * Integration tests for {@link IndexBalanceMetricsTaskExecutor} verifying task lifecycle and metric publication
  * in a multi-node cluster with index and search roles.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -36,8 +36,8 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexBalanceMetricsTask.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), true)
-            .put(IndexBalanceMetricsTask.INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), true)
+            .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master", "index", "search")
             .build();
     }
@@ -50,7 +50,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
     public void testIndexBalanceMetricsTaskStartedAndAssigned() {
         internalCluster().startNode();
         ensureGreen();
-        awaitClusterState(state -> IndexBalanceMetricsTask.Task.findTask(state) != null);
+        awaitClusterState(state -> IndexBalanceMetricsTaskExecutor.Task.findTask(state) != null);
     }
 
     public void testTaskReassignedWhenNodeShutsDown() throws Exception {
@@ -58,20 +58,78 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         internalCluster().startNode();
         ensureGreen();
         awaitClusterState(state -> {
-            var task = IndexBalanceMetricsTask.Task.findTask(state);
+            var task = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
             return task != null && task.isAssigned();
         });
         final var clusterService = internalCluster().getInstance(ClusterService.class);
-        final var task = IndexBalanceMetricsTask.Task.findTask(clusterService.state());
+        final var task = IndexBalanceMetricsTaskExecutor.Task.findTask(clusterService.state());
         final var executorNodeId = task.getAssignment().getExecutorNode();
         final var executorNodeName = clusterService.state().nodes().get(executorNodeId).getName();
         internalCluster().stopNode(executorNodeName);
         ensureGreen();
         awaitClusterState(state -> {
-            var reassignedTask = IndexBalanceMetricsTask.Task.findTask(state);
+            var reassignedTask = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
             return reassignedTask != null
                 && reassignedTask.isAssigned()
                 && executorNodeId.equals(reassignedTask.getAssignment().getExecutorNode()) == false;
+        });
+    }
+
+    public void testDynamicEnableDisable() throws Exception {
+        final var nodeName = internalCluster().startNode();
+        ensureGreen();
+
+        // Create some indices so the metrics have values to report.
+        final int numIndices = between(1, 3);
+        for (int i = 0; i < numIndices; i++) {
+            prepareCreate(randomIndexName()).setSettings(indexSettings(1, 0)).get();
+        }
+        ensureGreen();
+
+        // The task should already be running (enabled=true from nodeSettings).
+        awaitClusterState(state -> {
+            var t = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
+            return t != null && t.isAssigned();
+        });
+        final var telemetryPlugin = getTelemetryPlugin(nodeName);
+
+        // While enabled, the executor node should publish metrics for all indices.
+        assertBusy(() -> {
+            telemetryPlugin.resetMeter();
+            telemetryPlugin.collect();
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.PRIMARY_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.REPLICA_METRIC_NAMES, numIndices);
+        });
+
+        // Disable the feature dynamically and verify the persistent task is removed.
+        updateClusterSettings(
+            Settings.builder().put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), false)
+        );
+        awaitClusterState(state -> IndexBalanceMetricsTaskExecutor.Task.findTask(state) == null);
+
+        // With executorNodeTask cleared, gauges should now return no measurements.
+        assertBusy(() -> {
+            telemetryPlugin.resetMeter();
+            telemetryPlugin.collect();
+            for (String name : IndexBalanceMetricsTaskExecutor.PRIMARY_METRIC_NAMES) {
+                assertThat(name + " should publish no measurements when disabled", telemetryPlugin.getLongGaugeMeasurement(name), empty());
+            }
+            for (String name : IndexBalanceMetricsTaskExecutor.REPLICA_METRIC_NAMES) {
+                assertThat(name + " should publish no measurements when disabled", telemetryPlugin.getLongGaugeMeasurement(name), empty());
+            }
+        });
+
+        // Re-enable and verify the task is created and metrics are published again.
+        updateClusterSettings(Settings.builder().put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), true));
+        awaitClusterState(state -> {
+            var t = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
+            return t != null && t.isAssigned();
+        });
+        assertBusy(() -> {
+            telemetryPlugin.resetMeter();
+            telemetryPlugin.collect();
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.PRIMARY_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.REPLICA_METRIC_NAMES, numIndices);
         });
     }
 
@@ -89,11 +147,11 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         ensureGreen();
 
         awaitClusterState(state -> {
-            var task = IndexBalanceMetricsTask.Task.findTask(state);
+            var task = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
             return task != null && task.isAssigned();
         });
         final var clusterService = internalCluster().getInstance(ClusterService.class);
-        final var task = IndexBalanceMetricsTask.Task.findTask(clusterService.state());
+        final var task = IndexBalanceMetricsTaskExecutor.Task.findTask(clusterService.state());
         final var executorNodeId = task.getAssignment().getExecutorNode();
         final var executorNodeName = clusterService.state().nodes().get(executorNodeId).getName();
         final var telemetryPlugin = getTelemetryPlugin(executorNodeName);
@@ -101,8 +159,8 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             telemetryPlugin.resetMeter();
             telemetryPlugin.collect();
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.PRIMARY_METRIC_NAMES, numIndices);
-            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.REPLICA_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.PRIMARY_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTaskExecutor.REPLICA_METRIC_NAMES, numIndices);
         });
 
         // Only the executor node should be publishing metrics
@@ -112,10 +170,10 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
             }
             final var otherNodeTelemetryPlugin = getTelemetryPlugin(otherNodeName);
             otherNodeTelemetryPlugin.collect();
-            for (String metricName : IndexBalanceMetricsTask.PRIMARY_METRIC_NAMES) {
+            for (String metricName : IndexBalanceMetricsTaskExecutor.PRIMARY_METRIC_NAMES) {
                 assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
             }
-            for (String metricName : IndexBalanceMetricsTask.REPLICA_METRIC_NAMES) {
+            for (String metricName : IndexBalanceMetricsTaskExecutor.REPLICA_METRIC_NAMES) {
                 assertThat(otherNodeTelemetryPlugin.getLongGaugeMeasurement(metricName), empty());
             }
         }

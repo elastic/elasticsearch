@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -36,20 +34,18 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit tests for {@link IndexBalanceMetricsTask.Task}.
+ * Unit tests for {@link IndexBalanceMetricsTaskExecutor.Task}.
  */
-public class IndexBalanceMetricsTaskTests extends ESTestCase {
+public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
-    private ClusterSettings clusterSettings;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         clusterService = createClusterService(threadPool);
-        clusterSettings = clusterService.getClusterSettings();
     }
 
     @After
@@ -61,61 +57,59 @@ public class IndexBalanceMetricsTaskTests extends ESTestCase {
 
     public void testFindTaskReturnsNullWhenNoPersistentTasks() {
         final var state = ClusterState.builder(ClusterName.DEFAULT).build();
-        assertThat(IndexBalanceMetricsTask.Task.findTask(state), nullValue());
+        assertThat(IndexBalanceMetricsTaskExecutor.Task.findTask(state), nullValue());
     }
 
     public void testFindTaskReturnsNullWhenTaskNotPresent() {
         final var tasks = ClusterPersistentTasksCustomMetadata.builder()
             .addTask(
                 "other-task-id",
-                IndexBalanceMetricsTask.TASK_NAME,
-                IndexBalanceMetricsTask.TaskParams.INSTANCE,
+                IndexBalanceMetricsTaskExecutor.TASK_NAME,
+                IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE,
                 new PersistentTasksCustomMetadata.Assignment("n1", "")
             );
         final var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build()).build())
             .build();
-        assertThat(IndexBalanceMetricsTask.Task.findTask(state), nullValue());
+        assertThat(IndexBalanceMetricsTaskExecutor.Task.findTask(state), nullValue());
     }
 
     public void testFindTaskReturnsTaskWhenPresent() {
         final var tasks = ClusterPersistentTasksCustomMetadata.builder()
             .addTask(
-                IndexBalanceMetricsTask.TASK_NAME,
-                IndexBalanceMetricsTask.TASK_NAME,
-                IndexBalanceMetricsTask.TaskParams.INSTANCE,
+                IndexBalanceMetricsTaskExecutor.TASK_NAME,
+                IndexBalanceMetricsTaskExecutor.TASK_NAME,
+                IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE,
                 new PersistentTasksCustomMetadata.Assignment("n1", "test")
             );
         final var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build()).build())
             .build();
-        final var found = IndexBalanceMetricsTask.Task.findTask(state);
+        final var found = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
         assertThat(found, notNullValue());
-        assertThat(found.getId(), equalTo(IndexBalanceMetricsTask.TASK_NAME));
+        assertThat(found.getId(), equalTo(IndexBalanceMetricsTaskExecutor.TASK_NAME));
     }
 
     public void testDynamicIntervalUpdateReschedules() {
-        final var task = new IndexBalanceMetricsTask.Task(
+        final TimeValue initialRefreshInterval = randomTimeValueGreaterThan(TimeValue.timeValueHours(1));
+        final AtomicReference<TimeValue> currentInterval = new AtomicReference<>(initialRefreshInterval);
+        final var task = new IndexBalanceMetricsTaskExecutor.Task(
             1L,
-            IndexBalanceMetricsTask.TASK_NAME,
-            IndexBalanceMetricsTask.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
             "test",
             TaskId.EMPTY_TASK_ID,
             Map.of(),
             threadPool,
-            clusterSettings,
             clusterService,
             new IndexBalanceMetrics(),
-            new AtomicReference<>(IndexBalanceMetrics.IndexBalanceState.EMPTY)
+            currentInterval::get
         );
         task.startScheduledRefresh();
         final var cancellableBefore = task.getScheduledRefresh();
         assertThat(cancellableBefore, notNullValue());
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(IndexBalanceMetricsTask.INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(45))
-                .build()
-        );
+        currentInterval.set(randomTimeValueGreaterThan(initialRefreshInterval));
+        task.requestReschedule();
         assertThat("previous scheduled task should be cancelled", cancellableBefore.isCancelled(), equalTo(true));
         final var cancellableAfter = task.getScheduledRefresh();
         assertThat(cancellableAfter, notNullValue());

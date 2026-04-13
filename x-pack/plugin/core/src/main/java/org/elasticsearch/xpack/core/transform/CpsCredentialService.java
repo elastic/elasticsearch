@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 
@@ -34,6 +35,11 @@ public interface CpsCredentialService {
 
         @Override
         public void injectCpsCredential(ThreadContext threadContext, String storedCredential) {}
+
+        @Override
+        public void grantCpsCredential(String callerCredential, String description, ActionListener<String> listener) {
+            listener.onResponse(callerCredential);
+        }
     };
 
     AtomicReference<CpsCredentialService> REGISTERED = new AtomicReference<>(NOOP);
@@ -50,4 +56,14 @@ public interface CpsCredentialService {
     String extractCpsCredential(ThreadContext threadContext);
 
     void injectCpsCredential(ThreadContext threadContext, String storedCredential);
+
+    /**
+     * Grants a dedicated CPS API key for a transform, using the caller's credential to authenticate
+     * the grant request. The resulting credential replaces the caller's credential for persistence.
+     *
+     * @param callerCredential the base64-encoded caller credential (from {@link #extractCpsCredential})
+     * @param description      a human-readable description for the granted key (e.g. transform ID)
+     * @param listener         receives the base64-encoded granted credential to persist
+     */
+    void grantCpsCredential(String callerCredential, String description, ActionListener<String> listener);
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.CpsCredentialService;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -65,6 +66,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final CpsCredentialService cpsCredentialService;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final ProjectResolver projectResolver;
 
@@ -98,6 +100,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.auditor();
+        this.cpsCredentialService = transformServices.cpsCredentialService();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
         this.projectResolver = projectResolver;
     }
@@ -133,10 +136,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
-            (l, unused) -> putTransform(request, l)
-        );
+        // <3> Grant a dedicated CPS API key (if cross-project) then create the transform
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap((l, unused) -> {
+            if (cpsCredential != null) {
+                cpsCredentialService.grantCpsCredential(cpsCredential, transformId, l.delegateFailureAndWrap((ll, grantedCredential) -> {
+                    config.setCpsCredential(grantedCredential);
+                    putTransform(request, ll);
+                }));
+            } else {
+                putTransform(request, l);
+            }
+        });
 
         // <2> Validate source and destination indices
 

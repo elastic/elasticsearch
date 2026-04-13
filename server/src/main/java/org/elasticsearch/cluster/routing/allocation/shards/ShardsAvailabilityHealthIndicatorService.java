@@ -193,14 +193,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
                     IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                     status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose, primaryUnassignedBufferTime);
                     for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                        status.addReplica(
-                            projectId,
-                            replicaShard,
-                            state,
-                            shutdown,
-                            verbose,
-                            replicaUnassignedBufferTime
-                        );
+                        status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
                     }
                 }
             }
@@ -460,10 +453,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// the shard as still within the grace window (typically `Instant.now().toEpochMilli() - bufferMillis`).
     /// Unassignment timestamps strictly less than this value are older than the buffer and are outside the grace window.
     ///
-    private static boolean isUnassignedWithinGracePeriod(
-        ShardRouting routing,
-        long gracePeriodCutoffTime
-    ) {
+    private static boolean isUnassignedWithinGracePeriod(ShardRouting routing, long gracePeriodCutoffTime) {
         if (routing.active()) {
             return false;
         }

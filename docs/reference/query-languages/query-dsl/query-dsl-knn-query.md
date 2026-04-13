@@ -142,29 +142,37 @@ PUT my-image-index
         If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred.
 
     `embedding` {applies_to}`stack: preview` {applies_to}`serverless: preview`
-    :   (Optional, object) Build the query vector using the embedding {{infer}} API at query time. This functionality is in technical preview and may be changed or removed in a future release. It depends on the embedding {{infer}} API, which is also in technical preview. The {{infer}} endpoint must be configured with the `embedding` task type.
+    :   (Optional, object) Build the query vector by generating an embedding from text or base64-encoded image input at query time. This enables multimodal search, where different types of input can be used to generate a vector and retrieve similar documents.
 
         **Parameters for `embedding`**:
 
         `inference_id`
-        :   (Required, string) The {{infer}} endpoint ID.
+        :   (Required, string) The ID of the {{infer}} service used to generate the embedding. Must reference an {{infer}} service configured with the `embedding` task type.
 
         `input`
-        :   (Required, string, object, or array) Multimodal input used to produce a single query vector.
+        :   (Required, string, object, or array) The input used to generate the query vector. You can provide the input in one of the following formats:
 
-            **Parameters for `input`** (when `input` is an object or an array element):
+            - Single object: A single multimodal input (text or image).
 
-            `type`
-            :   (Required, string) The kind of content in `value`. For text input, use `text`. For image input, use `image`.
+            - Array of objects: Multiple inputs. These are combined into a single embedding.
 
-            `format`
-            :   (Optional, string) How `value` is represented. If omitted, the default for the `type` is used. For text input, specify `text` or omit (defaults to `text`). For image input, specify `base64` or omit (defaults to `base64`).
+            - String: A single text input. Equivalent to `value` when providing an object with "type": "text".
 
-            `value`
-            :   (Required, string) The payload to run {{infer}} on. For text input, the raw text string. For image input, a base64-encoded image as a data URI (`data:<mime-type>;base64,...`).
+::::{dropdown} Parameters for `input` (when `input` is an object or an array of objects)
+
+`type`
+:   (Required, string) The type of the input. For text input, use `text`. For image input, use `image`.
+
+`format`
+:   (Optional, string) The format of the input value. If omitted, the default for the `type` is used. For text input, specify `text` or omit (defaults to `text`). For image input, specify `base64` or omit (defaults to `base64`).
+
+`value`
+:   (Required, string) The value to generate the embedding from. For text input, a text string. For image input, must be a base64-encoded image.
+
+::::
 
         `timeout`
-        :   (Optional, time value) Timeout for the embedding {{infer}} request.
+        :   (Optional, time value) The maximum time to wait for the embedding to be generated. Defaults to 30s.
 
 
 `k`

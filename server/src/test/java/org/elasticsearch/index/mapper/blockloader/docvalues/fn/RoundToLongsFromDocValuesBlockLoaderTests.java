@@ -88,6 +88,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertTrue("expected constant block from skipper optimization", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
                             assertThat(block.get(i), equalTo(100L));
@@ -134,6 +135,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertFalse("expected non-constant block when values span buckets", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
                             assertThat("doc " + i, block.get(i), equalTo(expectedRounded[i]));
@@ -179,6 +181,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertFalse("expected non-constant block when values are missing", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
                             if (docHasValue[i]) {

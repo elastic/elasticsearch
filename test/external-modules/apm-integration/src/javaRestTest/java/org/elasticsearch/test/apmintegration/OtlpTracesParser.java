@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -79,7 +80,7 @@ public final class OtlpTracesParser {
     private static String toHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
-            sb.append(String.format("%02x", b & 0xff));
+            sb.append(String.format(Locale.ROOT, "%02x", b & 0xff));
         }
         return sb.toString();
     }

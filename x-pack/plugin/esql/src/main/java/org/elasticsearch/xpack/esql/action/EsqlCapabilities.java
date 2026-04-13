@@ -1050,6 +1050,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
 
         /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1211,6 +1216,12 @@ public class EsqlCapabilities {
          * Prune no-fields in subquery project.
          */
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
+
+        /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1681,6 +1692,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -2285,11 +2300,6 @@ public class EsqlCapabilities {
         TS_INFO_COMMAND,
 
         /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
-
-        /**
          * Dense_vector SUM aggregation function
          */
         DENSE_VECTOR_SUM_FUNCTION,
@@ -2399,11 +2409,6 @@ public class EsqlCapabilities {
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
-        /**
-         * Support CHANGE_POINT arguments in any order
-         */
-        CHANGE_POINT_ARGS_ANY_ORDER,
-
         FIX_DIV_ERROR_MESSAGE,
 
         /**
@@ -2459,6 +2464,22 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/145570
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
+
+        /**
+         * Fix for {@code PropagateNullable} incorrectly discarding surviving OR branches when
+         * a field is constrained by {@code IS NULL} or {@code IS NOT NULL} in the same AND conjunction.
+         * Previously {@code (a IS NOT NULL OR p) AND a IS NULL} was optimized to {@code null AND a IS NULL}
+         * (dropping {@code p}); now it correctly becomes {@code p AND a IS NULL}.
+         * Symmetric fix: {@code (a IS NULL OR p) AND a IS NOT NULL} now correctly becomes
+         * {@code p AND a IS NOT NULL} instead of remaining unoptimized.
+         * See https://github.com/elastic/elasticsearch/issues/141579
+         */
+        FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
+
+        /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -207,7 +207,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Checks whether the index exists in the project metadata. Throws IndexNotFoundException if not.
+     * Checks whether the index exists in the project metadata. Throws IndexNotFoundException if not, or
+     * ElasticsearchException if the project state or metadata cannot be retrieved for some reason.
      */
     private void checkIndexExists(String index) {
         ProjectState projectState = getProjectState();

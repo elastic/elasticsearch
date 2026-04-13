@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -114,6 +115,7 @@ import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.BackoffPolicy.constantBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.computeRelocationCooldownNanos;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -126,6 +128,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -1625,12 +1629,149 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("PIT relocation requires search_after values from the last hit"));
     }
 
+    public void testComputeRelocationCooldownNanosUsesMinimum() {
+        // when shutdown timeout / 2 < 5s, use 5s
+        final TimeValue timeout = TimeValue.timeValueSeconds(between(0, 9));
+        assertThat(computeRelocationCooldownNanos(timeout), equalTo(TimeUnit.SECONDS.toNanos(5)));
+    }
+
+    public void testComputeRelocationCooldownNanosUsesTimeout() {
+        // when shutdown timeout is `5s <= timeout / 2 <= 30s, use timeout / 2
+        final TimeValue timeout = TimeValue.timeValueSeconds(between(10, 60));
+        final long timeoutDividedByHalf = timeout.nanos() / 2;
+        assertThat(computeRelocationCooldownNanos(timeout), equalTo(timeoutDividedByHalf));
+    }
+
+    public void testComputeRelocationCooldownNanosUsesMaximum() {
+        // 61 since it's the first value to go above 30s if divided by 2
+        final long timeoutNanos = randomLongBetween(TimeUnit.SECONDS.toNanos(61), Long.MAX_VALUE);
+        // When shutdown timeout / 2 > 30s, cap at 30s
+        assertThat(computeRelocationCooldownNanos(TimeValue.timeValueNanos(timeoutNanos)), equalTo(TimeUnit.SECONDS.toNanos(30)));
+    }
+
+    public void testNotifyDoneSkipsReRelocationForRecentlyRelocatedTask() {
+        // Re-register with a relocated task
+        taskManager.unregister(testTask);
+        testRequest.setResumeInfo(
+            new ResumeInfo(
+                new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong()),
+                randomResumeInfo(),
+                null
+            )
+        );
+        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask.setWorker(testRequest.getRequestsPerSecond(), null);
+        worker = testTask.getWorkerState();
+        assertTrue(testTask.isRelocatedTask());
+
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
+
+        final AtomicBoolean doneCalled = new AtomicBoolean();
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId());
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                doneCalled.set(true);
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue("asyncResponse.done() should be called because re-relocation was skipped", doneCalled.get());
+    }
+
+    public void testNotifyDoneAllowsRelocationForOldRelocatedTask() {
+        // unregister unused task for test, just for cleanliness
+        taskManager.unregister(testTask);
+
+        final BulkByScrollTask.Status status = randomStatus();
+
+        final WorkerBulkByScrollTaskState workerState = mock(WorkerBulkByScrollTaskState.class);
+        when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
+        when(workerState.getStatus()).thenReturn(status);
+
+        final BulkByScrollTask task = mock(BulkByScrollTask.class);
+        when(task.getStartTimeNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(randomIntBetween(5, 100)));
+        when(task.getWorkerState()).thenReturn(workerState);
+        when(task.isWorker()).thenReturn(true);
+        when(task.isRelocationRequested()).thenReturn(true);
+        when(task.isRelocatedTask()).thenReturn(true);
+        when(task.relocationOrigin()).thenReturn(
+            new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
+        );
+        when(task.getStatus()).thenReturn(status);
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(task, TimeValue.ZERO);
+        action.setScroll(expectedScrollId);
+
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called because relocation should proceed");
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue(listener.isDone());
+        final BulkByScrollResponse response = listener.actionGet();
+        assertTrue(response.getTaskResumeInfo().isPresent());
+    }
+
+    public void testNotifyDoneCooldownDoesNotApplyToNonRelocatedTask() {
+        // Use a non-relocated task (the default testTask has null relocationOrigin)
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        // Large cooldown, but task is not relocated so it should not apply
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
+        action.setScroll(expectedScrollId);
+
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called because relocation should proceed");
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue(listener.isDone());
+        final BulkByScrollResponse response = listener.actionGet();
+        assertTrue(response.getTaskResumeInfo().isPresent());
+    }
+
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<
         DummyAbstractBulkByScrollRequest,
         DummyTransportAsyncBulkByScrollAction> {
+
         DummyAsyncBulkByScrollAction() {
+            this(testTask, TimeValue.ZERO);
+        }
+
+        DummyAsyncBulkByScrollAction(TimeValue timeout) {
+            this(testTask, timeout);
+        }
+
+        DummyAsyncBulkByScrollAction(BulkByScrollTask task, TimeValue maxTaskShutdownGracePeriod) {
             super(
-                testTask,
+                task,
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
@@ -1640,7 +1781,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 testRequest,
                 listener,
                 null,
-                null
+                null,
+                maxTaskShutdownGracePeriod
             );
         }
 
@@ -1868,5 +2010,48 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicBoolean called = new AtomicBoolean();
         consumer.accept(() -> assertTrue(called.compareAndSet(false, true)));
         assertBusy(() -> assertTrue(called.get()));
+    }
+
+    private ResumeInfo.ScrollWorkerResumeInfo randomResumeInfo() {
+        return new ResumeInfo.ScrollWorkerResumeInfo(
+            randomAlphaOfLength(10),
+            randomLong(),
+            new BulkByScrollTask.Status(
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomTimeValue(),
+                randomFloat(),
+                randomBoolean() ? null : randomAlphaOfLength(10),
+                randomTimeValue()
+            ),
+            randomBoolean() ? null : Version.CURRENT
+        );
+    }
+
+    private static BulkByScrollTask.Status randomStatus() {
+        return new BulkByScrollTask.Status(
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomTimeValue(),
+            randomFloat(),
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            randomTimeValue()
+        );
     }
 }

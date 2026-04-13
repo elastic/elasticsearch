@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -886,8 +887,11 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         executionInfo.queryProfile().indicesResolutionMarker().start();
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
         SubscribableListener.<PreAnalysisResult>newForked(
-            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
+            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()
@@ -1246,6 +1250,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1267,7 +1272,16 @@ public class EsqlSession {
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
-                (e, r, l) -> preAnalyzeMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                (e, r, l) -> preAnalyzeMainIndices(
+                    e.getKey(),
+                    e.getValue(),
+                    preAnalysis,
+                    executionInfo,
+                    trackUnmappedFieldIndices,
+                    r,
+                    requestFilter,
+                    l
+                ),
                 listener
             );
         } else {
@@ -1281,6 +1295,7 @@ public class EsqlSession {
                     configuration.projectRouting(),
                     preAnalysis,
                     executionInfo,
+                    trackUnmappedFieldIndices,
                     r,
                     requestFilter,
                     l
@@ -1295,6 +1310,7 @@ public class EsqlSession {
         IndexMode indexMode,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1322,6 +1338,7 @@ public class EsqlSession {
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
+                trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -1337,6 +1354,7 @@ public class EsqlSession {
                             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                             preAnalysis.useDenseVectorWhenNotSupported(),
                             false,
+                            trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
                             retryListener
                         );
@@ -1353,6 +1371,7 @@ public class EsqlSession {
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1370,6 +1389,7 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
+            trackUnmappedFieldIndices,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -1389,6 +1409,7 @@ public class EsqlSession {
                         preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
+                        trackUnmappedFieldIndices,
                         retryListener
                     );
                 });

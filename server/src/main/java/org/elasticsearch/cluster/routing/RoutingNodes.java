@@ -1472,6 +1472,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         };
     }
 
+    public boolean isReadOnly() {
+        return readOnly;
+    }
+
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

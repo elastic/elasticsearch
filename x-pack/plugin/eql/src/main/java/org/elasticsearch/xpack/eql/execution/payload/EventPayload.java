@@ -25,12 +25,9 @@ public class EventPayload extends AbstractPayload {
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            hit.mustIncRef();
-            try {
-                values.add(new Event(hit));
-            } finally {
-                hit.decRef();
-            }
+            // Event borrows hit.getSourceRef() by reference; safe because the response is released
+            // only after the entire synchronous listener chain (including serialisation) completes.
+            values.add(new Event(hit));
         }
     }
 

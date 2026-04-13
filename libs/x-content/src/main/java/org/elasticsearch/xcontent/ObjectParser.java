@@ -640,7 +640,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                  * for having a cheap test.
                  */
                 if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                    throwMustEndOn(currentFieldName, XContentParser.Token.END_OBJECT);
+                    throwMustEndOn(parser, currentFieldName, XContentParser.Token.END_OBJECT);
                 }
             }
             case START_ARRAY -> {
@@ -654,7 +654,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                  * for having a cheap test.
                  */
                 if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
-                    throwMustEndOn(currentFieldName, XContentParser.Token.END_ARRAY);
+                    throwMustEndOn(parser, currentFieldName, XContentParser.Token.END_ARRAY);
                 }
             }
             case END_OBJECT, END_ARRAY, FIELD_NAME -> throw throwUnexpectedToken(parser, token);
@@ -668,8 +668,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private static void throwMustEndOn(String currentFieldName, XContentParser.Token token) {
-        throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on " + token);
+    private static void throwMustEndOn(XContentParser parser, String currentFieldName, XContentParser.Token token) {
+        throw new XContentParseException(parser.getTokenLocation(), "parser for [" + currentFieldName + "] did not end on " + token);
     }
 
     private XContentParseException throwUnexpectedToken(XContentParser parser, XContentParser.Token token) {

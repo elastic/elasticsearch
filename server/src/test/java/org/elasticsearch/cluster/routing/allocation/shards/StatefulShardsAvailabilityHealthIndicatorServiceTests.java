@@ -1054,52 +1054,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard."));
     }
 
-    public void testReplicaGracePeriodEligibilityBasedOnPrimaryState() {
-        final var projectId = randomProjectIdOrDefault();
-        final var recentUnassignedTime = new TimeValue(
-            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
-            TimeUnit.MILLISECONDS
-        );
-        final var expiredUnassignedTime = new TimeValue(
-            System.currentTimeMillis() - TimeValue.timeValueSeconds(11).getMillis(),
-            TimeUnit.MILLISECONDS
-        );
-        final var primaryReason = randomFrom(UnassignedInfo.Reason.values());
-        final var primaryTimeExpired = randomBoolean();
-        final var clusterState = createClusterStateWith(
-            projectId,
-            List.of(
-                index(
-                    "test-index",
-                    new ShardAllocation(
-                        randomNodeId(),
-                        UNAVAILABLE,
-                        unassignedInfo(primaryReason, primaryTimeExpired ? expiredUnassignedTime : recentUnassignedTime)
-                    ),
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(randomUnassignedInfoReason(true), recentUnassignedTime))
-                )
-            ),
-            List.of()
-        );
-        final var service = createShardsAvailabilityIndicatorService(
-            projectId,
-            Settings.builder()
-                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "10s")
-                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
-                .build(),
-            clusterState,
-            Collections.emptyMap()
-        );
-        final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        if (primaryReason.isExpectedTransient() && primaryTimeExpired == false) {
-            assertThat(result.status(), equalTo(GREEN));
-            assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 creating replica shard."));
-        } else {
-            assertThat(result.status(), equalTo(RED));
-            assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard, 1 unavailable replica shard."));
-        }
-    }
-
     public void testMixedGraceAndNonGracePrimaryAndReplicaState() {
         for (int i = 0; i < 10; i++) {
             final var projectId = randomProjectIdOrDefault();

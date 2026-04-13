@@ -106,8 +106,7 @@ PUT my-image-index
 `field`
 :   (Required, string) The name of the vector field to search against. Must be a [`dense_vector` field with indexing enabled](/reference/elasticsearch/mapping-reference/dense-vector.md#index-vectors-knn-search), or a [`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md) with a compatible dense vector inference model.
 
-
-`query_vector`
+$$$knn-query-query-vector$$$ `query_vector`
 :   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be one of:
       - An array of floats
@@ -116,7 +115,7 @@ PUT my-image-index
     Either this or `query_vector_builder` must be provided.
 
 
-`query_vector_builder`
+$$$knn-query-query-vector-builder$$$ `query_vector_builder`
 :   (Optional, object) Query vector builder. A configuration object indicating how to build a query_vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.
 
     **Parameters for `query_vector_builder`**:

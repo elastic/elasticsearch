@@ -66,7 +66,9 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -75,7 +77,6 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -122,12 +123,14 @@ public class Reindexer {
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
+    @Nullable
     private final ReindexMetrics reindexMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
+    private final TimeValue reindexShutdownGracePeriod;
 
     Reindexer(
         ClusterService clusterService,
@@ -154,6 +157,7 @@ public class Reindexer {
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
+        this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -206,7 +210,7 @@ public class Reindexer {
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
-            listenerWithRelocations(task, request, listener),
+            listenerWithRelocations(task, request, relocationResponseListenerWithMetrics(reindexMetrics), listener),
             reindexMetrics,
             task,
             request
@@ -272,7 +276,8 @@ public class Reindexer {
                 reindexSslConfig,
                 request,
                 listener,
-                remoteVersion
+                remoteVersion,
+                reindexShutdownGracePeriod
             );
             searchAction.start();
         };
@@ -327,26 +332,24 @@ public class Reindexer {
         assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
 
-        // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(pitKeepAlive(request))
             .allowPartialSearchResults(false);
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
         }
+        // Elasticsearch uses an index-filter when opening a PIT to perform shard-level pruning (removing unnecessary shards from the
+        // point-in-time snapshot, improving performance and memory demands). Document filtering still runs for each subsequent pit
+        // search. When the source query is null, the effective query is match_all, and we omit the index_filter parameter rather than
+        // explicitly setting it, saving the cost of the match_all search incurred during the shard-level pruning.
+        if (searchRequest.source() != null && searchRequest.source().query() != null) {
+            pitRequest.indexFilter(searchRequest.source().query());
+        }
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
-            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
-            searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request.
-            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
-            request.setSourceIndicesForDescription(indices);
-            searchRequest.indices(Strings.EMPTY_ARRAY);
-            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
-            searchRequest.clearProjectRouting();
+            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -542,15 +545,7 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
         openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
-            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
-            searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request.
-            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
-            request.setSourceIndicesForDescription(indices);
-            searchRequest.indices(Strings.EMPTY_ARRAY);
-            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
-            searchRequest.clearProjectRouting();
+            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,
@@ -569,8 +564,9 @@ public class Reindexer {
 
     /**
      * Closes the RestClient on the generic thread pool (to avoid closing from the client's own thread), then runs the given action.
+     * Package-private for unit tests.
      */
-    private void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
+    void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
         threadPool.generic().submit(() -> {
             try {
                 restClient.close();
@@ -580,6 +576,15 @@ public class Reindexer {
                 onCompletion.run();
             }
         });
+    }
+
+    /** Listener to call on a relocation response to record metrics. Visible for testing. */
+    static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
+        return ActionListener.assertOnce(
+            metrics == null
+                ? ActionListener.noop()
+                : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), metrics::recordRelocationFailure)
+        );
     }
 
     /**
@@ -671,6 +676,7 @@ public class Reindexer {
     ActionListener<BulkByScrollResponse> listenerWithRelocations(
         final BulkByScrollTask task,
         final ReindexRequest request,
+        final ActionListener<ResumeBulkByScrollResponse> onRelocationResponseListener,
         final ActionListener<BulkByScrollResponse> listener
     ) {
         final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
@@ -690,9 +696,11 @@ public class Reindexer {
             assert nodeToRelocateTo != null : "node to relocate to should be set if taskResumeInfo is present";
             final DiscoveryNode nodeToRelocateToNode = clusterService.state().nodes().get(nodeToRelocateTo);
             if (nodeToRelocateToNode == null) {
-                l.onFailure(
-                    new IllegalStateException(Strings.format("Node %s to relocate to left cluster before relocation", nodeToRelocateTo))
+                final var nodeToRelocateToNotFound = new IllegalStateException(
+                    Strings.format("Node %s to relocate to left cluster before relocation", nodeToRelocateTo)
                 );
+                onRelocationResponseListener.onFailure(nodeToRelocateToNotFound);
+                l.onFailure(nodeToRelocateToNotFound);
                 return;
             }
             final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
@@ -712,8 +720,12 @@ public class Reindexer {
             );
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
+                onRelocationResponseListener.onResponse(resp);
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
-            }, l::onFailure);
+            }, e -> {
+                onRelocationResponseListener.onFailure(e);
+                l.onFailure(e);
+            });
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,
@@ -895,7 +907,8 @@ public class Reindexer {
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
-            @Nullable Version remoteVersion
+            @Nullable Version remoteVersion,
+            TimeValue maxTaskShutdownGracePeriod
         ) {
             super(
                 task,
@@ -914,7 +927,8 @@ public class Reindexer {
                 listener,
                 scriptService,
                 sslConfig,
-                remoteVersion
+                remoteVersion,
+                maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }

@@ -392,6 +392,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         private void scheduleRefresh(TimeValue interval) {
+            assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
             if (threadPool.scheduler().isShutdown()) {
                 return;
             }
@@ -411,6 +412,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
 
         private void cancelScheduledRefresh() {
+            assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
             final var previous = scheduledRefresh.getAndSet(null);
             if (previous != null) {
                 previous.cancel();

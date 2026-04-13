@@ -428,7 +428,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         @Nullable
         public IndexBalanceMetrics.IndexBalanceState getLastState() {
             if (isCancelled() || isCompleted()) {
-                lastState.set(null);
+                return null;
             }
             return lastState.get();
         }

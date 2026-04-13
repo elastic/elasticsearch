@@ -106,9 +106,7 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
     }
 
     private static PhysicalPlan insertNullEval(Source source, PhysicalPlan child, List<Attribute> nullifiedFields) {
-        List<Alias> aliases = nullifiedFields.stream()
-            .map(a -> new Alias(a.source(), a.name(), Literal.of(a, null), a.id()))
-            .toList();
+        List<Alias> aliases = nullifiedFields.stream().map(a -> new Alias(a.source(), a.name(), Literal.of(a, null), a.id())).toList();
         return new EvalExec(source, child, aliases);
     }
 

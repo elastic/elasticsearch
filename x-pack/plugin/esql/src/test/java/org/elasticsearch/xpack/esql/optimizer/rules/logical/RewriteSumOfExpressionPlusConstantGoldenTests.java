@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -16,24 +18,24 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
     public void testTwoSumsOfFieldPlusConstant() {
-        runGoldenTest("""
+        builder("""
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
-            """, STAGES);
+            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.TRANSPORT_VERSION)).run();
     }
 
     public void testTwoSumsOfFieldPlusConstantWithGroupBy() {
-        runGoldenTest("""
+        builder("""
             FROM employees
             | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
-            """, STAGES);
+            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.TRANSPORT_VERSION)).run();
     }
 
     public void testTwoSumsOfFieldMinusConstant() {
-        runGoldenTest("""
+        builder("""
             FROM employees
             | STATS s1 = SUM(salary - 1), s2 = SUM(2 - salary)
-            """, STAGES);
+            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.TRANSPORT_VERSION)).run();
     }
 
     public void testSingleSumNotRewritten() {

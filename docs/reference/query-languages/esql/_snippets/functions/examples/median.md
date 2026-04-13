@@ -22,4 +22,16 @@ FROM employees
 | --- |
 | 7.69 |
 
+`MEDIAN` can also operate on `exponential_histogram` fields, approximating the median of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p50 = ROUND(MEDIAN(responseTime), 4)
+```
+
+| p50:double |
+| --- |
+| 0.0211 |
+
 

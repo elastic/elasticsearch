@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -76,6 +77,7 @@ public class ValuesAggregatorBenchmark {
         new BytesRef("Cairo") };
     static {
         assert KEYWORDS.length == UNIQUE_VALUES;
+        Utils.configureBenchmarkLogging();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -91,14 +93,10 @@ public class ValuesAggregatorBenchmark {
 
     static void selfTest() {
         // Smoke test all the expected values and force loading subclasses more like prod
-        try {
-            for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
-                for (String dataType : ValuesAggregatorBenchmark.class.getField("dataType").getAnnotationsByType(Param.class)[0].value()) {
-                    run(Integer.parseInt(groups), dataType, 10);
-                }
+        for (String groups : Utils.possibleValues(ValuesAggregatorBenchmark.class, "groups")) {
+            for (String dataType : Utils.possibleValues(ValuesAggregatorBenchmark.class, "dataType")) {
+                run(Integer.parseInt(groups), dataType, 10);
             }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
         }
     }
 

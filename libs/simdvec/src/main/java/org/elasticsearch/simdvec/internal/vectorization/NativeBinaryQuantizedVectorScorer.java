@@ -84,8 +84,26 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
             vectorOffsets[i] = (long) nodes[i] * byteSize;
         }
 
+        float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
         boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, numBytes, bulkSize, addrs -> {
-            Similarities.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, MemorySegment.ofArray(scores));
+            var scoresSegment = MemorySegment.ofArray(scores);
+            Similarities.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
+            maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                similarityFunction,
+                addrs,
+                bulkSize,
+                numBytes,
+                byteSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                FOUR_BIT_SCALE,
+                1.0f,
+                centroidDp,
+                scoresSegment
+            );
         });
 
         if (resolved == false) {
@@ -102,32 +120,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 bulkSize
             );
         }
-
-        float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < bulkSize; i++) {
-            slice.seek(vectorOffsets[i] + numBytes);
-            var indexLowerInterval = Float.intBitsToFloat(slice.readInt());
-            var indexUpperInterval = Float.intBitsToFloat(slice.readInt());
-            var indexAdditionalCorrection = Float.intBitsToFloat(slice.readInt());
-            var indexQuantizedComponentSum = Short.toUnsignedInt(slice.readShort());
-
-            scores[i] = applyCorrections(
-                dimensions,
-                similarityFunction,
-                centroidDp,
-                scores[i],
-                queryLowerInterval,
-                queryUpperInterval,
-                queryAdditionalCorrection,
-                queryQuantizedComponentSum,
-                indexLowerInterval,
-                indexUpperInterval,
-                indexAdditionalCorrection,
-                indexQuantizedComponentSum
-            );
-            maxScore = Math.max(maxScore, scores[i]);
-        }
-        return maxScore;
+        return maxScore[0];
     }
 
     protected byte[] getScratch(int len) {

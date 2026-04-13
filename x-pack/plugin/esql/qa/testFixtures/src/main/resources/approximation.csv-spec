@@ -60,7 +60,6 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 ;
 
 
-// Does not run as a CSV test, because this needs filter pushdown (of sv!=null)
 Exact total single-valued field count
 required_capability: approximation_v6
 request_stored: skip
@@ -159,7 +158,6 @@ count:long     | count2:long    | countValue:long  | _approximation_confidence_i
 ;
 
 
-// Does not run as a CSV test, because this needs filter pushdown
 Exact count with where on single-valued data
 required_capability: approximation_v6
 request_stored: skip

@@ -832,6 +832,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // This should NOT throw a circular view reference error
         LogicalPlan result = replaceViews(query("FROM incident_dashboard"));
         assertNotNull("incident_dashboard should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "incident_dashboard");
     }
 
     /**
@@ -865,6 +866,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // This should NOT throw a circular view reference error
         LogicalPlan result = replaceViews(query("FROM dashboard"));
         assertNotNull("dashboard should resolve without circular reference errors", result);
+
+        // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
+        // creating a nested ViewUnionAll inside the pipeline chain. This produces a "nested subqueries"
+        // error — which is the correct behavior (not a false circular reference).
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
+        assertTrue("Expected nested subquery failure", failures.hasFailures());
+        for (Failure failure : failures.failures()) {
+            assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+        }
     }
 
     /**
@@ -908,6 +920,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // Before the fix this threw: "circular view reference 'view_y': view_xy -> view_x -> view_y"
         LogicalPlan result = replaceViews(query("FROM view_xy"));
         assertNotNull("view_xy should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "view_xy");
     }
 
     public void testModifiedViewDepth() {
@@ -1755,6 +1768,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      */
     private InMemoryViewService matrixViewService() {
         return viewService.withSettings(Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 200).build());
+    }
+
+    private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(plan, failures, depFailures);
+        assertFalse("Plan consistency failures for " + context + ": " + failures, failures.hasFailures());
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan) {

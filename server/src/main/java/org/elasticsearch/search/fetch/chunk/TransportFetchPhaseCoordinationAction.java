@@ -88,7 +88,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
     public static final TransportVersion CHUNKED_FETCH_PHASE = TransportVersion.fromName("chunked_fetch_phase");
 
-    public static final TransportVersion CHUNKED_FETCH_DOC_ID_ORDER = TransportVersion.fromName("chunked_fetch_doc_id_order");
+    public static final TransportVersion CHUNKED_FETCH_DOC_ID_ORDER = TransportVersion.fromName("chunked_fetch_doc_id_order_v2");
 
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;

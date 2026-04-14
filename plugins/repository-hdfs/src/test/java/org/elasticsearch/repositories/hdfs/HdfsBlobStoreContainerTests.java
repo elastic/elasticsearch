@@ -61,14 +61,6 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
 
-    private FileContext createTestContext() {
-        try {
-            return createContext(new URI("hdfs:///"));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private FileContext createContext(URI uri) {
         // mirrors HdfsRepository.java behaviour
@@ -129,7 +121,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadOnly() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -158,7 +150,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadRange() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -189,7 +181,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReplicationFactor() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         short replicationFactor = 8;
 
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
@@ -213,7 +205,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testListBlobsByPrefix() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));

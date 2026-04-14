@@ -342,7 +342,7 @@ final class DynamicFieldsBuilder {
                             new FieldMapper.DocValuesParameter.Values(
                                 true,
                                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
+                                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
                             )
                         ),
                         context

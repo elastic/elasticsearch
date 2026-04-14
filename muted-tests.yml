@@ -324,6 +324,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/146137
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:subquery.subqueryInFromWithNoFieldCountEmptyInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/146178
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:subquery.subqueryInFromWithNoFieldCountOneInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/146179
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:subquery.subqueryInFromWithNoFieldCountStarInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/146180
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGenerateRoutingPathFromDynamicTemplate
+  issue: https://github.com/elastic/elasticsearch/issues/146197
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMappingsMerging
+  issue: https://github.com/elastic/elasticsearch/issues/146198
 
 # Examples:
 #

@@ -21,6 +21,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -144,6 +145,7 @@ class Elasticsearch {
 
             // DO NOT MOVE THIS
             // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setClusterName(ClusterName.CLUSTER_NAME_SETTING.get(args.nodeSettings()).value());
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
@@ -353,12 +355,21 @@ class Elasticsearch {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
             } catch (Exception e) {
-                if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException") == false) {
-                    throw new IllegalStateException("Failed entitlement protection self-test", e);
+                if (isCausedByNotEntitledException(e)) {
+                    return;
                 }
-                return;
+                throw new IllegalStateException("Failed entitlement protection self-test", e);
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+        }
+
+        private static boolean isCausedByNotEntitledException(Throwable e) {
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {

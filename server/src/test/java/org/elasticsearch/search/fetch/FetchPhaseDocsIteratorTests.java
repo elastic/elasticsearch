@@ -16,7 +16,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,6 +30,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -132,6 +135,58 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+
+        reader.close();
+        directory.close();
+    }
+
+    public void testTimeoutReturnsCompactPartialResults() throws IOException {
+        int docCount = 400;
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+            if (i % 50 == 0) {
+                writer.commit();
+            }
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, null, null, TrivialQueryCachingPolicy.NEVER, randomBoolean());
+
+        // deliberately unsorted doc ids so that the doc-id-sorted iteration order
+        // differs from the original order
+        int[] docs = new int[] { 250, 10, 150, 50, 300, 100, 200, 350 };
+        // in doc-id order: 10, 50, 100, 150, 200, ... timeout at doc 200
+        final int timeoutAfterDocId = 200;
+
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                if (doc == timeoutAfterDocId) {
+                    searcher.throwTimeExceededException();
+                }
+                return new SearchHit(doc);
+            }
+        };
+
+        SearchHit[] hits = it.iterate(null, reader, docs, true, new QuerySearchResult());
+
+        // the returned array is compact — no null entries, shorter than input
+        assertThat(hits.length, greaterThan(0));
+        assertThat(hits.length, lessThan(docs.length));
+        for (SearchHit hit : hits) {
+            assertNotNull(hit);
+            assertThat(hit.docId(), greaterThanOrEqualTo(0));
+            hit.decRef();
+        }
 
         reader.close();
         directory.close();

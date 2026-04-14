@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -228,7 +227,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         LDAPConnectionPool pool = null;
         boolean success = false;
         try {
-            pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
+            pool = new LDAPConnectionPool(serverSet, bindRequest, initialSize, size);
             pool.setConnectionPoolName("ldap-pool-" + config.identifier());
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
             if (config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED)) {

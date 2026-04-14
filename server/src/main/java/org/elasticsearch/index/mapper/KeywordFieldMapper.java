@@ -26,6 +26,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -875,6 +876,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
+                if (caseInsensitive == false) {
+                    Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(
+                            term,
+                            dfa,
+                            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                            false,
+                            MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                    }
+                }
                 return new StringScriptFieldWildcardQuery(
                     new Script(""),
                     ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
@@ -895,6 +909,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                     value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
+                }
+                Term term = new Term(name(), value);
+                if (context.getCircuitBreaker() != null) {
+                    Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                    return new AutomatonQuery(
+                        term,
+                        dfa,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        false,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
                 }
                 return new StringScriptFieldWildcardQuery(
                     new Script(""),
@@ -921,6 +946,23 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 if (matchFlags != 0) {
                     throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
+                }
+                if (context.getCircuitBreaker() != null) {
+                    Term term = new Term(name(), indexedValueForSearch(value));
+                    Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                        term,
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates,
+                        context.getCircuitBreaker()
+                    );
+                    return new AutomatonQuery(
+                        term,
+                        dfa,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        false,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
                 }
                 return new StringScriptFieldRegexpQuery(
                     new Script(""),

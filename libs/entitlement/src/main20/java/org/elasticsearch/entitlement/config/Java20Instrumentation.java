@@ -20,6 +20,7 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SegmentScope;
@@ -143,13 +144,13 @@ public class Java20Instrumentation implements InstrumentationConfig {
                 TypeToken.of(Path.class),
                 new TypeToken<Class<? extends BasicFileAttributes>>() {},
                 TypeToken.of(LinkOption[].class)
-            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
+            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrow(IOException::new);
         });
 
         builder.on(FileSystems.getDefault().provider().getClass(), rule -> {
             rule.calling(FileSystemProvider::exists, Path.class, LinkOption[].class)
                 .enforce((provider, path) -> Policies.fileRead(path))
-                .elseThrowNotEntitled();
+                .elseReturn(false);
         });
     }
 }

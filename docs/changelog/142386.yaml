@@ -1,6 +1,0 @@
-area: SQL
-issues:
- - 137365
-pr: 142386
-summary: Fix `QlIllegalArgumentException` with non-foldable date range queries
-type: bug

@@ -16,15 +16,15 @@ import java.nio.file.attribute.BasicFileAttributes;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 class VersionSpecificNioFileSystemActions {
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void checkReadAttributesIfExists() throws IOException {
         var fs = FileSystems.getDefault().provider();
         fs.readAttributesIfExists(FileCheckActions.readFile(), BasicFileAttributes.class);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkExists() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkExists() {
         var fs = FileSystems.getDefault().provider();
-        fs.exists(FileCheckActions.readFile());
+        return fs.exists(FileCheckActions.readFile());
     }
 }

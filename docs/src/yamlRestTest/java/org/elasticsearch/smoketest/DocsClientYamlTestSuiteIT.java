@@ -42,6 +42,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,6 +76,17 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         );
         return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
     }
+
+    @ClassRule
+    public static final ExternalResource MUTE_IN_IPV6 = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse(
+                "Tests not currently working correctly with IPv6",
+                "true".equals(System.getProperty("java.net.preferIPv6Addresses", "false"))
+            );
+        }
+    };
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {

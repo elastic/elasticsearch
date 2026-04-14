@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -79,6 +80,19 @@ public class Java21Instrumentation implements InstrumentationConfig {
                 .elseThrowNotEntitled();
         });
 
+        builder.on(MemorySegment.class, rule -> {
+            rule.calling(MemorySegment::reinterpret, Long.class).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+            rule.calling(MemorySegment::reinterpret, TypeToken.of(Arena.class), new TypeToken<Consumer<MemorySegment>>() {})
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.calling(
+                MemorySegment::reinterpret,
+                TypeToken.of(Long.class),
+                TypeToken.of(Arena.class),
+                new TypeToken<Consumer<MemorySegment>>() {}
+            ).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+        });
+
         registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.lang.String", "java.lang.foreign.Arena")),
@@ -90,7 +104,10 @@ public class Java21Instrumentation implements InstrumentationConfig {
         registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.nio.file.Path", "java.lang.foreign.Arena")),
-                args -> Policies.loadingNativeLibraries(),
+                args -> {
+                    Path path = (Path) args[0];
+                    return Policies.fileRead(path).and(Policies.loadingNativeLibraries());
+                },
                 new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
             )
         );
@@ -107,13 +124,13 @@ public class Java21Instrumentation implements InstrumentationConfig {
                 TypeToken.of(Path.class),
                 new TypeToken<Class<? extends BasicFileAttributes>>() {},
                 TypeToken.of(LinkOption[].class)
-            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
+            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrow(IOException::new);
         });
 
         builder.on(FileSystems.getDefault().provider().getClass(), rule -> {
             rule.calling(FileSystemProvider::exists, Path.class, LinkOption[].class)
                 .enforce((provider, path) -> Policies.fileRead(path))
-                .elseThrowNotEntitled();
+                .elseReturn(false);
         });
     }
 }

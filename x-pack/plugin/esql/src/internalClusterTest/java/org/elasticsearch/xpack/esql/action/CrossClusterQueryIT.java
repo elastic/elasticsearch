@@ -15,9 +15,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -31,6 +33,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,6 +61,26 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     private static final String IDX_ALIAS = "alias1";
     private static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
+
+    @After
+    public void ensureExchangesAreReleased() throws Exception {
+        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
+            String clusterAlias = entry.getKey();
+            InternalTestCluster testCluster = entry.getValue();
+            for (String node : testCluster.getNodeNames()) {
+                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
+                ExchangeService exchangeService = esqlQueryAction.exchangeService();
+                assertBusy(() -> {
+                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                        assertTrue(
+                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
+                            exchangeService.isEmpty()
+                        );
+                    }
+                }, 5, TimeUnit.SECONDS);
+            }
+        }
+    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {

@@ -1798,12 +1798,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         TimeValue keepAlive,
         boolean allowPartialSearchResults
     ) {
+        final Set<String> missingNodes = new HashSet<>();
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final SearchContextIdForNode perNode = entry.getValue();
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
                 final List<String> targetNodes = new ArrayList<>(2);
+                boolean nodeWasMissing = false;
                 if (perNode.getNode() != null) {
                     // If the shard was available when the PIT was created, it's included.
                     // Otherwise, we add the shard iterator without a target node, allowing a partial search failure to
@@ -1813,6 +1815,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (clusterState.nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
+                        } else {
+                            logger.debug(
+                                "Node [{}] referenced in PIT context id [{}] no longer exists.",
+                                perNode.getNode(),
+                                perNode.getSearchContextId()
+                            );
+                            nodeWasMissing = true;
                         }
                         if (perNode.getSearchContextId().getSearcherId() != null) {
                             for (ShardRouting shard : shards) {
@@ -1830,6 +1839,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
+
+                // Only track as missing if the original node is gone AND there are no fallback nodes.
+                // For retryable PITs (e.g., relocated PITs in serverless), fallback nodes will be
+                // populated above, allowing the search to proceed and the PIT ID to be rewritten.
+                if (nodeWasMissing && targetNodes.isEmpty()) {
+                    missingNodes.add(perNode.getNode());
+                }
+
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
                 iterators.add(
                     new SearchShardIterator(
@@ -1845,6 +1862,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             }
         }
+
+        if (missingNodes.isEmpty() == false && allowPartialSearchResults == false) {
+            throw new SearchContextMissingNodesException(SearchContextMissingNodesException.ContextType.PIT, missingNodes);
+        }
+
         return iterators;
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -73,8 +71,12 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
+public abstract class Join extends BinaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        SortAgnostic,
+        ExecutesOn,
+        PostOptimizationVerificationAware {
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
     public static final DataType[] UNSUPPORTED_TYPES = {
         TEXT,
@@ -160,29 +162,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return rightToSerialize;
     }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
-
     public JoinConfig config() {
         return config;
-    }
-
-    @Override
-    protected NodeInfo<Join> info() {
-        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
-        // expressions and references.
-        return NodeInfo.create(
-            this,
-            Join::new,
-            left(),
-            right(),
-            config.type(),
-            config.leftFields(),
-            config.rightFields(),
-            config.joinOnConditions()
-        );
     }
 
     @Override
@@ -289,15 +270,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         // - the children are resolved
         // - the condition (if present) is resolved to a boolean
         return childrenResolved() && expressionsResolved();
-    }
-
-    public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config, isRemote);
-    }
-
-    @Override
-    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config, isRemote);
     }
 
     @Override

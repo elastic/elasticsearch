@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 public final class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lookup> {
 
@@ -20,6 +20,6 @@ public final class ReplaceLookupWithJoin extends OptimizerRules.OptimizerRule<Lo
     @Override
     protected LogicalPlan rule(Lookup lookup) {
         // left join between the main relation and the local, lookup relation
-        return new Join(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
+        return new LookupJoin(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
     }
 }

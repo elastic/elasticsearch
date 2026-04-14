@@ -1068,10 +1068,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertNotEquals(leftChild, rightChild);
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
-        var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
-            case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
+        var join = switch (randomIntBetween(0, 1)) {
+            case 0 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
+            case 1 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };
 

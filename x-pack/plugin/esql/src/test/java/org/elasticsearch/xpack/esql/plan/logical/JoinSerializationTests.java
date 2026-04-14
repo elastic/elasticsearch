@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +27,7 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan left = randomChild(0);
         LogicalPlan right = randomChild(0);
         JoinConfig config = randomJoinConfig();
-        return new Join(source, left, right, config);
+        return new LookupJoin(source, left, right, config);
     }
 
     private static JoinConfig randomJoinConfig() {
@@ -46,6 +47,6 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
             case 1 -> right = randomValueOtherThan(right, () -> randomChild(0));
             case 2 -> config = randomValueOtherThan(config, JoinSerializationTests::randomJoinConfig);
         }
-        return new Join(instance.source(), left, right, config);
+        return new LookupJoin(instance.source(), left, right, config);
     }
 }

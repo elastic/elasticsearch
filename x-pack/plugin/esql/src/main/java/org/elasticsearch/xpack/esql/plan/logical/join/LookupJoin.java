@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -28,6 +31,12 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * This is only used during parsing and substituted to a regular {@link Join} during analysis.
  */
 public class LookupJoin extends Join implements TelemetryAware, PostAnalysisVerificationAware {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "LookupJoin",
+        LookupJoin::new
+    );
 
     public LookupJoin(
         Source source,
@@ -60,9 +69,22 @@ public class LookupJoin extends Join implements TelemetryAware, PostAnalysisVeri
         super(source, left, right, joinConfig, isRemote);
     }
 
+    public LookupJoin(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
+    public LookupJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
         return new LookupJoin(source(), left, right, config(), isRemote());
+    }
+
+    public LookupJoin withConfig(JoinConfig config) {
+        return new LookupJoin(source(), left(), right(), config, isRemote());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

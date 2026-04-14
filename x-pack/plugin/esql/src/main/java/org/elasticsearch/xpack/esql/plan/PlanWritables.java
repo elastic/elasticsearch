@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
@@ -103,8 +103,8 @@ public class PlanWritables {
             Grok.ENTRY,
             InlineJoin.ENTRY,
             InlineStats.ENTRY,
-            Join.ENTRY,
             LocalRelation.ENTRY,
+            LookupJoin.ENTRY,
             Limit.ENTRY,
             LimitBy.ENTRY,
             Lookup.ENTRY,

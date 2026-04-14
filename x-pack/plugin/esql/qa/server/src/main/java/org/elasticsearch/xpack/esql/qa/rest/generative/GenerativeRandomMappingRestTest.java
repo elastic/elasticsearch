@@ -49,16 +49,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     private static final String DEFAULT_METRIC_DEPRECATION = "Parameter [default_metric] is deprecated and will be removed in a future "
         + "version";
 
-    private static final RequestOptions MAPPING_DEPRECATION_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(warnings -> {
-            for (String warning : warnings) {
-                if (DEFAULT_METRIC_DEPRECATION.equals(warning) == false) {
-                    return true;
-                }
+    private static final RequestOptions MAPPING_DEPRECATION_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        for (String warning : warnings) {
+            if (DEFAULT_METRIC_DEPRECATION.equals(warning) == false) {
+                return true;
             }
-            return false;
-        })
-        .build();
+        }
+        return false;
+    }).build();
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
@@ -217,8 +215,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 if (knownError == false) {
                     String query = exec.previousResult != null ? exec.previousResult.query() : "<no query>";
                     throw new AssertionError(
-                        "Random mapping generative tests, error generating new command\nPrevious query:\n" + query
-                            + formatMappingContext(),
+                        "Random mapping generative tests, error generating new command\nPrevious query:\n" + query + formatMappingContext(),
                         e
                     );
                 }

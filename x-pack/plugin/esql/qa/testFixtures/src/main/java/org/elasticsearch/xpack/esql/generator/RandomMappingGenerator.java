@@ -35,10 +35,36 @@ public final class RandomMappingGenerator {
     private RandomMappingGenerator() {}
 
     static final String[] FIELD_NAME_POOL = {
-        "status", "name", "value", "count", "message", "host", "level", "code",
-        "duration", "size", "path", "address", "active", "ver", "score", "rate",
-        "tag", "category", "priority", "label", "result", "amount", "distance",
-        "weight", "height", "price", "title", "region", "color", "mode" };
+        "status",
+        "name",
+        "value",
+        "count",
+        "message",
+        "host",
+        "level",
+        "code",
+        "duration",
+        "size",
+        "path",
+        "address",
+        "active",
+        "ver",
+        "score",
+        "rate",
+        "tag",
+        "category",
+        "priority",
+        "label",
+        "result",
+        "amount",
+        "distance",
+        "weight",
+        "height",
+        "price",
+        "title",
+        "region",
+        "color",
+        "mode" };
 
     /**
      * Every Elasticsearch leaf field type, weighted by typical usage.
@@ -46,34 +72,69 @@ public final class RandomMappingGenerator {
      */
     static final String[] WEIGHTED_TYPES = {
         // Common: keyword family
-        "keyword", "keyword", "keyword", "constant_keyword", "wildcard",
+        "keyword",
+        "keyword",
+        "keyword",
+        "constant_keyword",
+        "wildcard",
         // Common: text family
-        "text", "text", "text", "match_only_text",
+        "text",
+        "text",
+        "text",
+        "match_only_text",
         // Common: boolean
-        "boolean", "boolean",
+        "boolean",
+        "boolean",
         // Common: numeric
-        "integer", "integer", "integer", "long", "long", "long",
-        "double", "double", "float", "float",
-        "short", "byte", "half_float", "scaled_float", "unsigned_long",
+        "integer",
+        "integer",
+        "integer",
+        "long",
+        "long",
+        "long",
+        "double",
+        "double",
+        "float",
+        "float",
+        "short",
+        "byte",
+        "half_float",
+        "scaled_float",
+        "unsigned_long",
         // Common: date family
-        "date", "date", "date_nanos",
+        "date",
+        "date",
+        "date_nanos",
         // Structured
-        "ip", "version", "binary",
+        "ip",
+        "version",
+        "binary",
         // Range types
-        "integer_range", "long_range", "float_range", "double_range", "date_range", "ip_range",
+        "integer_range",
+        "long_range",
+        "float_range",
+        "double_range",
+        "date_range",
+        "ip_range",
         // Object/flattened
         "flattened",
         // Spatial
-        "geo_point", "geo_shape", "point", "shape",
+        "geo_point",
+        "geo_shape",
+        "point",
+        "shape",
         // Text search
-        "token_count", "completion", "search_as_you_type",
+        "token_count",
+        "completion",
+        "search_as_you_type",
         // Ranking
-        "rank_feature", "rank_features",
+        "rank_feature",
+        "rank_features",
         // Aggregate/metric
-        "aggregate_metric_double", "histogram",
+        "aggregate_metric_double",
+        "histogram",
         // Vector
-        "dense_vector"
-    };
+        "dense_vector" };
 
     static final String[] BUILTIN_ANALYZERS = { "standard", "simple", "whitespace", "stop", "keyword" };
 
@@ -84,8 +145,7 @@ public final class RandomMappingGenerator {
         "epoch_millis",
         "epoch_second",
         "basic_date",
-        "date_optional_time"
-    };
+        "date_optional_time" };
 
     public record FieldDef(String name, String esType, Map<String, Object> settings, List<FieldDef> subFields) {
         public FieldDef(String name, String esType, Map<String, Object> settings) {
@@ -175,7 +235,8 @@ public final class RandomMappingGenerator {
             case "geo_point" -> optPut(s, "ignore_malformed", randomBoolean());
             case "geo_shape" -> optPut(s, "orientation", randomFrom("right", "left"));
             case "flattened" -> optPut(s, "depth_limit", randomIntBetween(5, 50));
-            default -> { /* keep unchanged */ }
+            default -> {
+                /* keep unchanged */ }
         }
     }
 
@@ -227,12 +288,12 @@ public final class RandomMappingGenerator {
                 optSet(s, 1, "index_phrases", true);
                 optSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));
                 optSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
-                optSet(s, 1, "term_vector",
-                    randomFrom("no", "yes", "with_positions", "with_offsets", "with_positions_offsets"));
+                optSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions", "with_offsets", "with_positions_offsets"));
                 optSet(s, 1, "eager_global_ordinals", true);
                 optSet(s, 1, "fielddata", true);
             }
-            case "match_only_text" -> { /* no configurable settings */ }
+            case "match_only_text" -> {
+                /* no configurable settings */ }
 
             // ── boolean ──
             case "boolean" -> {
@@ -298,7 +359,8 @@ public final class RandomMappingGenerator {
             }
 
             // ── version ──
-            case "version" -> { /* only meta, no configurable params */ }
+            case "version" -> {
+                /* only meta, no configurable params */ }
 
             // ── binary ──
             case "binary" -> {
@@ -399,7 +461,8 @@ public final class RandomMappingGenerator {
 
             // ── rank_feature / rank_features ──
             case "rank_feature" -> optSet(s, 3, "positive_score_impact", randomBoolean());
-            case "rank_features" -> { /* no configurable params */ }
+            case "rank_features" -> {
+                /* no configurable params */ }
 
             // ── aggregate_metric_double ──
             case "aggregate_metric_double" -> {
@@ -416,7 +479,8 @@ public final class RandomMappingGenerator {
             }
 
             // ── histogram ──
-            case "histogram" -> { /* no configurable params beyond type */ }
+            case "histogram" -> {
+                /* no configurable params beyond type */ }
 
             // ── dense_vector ──
             case "dense_vector" -> {
@@ -430,7 +494,8 @@ public final class RandomMappingGenerator {
                 }
             }
 
-            default -> { /* unknown type, no settings */ }
+            default -> {
+                /* unknown type, no settings */ }
         }
         return s;
     }
@@ -460,7 +525,8 @@ public final class RandomMappingGenerator {
             case "search_as_you_type" -> {
                 // auto-generated sub-fields; no custom sub-fields needed
             }
-            default -> { /* no sub-fields */ }
+            default -> {
+                /* no sub-fields */ }
         }
         return subFields;
     }
@@ -543,9 +609,8 @@ public final class RandomMappingGenerator {
 
     private static boolean isMultiValueCapable(String type) {
         return switch (type) {
-            case "constant_keyword", "geo_shape", "shape", "dense_vector",
-                 "aggregate_metric_double", "histogram", "rank_feature", "rank_features",
-                 "completion" -> false;
+            case "constant_keyword", "geo_shape", "shape", "dense_vector", "aggregate_metric_double", "histogram", "rank_feature",
+                "rank_features", "completion" -> false;
             default -> true;
         };
     }
@@ -563,12 +628,15 @@ public final class RandomMappingGenerator {
             case "wildcard" -> "wc_" + randomAlphaOfLength(randomIntBetween(3, 10));
 
             // text family
-            case "text" -> randomFrom("alpha", "bravo", "charlie", "delta", "echo") + " "
-                + randomAlphaOfLength(randomIntBetween(3, 12));
-            case "match_only_text" -> randomFrom("foxtrot", "golf", "hotel") + " "
-                + randomAlphaOfLength(randomIntBetween(3, 12));
-            case "search_as_you_type" -> randomFrom("quick brown fox", "lazy dog jumped", "hello world test",
-                "elastic search query", "random text here");
+            case "text" -> randomFrom("alpha", "bravo", "charlie", "delta", "echo") + " " + randomAlphaOfLength(randomIntBetween(3, 12));
+            case "match_only_text" -> randomFrom("foxtrot", "golf", "hotel") + " " + randomAlphaOfLength(randomIntBetween(3, 12));
+            case "search_as_you_type" -> randomFrom(
+                "quick brown fox",
+                "lazy dog jumped",
+                "hello world test",
+                "elastic search query",
+                "random text here"
+            );
 
             // boolean
             case "boolean" -> randomBoolean();
@@ -580,8 +648,7 @@ public final class RandomMappingGenerator {
             case "byte" -> randomIntBetween(Byte.MIN_VALUE, Byte.MAX_VALUE);
 
             // float numerics
-            case "float", "double", "half_float" ->
-                Math.round(randomDoubleBetween(-100.0, 100.0, true) * 100.0) / 100.0;
+            case "float", "double", "half_float" -> Math.round(randomDoubleBetween(-100.0, 100.0, true) * 100.0) / 100.0;
             case "scaled_float" -> Math.round(randomDoubleBetween(0, 100.0, true) * 100.0) / 100.0;
             case "unsigned_long" -> randomLongBetween(0, 1_000_000L);
 
@@ -596,8 +663,8 @@ public final class RandomMappingGenerator {
             case "version" -> randomVersionString();
 
             // binary
-            case "binary" -> Base64.getEncoder().encodeToString(
-                randomAlphaOfLength(randomIntBetween(4, 20)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            case "binary" -> Base64.getEncoder()
+                .encodeToString(randomAlphaOfLength(randomIntBetween(4, 20)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
             // range types
             case "integer_range" -> {
@@ -617,9 +684,7 @@ public final class RandomMappingGenerator {
                 String d2 = randomDate();
                 yield d1.compareTo(d2) <= 0 ? Map.of("gte", d1, "lte", d2) : Map.of("gte", d2, "lte", d1);
             }
-            case "ip_range" -> randomFrom(
-                "10.0.0.0/24", "192.168.1.0/28",
-                Map.of("gte", "10.0.0.0", "lte", "10.0.0.255"));
+            case "ip_range" -> randomFrom("10.0.0.0/24", "192.168.1.0/28", Map.of("gte", "10.0.0.0", "lte", "10.0.0.255"));
 
             // flattened
             case "flattened" -> {
@@ -627,52 +692,61 @@ public final class RandomMappingGenerator {
                 flat.put("key_" + randomAlphaOfLength(3), "val_" + randomAlphaOfLength(5));
                 flat.put("num", String.valueOf(randomIntBetween(1, 100)));
                 if (randomBoolean()) {
-                    flat.put("nested_" + randomAlphaOfLength(2),
-                        Map.of("inner", "val_" + randomAlphaOfLength(3)));
+                    flat.put("nested_" + randomAlphaOfLength(2), Map.of("inner", "val_" + randomAlphaOfLength(3)));
                 }
                 yield flat;
             }
 
             // spatial
             case "geo_point" -> Map.of(
-                "lat", Math.round(randomDoubleBetween(-90.0, 90.0, true) * 1000.0) / 1000.0,
-                "lon", Math.round(randomDoubleBetween(-180.0, 180.0, true) * 1000.0) / 1000.0);
-            case "geo_shape" -> Map.of("type", "point", "coordinates", List.of(
-                Math.round(randomDoubleBetween(-180.0, 180.0, true) * 1000.0) / 1000.0,
-                Math.round(randomDoubleBetween(-90.0, 90.0, true) * 1000.0) / 1000.0));
+                "lat",
+                Math.round(randomDoubleBetween(-90.0, 90.0, true) * 1000.0) / 1000.0,
+                "lon",
+                Math.round(randomDoubleBetween(-180.0, 180.0, true) * 1000.0) / 1000.0
+            );
+            case "geo_shape" -> Map.of(
+                "type",
+                "point",
+                "coordinates",
+                List.of(
+                    Math.round(randomDoubleBetween(-180.0, 180.0, true) * 1000.0) / 1000.0,
+                    Math.round(randomDoubleBetween(-90.0, 90.0, true) * 1000.0) / 1000.0
+                )
+            );
             case "point" -> List.of(
                 Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0,
-                Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0);
-            case "shape" -> Map.of("type", "point", "coordinates", List.of(
-                Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0,
-                Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0));
+                Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0
+            );
+            case "shape" -> Map.of(
+                "type",
+                "point",
+                "coordinates",
+                List.of(
+                    Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0,
+                    Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0
+                )
+            );
 
             // token_count — indexed as the token count of a text value
-            case "token_count" -> randomFrom("one two three", "hello", "quick brown fox jumped",
-                "a b c d e f", "single");
+            case "token_count" -> randomFrom("one two three", "hello", "quick brown fox jumped", "a b c d e f", "single");
 
             // completion
             case "completion" -> randomBoolean()
                 ? randomFrom("Elasticsearch", "Elastic Stack", "Kibana", "Logstash", "Beats")
-                : Map.of("input", List.of(
-                    randomFrom("search", "query", "index", "mapping", "field")),
-                    "weight", randomIntBetween(1, 100));
+                : Map.of("input", List.of(randomFrom("search", "query", "index", "mapping", "field")), "weight", randomIntBetween(1, 100));
 
             // rank_feature — must be strictly positive
             case "rank_feature" -> Math.round(randomDoubleBetween(0.1, 1000.0, true) * 100.0) / 100.0;
             case "rank_features" -> {
                 Map<String, Object> feats = new LinkedHashMap<>();
-                feats.put("feat_" + randomAlphaOfLength(3),
-                    Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
-                feats.put("feat_" + randomAlphaOfLength(3),
-                    Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
+                feats.put("feat_" + randomAlphaOfLength(3), Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
+                feats.put("feat_" + randomAlphaOfLength(3), Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
                 yield feats;
             }
 
             // aggregate_metric_double
             case "aggregate_metric_double" -> {
-                List<String> metrics = (List<String>) field.settings().getOrDefault("metrics",
-                    List.of("min", "max", "sum", "value_count"));
+                List<String> metrics = (List<String>) field.settings().getOrDefault("metrics", List.of("min", "max", "sum", "value_count"));
                 Map<String, Object> amd = new LinkedHashMap<>();
                 double base = randomDoubleBetween(-100.0, 100.0, true);
                 for (String m : metrics) {
@@ -681,7 +755,8 @@ public final class RandomMappingGenerator {
                         case "max" -> amd.put("max", Math.round((base + randomDoubleBetween(1, 200, true)) * 100.0) / 100.0);
                         case "sum" -> amd.put("sum", Math.round(randomDoubleBetween(-1000, 1000, true) * 100.0) / 100.0);
                         case "value_count" -> amd.put("value_count", randomIntBetween(1, 1000));
-                        default -> { }
+                        default -> {
+                        }
                     }
                 }
                 yield amd;
@@ -725,26 +800,38 @@ public final class RandomMappingGenerator {
     // ──────────────────────────────────────────────────
 
     static String randomDate() {
-        return String.format(Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
-            randomIntBetween(2020, 2025), randomIntBetween(1, 12), randomIntBetween(1, 28),
-            randomIntBetween(0, 23), randomIntBetween(0, 59), randomIntBetween(0, 59));
+        return String.format(
+            Locale.ROOT,
+            "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+            randomIntBetween(2020, 2025),
+            randomIntBetween(1, 12),
+            randomIntBetween(1, 28),
+            randomIntBetween(0, 23),
+            randomIntBetween(0, 59),
+            randomIntBetween(0, 59)
+        );
     }
 
     static String randomDateNanos() {
-        return String.format(Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ",
-            randomIntBetween(2020, 2025), randomIntBetween(1, 12), randomIntBetween(1, 28),
-            randomIntBetween(0, 23), randomIntBetween(0, 59), randomIntBetween(0, 59),
-            randomIntBetween(0, 999_999_999));
+        return String.format(
+            Locale.ROOT,
+            "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ",
+            randomIntBetween(2020, 2025),
+            randomIntBetween(1, 12),
+            randomIntBetween(1, 28),
+            randomIntBetween(0, 23),
+            randomIntBetween(0, 59),
+            randomIntBetween(0, 59),
+            randomIntBetween(0, 999_999_999)
+        );
     }
 
     static String randomIpV4() {
-        return String.format(Locale.ROOT, "10.%d.%d.%d",
-            randomIntBetween(0, 255), randomIntBetween(0, 255), randomIntBetween(0, 255));
+        return String.format(Locale.ROOT, "10.%d.%d.%d", randomIntBetween(0, 255), randomIntBetween(0, 255), randomIntBetween(0, 255));
     }
 
     static String randomVersionString() {
-        return String.format(Locale.ROOT, "%d.%d.%d",
-            randomIntBetween(0, 10), randomIntBetween(0, 20), randomIntBetween(0, 100));
+        return String.format(Locale.ROOT, "%d.%d.%d", randomIntBetween(0, 10), randomIntBetween(0, 20), randomIntBetween(0, 100));
     }
 
     // ──────────────────────────────────────────────────
@@ -794,10 +881,6 @@ public final class RandomMappingGenerator {
     }
 
     private static String escapeJson(String s) {
-        return s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 }

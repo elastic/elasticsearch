@@ -225,7 +225,7 @@ public final class SingleValueMatchQuery extends Query {
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
+                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -239,7 +239,7 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
-                SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
+                SortedDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedSet(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {

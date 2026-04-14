@@ -122,7 +122,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
             return;
         }
 
-        int miniBatchSizeLocal = (miniBatchSize < 0) ? Math.abs(miniBatchSize) * k : miniBatchSize;
+        int miniBatchSizeLocal = (miniBatchSize < 0) ? Math.absExact(miniBatchSize) * k : miniBatchSize;
         miniBatchSizeLocal = Math.min(miniBatchSizeLocal, n);
 
         // Tolerance for the relative difference between centroids in two consecutive iterations. Used to check convergence

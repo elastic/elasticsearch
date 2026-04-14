@@ -49,7 +49,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
 
@@ -76,7 +75,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = TransportVersion.fromName(
         "ml_inference_custom_service_input_type"
     );
-    protected static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE = TransportVersion.fromName(
+    protected static final TransportVersion INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE = TransportVersion.fromName(
         "inference_custom_service_settings_task_type"
     );
 
@@ -149,7 +148,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             }
 
             var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-            var dimensions = removeAsType(map, DIMENSIONS, Integer.class);
+            var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
             var maxInputTokens = extractOptionalPositiveInteger(
                 map,
                 MAX_INPUT_TOKENS,
@@ -330,7 +329,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         } else {
             inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
         }
-        if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
+        if (in.getTransportVersion().supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
             taskType = in.readEnum(TaskType.class);
         } else {
             taskType = null;
@@ -588,7 +587,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)) {
             inputTypeTranslator.writeTo(out);
         }
-        if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
+        if (out.getTransportVersion().supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE)) {
             out.writeEnum(taskType);
         }
     }

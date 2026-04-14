@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CustomServiceSettings> {
@@ -138,15 +138,19 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     public void testUpdateServiceSettings_AllFields_Success() {
-        HashMap<String, Object> settingsMap = createSettingsMap();
+        HashMap<String, Object> requestSettingsMap = createSettingsMap();
 
-        var settings = createInitialCustomServiceSettings().updateServiceSettings(settingsMap);
+        var updatedServiceSettings = createInitialCustomServiceSettings().updateServiceSettings(requestSettingsMap);
 
         assertThat(
-            settings,
+            updatedServiceSettings,
             is(
                 new CustomServiceSettings(
-                    new CustomServiceSettings.TextEmbeddingSettings(TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS),
+                    new CustomServiceSettings.TextEmbeddingSettings(
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
+                    ),
                     TEST_URL,
                     TEST_HEADERS,
                     TEST_QUERY_PARAMETERS,
@@ -162,9 +166,10 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     public void testUpdateServiceSettings_EmptyMap_Success() {
-        var settings = createInitialCustomServiceSettings().updateServiceSettings(new HashMap<>());
+        var originalServiceSettings = createInitialCustomServiceSettings();
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
-        assertThat(settings, is(createInitialCustomServiceSettings()));
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     private static CustomServiceSettings createInitialCustomServiceSettings() {
@@ -1210,7 +1215,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings mutateInstanceForVersion(CustomServiceSettings instance, TransportVersion version) {
-        if (version.supports(ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE) == false) {
+        if (version.supports(INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE) == false) {
             return new CustomServiceSettings(
                 instance.getTextEmbeddingSettings(),
                 instance.getUrl(),

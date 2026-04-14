@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -17,7 +15,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
@@ -35,7 +32,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,17 +44,6 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     public static final String INDEX_NAME = "test-index";
     private static final String SPARSE_INFERENCE_ID = "sparse-endpoint";
     private static final String DENSE_INFERENCE_ID = "dense-endpoint";
-
-    private final boolean useLegacyFormat;
-
-    public ShardBulkInferenceActionFilterBasicLicenseIT(boolean useLegacyFormat) {
-        this.useLegacyFormat = useLegacyFormat;
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        return List.<Object[]>of(new Object[] { false });
-    }
 
     @Before
     public void setup() throws Exception {
@@ -87,10 +72,9 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @Override
     public Settings indexSettings() {
-        var builder = Settings.builder()
+        return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
-        return builder.build();
+            .build();
     }
 
     public void testLicenseInvalidForInference() {
@@ -128,15 +112,6 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
                 containsString(Strings.format("current license is non-compliant for [%s]", XPackField.INFERENCE))
             );
         }
-    }
-
-    public void testLegacyFormatIndexCreationFails() {
-        Settings legacySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-            .build();
-
-        expectThrows(Exception.class, () -> prepareCreate("test-legacy-format-index").setSettings(legacySettings).get());
     }
 
     public void testNullSourceSucceeds() {

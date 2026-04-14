@@ -72,9 +72,7 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .build();
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).build();
     }
 
     public void testLicenseInvalidForInference() {

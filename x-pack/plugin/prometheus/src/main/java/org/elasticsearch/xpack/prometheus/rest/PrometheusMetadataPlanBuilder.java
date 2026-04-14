@@ -41,7 +41,15 @@ import static java.time.temporal.ChronoUnit.HOURS;
  * </pre>
  *
  * <p><b>Plan shape with metric filter:</b>
- * Same but with {@code Filter(metric_name == metric)} between MetricsInfo and Eval.
+ * <pre>
+ * Limit(esqlLimit)
+ * \_ Aggregate(groupings=[metric_name, metric_type, unit])
+ *    \_ Eval(metric_type = MV_MIN(metric_type), unit = MV_MIN(unit))
+ *       \_ Filter(metric_name == metric)
+ *          \_ MetricsInfo
+ *             \_ Filter(@timestamp &gt;= start AND @timestamp &lt;= end)
+ *                \_ UnresolvedRelation(index, TS)
+ * </pre>
  *
  * <p>The ES|QL Limit caps the total number of rows fetched. A finite limit is only possible when
  * both {@code limit} and {@code limit_per_metric} are set: {@code (limit + 1) * limitPerMetric}.

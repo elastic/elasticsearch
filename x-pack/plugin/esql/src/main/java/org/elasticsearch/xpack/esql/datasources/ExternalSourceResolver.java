@@ -598,7 +598,7 @@ public class ExternalSourceResolver {
         for (Attribute attr : schema) {
             if (attr instanceof ReferenceAttribute == false) {
                 throw new IllegalArgumentException(
-                    "Datasource schema must contain only ReferenceAttribute, but found "
+                    "Data source schema must contain only ReferenceAttribute, but found "
                         + attr.getClass().getSimpleName()
                         + " for column ["
                         + attr.name()

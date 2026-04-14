@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * Represents a dataset definition stored in cluster state. A dataset is a named reference
  * to external data that participates in the index namespace alongside indices, aliases, and views.
- * Datasets inherit credentials from their parent dataSource at query time.
+ * Datasets inherit credentials from their parent data source at query time.
  *
  * <p>Dataset settings are plain values ({@code Map<String, Object>}) — no secrets.
  * Credentials are always inherited from the parent {@link DataSource}.
@@ -37,7 +37,7 @@ import java.util.Objects;
 public final class Dataset implements Writeable, ToXContentObject, IndexAbstraction {
 
     private static final ParseField NAME = new ParseField("name");
-    private static final ParseField DATASOURCE = new ParseField("dataSource");
+    private static final ParseField DATASOURCE = new ParseField("data_source");
     private static final ParseField RESOURCE = new ParseField("resource");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");

@@ -100,7 +100,7 @@ public class DatasetTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new Dataset(null, "ds", "s3://b/p", null, Map.of()));
     }
 
-    public void testRequiresDatasource() {
+    public void testRequiresDataSource() {
         expectThrows(NullPointerException.class, () -> new Dataset("test", null, "s3://b/p", null, Map.of()));
     }
 

@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents a dataSource definition stored in cluster state. A dataSource holds
+ * Represents a data source definition stored in cluster state. A data source holds
  * connection settings (credentials, endpoints, auth) for an external data provider.
  */
 public final class DataSource implements Writeable, ToXContentObject {
@@ -37,7 +37,7 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
-        "dataSource",
+        "data_source",
         false,
         (args, ctx) -> new DataSource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
     );

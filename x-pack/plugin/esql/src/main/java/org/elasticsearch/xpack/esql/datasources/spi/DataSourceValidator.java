@@ -13,7 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import java.util.Map;
 
 /**
- * Validates and normalizes datasource and dataset settings at CRUD time.
+ * Validates and normalizes data source and dataset settings at CRUD time.
  *
  * <p>Each storage plugin provides a stateless singleton implementation. Despite the name,
  * implementations do more than just validate: they parse the raw REST input, reject unknown

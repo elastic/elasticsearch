@@ -545,7 +545,7 @@ public final class IndicesPermission {
         /**
          * Returns the collection of concrete indices that this IndexResource resolves to,
          * including failure indices if the selector is FAILURES.
-         * In case when the IndexResource is a view, it returns the view name only.
+         * In case when the IndexResource is a view or dataset, it returns the abstraction name only.
          * The returned collection is the one that DLS or FLS permissions need to be checked for.
          */
         public Collection<String> resolveConcreteIndicesAndViews(List<Index> failureIndices) {

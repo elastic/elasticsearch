@@ -88,10 +88,10 @@ public class AliasValidator {
 
         String sameNameAsAlias = lookup.apply(alias);
         if (sameNameAsAlias != null) {
-            // Note: this message intentionally does not mention "dataset" because datasets are not yet
-            // user-visible (no CRUD API, no releases). The lookup above does catch dataset collisions (datasets
-            // are in indicesLookup), but for user-facing clusters today no dataset can exist, so the omission
-            // is accurate. Update this message when the dataset CRUD feature ships.
+            // This message deliberately does not enumerate "dataset": datasets are not yet user-visible (no
+            // CRUD API). The lookup does detect dataset collisions — the dataset name surfaces via the wrapper
+            // InvalidAliasNameException — but the description string stays neutral until datasets ship.
+            // Update here when the dataset CRUD feature lands (elastic/esql-planning#479).
             throw new InvalidAliasNameException(alias, "an index, data stream, or ESQL view exists with the same name as the alias");
         }
     }

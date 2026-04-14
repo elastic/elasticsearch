@@ -89,6 +89,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
+        // Datasets carry no secrets (credentials live on the parent data source), so full API exposure is intentional.
         return Metadata.ALL_CONTEXTS;
     }
 

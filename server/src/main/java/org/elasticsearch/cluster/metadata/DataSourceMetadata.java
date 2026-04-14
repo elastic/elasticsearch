@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Encapsulates dataSource definitions as custom metadata inside ProjectMetadata within cluster state.
+ * Encapsulates data source definitions as custom metadata inside ProjectMetadata within cluster state.
  */
 public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
@@ -53,13 +53,13 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
      */
     static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
 
-    private static final ParseField DATASOURCES = new ParseField("dataSources");
+    private static final ParseField DATA_SOURCES = new ParseField("data_sources");
 
     private final Map<String, DataSource> dataSources;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataSourceMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "datasource_metadata",
+        "data_source_metadata",
         true,
         (args, ctx) -> new DataSourceMetadata((Map<String, DataSource>) args[0])
     );
@@ -72,7 +72,7 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
                 dataSources.put(name, DataSource.fromXContent(p));
             }
             return dataSources;
-        }, DATASOURCES);
+        }, DATA_SOURCES);
     }
 
     public static DataSourceMetadata fromXContent(XContentParser parser) throws IOException {
@@ -120,7 +120,7 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentObjectFields(DATASOURCES.getPreferredName(), dataSources);
+        return ChunkedToXContentHelper.xContentObjectFields(DATA_SOURCES.getPreferredName(), dataSources);
     }
 
     @Override

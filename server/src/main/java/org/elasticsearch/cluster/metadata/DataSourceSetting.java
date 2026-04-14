@@ -41,7 +41,7 @@ import java.util.Objects;
  * </ul>
  *
  * <p><b>Encryption contract.</b> The {@code value} field is always plaintext in memory. The four
- * touch points marked {@code // ENCRYPTION BOUNDARY} below — {@link #writeTo}, {@link #toXContent},
+ * touch points marked {@code // TODO(encryption)} below — {@link #writeTo}, {@link #toXContent},
  * the {@link #DataSourceSetting(StreamInput) StreamInput constructor}, and {@link #fromXContent} —
  * are where the encryption layer wires in. Read accessors remain pure in-memory plaintext readers.
  */
@@ -84,14 +84,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        // ENCRYPTION BOUNDARY
+        // TODO(encryption): decrypt secret values on read.
         this.value = in.readGenericValue();
         this.secret = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // ENCRYPTION BOUNDARY
+        // TODO(encryption): encrypt secret values on write.
         out.writeGenericValue(value);
         out.writeBoolean(secret);
     }
@@ -127,13 +127,13 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public static DataSourceSetting fromXContent(XContentParser parser) throws IOException {
-        // ENCRYPTION BOUNDARY
+        // TODO(encryption): parse and decrypt the encrypted representation for secret values.
         return PARSER.parse(parser, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // ENCRYPTION BOUNDARY
+        // TODO(encryption): emit the encrypted representation for secret values.
         builder.startObject();
         builder.field(VALUE.getPreferredName(), value);
         builder.field(SECRET.getPreferredName(), secret);

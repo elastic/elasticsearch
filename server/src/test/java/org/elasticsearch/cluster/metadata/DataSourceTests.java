@@ -55,7 +55,7 @@ public class DataSourceTests extends ESTestCase {
         assertEquals("us-east-1", plain.get("region"));
     }
 
-    public void testToMaskedMap() {
+    public void testToPresentationMap() {
         var dataSource = new DataSource(
             "my-s3",
             "s3",

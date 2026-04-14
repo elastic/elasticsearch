@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -15,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
@@ -24,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -32,6 +36,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -44,6 +49,17 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     public static final String INDEX_NAME = "test-index";
     private static final String SPARSE_INFERENCE_ID = "sparse-endpoint";
     private static final String DENSE_INFERENCE_ID = "dense-endpoint";
+
+    private final boolean useLegacyFormat;
+
+    public ShardBulkInferenceActionFilterBasicLicenseIT(boolean useLegacyFormat) {
+        this.useLegacyFormat = useLegacyFormat;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Before
     public void setup() throws Exception {
@@ -71,8 +87,22 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     }
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // For setting index version
+        return false;
+    }
+
+    @Override
     public Settings indexSettings() {
-        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).build();
+        var settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true));
+
+        if (useLegacyFormat) {
+            settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
+        }
+
+        return settingsBuilder.build();
     }
 
     public void testLicenseInvalidForInference() {

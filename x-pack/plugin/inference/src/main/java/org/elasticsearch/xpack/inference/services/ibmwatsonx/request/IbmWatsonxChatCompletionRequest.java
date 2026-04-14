@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -31,7 +32,7 @@ public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -43,7 +44,7 @@ public class IbmWatsonxChatCompletionRequest implements IbmWatsonxRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

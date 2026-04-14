@@ -53,11 +53,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestMultiSearchAction(
+        Settings settings,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

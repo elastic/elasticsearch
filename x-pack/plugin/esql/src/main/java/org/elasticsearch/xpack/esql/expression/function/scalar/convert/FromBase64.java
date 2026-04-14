@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -41,6 +42,7 @@ public class FromBase64 extends UnaryScalarFunction {
         "FromBase64",
         FromBase64::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FromBase64.class).unary(FromBase64::new).name("from_base64");
 
     @FunctionInfo(
         returnType = "keyword",
@@ -100,7 +102,7 @@ public class FromBase64 extends UnaryScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> new FromBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

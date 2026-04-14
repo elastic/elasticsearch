@@ -36,18 +36,13 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopLongLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopLongLongAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopLongLongAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopLongLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopLongLongAggregatorFunction(driverContext, channels, TopLongLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopLongLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -75,11 +70,35 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
     LongVector outputValueVector = outputValueBlock.asVector();
     if (outputValueVector == null) {
+      if (outputValueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
@@ -91,11 +110,35 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock);
       return;
     }
     LongVector outputValueVector = outputValueBlock.asVector();
     if (outputValueVector == null) {
+      if (outputValueBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, outputValueBlock);
       return;
     }
@@ -178,12 +221,30 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block topUncast = page.getBlock(channels.get(0));
     if (topUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongBlock top = (LongBlock) topUncast;
     assert top.getPositionCount() == 1;
     Block outputUncast = page.getBlock(channels.get(1));
     if (outputUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongBlock output = (LongBlock) outputUncast;

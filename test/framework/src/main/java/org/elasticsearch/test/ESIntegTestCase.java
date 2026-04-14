@@ -921,7 +921,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
-        safeAwait(listener);
+        safeAwait(listener, TimeValue.timeValueSeconds(30));
         final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
@@ -1078,6 +1078,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+    public ClusterHealthStatus ensureGreenAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), true, indices);
     }
 
     /**

@@ -17,14 +17,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 // copied from x-pack to server module
-public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
+public class ThrowingQueryBuilder extends LeafQueryBuilder<ThrowingQueryBuilder> {
     public static final String NAME = "throw";
 
     private final long randomUID;

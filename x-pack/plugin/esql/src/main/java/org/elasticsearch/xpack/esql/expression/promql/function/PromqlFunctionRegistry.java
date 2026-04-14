@@ -86,6 +86,22 @@ import java.util.Set;
  */
 public class PromqlFunctionRegistry {
 
+    /**
+     * Describes whether a PromQL function supports counter metric types.
+     * <p>
+     * This is an ES|QL implementation detail — in real PromQL, all functions work with any numeric type.
+     * ES|QL distinguishes counter types from plain numerics internally, and some ESQL functions only
+     * accept one or the other.
+     */
+    public enum CounterSupport {
+        /** Only accepts counter types (e.g., rate, increase, irate). */
+        REQUIRED,
+        /** Accepts both counter and non-counter types. */
+        SUPPORTED,
+        /** Only accepts non-counter numeric types. */
+        UNSUPPORTED
+    }
+
     // Common parameter definitions
     private static final ParamInfo RANGE_VECTOR = ParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
     private static final ParamInfo INSTANT_VECTOR = ParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
@@ -105,104 +121,121 @@ public class PromqlFunctionRegistry {
             "delta",
             Delta::new,
             "Calculates the difference between the first and last value of each time series in a range vector.",
-            "delta(cpu_temp_celsius[2h])"
+            "delta(cpu_temp_celsius[2h])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeries(
             "idelta",
             Idelta::new,
             "Calculates the difference between the last two samples of each time series in a range vector.",
-            "idelta(cpu_temp_celsius[5m])"
+            "idelta(cpu_temp_celsius[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeries(
             "increase",
             Increase::new,
             "Calculates the increase in the time series in the range vector, adjusting for counter resets.",
-            "increase(http_requests_total[5m])"
+            "increase(http_requests_total[5m])",
+            CounterSupport.REQUIRED
         ),
         withinSeries(
             "irate",
             Irate::new,
             "Calculates the per-second instant rate of increase based on the last two data points.",
-            "irate(http_requests_total[5m])"
+            "irate(http_requests_total[5m])",
+            CounterSupport.REQUIRED
         ),
         withinSeries(
             "rate",
             Rate::new,
             "Calculates the per-second average rate of increase of the time series in the range vector.",
-            "rate(http_requests_total[5m])"
+            "rate(http_requests_total[5m])",
+            CounterSupport.REQUIRED
         ),
         withinSeries(
             "first_over_time",
             FirstOverTime::new,
             "Returns the first value of each time series in the specified time range.",
-            "first_over_time(http_requests_total[1h])"
+            "first_over_time(http_requests_total[1h])",
+            CounterSupport.SUPPORTED
         ),
         withinSeries(
             "last_over_time",
             LastOverTime::new,
             "Returns the most recent value of each time series in the specified time range.",
-            "last_over_time(http_requests_total[1h])"
+            "last_over_time(http_requests_total[1h])",
+            CounterSupport.SUPPORTED
         ),
         withinSeries(
             "deriv",
             Deriv::new,
             "Calculates the per-second derivative of the time series using simple linear regression.",
-            "deriv(node_memory_free_bytes[5m])"
+            "deriv(node_memory_free_bytes[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         //
         withinSeriesOverTimeUnary(
             "avg_over_time",
             AvgOverTime::new,
             "Returns the average value of all points in the specified time range.",
-            "avg_over_time(http_requests_total[5m])"
+            "avg_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "count_over_time",
             CountOverTime::new,
             "Returns the count of all values in the specified time range.",
-            "count_over_time(http_requests_total[5m])"
+            "count_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "max_over_time",
             MaxOverTime::new,
             "Returns the maximum value of all points in the specified time range.",
-            "max_over_time(http_requests_total[5m])"
+            "max_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "min_over_time",
             MinOverTime::new,
             "Returns the minimum value of all points in the specified time range.",
-            "min_over_time(http_requests_total[5m])"
+            "min_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "sum_over_time",
             SumOverTime::new,
             "Returns the sum of all values in the specified time range.",
-            "sum_over_time(http_requests_total[5m])"
+            "sum_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "stddev_over_time",
             StddevOverTime::new,
             "Returns the population standard deviation of the values in the specified time range.",
-            "stddev_over_time(http_requests_total[5m])"
+            "stddev_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "stdvar_over_time",
             VarianceOverTime::new,
             "Returns the population standard variance of the values in the specified time range.",
-            "stdvar_over_time(http_requests_total[5m])"
+            "stdvar_over_time(http_requests_total[5m])",
+            CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "absent_over_time",
             AbsentOverTime::new,
             "Returns 1 if the range vector has no elements, otherwise returns an empty vector.",
-            "absent_over_time(nonexistent_metric[5m])"
+            "absent_over_time(nonexistent_metric[5m])",
+            CounterSupport.SUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "present_over_time",
             PresentOverTime::new,
             "Returns 1 if the range vector has any elements, otherwise returns an empty vector.",
-            "present_over_time(http_requests_total[5m])"
+            "present_over_time(http_requests_total[5m])",
+            CounterSupport.SUPPORTED
         ),
         //
         withinSeriesOverTimeBinary(
@@ -210,7 +243,8 @@ public class PromqlFunctionRegistry {
             PercentileOverTime::new,
             "Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.",
             List.of(QUANTILE, RANGE_VECTOR),
-            "quantile_over_time(0.5, http_requests_total[1h])"
+            "quantile_over_time(0.5, http_requests_total[1h])",
+            CounterSupport.UNSUPPORTED
         ),
         //
         acrossSeriesUnary("avg", Avg::new, "Calculates the average of the values across the input vector.", "avg(http_requests_total)"),
@@ -495,7 +529,8 @@ public class PromqlFunctionRegistry {
         EsqlFunctionBuilder esqlBuilder,
         String description,
         List<ParamInfo> params,
-        List<String> examples
+        List<String> examples,
+        CounterSupport counterSupport
     ) {
         public FunctionDefinition {
             Objects.requireNonNull(name, "name cannot be null");
@@ -505,6 +540,7 @@ public class PromqlFunctionRegistry {
             Objects.requireNonNull(description, "description cannot be null");
             Objects.requireNonNull(params, "params cannot be null");
             Objects.requireNonNull(examples, "examples cannot be null");
+            Objects.requireNonNull(counterSupport, "counterSupport cannot be null");
             if (arity.max() != params.size()) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -567,7 +603,13 @@ public class PromqlFunctionRegistry {
         Expression build(Source source);
     }
 
-    private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder, String description, String example) {
+    private static FunctionDefinition withinSeries(
+        String name,
+        WithinSeries<?> builder,
+        String description,
+        String example,
+        CounterSupport counterSupport
+    ) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
@@ -575,11 +617,18 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target, ctx.window(), ctx.timestamp()),
             description,
             List.of(RANGE_VECTOR),
-            List.of(example)
+            List.of(example),
+            counterSupport
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTimeUnary(String name, OverTime<?> builder, String description, String example) {
+    private static FunctionDefinition withinSeriesOverTimeUnary(
+        String name,
+        OverTime<?> builder,
+        String description,
+        String example,
+        CounterSupport counterSupport
+    ) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
@@ -587,7 +636,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target, Literal.TRUE, ctx.window()),
             description,
             List.of(RANGE_VECTOR),
-            List.of(example)
+            List.of(example),
+            counterSupport
         );
     }
 
@@ -596,12 +646,13 @@ public class PromqlFunctionRegistry {
         OverTimeBinary<?> builder,
         String description,
         List<ParamInfo> params,
-        String example
+        String example,
+        CounterSupport counterSupport
     ) {
         return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
             Expression param = extraParams.getFirst();
             return builder.build(source, target, Literal.TRUE, ctx.window(), param);
-        }, description, params, List.of(example));
+        }, description, params, List.of(example), counterSupport);
     }
 
     private static FunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder, String description, String example) {
@@ -612,7 +663,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
-            List.of(example)
+            List.of(example),
+            CounterSupport.UNSUPPORTED
         );
     }
 
@@ -626,7 +678,7 @@ public class PromqlFunctionRegistry {
         return new FunctionDefinition(name, FunctionType.ACROSS_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
             Expression param = extraParams.getFirst();
             return builder.build(source, target, Literal.TRUE, ctx.window(), param);
-        }, description, params, List.of(example));
+        }, description, params, List.of(example), CounterSupport.UNSUPPORTED);
     }
 
     private static FunctionDefinition valueTransformationFunction(
@@ -642,7 +694,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
-            List.of(example)
+            List.of(example),
+            CounterSupport.UNSUPPORTED
         );
     }
 
@@ -660,7 +713,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0)),
             description,
             params,
-            List.of(example)
+            List.of(example),
+            CounterSupport.UNSUPPORTED
         );
     }
 
@@ -678,7 +732,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1)),
             description,
             params,
-            List.of(example)
+            List.of(example),
+            CounterSupport.UNSUPPORTED
         );
     }
 
@@ -696,7 +751,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.isEmpty() ? null : extraParams.getFirst()),
             description,
             params,
-            List.of(example)
+            List.of(example),
+            CounterSupport.UNSUPPORTED
         );
     }
 
@@ -708,7 +764,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> target,
             description,
             List.of(SCALAR),
-            List.of(example)
+            List.of(example),
+            CounterSupport.SUPPORTED
         );
     }
 
@@ -720,7 +777,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> new Scalar(source, target),
             description,
             List.of(INSTANT_VECTOR),
-            List.of(example)
+            List.of(example),
+            CounterSupport.SUPPORTED
         );
     }
 
@@ -732,7 +790,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source),
             description,
             List.of(),
-            List.of(example)
+            List.of(example),
+            CounterSupport.SUPPORTED
         );
     }
 
@@ -754,7 +813,8 @@ public class PromqlFunctionRegistry {
             (source, target, ctx, extraParams) -> builder.build(source, ctx.step()),
             description,
             List.of(),
-            List.of(example)
+            List.of(example),
+            CounterSupport.SUPPORTED
         );
     }
 

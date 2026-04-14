@@ -9,15 +9,14 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
 versions << [
-  'hadoop' : '3.4.2',
-  'orc'    : '2.2.2',
+  'hadoop' : '3.4.3',
 ]
 
 esplugin {
   name = 'esql-datasource-orc'
   description = 'ORC format support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.orc.OrcDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {
@@ -33,6 +32,13 @@ dependencies {
 
   implementation("org.apache.orc:orc-core:${versions.orc}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
+    // Compression libraries provided by esql-datasource-compression-libs parent plugin or server
+    exclude group: 'io.airlift', module: 'aircompressor'
+    exclude group: 'com.github.luben', module: 'zstd-jni'
+    exclude group: 'org.xerial.snappy', module: 'snappy-java'
+    // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
+    exclude group: 'at.yawk.lz4', module: 'lz4-java'
+    exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
   }
 
   // Hive storage API - provides VectorizedRowBatch and ColumnVector classes used by ORC's
@@ -46,10 +52,10 @@ dependencies {
 
   // Hadoop dependencies - required because ORC's Reader API uses Hadoop Configuration,
   // Path, and FileSystem in its public interfaces.
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.2') {
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2') {
+  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
 
@@ -58,7 +64,16 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // At runtime these are provided by esql-datasource-compression-libs parent plugin;
+  // at test time we need them explicitly since there's no parent plugin classloader.
+  // lz4-java is already on the test classpath via server → libs/lz4.
+  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 }
+
+// Compression libraries (aircompressor, zstd-jni, snappy-java) are provided by
+// esql-datasource-compression-libs parent plugin; lz4-java by the server (libs/lz4).
 
 tasks.named("javadoc").configure {
   // ORC/Hadoop dependency tree causes javadoc issues (unnamed vs named module conflicts)
@@ -70,12 +85,8 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: /orc-.*/, to: 'orc'
   mapping from: /hadoop-.*/, to: 'hadoop'
   mapping from: /hive-.*/, to: 'orc'
-  mapping from: /aircompressor-.*/, to: 'orc'
   mapping from: /threeten-extra-.*/, to: 'orc'
   mapping from: /protobuf-.*/, to: 'orc'
-  mapping from: /brotli4j-.*/, to: 'orc'
-  mapping from: /service-.*/, to: 'orc'
-  mapping from: /zstd-jni-.*/, to: 'orc'
   mapping from: /jts-core-.*/, to: 'orc'
 }
 
@@ -98,7 +109,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
@@ -144,19 +154,11 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
     // Hadoop thirdparty Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
     'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     // Protobuf uses sun.misc.Unsafe
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil',

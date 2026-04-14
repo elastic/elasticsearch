@@ -33,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
@@ -64,8 +65,8 @@ public class MlModelServer implements TestRule {
         return restClient.performRequest(request);
     }
 
-    private String getUrl() {
-        return new URIBuilder().setScheme("http").setHost(HOST).setPort(port).toString();
+    private String getUrl() throws IOException {
+        return new URIBuilder().setScheme("http").setHost(InetAddress.getByName(HOST).getHostAddress()).setPort(port).toString();
     }
 
     private void handle(HttpExchange exchange) throws IOException {

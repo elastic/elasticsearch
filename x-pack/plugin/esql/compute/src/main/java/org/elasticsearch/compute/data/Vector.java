@@ -106,6 +106,18 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     void allowPassingToDifferentDriver();
 
     /**
+     * Return a subset of this {@link Vector} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    Vector slice(int beginInclusive, int endExclusive);
+
+    /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
      * likely copying all data.
      */

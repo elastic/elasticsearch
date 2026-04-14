@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.SequencedMap;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -39,7 +39,7 @@ public class UriParts extends CompoundOutputEval<UriParts> {
      * @return the logical plan
      */
     public static UriParts createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
-        LinkedHashMap<String, Class<?>> functionOutputFields = UriPartsFunctionBridge.getAllOutputFields();
+        SequencedMap<String, Class<?>> functionOutputFields = UriPartsFunctionBridge.getAllOutputFields();
         List<String> outputFileNames = functionOutputFields.keySet().stream().toList();
         List<Attribute> outputFieldAttributes = computeOutputAttributes(functionOutputFields, outputFieldPrefix.name(), source);
         return new UriParts(source, child, input, outputFileNames, outputFieldAttributes);

@@ -31,13 +31,13 @@ public final class AllFirstDoubleByIntAggregatorFunctionSupplier implements Aggr
   @Override
   public AllFirstDoubleByIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllFirstDoubleByIntAggregatorFunction.create(driverContext, channels);
+    return new AllFirstDoubleByIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllFirstDoubleByIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllFirstDoubleByIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllFirstDoubleByIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

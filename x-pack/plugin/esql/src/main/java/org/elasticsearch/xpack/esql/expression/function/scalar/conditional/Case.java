@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -49,6 +50,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class).unaryVariadic(Case::new).name("case");
 
     record Condition(Expression condition, Expression value) {
         ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
@@ -86,7 +88,8 @@ public final class Case extends EsqlScalarFunction {
             "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
-            belongs to the first condition that evaluates to `true`.
+            belongs to the first condition that evaluates to `true`. Both the conditions
+            and the returned values can be any expression, including column references.
 
             If the number of arguments is odd, the last argument is the default value which
             is returned when no condition matches. If the number of arguments is even, and
@@ -102,6 +105,11 @@ public final class Case extends EsqlScalarFunction {
                 description = "Calculate an hourly error rate as a percentage of the total number of log messages:",
                 file = "conditional",
                 tag = "docsCaseHourlyErrorRate"
+            ),
+            @Example(
+                description = "Extract error messages and count distinct ones using a column expression:",
+                file = "conditional",
+                tag = "docsCaseColumnExpression"
             ) }
     )
     public Case(
@@ -133,8 +141,8 @@ public final class Case extends EsqlScalarFunction {
                 "unsigned_long",
                 "version",
                 "exponential_histogram" },
-            description = "The value that’s returned when the corresponding condition is the first to evaluate to `true`. "
-                + "The default value is returned when no condition matches."
+            description = "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. "
+                + "Can be a column reference or any other expression. The default value is returned when no condition matches."
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());

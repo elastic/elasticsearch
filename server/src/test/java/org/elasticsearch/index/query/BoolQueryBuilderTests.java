@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -728,7 +729,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return expectedPrefilters;
     }
 
-    private static final class TestAutoPrefilteringQueryBuilder extends AbstractQueryBuilder<TestAutoPrefilteringQueryBuilder> {
+    private static final class TestAutoPrefilteringQueryBuilder extends LeafQueryBuilder<TestAutoPrefilteringQueryBuilder> {
 
         Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap;
 
@@ -747,7 +748,27 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
             prefiltersToQueryNameMap.put(queryName(), context.autoPrefilteringScope().getPrefilters().stream().collect(Collectors.toSet()));
-            return Queries.ALL_DOCS_INSTANCE;
+            return new Query() {
+                @Override
+                public String toString(String field) {
+                    return "";
+                }
+
+                @Override
+                public void visit(QueryVisitor visitor) {
+                    visitor.visitLeaf(this);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return false;
+                }
+
+                @Override
+                public int hashCode() {
+                    return 0;
+                }
+            };
         }
 
         @Override

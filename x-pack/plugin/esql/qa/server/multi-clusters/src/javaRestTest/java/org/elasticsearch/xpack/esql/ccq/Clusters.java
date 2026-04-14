@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.ccq;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 
+import java.nio.file.Path;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -20,7 +23,7 @@ public class Clusters {
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
+    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -30,6 +33,8 @@ public class Clusters {
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
@@ -38,6 +43,10 @@ public class Clusters {
             cluster.setting(entry.getKey(), entry.getValue());
         }
         return cluster.build();
+    }
+
+    static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings);
     }
 
     public static ElasticsearchCluster remoteCluster() {
@@ -52,11 +61,28 @@ public class Clusters {
         return localCluster(remoteCluster, true, additionalSettings);
     }
 
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
+        ElasticsearchCluster remoteCluster,
+        Map<String, String> additionalSettings
+    ) {
+        return localCluster(csvDataPath, remoteCluster, true, additionalSettings);
+    }
+
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
         return localCluster(remoteCluster, skipUnavailable, null);
     }
 
     public static ElasticsearchCluster localCluster(
+        ElasticsearchCluster remoteCluster,
+        Boolean skipUnavailable,
+        Map<String, String> additionalSettings
+    ) {
+        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        Path csvDataPath,
         ElasticsearchCluster remoteCluster,
         Boolean skipUnavailable,
         Map<String, String> additionalSettings
@@ -73,6 +99,8 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
@@ -122,7 +150,10 @@ public class Clusters {
 
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
-        return val != null ? Version.fromString(val) : Version.CURRENT;
+        if (val == null) {
+            throw new IllegalStateException("System property [" + key + "] is required but not set");
+        }
+        return Version.fromString(val);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

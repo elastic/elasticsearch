@@ -9,16 +9,28 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+
 import java.util.Locale;
 
 public enum SimilarityMeasure {
-    COSINE,
-    DOT_PRODUCT,
-    L2_NORM;
+    COSINE(DenseVectorFieldMapper.VectorSimilarity.COSINE),
+    DOT_PRODUCT(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT),
+    L2_NORM(DenseVectorFieldMapper.VectorSimilarity.L2_NORM),;
+
+    private final DenseVectorFieldMapper.VectorSimilarity vectorSimilarity;
+
+    SimilarityMeasure(DenseVectorFieldMapper.VectorSimilarity vectorSimilarity) {
+        this.vectorSimilarity = vectorSimilarity;
+    }
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public DenseVectorFieldMapper.VectorSimilarity vectorSimilarity() {
+        return vectorSimilarity;
     }
 
     public static SimilarityMeasure fromString(String name) {

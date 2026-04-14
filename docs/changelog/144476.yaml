@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144476
+summary: Add anonymous GCS access via auth=none
+type: enhancement

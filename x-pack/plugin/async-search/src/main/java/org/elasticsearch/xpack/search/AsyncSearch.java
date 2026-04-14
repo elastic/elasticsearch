@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -44,9 +43,12 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         RestController restController = restHandlersServices.restController();
-        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings),
+            new RestSubmitAsyncSearchAction(
+                restController.getSearchUsageHolder(),
+                clusterSupportsFeature,
+                restHandlersServices.crossProjectModeDecider()
+            ),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

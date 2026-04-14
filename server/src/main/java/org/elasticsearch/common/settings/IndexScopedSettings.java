@@ -30,6 +30,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -164,6 +165,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
+                IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
@@ -239,6 +241,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
+                IndexSettings.SYNTHETIC_ID,
+                SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.MAX_SIZE,
+                SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -251,14 +261,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.SYNTHETIC_ID);
-        }
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
-            settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
-        }
-        if (IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()) {
-            settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
+        settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

@@ -120,11 +120,15 @@ public class StoragePathTests extends ESTestCase {
         assertEquals("/C:/path/to/file.parquet", path.path());
     }
 
-    public void testFileUriFunctionOnUnix() {
+    public void testFileUriFunction() {
         java.nio.file.Path p = PathUtils.get("/tmp/test/data.parquet");
         String uri = StoragePath.fileUri(p);
-        assertEquals("file:///tmp/test/data.parquet", uri);
+        String absPath = p.toAbsolutePath().toString().replace('\\', '/');
+        if (absPath.startsWith("/") == false) {
+            absPath = "/" + absPath;
+        }
+        assertEquals("file://" + absPath, uri);
         StoragePath sp = StoragePath.of(uri);
-        assertEquals("/tmp/test/data.parquet", sp.path());
+        assertEquals(absPath, sp.path());
     }
 }

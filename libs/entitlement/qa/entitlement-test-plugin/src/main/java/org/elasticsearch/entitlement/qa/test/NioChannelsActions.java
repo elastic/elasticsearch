@@ -17,6 +17,7 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.spi.SelectorProvider;
@@ -34,22 +35,22 @@ class NioChannelsActions {
         new DummyImplementations.DummyFileChannel().close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void fileChannelOpenForWrite() throws IOException {
         FileChannel.open(FileCheckActions.readWriteFile(), StandardOpenOption.WRITE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void fileChannelOpenForRead() throws IOException {
         FileChannel.open(FileCheckActions.readFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void fileChannelOpenForWriteWithOptions() throws IOException {
         FileChannel.open(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE)).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void fileChannelOpenForReadWithOptions() throws IOException {
         FileChannel.open(FileCheckActions.readFile(), Set.of(StandardOpenOption.READ)).close();
     }
@@ -59,37 +60,37 @@ class NioChannelsActions {
         new DummyImplementations.DummyAsynchronousFileChannel().close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousFileChannelOpenForWrite() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         AsynchronousFileChannel.open(file, StandardOpenOption.WRITE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousFileChannelOpenForRead() throws IOException {
         var file = EntitledActions.createTempFileForRead();
         AsynchronousFileChannel.open(file).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousFileChannelOpenForWriteWithOptions() throws IOException {
         var file = EntitledActions.createTempFileForWrite();
         AsynchronousFileChannel.open(file, Set.of(StandardOpenOption.WRITE), EsExecutors.DIRECT_EXECUTOR_SERVICE).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousFileChannelOpenForReadWithOptions() throws IOException {
         var file = EntitledActions.createTempFileForRead();
         AsynchronousFileChannel.open(file, Set.of(StandardOpenOption.READ), EsExecutors.DIRECT_EXECUTOR_SERVICE).close();
     }
 
     @SuppressForbidden(reason = "specifically testing jdk.nio.Channels")
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void channelsReadWriteSelectableChannel() throws IOException {
         jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new DummyImplementations.DummySelectableChannelCloser()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterConnect() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);
@@ -97,7 +98,7 @@ class NioChannelsActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterAccept() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);

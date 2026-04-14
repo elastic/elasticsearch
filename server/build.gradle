@@ -37,6 +37,7 @@ dependencies {
   api project(":libs:plugin-api")
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
+  api project(':libs:user-agent-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")

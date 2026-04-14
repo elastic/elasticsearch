@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
+public class FieldMaskingSpanQueryBuilder extends LeafQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final ParseField NAME = new ParseField("span_field_masking", "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");

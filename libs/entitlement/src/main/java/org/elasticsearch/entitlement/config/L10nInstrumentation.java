@@ -71,8 +71,8 @@ public class L10nInstrumentation implements InstrumentationConfig {
         builder.on(Locale.class, rule -> {
             rule.callingVoidStatic(Locale::setDefault, Locale.Category.class, Locale.class)
                 .enforce(Policies::changeJvmGlobalState)
-                .elseThrowNotEntitled();
-            rule.callingVoidStatic(Locale::setDefault, Locale.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+                .elseReturnEarly();
+            rule.callingVoidStatic(Locale::setDefault, Locale.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
         });
     }
 }

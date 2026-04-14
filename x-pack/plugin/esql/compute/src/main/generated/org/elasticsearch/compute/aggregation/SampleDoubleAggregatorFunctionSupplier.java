@@ -34,13 +34,13 @@ public final class SampleDoubleAggregatorFunctionSupplier implements AggregatorF
   @Override
   public SampleDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleDoubleAggregatorFunction.create(driverContext, channels, limit);
+    return new SampleDoubleAggregatorFunction(driverContext, channels, limit);
   }
 
   @Override
   public SampleDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleDoubleGroupingAggregatorFunction.create(channels, driverContext, limit);
+    return new SampleDoubleGroupingAggregatorFunction(channels, driverContext, limit);
   }
 
   @Override

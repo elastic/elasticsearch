@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
@@ -90,15 +90,19 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
-            boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
-                a -> a instanceof TimeSeriesAggregate ts
-                    && ts.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
-                    && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute)
-            );
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection.
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+                && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute);
             // Query approximation can add columns to the output with the confidence intervals.
-            boolean hasQueryApproximationAddingColumns = optimizedPlan.anyMatch(plan -> plan instanceof SampledAggregate)
-                && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()));
+            boolean hasQueryApproximationAddingColumns = optimizedPlan.output().size() > expectedOutputAttributes.size()
+                && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()))
+                && optimizedPlan.output()
+                    .subList(expectedOutputAttributes.size(), optimizedPlan.output().size())
+                    .stream()
+                    .allMatch(
+                        a -> a.name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX)
+                            || a.name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX)
+                    );
 
             boolean ignoreError = hasProjectAwayColumns
                 || hasLookupJoinExec

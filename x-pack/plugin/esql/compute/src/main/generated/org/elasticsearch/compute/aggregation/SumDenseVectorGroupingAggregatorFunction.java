@@ -39,17 +39,12 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  public SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
-      SumDenseVectorGroupingState state, DriverContext driverContext) {
+  SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext) {
     this.warnings = warnings;
     this.channels = channels;
-    this.state = state;
+    this.state = SumDenseVectorAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static SumDenseVectorGroupingAggregatorFunction create(Warnings warnings,
-      List<Integer> channels, DriverContext driverContext) {
-    return new SumDenseVectorGroupingAggregatorFunction(warnings, channels, SumDenseVectorAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,6 +60,15 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, vectorBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
@@ -117,11 +121,29 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
     Block failedUncast = page.getBlock(channels.get(1));
     if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
@@ -169,11 +191,29 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
     Block failedUncast = page.getBlock(channels.get(1));
     if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
@@ -214,11 +254,29 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
     assert channels.size() == intermediateBlockCount();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
     Block failedUncast = page.getBlock(channels.get(1));
     if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
@@ -232,6 +290,11 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, FloatBlock vectorBlock) {
     if (vectorBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -242,14 +305,24 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SumDenseVectorAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SumDenseVectorAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

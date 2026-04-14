@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144057
+summary: "Allow TBUCKET to skip the from/to parameters when Kibana adds a timestamp range filter. Exmaple: `TBUCKET(100)`"
+type: enhancement

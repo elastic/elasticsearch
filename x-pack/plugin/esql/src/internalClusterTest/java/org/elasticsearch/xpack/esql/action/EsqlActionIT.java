@@ -96,7 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -2214,6 +2214,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Normalize source position references like @1:19 or @_:19
             .replaceAll("@\\d+:\\d+", "@_:_")
             .replaceAll("@_:\\d+", "@_:_")
+            // Normalize source text (may be absent when query is null, e.g. PreparedEsqlQueryRequest)
+            .replaceAll("(\"source\":\"?)[^@\"]*(@_:_)", "$1$2")
             // Remove memory addresses
             .replaceAll("@[0-9a-f]+", "@_")
             // Remove UUIDs
@@ -2522,7 +2524,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      */
     public void testExplainWithApproximation() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
-        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V2.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V6.isEnabled());
 
         String indexName = "explain_approximation_test";
 
@@ -2651,6 +2653,52 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             } catch (Exception e) {
                 // ignore
             }
+        }
+    }
+
+    /**
+     * Verifies that unmapped fields are loaded from _source (not replaced with constant nulls) when shards are processed one at a time.
+     * Reproducer for a bug where single-shard concurrency causes potentiallyUnmappedExpression to be lost during shard-level planning,
+     * resulting in null values instead of the actual _source values for unmapped fields.
+     */
+    public void testUnmappedFieldsLoadWithSingleShardConcurrency() {
+        assumeTrue("requires pragmas, which are disabled on non-SNAPSHOT builds", Build.current().isSnapshot());
+        assertAcked(prepareCreate("test_mapped").setMapping("event_duration", "type=long"));
+        assertAcked(prepareCreate("test_unmapped").setMapping("""
+            {"dynamic": false, "properties": {}}"""));
+
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(prepareIndex("test_mapped").setSource(Map.of("event_duration", 100)))
+            .add(prepareIndex("test_mapped").setSource(Map.of("event_duration", 200)))
+            .add(prepareIndex("test_unmapped").setSource(Map.of("event_duration", 10)))
+            .add(prepareIndex("test_unmapped").setSource(Map.of("event_duration", 20)))
+            .get();
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest("""
+            SET unmapped_fields="load";
+            FROM test_mapped, test_unmapped METADATA _index
+            | EVAL event_duration = event_duration::long
+            | KEEP _index, event_duration
+            | SORT _index, event_duration""").pragmas(pragmas))) {
+
+            assertThat(
+                resp.columns(),
+                equalTo(List.of(new ColumnInfoImpl("_index", "keyword", null), new ColumnInfoImpl("event_duration", "long", null)))
+            );
+
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("test_mapped", 100L),
+                        List.of("test_mapped", 200L),
+                        List.of("test_unmapped", 10L),
+                        List.of("test_unmapped", 20L)
+                    )
+                )
+            );
         }
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
@@ -45,7 +46,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, input, null, null, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -73,7 +74,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, input, autoTruncate, null, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -110,7 +111,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequestWithDimensions(model, input, 10, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -147,7 +148,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithoutUnspecified();
 
         var request = createRequest(model, input, null, inputType, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -175,7 +176,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
 
         var request = createRequest(model, input, null, taskSettingsInputType, requestInputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -209,7 +210,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
 
         var request = createRequest(model, input, null, null, inputType);
         var truncatedRequest = request.truncate();
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

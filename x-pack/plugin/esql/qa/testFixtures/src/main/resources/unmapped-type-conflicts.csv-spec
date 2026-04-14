@@ -1351,6 +1351,7 @@ colors              | null
 
 typeConflictDateNanosDateNonExistentNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_nanos, sample_data, colors METADATA _index

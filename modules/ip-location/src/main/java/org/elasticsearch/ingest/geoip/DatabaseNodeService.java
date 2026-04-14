@@ -632,11 +632,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     // --- IpLocationService implementation ---
 
     @Override
-    public IpDataLookup createIpDataLookup(
-        String projectIdStr,
-        String databaseFile,
-        java.util.List<String> propertyNames
-    ) {
+    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, java.util.List<String> propertyNames) {
         ProjectId pid = ProjectId.fromId(projectIdStr);
         DatabaseReaderLazyLoader loader = getDatabaseReaderLazyLoader(pid, databaseFile);
         if (loader == null) {

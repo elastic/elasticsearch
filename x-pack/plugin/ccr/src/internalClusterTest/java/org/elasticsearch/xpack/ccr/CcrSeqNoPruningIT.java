@@ -60,8 +60,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
     }
 
     public void testSeqNoPrunedOnLeaderAfterFollowerCatchesUp() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         final var leaderIndex = randomIdentifier();
         final var followerIndex = "follower-" + leaderIndex;
         final int numberOfShards = 1;
@@ -134,8 +132,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
     }
 
     public void testSeqNoPartiallyRetainedByCcrLease() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         final var leaderIndex = randomIdentifier();
         final var followerIndex = "follower-" + leaderIndex;
         final int numberOfShards = 1;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
@@ -798,6 +799,128 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         LogicalPlan plan = query("FROM wired_otel_*");
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM idx_otel_linux),(FROM idx_otel,idx_otel_linux)")));
+    }
+
+    /**
+     * Reproduces the bug where composing two views that share an underlying index pattern
+     * inside a parent view incorrectly triggers a "circular view reference" error.
+     * The error_triage view uses inline subqueries (FROM (subquery), ...) and one of those
+     * subqueries references svc-auth-* which is also the target of the suspicious_ips view.
+     * Neither view references the other, so there is no circular reference.
+     */
+    public void testFalseCircularReferenceWithSharedWildcardInSubqueries() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Set up concrete indices matching the wildcard patterns
+        addIndex("svc-gateway-logs");
+        addIndex("svc-payments-logs");
+        addIndex("svc-auth-logs");
+
+        // error_triage uses inline subqueries, one of which references svc-auth-*
+        addView(
+            "error_triage",
+            "FROM (FROM svc-gateway-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-payments-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-auth-* | WHERE http_status >= 500 | KEEP @timestamp, http_status)"
+        );
+
+        // suspicious_ips also references svc-auth-* but is a completely separate view
+        addView("suspicious_ips", "FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip");
+
+        // incident_dashboard composes both views — no circular reference exists
+        addView("incident_dashboard", "FROM error_triage, suspicious_ips");
+
+        // This should NOT throw a circular view reference error
+        LogicalPlan result = replaceViews(query("FROM incident_dashboard"));
+        assertNotNull("incident_dashboard should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "incident_dashboard");
+    }
+
+    /**
+     * Tests that composing two views in a parent view does not produce a false circular reference
+     * when a wildcard in one view's subquery happens to match the sibling view's name, provided
+     * the sibling view uses self-exclusion to avoid genuine self-reference.
+     * <p>
+     * Before the fix, the {@code seenViews} set was polluted by sibling view names from the outer
+     * scope, causing the wildcard resolution inside {@code error_view} to see {@code svc-auth-failures}
+     * as already visited even though it was only a sibling, not an ancestor.
+     */
+    public void testFalseCircularReferenceWhenWildcardMatchesSiblingViewName() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("svc-gateway-logs");
+        addIndex("svc-auth-logs");
+
+        // error_view uses inline subqueries, one references svc-auth-*
+        addView(
+            "error_view",
+            "FROM (FROM svc-gateway-* | WHERE http_status >= 500 | KEEP @timestamp, http_status),"
+                + "(FROM svc-auth-* | WHERE http_status >= 500 | KEEP @timestamp, http_status)"
+        );
+
+        // svc-auth-failures is a view whose NAME matches the svc-auth-* pattern.
+        // It self-excludes to avoid genuine self-reference via wildcard.
+        addView("svc-auth-failures", "FROM svc-auth-*,-svc-auth-failures | STATS attempts = COUNT(*) BY source_ip");
+
+        // dashboard composes both views — no circular reference exists
+        addView("dashboard", "FROM error_view, svc-auth-failures");
+
+        // This should NOT throw a circular view reference error
+        LogicalPlan result = replaceViews(query("FROM dashboard"));
+        assertNotNull("dashboard should resolve without circular reference errors", result);
+
+        // The wildcard svc-auth-* inside error_view's subquery matches the view svc-auth-failures,
+        // creating a nested ViewUnionAll inside the pipeline chain. This produces a "nested subqueries"
+        // error — which is the correct behavior (not a false circular reference).
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
+        assertTrue("Expected nested subquery failure", failures.hasFailures());
+        for (Failure failure : failures.failures()) {
+            assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+        }
+    }
+
+    /**
+     * Tests that a view whose name matches its own wildcard pattern IS correctly detected as
+     * a circular self-reference when it does NOT use self-exclusion.
+     */
+    public void testGenuineSelfReferenceViaWildcardInComposedView() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("svc-auth-logs");
+
+        // svc-auth-failures queries FROM svc-auth-* which matches itself — genuine self-reference
+        addView("svc-auth-failures", "FROM svc-auth-* | STATS attempts = COUNT(*) BY source_ip");
+
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM svc-auth-failures")));
+        assertThat(e.getMessage(), containsString("circular view reference 'svc-auth-failures'"));
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/146097">#146097</a>:
+     * a subquery-based view composed with a simple view that shares a wildcard index pattern
+     * incorrectly triggers a "circular view reference" error.
+     * <p>
+     * view_x uses subqueries touching two wildcard patterns. view_y is a simple view on one of
+     * the same patterns. Neither references the other, so composing them in view_xy should not
+     * produce a circular reference error.
+     */
+    public void testFalseCircularReferenceFromSharedWildcardPattern_Issue146097() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("app-events-001");
+        addIndex("auth-events-001");
+
+        // view_x: subqueries touching both patterns
+        addView("view_x", "FROM (FROM app-events-* | KEEP msg, level), (FROM auth-events-* | KEEP msg, level)");
+
+        // view_y: simple view on one of the same patterns
+        addView("view_y", "FROM auth-events-* | KEEP msg, level");
+
+        // Compose both views
+        addView("view_xy", "FROM view_x, view_y");
+
+        // Before the fix this threw: "circular view reference 'view_y': view_xy -> view_x -> view_y"
+        LogicalPlan result = replaceViews(query("FROM view_xy"));
+        assertNotNull("view_xy should resolve without circular reference errors", result);
+        assertNoPlanConsistencyFailures(result, "view_xy");
     }
 
     public void testModifiedViewDepth() {
@@ -1647,6 +1770,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return viewService.withSettings(Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 200).build());
     }
 
+    private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
+        Failures failures = new Failures();
+        Failures depFailures = new Failures();
+        LogicalVerifier.INSTANCE.checkPlanConsistency(plan, failures, depFailures);
+        assertFalse("Plan consistency failures for " + context + ": " + failures, failures.hasFailures());
+    }
+
     private LogicalPlan replaceViews(LogicalPlan plan) {
         return replaceViews(plan, viewResolver);
     }
@@ -1813,6 +1943,31 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             generateCombinations(matchers, size, i + 1, current, result);
             current.removeLast();
         }
+    }
+
+    public void testDeleteMultipleViews() {
+        addView("view1", "FROM emp");
+        addView("view2", "FROM emp");
+        addView("view3", "FROM emp");
+        assertThat(viewService.list(projectId).size(), equalTo(3));
+
+        deleteViews("view1", "view3");
+        assertThat(viewService.list(projectId).size(), equalTo(1));
+        assertNull(viewService.get(projectId, "view1"));
+        assertNotNull(viewService.get(projectId, "view2"));
+        assertNull(viewService.get(projectId, "view3"));
+    }
+
+    public void testDeleteEmptyListIsNoOp() {
+        addView("view1", "FROM emp");
+        deleteViews();
+        assertNotNull(viewService.get(projectId, "view1"));
+    }
+
+    private void deleteViews(String... views) {
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        viewService.deleteViews(projectId, TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, List.of(views), future);
+        assertTrue(future.actionGet().isAcknowledged());
     }
 
     protected LogicalPlan query(String e) {

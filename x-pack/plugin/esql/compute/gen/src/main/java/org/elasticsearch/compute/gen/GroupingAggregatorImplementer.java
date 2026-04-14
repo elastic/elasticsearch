@@ -96,13 +96,15 @@ public class GroupingAggregatorImplementer {
     private final List<Argument> aggParams;
     private final boolean hasOnlyBlockArguments;
     private final boolean allArgumentsSupportVectors;
+    private final boolean processNulls;
 
     public GroupingAggregatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions
+        List<TypeMirror> warnExceptions,
+        boolean processNulls
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -144,6 +146,7 @@ public class GroupingAggregatorImplementer {
 
         this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
         this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
+        this.processNulls = processNulls;
 
         this.createParameters = init.getParameters()
             .stream()
@@ -320,6 +323,21 @@ public class GroupingAggregatorImplementer {
             Argument a = aggParams.get(i);
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
+        if (processNulls == false) {
+            for (Argument a : aggParams) {
+                builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
+                builder.addCode("""
+                    /*
+                     * All values are null so we can skip processing this block. But we
+                     * still need to track that some groups may not have been seen
+                     * so that they are initialized to null when we read their values.
+                     */
+                    """);
+                builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+                builder.addStatement("return null");
+                builder.endControlFlow();
+            }
+        }
 
         String groupIdTrackingStatement = "maybeEnableGroupIdTracking(seenGroupIds, "
             + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
@@ -377,6 +395,13 @@ public class GroupingAggregatorImplementer {
 
         for (Argument a : aggParams) {
             builder.beginControlFlow("if ($L.mayHaveNulls())", a.blockName());
+            builder.addCode("""
+                /*
+                 * Some values in the block are null so some group ids may not
+                 * be seen. We need to track which ones so we can initialize
+                 * them to null when we read their values.
+                 */
+                """);
             builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
             builder.endControlFlow();
         }
@@ -603,20 +628,9 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
 
-        // NOTE:
-        // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
-        // aggregator's "combineIntermediate" method, and let it handle null blocks however it wants. This will be removed once
-        // BlockArgument can have two variants: One that wants to handle nulls itself like in this case, and one that wants
-        // them filtered out like in the case for geo functions.
-        String aggregatorName = this.declarationType.getSimpleName().toString();
-
-        // First/Last aggregators still retain the "All" prefix, in order to not conflict with the aggregators for the old First/Last that
-        // are still used by some functions.
-        boolean isFirstLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
-
         int count = 0;
         for (var interState : intermediateState) {
-            interState.assignToVariable(builder, count, isFirstLast);
+            interState.assignToVariable(builder, count, processNulls);
             count++;
         }
         final String first = intermediateState.get(0).name();

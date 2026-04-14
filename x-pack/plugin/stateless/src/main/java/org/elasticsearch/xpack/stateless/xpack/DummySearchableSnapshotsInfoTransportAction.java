@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 /**
  * A dummy version of xpack info for searchable snapshots.
  *
- * Serverless does not contain searchable snapshots code. This class temporarily bridges
+ * Stateless does not contain searchable snapshots code. This class temporarily bridges
  * the expectation of the xpack info infrastructure which expects all xpack feature infos
  * to be available.
  */

@@ -122,7 +122,7 @@ public class FetchShardCommitsInUseAction {
 
     /**
      * The combined response containing the combined list of commits-in-use.
-     * Contains information about which serverless shard commits are still in active use by which search nodes.
+     * Contains information about which stateless shard commits are still in active use by which search nodes.
      */
     public static class Response extends BaseNodesResponse<FetchShardCommitsInUseAction.NodeResponse> {
 
@@ -173,7 +173,7 @@ public class FetchShardCommitsInUseAction {
 
     /**
      * The response of a single node receiving a FetchShardCommitsInUseAction transport request.
-     * Holds a list of serverless commits ({@link PrimaryTermAndGeneration}) actively in use by the search shard on that node.
+     * Holds a list of stateless commits ({@link PrimaryTermAndGeneration}) actively in use by the search shard on that node.
      */
     public static class NodeResponse extends BaseNodeResponse {
         private Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse;

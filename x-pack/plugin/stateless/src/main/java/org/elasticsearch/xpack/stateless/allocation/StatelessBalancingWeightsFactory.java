@@ -218,7 +218,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
         @Override
         public NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer) {
-            return new ServerlessNodeSorters(modelNodes, balancer);
+            return new StatelessNodeSorters(modelNodes, balancer);
         }
 
         @Override
@@ -226,12 +226,12 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
             return diskUsageIgnored;
         }
 
-        private class ServerlessNodeSorters implements NodeSorters {
+        private class StatelessNodeSorters implements NodeSorters {
 
             private final BalancedShardsAllocator.NodeSorter searchNodeSorter;
             private final BalancedShardsAllocator.NodeSorter indexingNodeSorter;
 
-            ServerlessNodeSorters(BalancedShardsAllocator.ModelNode[] allNodes, BalancedShardsAllocator.Balancer balancer) {
+            StatelessNodeSorters(BalancedShardsAllocator.ModelNode[] allNodes, BalancedShardsAllocator.Balancer balancer) {
                 final BalancedShardsAllocator.ModelNode[] searchNodes = Arrays.stream(allNodes)
                     .filter(n -> n.getRoutingNode().node().getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE))
                     .toArray(BalancedShardsAllocator.ModelNode[]::new);

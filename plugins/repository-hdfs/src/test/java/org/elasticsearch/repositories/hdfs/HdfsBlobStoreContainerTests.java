@@ -44,11 +44,8 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -65,13 +62,11 @@ import static org.mockito.Mockito.mock;
 public class HdfsBlobStoreContainerTests extends ESTestCase {
 
     private FileContext createTestContext() {
-        FileContext fileContext;
         try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
-        } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e.getCause());
+            return createContext(new URI("hdfs:///"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        return fileContext;
     }
 
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")

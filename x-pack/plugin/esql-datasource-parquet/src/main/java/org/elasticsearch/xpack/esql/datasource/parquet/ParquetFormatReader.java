@@ -97,37 +97,45 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean optimizedReader;
+    private final boolean pageLevelReader;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
     static final String OPTIMIZED_READER_CONFIG_KEY = "optimized_reader";
+    static final String PAGE_LEVEL_READER_CONFIG_KEY = "page_level_reader";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false);
+        this(blockFactory, FilterCompat.NOOP, null, false, false);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, optimizedReader);
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, false);
+    }
+
+    ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader, boolean pageLevelReader) {
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, pageLevelReader);
     }
 
     private ParquetFormatReader(
         BlockFactory blockFactory,
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
-        boolean optimizedReader
+        boolean optimizedReader,
+        boolean pageLevelReader
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.optimizedReader = optimizedReader;
+        this.pageLevelReader = pageLevelReader;
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, optimizedReader);
+            return new ParquetFormatReader(blockFactory, filter, null, optimizedReader, pageLevelReader);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, optimizedReader);
+            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, optimizedReader, pageLevelReader);
         }
         return this;
     }
@@ -137,20 +145,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         if (config == null || config.isEmpty()) {
             return this;
         }
-        Object value = config.get(OPTIMIZED_READER_CONFIG_KEY);
-        if (value == null) {
+        boolean newOptimized = this.optimizedReader;
+        boolean newPageLevel = this.pageLevelReader;
+        Object optValue = config.get(OPTIMIZED_READER_CONFIG_KEY);
+        if (optValue != null) {
+            newOptimized = optValue instanceof Boolean b ? b : Booleans.parseBoolean(optValue.toString());
+        }
+        Object pageValue = config.get(PAGE_LEVEL_READER_CONFIG_KEY);
+        if (pageValue != null) {
+            newPageLevel = pageValue instanceof Boolean b ? b : Booleans.parseBoolean(pageValue.toString());
+        }
+        if (newOptimized == this.optimizedReader && newPageLevel == this.pageLevelReader) {
             return this;
         }
-        boolean enabled;
-        if (value instanceof Boolean b) {
-            enabled = b;
-        } else {
-            enabled = Booleans.parseBoolean(value.toString());
-        }
-        if (enabled == this.optimizedReader) {
-            return this;
-        }
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, enabled);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, newOptimized, newPageLevel);
     }
 
     @Override
@@ -376,6 +384,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         String createdBy = fileMetaData.getCreatedBy();
         if (optimizedReader) {
             ColumnInfo[] columnInfos = buildColumnInfos(reader, projectedSchema, projectedAttributes, object.path().toString());
+            PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, object);
             return new OptimizedParquetColumnIterator(
                 reader,
                 projectedSchema,
@@ -386,7 +395,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 createdBy,
                 object.path().toString(),
                 columnInfos,
-                PreloadedRowGroupMetadata.empty()
+                preloadedMetadata,
+                pushedExpressions,
+                pageLevelReader
             );
         }
         return new ParquetColumnIterator(
@@ -530,8 +541,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         FileMetaData fileMetaData = reader.getFileMetaData();
         MessageType parquetSchema = fileMetaData.getSchema();
-        // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
-        // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
         final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
             ? resolvedAttributes
             : convertParquetSchemaToAttributes(parquetSchema);
@@ -556,6 +565,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         String createdBy = fileMetaData.getCreatedBy();
         if (optimizedReader) {
             ColumnInfo[] columnInfos = buildColumnInfos(reader, projectedSchema, projectedAttributes, object.path().toString());
+            PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, object);
             return new OptimizedParquetColumnIterator(
                 reader,
                 projectedSchema,
@@ -566,7 +576,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 createdBy,
                 object.path().toString(),
                 columnInfos,
-                PreloadedRowGroupMetadata.empty()
+                preloadedMetadata,
+                pushedExpressions,
+                pageLevelReader
             );
         }
         return new ParquetColumnIterator(

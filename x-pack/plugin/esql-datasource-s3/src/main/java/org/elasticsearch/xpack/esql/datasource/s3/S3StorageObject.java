@@ -245,6 +245,20 @@ public final class S3StorageObject implements StorageObject {
         return key;
     }
 
+    /**
+     * Reads a byte range asynchronously via {@link S3AsyncClient}.
+     *
+     * <p>The AWS SDK's {@code S3AsyncClient} uses a Netty event loop for I/O. To avoid running
+     * listener callbacks on that Netty thread (which could block the event loop if listeners
+     * do non-trivial work), this method uses {@code whenCompleteAsync(..., executor)} to dispatch
+     * the completion callback onto the provided executor. This matches the pattern used by the
+     * inference plugin's SageMaker client ({@code thenAcceptAsync(..., UTILITY)}).
+     *
+     * <p>When the executor is {@code Runnable::run}, the callback runs inline on the Netty
+     * thread — acceptable when the listener is lightweight (e.g., storing a byte buffer in a map).
+     * In production, the calling {@code esql_worker} thread is typically blocked on
+     * {@code PlainActionFuture.actionGet()}, so dispatching to a pool thread avoids contention.
+     */
     @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         if (s3AsyncClient == null) {
@@ -266,7 +280,7 @@ public final class S3StorageObject implements StorageObject {
 
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
-        s3AsyncClient.getObject(request, AsyncResponseTransformer.toBytes()).whenComplete((responseBytes, throwable) -> {
+        s3AsyncClient.getObject(request, AsyncResponseTransformer.toBytes()).whenCompleteAsync((responseBytes, throwable) -> {
             if (throwable != null) {
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
                 if (cause instanceof NoSuchKeyException) {
@@ -289,7 +303,7 @@ public final class S3StorageObject implements StorageObject {
             }
 
             listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArray()));
-        });
+        }, executor);
     }
 
     @Override

@@ -8,18 +8,24 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
+import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Block;
@@ -27,17 +33,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.io.IOException;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -45,17 +49,30 @@ import java.util.NoSuchElementException;
  * Optimized Parquet column iterator behind the {@code optimized_reader} feature flag.
  *
  * <p>Stage 0: functionally identical to the baseline {@code ParquetColumnIterator} but structured
- * for progressive enhancement. Accepts {@link PreloadedRowGroupMetadata} for future use by
- * dictionary pruning (Stage 1), page-level skipping (Stage 2), and batch decode (Stage 3).
+ * for progressive enhancement. Uses {@link PreloadedRowGroupMetadata} for preloaded column/offset
+ * indexes and dictionary pages.
+ *
+ * <p>Stage 1: dictionary-aware row group pruning. When a row group has dictionary-encoded predicate
+ * columns, evaluates the pushed predicate against dictionary values. Row groups where no dictionary
+ * value matches are skipped entirely.
+ *
+ * <p>Stage 2: page-level skipping via ColumnIndex. Uses preloaded ColumnIndex min/max per data page
+ * to evaluate pushed predicates and skip pages that cannot contain matching rows. Produces
+ * {@link RowRanges} that represent selected row ranges within a row group. Anti-fragmentation
+ * discards the ranges when the selection is too dense or fragmented to benefit from skipping.
+ *
+ * <p>Stage 3: batch column reader. Flat (non-list) columns are decoded via {@link BatchColumnReader}
+ * which uses tight loops with a non-nullable fast path (no def-level check when maxDef == 0) and
+ * builds null {@link java.util.BitSet}s directly instead of going through a {@code boolean[]}
+ * intermediary. List columns remain row-at-a-time since they require stateful multi-value handling.
  *
  * <p>The existing baseline {@code ParquetColumnIterator} is never modified — it remains as the
  * stable fallback when {@code optimized_reader=false}.
  */
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
-    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_MILLI = 1_000_000L;
-    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
+    private static final Logger logger = LogManager.getLogger(OptimizedParquetColumnIterator.class);
+
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
     private final ParquetFileReader reader;
@@ -67,14 +84,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final String fileLocation;
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
+    private final ParquetPushedExpressions pushedExpressions;
+    private final boolean pageLevelReader;
     private int rowBudget;
 
     private PageReadStore rowGroup;
     private ColumnReader[] columnReaders;
+    private PageColumnReader[] pageColumnReaders;
     private long rowsRemainingInGroup;
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
+    private long rowGroupsSkippedByDictionary = 0;
+    private long pagesSkippedByColumnIndex = 0;
+    private long pagesEvaluatedByColumnIndex = 0;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -86,7 +109,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         String createdBy,
         String fileLocation,
         ColumnInfo[] columnInfos,
-        PreloadedRowGroupMetadata preloadedMetadata
+        PreloadedRowGroupMetadata preloadedMetadata,
+        ParquetPushedExpressions pushedExpressions,
+        boolean pageLevelReader
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -98,6 +123,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.fileLocation = fileLocation;
         this.columnInfos = columnInfos;
         this.preloadedMetadata = preloadedMetadata;
+        this.pushedExpressions = pushedExpressions;
+        this.pageLevelReader = pageLevelReader;
 
         reader.setRequestedSchema(projectedSchema);
     }
@@ -125,26 +152,257 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     private boolean advanceRowGroup() throws IOException {
-        if (rowGroup != null) {
-            rowGroup.close();
-            rowGroup = null;
+        while (true) {
+            if (rowGroup != null) {
+                rowGroup.close();
+                rowGroup = null;
+            }
+            rowGroup = reader.readNextFilteredRowGroup();
+            if (rowGroup == null) {
+                exhausted = true;
+                if (rowGroupsSkippedByDictionary > 0) {
+                    logger.debug("Dictionary pruning skipped [{}] row groups in [{}]", rowGroupsSkippedByDictionary, fileLocation);
+                }
+                if (pagesEvaluatedByColumnIndex > 0) {
+                    logger.debug(
+                        "Page-level skipping: evaluated [{}] pages, skipped [{}] in [{}]",
+                        pagesEvaluatedByColumnIndex,
+                        pagesSkippedByColumnIndex,
+                        fileLocation
+                    );
+                }
+                return false;
+            }
+            rowGroupOrdinal++;
+            pageBatchIndexInRowGroup = 0;
+            rowsRemainingInGroup = rowGroup.getRowCount();
+
+            if (shouldSkipByDictionary()) {
+                rowGroupsSkippedByDictionary++;
+                continue;
+            }
+
+            RowRanges pageRanges = computePageRowRanges();
+            if (pageRanges != null && pageRanges.isEmpty()) {
+                logger.trace("Page-level skipping: all pages pruned for row group [{}] in [{}]", rowGroupOrdinal, fileLocation);
+                continue;
+            }
+
+            if (pageLevelReader) {
+                pageColumnReaders = new PageColumnReader[columnInfos.length];
+                columnReaders = null;
+                for (int i = 0; i < columnInfos.length; i++) {
+                    if (columnInfos[i] != null && columnInfos[i].maxRepLevel() == 0) {
+                        ColumnDescriptor desc = columnInfos[i].descriptor();
+                        PageReader pr = rowGroup.getPageReader(desc);
+                        pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], pageRanges);
+                    }
+                }
+                // List columns still need ColumnReadStoreImpl
+                boolean hasListColumns = false;
+                for (int i = 0; i < columnInfos.length; i++) {
+                    if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
+                        hasListColumns = true;
+                        break;
+                    }
+                }
+                if (hasListColumns) {
+                    ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                        rowGroup,
+                        new NoOpGroupConverter(projectedSchema),
+                        projectedSchema,
+                        createdBy
+                    );
+                    columnReaders = new ColumnReader[columnInfos.length];
+                    for (int i = 0; i < columnInfos.length; i++) {
+                        if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
+                            columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                        }
+                    }
+                }
+            } else {
+                pageColumnReaders = null;
+                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                    rowGroup,
+                    new NoOpGroupConverter(projectedSchema),
+                    projectedSchema,
+                    createdBy
+                );
+                columnReaders = new ColumnReader[columnInfos.length];
+                for (int i = 0; i < columnInfos.length; i++) {
+                    if (columnInfos[i] != null) {
+                        columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                    }
+                }
+            }
+            return rowsRemainingInGroup > 0;
         }
-        rowGroup = reader.readNextFilteredRowGroup();
-        if (rowGroup == null) {
-            exhausted = true;
+    }
+
+    /**
+     * Evaluates pushed predicates against dictionary values for the current row group.
+     * If any predicate column is dictionary-encoded and no dictionary value matches,
+     * the entire row group can be skipped.
+     *
+     * @return true if the row group should be skipped (no dictionary values match any predicate)
+     */
+    private boolean shouldSkipByDictionary() {
+        if (pushedExpressions == null) {
             return false;
         }
-        rowGroupOrdinal++;
-        pageBatchIndexInRowGroup = 0;
-        rowsRemainingInGroup = rowGroup.getRowCount();
-        ColumnReadStoreImpl store = new ColumnReadStoreImpl(rowGroup, new NoOpGroupConverter(projectedSchema), projectedSchema, createdBy);
-        columnReaders = new ColumnReader[columnInfos.length];
-        for (int i = 0; i < columnInfos.length; i++) {
-            if (columnInfos[i] != null) {
-                columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        if (rowGroupOrdinal >= rowGroups.size()) {
+            return false;
+        }
+        BlockMetaData block = rowGroups.get(rowGroupOrdinal);
+
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            if (col.hasDictionaryPage() == false) {
+                continue;
+            }
+            String columnPath = col.getPath().toDotString();
+            if (pushedExpressions.referencesColumn(columnPath) == false) {
+                continue;
+            }
+
+            DictionaryPage dictPage = readDictionaryPage(col);
+            if (dictPage == null) {
+                continue;
+            }
+
+            try {
+                Dictionary dictionary = dictPage.decode(projectedSchema.getColumnDescription(col.getPath().toArray()));
+                if (dictionary == null || dictionary.getMaxId() < 0) {
+                    continue;
+                }
+
+                if (pushedExpressions.allDictionaryValuesRejected(columnPath, dictionary, col.getPrimitiveType())) {
+                    logger.trace(
+                        "Dictionary pruning: skipping row group [{}] — no dictionary values match for column [{}] in [{}]",
+                        rowGroupOrdinal,
+                        columnPath,
+                        fileLocation
+                    );
+                    return true;
+                }
+            } catch (Exception e) {
+                logger.debug(
+                    "Dictionary evaluation failed for column [{}] in row group [{}] of [{}]: {}",
+                    columnPath,
+                    rowGroupOrdinal,
+                    fileLocation,
+                    e.getMessage()
+                );
             }
         }
-        return rowsRemainingInGroup > 0;
+        return false;
+    }
+
+    /**
+     * Reads the dictionary page for a column chunk from the current row group's page store.
+     */
+    private DictionaryPage readDictionaryPage(ColumnChunkMetaData col) {
+        try {
+            PageReader pageReader = rowGroup.getPageReader(projectedSchema.getColumnDescription(col.getPath().toArray()));
+            if (pageReader != null) {
+                return pageReader.readDictionaryPage();
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to read dictionary page for [{}] in row group [{}]: {}", col.getPath(), rowGroupOrdinal, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Computes page-level row ranges by evaluating pushed predicates against ColumnIndex min/max
+     * for each data page. Returns null if page-level skipping is not applicable (no predicates,
+     * no column indexes, or anti-fragmentation triggered). Returns an empty RowRanges if all
+     * pages are pruned (row group can be skipped entirely).
+     *
+     * <p>For each predicate column with a ColumnIndex and OffsetIndex, evaluates each page's
+     * min/max against the pushed expressions. Matching pages are converted to row ranges using
+     * the OffsetIndex's firstRowIndex. Ranges from different predicate columns are intersected
+     * (a row must satisfy ALL predicates).
+     */
+    private RowRanges computePageRowRanges() {
+        if (pushedExpressions == null || preloadedMetadata.hasColumnIndexes() == false || preloadedMetadata.hasOffsetIndexes() == false) {
+            return null;
+        }
+
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        if (rowGroupOrdinal >= rowGroups.size()) {
+            return null;
+        }
+        BlockMetaData block = rowGroups.get(rowGroupOrdinal);
+        long rowGroupRowCount = block.getRowCount();
+
+        RowRanges combined = null;
+
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            String columnPath = col.getPath().toDotString();
+            if (pushedExpressions.referencesColumn(columnPath) == false) {
+                continue;
+            }
+
+            ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rowGroupOrdinal, columnPath);
+            OffsetIndex offsetIndex = preloadedMetadata.getOffsetIndex(rowGroupOrdinal, columnPath);
+            if (columnIndex == null || offsetIndex == null) {
+                continue;
+            }
+
+            int pageCount = offsetIndex.getPageCount();
+            if (pageCount == 0) {
+                continue;
+            }
+
+            List<long[]> matchingRanges = new ArrayList<>();
+            for (int pageIdx = 0; pageIdx < pageCount; pageIdx++) {
+                pagesEvaluatedByColumnIndex++;
+                boolean canMatch = pushedExpressions.pageCanMatch(columnPath, columnIndex, pageIdx, col.getPrimitiveType());
+                if (canMatch) {
+                    long pageStart = offsetIndex.getFirstRowIndex(pageIdx);
+                    long pageEnd = (pageIdx + 1 < pageCount) ? offsetIndex.getFirstRowIndex(pageIdx + 1) : rowGroupRowCount;
+                    matchingRanges.add(new long[] { pageStart, pageEnd });
+                } else {
+                    pagesSkippedByColumnIndex++;
+                }
+            }
+
+            RowRanges columnRanges;
+            if (matchingRanges.isEmpty()) {
+                columnRanges = RowRanges.of(0, 0, rowGroupRowCount);
+            } else if (matchingRanges.size() == pageCount) {
+                columnRanges = RowRanges.all(rowGroupRowCount);
+            } else {
+                columnRanges = RowRanges.fromUnsorted(matchingRanges, rowGroupRowCount);
+            }
+
+            combined = (combined == null) ? columnRanges : combined.intersect(columnRanges);
+
+            if (combined.isEmpty()) {
+                return combined;
+            }
+        }
+
+        if (combined == null) {
+            return null;
+        }
+
+        if (combined.shouldDiscard()) {
+            logger.trace(
+                "Page-level skipping: anti-fragmentation triggered for row group [{}] in [{}] "
+                    + "(density={}, transitions={}, selected={}/{})",
+                rowGroupOrdinal,
+                fileLocation,
+                combined.density(),
+                combined.transitionCount(),
+                combined.selectedRowCount(),
+                rowGroupRowCount
+            );
+            return null;
+        }
+
+        return combined;
     }
 
     @Override
@@ -166,7 +424,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                 } else {
                     try {
-                        blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead);
+                        blocks[col] = readColumnBlock(col, info, rowsToRead);
                     } catch (Exception e) {
                         Releasables.closeExpectNoException(blocks);
                         Attribute attr = attributes.get(col);
@@ -213,238 +471,26 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return new Page(blocks);
     }
 
-    private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead) {
+    private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {
+        if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
+            return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
+        }
+        ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;
+        if (cr == null) {
+            return blockFactory.newConstantNullBlock(rowsToRead);
+        }
+        Block batch = BatchColumnReader.readBatch(cr, info, rowsToRead, blockFactory);
+        if (batch != null) {
+            return batch;
+        }
         if (info.maxRepLevel() > 0) {
             return readListColumn(cr, info, rowsToRead);
         }
-        return switch (info.esqlType()) {
-            case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
-            case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
-            case LONG -> {
-                if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
-                }
-                yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
-            }
-            case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
-            case KEYWORD, TEXT -> readBytesRefColumn(cr, info, rowsToRead);
-            case DATETIME -> readDatetimeColumn(cr, info, rowsToRead);
-            default -> {
-                skipValues(cr, rowsToRead);
-                yield blockFactory.newConstantNullBlock(rowsToRead);
-            }
-        };
+        skipValues(cr, rowsToRead);
+        return blockFactory.newConstantNullBlock(rowsToRead);
     }
 
-    // --- Primitive column readers (same logic as baseline) ---
-
-    private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-        boolean[] values = new boolean[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                values[i] = cr.getBoolean();
-            }
-            cr.consume();
-        }
-        if (noNulls) {
-            return blockFactory.newBooleanArrayVector(values, rows).asBlock();
-        }
-        return blockFactory.newBooleanArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
-    }
-
-    private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
-        int[] values = new int[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                values[i] = cr.getInteger();
-            }
-            cr.consume();
-        }
-        if (noNulls) {
-            return blockFactory.newIntArrayVector(values, rows).asBlock();
-        }
-        return blockFactory.newIntArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
-    }
-
-    private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
-        long[] values = new long[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                values[i] = cr.getInteger();
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
-        long[] values = new long[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                values[i] = cr.getLong();
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private Block readDoubleColumn(ColumnReader cr, ColumnInfo info, int rows) {
-        LogicalTypeAnnotation logical = info.logicalType();
-        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
-            return readDecimalAsDoubleColumn(cr, info, decimal.getScale(), rows);
-        }
-        if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
-            return readFloat16Column(cr, info.maxDefLevel(), rows);
-        }
-        double[] values = new double[rows];
-        boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
-        for (int i = 0; i < rows; i++) {
-            if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                values[i] = isFloat ? cr.getFloat() : cr.getDouble();
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
-        double[] values = new double[rows];
-        boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                BigInteger unscaled = switch (info.parquetType()) {
-                    case INT32 -> BigInteger.valueOf(cr.getInteger());
-                    case INT64 -> BigInteger.valueOf(cr.getLong());
-                    case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
-                    default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
-                };
-                values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
-        double[] values = new double[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                byte[] bytes = cr.getBinary().getBytes();
-                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-                values[i] = Float.float16ToFloat(float16Bits);
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private Block readBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows) {
-        boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
-        try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    builder.appendNull();
-                } else if (isUuid) {
-                    builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())));
-                } else {
-                    builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                }
-                cr.consume();
-            }
-            return builder.build();
-        }
-    }
-
-    private Block readDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
-            return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
-        }
-        long[] values = new long[rows];
-        boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
-        for (int i = 0; i < rows; i++) {
-            if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                isNull[i] = true;
-                noNulls = false;
-            } else if (isDate) {
-                values[i] = cr.getInteger() * MILLIS_PER_DAY;
-            } else {
-                long raw = cr.getLong();
-                values[i] = convertTimestampToMillis(raw, info.logicalType());
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
-        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            return switch (ts.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> raw / 1_000;
-                case NANOS -> raw / 1_000_000;
-            };
-        }
-        return raw;
-    }
-
-    private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
-        long[] values = new long[rows];
-        boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
-        boolean noNulls = true;
-        for (int i = 0; i < rows; i++) {
-            if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                isNull[i] = true;
-                noNulls = false;
-            } else {
-                Binary bin = cr.getBinary();
-                ByteBuffer buf = ByteBuffer.wrap(bin.getBytes()).order(ByteOrder.LITTLE_ENDIAN);
-                long nanosOfDay = buf.getLong();
-                int julianDay = buf.getInt();
-                long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
-                values[i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
-            }
-            cr.consume();
-        }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
-    }
-
-    // --- List column readers ---
+    // --- List column readers (not batch-optimized: require stateful multi-value handling) ---
 
     private Block readListColumn(ColumnReader cr, ColumnInfo info, int rows) {
         DataType elementType = info.esqlType();
@@ -568,20 +614,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
     // --- Utilities ---
 
+    private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return switch (ts.getUnit()) {
+                case MILLIS -> raw;
+                case MICROS -> raw / 1_000;
+                case NANOS -> raw / 1_000_000;
+            };
+        }
+        return raw;
+    }
+
     private static void skipValues(ColumnReader cr, int rows) {
         for (int i = 0; i < rows; i++) {
             cr.consume();
         }
-    }
-
-    private static java.util.BitSet toBitSet(boolean[] isNull, int length) {
-        java.util.BitSet bits = new java.util.BitSet(length);
-        for (int i = 0; i < length; i++) {
-            if (isNull[i]) {
-                bits.set(i);
-            }
-        }
-        return bits;
     }
 
     static String formatUuid(byte[] bytes) {

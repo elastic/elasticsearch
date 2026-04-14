@@ -789,7 +789,9 @@ public class IpFieldMapper extends FieldMapper {
                     }
                 } else {
                     if (offsetsFieldName != null) {
-                        throw new UnsupportedOperationException("TODO");
+                        layers.add(
+                            new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
+                        );
                     } else {
                         layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
                             @Override

@@ -101,7 +101,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         verifyOffsets("{\"field\":[null,[null],null]}", "{\"field\":[null,null,null]}");
     }
 
-    public void testOffsetArrayRandom() throws Exception {
+    private void testOffsetArrayRandom(XContentBuilder mapping) throws Exception {
         String values;
         int numValues = randomIntBetween(0, 256);
 
@@ -122,7 +122,23 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
             b.endArray();
             values = Strings.toString(b);
         }
-        verifyOffsets("{\"field\":" + values + "}");
+        String source = "{\"field\":" + values + "}";
+        verifyOffsets(mapping, source, source);
+    }
+
+    public void testOffsetArrayRandom() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject().endObject();
+        testOffsetArrayRandom(mapping);
+    }
+
+    public void testOffsetArrayRandomHighCardinality() throws Exception {
+        assumeTrue("supports high cardinality option", supportsDocValuesCardinality());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.startObject("doc_values").field("cardinality", "high").endObject();
+        mapping.endObject().endObject().endObject().endObject();
     }
 
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -134,6 +150,10 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     protected abstract String getFieldTypeName();
 
     protected abstract Object randomValue();
+
+    protected boolean supportsDocValuesCardinality() {
+        return false;
+    }
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

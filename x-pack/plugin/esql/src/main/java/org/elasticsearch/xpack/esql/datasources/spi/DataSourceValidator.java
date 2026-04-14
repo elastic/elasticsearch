@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceStoredSetting;
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 
 import java.util.Map;
@@ -26,7 +26,7 @@ import java.util.Map;
  * <ul>
  *   <li>{@link #validateDatasource} validates and parses the datasource definition itself —
  *       the credentials and connection settings that identify how to reach the external
- *       data provider. Returns {@link DataSourceStoredSetting} entries that may carry
+ *       data provider. Returns {@link DataSourceSetting} entries that may carry
  *       secrets.</li>
  *   <li>{@link #validateDataset} validates the dataset-level settings (partition detection,
  *       error mode, schema sample size, etc.) for a specific resource against its parent
@@ -45,21 +45,21 @@ public interface DataSourceValidator {
     /**
      * Validates and parses datasource settings from a raw REST request body. Rejects
      * unknown fields, normalizes values, and wraps each entry in
-     * {@link DataSourceStoredSetting} so the secret classification travels with the value
+     * {@link DataSourceSetting} so the secret classification travels with the value
      * into cluster state.
      *
      * @param datasourceSettings the raw datasource settings from the REST request body
      * @return validated, normalized settings keyed by field name
      * @throws ValidationException if settings are invalid (may contain multiple errors)
      */
-    Map<String, DataSourceStoredSetting> validateDatasource(Map<String, Object> datasourceSettings);
+    Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings);
 
     /**
      * Validates and parses dataset-level settings for a given resource against its parent
      * datasource. Dataset settings never contain secrets — credentials are inherited from
      * the parent datasource at query time. The return type enforces this: plain values
      * with no sensitivity classification, unlike {@link #validateDatasource} which returns
-     * {@link DataSourceStoredSetting}.
+     * {@link DataSourceSetting}.
      *
      * <p>The {@code datasourceSettings} parameter is the already-validated parent (read
      * from cluster state), available to implementations that need to cross-check the
@@ -75,7 +75,7 @@ public interface DataSourceValidator {
      * @throws ValidationException if settings or resource are invalid (may contain multiple errors)
      */
     Map<String, Object> validateDataset(
-        Map<String, DataSourceStoredSetting> datasourceSettings,
+        Map<String, DataSourceSetting> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings
     );

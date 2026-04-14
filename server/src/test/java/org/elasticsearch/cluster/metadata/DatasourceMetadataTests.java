@@ -63,15 +63,17 @@ public class DatasourceMetadataTests extends AbstractChunkedSerializingTestCase<
         String type = randomFrom("s3", "gcs", "azure");
         String description = randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32);
         int numSettings = randomIntBetween(0, 4);
-        Map<String, DataSourceStoredSetting> settings = new HashMap<>(numSettings);
+        Map<String, DataSourceSetting> settings = new HashMap<>(numSettings);
         for (int i = 0; i < numSettings; i++) {
             settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), randomStoredSetting());
         }
         return new Datasource(name, type, description, settings);
     }
 
-    static DataSourceStoredSetting randomStoredSetting() {
-        Object value = randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean());
-        return new DataSourceStoredSetting(value, randomBoolean());
+    static DataSourceSetting randomStoredSetting() {
+        boolean secret = randomBoolean();
+        // Secret settings must be String-valued; non-secret may carry any JSON-native type.
+        Object value = secret ? randomAlphaOfLength(8) : randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean());
+        return new DataSourceSetting(value, secret);
     }
 }

@@ -27,7 +27,7 @@ public class DatasourceTests extends ESTestCase {
             "my-s3",
             "s3",
             "Production S3 bucket",
-            Map.of("access_key", new DataSourceStoredSetting("AKIA123", true), "region", new DataSourceStoredSetting("us-east-1", false))
+            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -42,15 +42,15 @@ public class DatasourceTests extends ESTestCase {
         assertEquals(2, deserialized.settings().size());
     }
 
-    public void testToPlainMap() {
+    public void testToUnencryptedMap() {
         var datasource = new Datasource(
             "my-s3",
             "s3",
             null,
-            Map.of("access_key", new DataSourceStoredSetting("AKIA123", true), "region", new DataSourceStoredSetting("us-east-1", false))
+            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
-        Map<String, Object> plain = datasource.toPlainMap();
+        Map<String, Object> plain = datasource.toUnencryptedMap();
         assertEquals("AKIA123", plain.get("access_key"));
         assertEquals("us-east-1", plain.get("region"));
     }
@@ -60,7 +60,7 @@ public class DatasourceTests extends ESTestCase {
             "my-s3",
             "s3",
             null,
-            Map.of("access_key", new DataSourceStoredSetting("AKIA123", true), "region", new DataSourceStoredSetting("us-east-1", false))
+            Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
         Map<String, Object> masked = datasource.toMaskedMap();
@@ -96,27 +96,26 @@ public class DatasourceTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new Datasource("test", "s3", null, null));
     }
 
-    public void testToStringDoesNotLeakSecrets() {
-        // Regression guard: Datasource.toString() must not include raw secret values, since it often ends up in logs.
-        // DataSourceStoredSetting.toString() already masks; this verifies the Datasource-level summary doesn't pull in
-        // the raw secret through toXContent.
+    public void testToStringMasksSecretsAndIncludesPlaintext() {
+        // toString() routes through toMaskedMap() so it can include settings without leaking raw secret values.
         var datasource = new Datasource(
             "my-s3",
             "s3",
             "Production S3 bucket",
             Map.of(
                 "access_key",
-                new DataSourceStoredSetting("AKIA_ABSOLUTELY_SECRET", true),
+                new DataSourceSetting("AKIA_ABSOLUTELY_SECRET", true),
                 "secret_key",
-                new DataSourceStoredSetting("wJal_VERY_PRIVATE", true),
+                new DataSourceSetting("wJal_VERY_PRIVATE", true),
                 "region",
-                new DataSourceStoredSetting("us-east-1", false)
+                new DataSourceSetting("us-east-1", false)
             )
         );
         String summary = datasource.toString();
         assertFalse("raw access_key leaked in toString: " + summary, summary.contains("AKIA_ABSOLUTELY_SECRET"));
         assertFalse("raw secret_key leaked in toString: " + summary, summary.contains("wJal_VERY_PRIVATE"));
-        // Non-secret identifiers are fine to include, but the toString format is free to decide — we only assert on the leak contract.
+        assertTrue("masked sentinel not present in toString: " + summary, summary.contains("**********"));
+        assertTrue("non-secret value missing from toString: " + summary, summary.contains("us-east-1"));
     }
 
     public void testXContentRoundTripHeterogeneousSettings() throws IOException {
@@ -128,20 +127,20 @@ public class DatasourceTests extends ESTestCase {
             "Production S3 bucket",
             Map.of(
                 "access_key",
-                new DataSourceStoredSetting("AKIA123", true),
+                new DataSourceSetting("AKIA123", true),
                 "region",
-                new DataSourceStoredSetting("us-east-1", false),
+                new DataSourceSetting("us-east-1", false),
                 "max_retries",
-                new DataSourceStoredSetting(7, false),
+                new DataSourceSetting(7, false),
                 "use_path_style",
-                new DataSourceStoredSetting(true, false)
+                new DataSourceSetting(true, false)
             )
         );
         assertXContentRoundTrip(datasource);
     }
 
     public void testXContentRoundTripNoDescription() throws IOException {
-        var datasource = new Datasource("my-s3", "s3", null, Map.of("region", new DataSourceStoredSetting("us-east-1", false)));
+        var datasource = new Datasource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
         assertXContentRoundTrip(datasource);
     }
 

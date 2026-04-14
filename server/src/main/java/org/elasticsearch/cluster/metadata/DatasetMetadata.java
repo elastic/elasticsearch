@@ -34,7 +34,6 @@ import java.util.Objects;
 /**
  * Encapsulates dataset definitions as custom metadata inside ProjectMetadata within cluster state.
  * Datasets participate in the index namespace (via {@link IndexAbstraction.Type#DATASET}).
- * Follows the same pattern as {@link ViewMetadata}.
  */
 public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 

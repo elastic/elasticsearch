@@ -70,9 +70,9 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private final Map<String, Object> settings;
 
     public Dataset(String name, String datasource, String resource, String description, Map<String, Object> settings) {
-        this.name = Objects.requireNonNull(name, "dataset name must not be null");
-        this.datasource = Objects.requireNonNull(datasource, "dataset datasource must not be null");
-        this.resource = Objects.requireNonNull(resource, "dataset resource must not be null");
+        this.name = Objects.requireNonNull(name, "name must not be null");
+        this.datasource = Objects.requireNonNull(datasource, "datasource must not be null");
+        this.resource = Objects.requireNonNull(resource, "resource must not be null");
         this.description = description;
         this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
     }
@@ -135,8 +135,6 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return builder;
     }
 
-    // --- IndexAbstraction implementation (same as View) ---
-
     @Override
     public Type getType() {
         return Type.DATASET;
@@ -172,8 +170,6 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return false;
     }
 
-    // Unlike View.equals() which compares only name+query, Dataset equality covers all fields so cluster-state diff
-    // correctly detects updates to any of datasource, resource, description, or settings.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

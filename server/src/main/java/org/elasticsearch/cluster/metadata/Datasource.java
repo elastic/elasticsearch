@@ -39,7 +39,7 @@ public final class Datasource implements Writeable, ToXContentObject {
     static final ConstructingObjectParser<Datasource, Void> PARSER = new ConstructingObjectParser<>(
         "datasource",
         false,
-        (args, ctx) -> new Datasource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceStoredSetting>) args[3])
+        (args, ctx) -> new Datasource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
     );
 
     static {
@@ -47,10 +47,10 @@ public final class Datasource implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, DataSourceStoredSetting> settings = new HashMap<>();
+            Map<String, DataSourceSetting> settings = new HashMap<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String settingName = p.currentName();
-                settings.put(settingName, DataSourceStoredSetting.fromXContent(p));
+                settings.put(settingName, DataSourceSetting.fromXContent(p));
             }
             return settings;
         }, SETTINGS);
@@ -59,13 +59,13 @@ public final class Datasource implements Writeable, ToXContentObject {
     private final String name;
     private final String type;
     private final String description;
-    private final Map<String, DataSourceStoredSetting> settings;
+    private final Map<String, DataSourceSetting> settings;
 
-    public Datasource(String name, String type, String description, Map<String, DataSourceStoredSetting> settings) {
-        this.name = Objects.requireNonNull(name, "datasource name must not be null");
-        this.type = Objects.requireNonNull(type, "datasource type must not be null");
+    public Datasource(String name, String type, String description, Map<String, DataSourceSetting> settings) {
+        this.name = Objects.requireNonNull(name, "name must not be null");
+        this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
-        this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "datasource settings must not be null"));
+        this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "settings must not be null"));
     }
 
     public Datasource(StreamInput in) throws IOException {
@@ -73,7 +73,7 @@ public final class Datasource implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
-        this.settings = Collections.unmodifiableMap(in.readMap(DataSourceStoredSetting::new));
+        this.settings = Collections.unmodifiableMap(in.readMap(DataSourceSetting::new));
     }
 
     @Override
@@ -96,32 +96,32 @@ public final class Datasource implements Writeable, ToXContentObject {
         return description;
     }
 
-    public Map<String, DataSourceStoredSetting> settings() {
+    public Map<String, DataSourceSetting> settings() {
         return settings;
     }
 
     /**
-     * Flatten settings for the query pipeline, decrypting values. Scaffolding for the CRUD REST API follow-up;
-     * not invoked by anything in this PR. The query-execution path will call this to get the plaintext settings
-     * map needed to construct storage/format clients.
+     * Flatten settings for the query pipeline. Scaffolding for the CRUD REST API follow-up;
+     * not invoked by anything in this PR. The query-execution path will call this to get the
+     * plaintext settings map needed to construct storage/format clients.
      */
-    public Map<String, Object> toPlainMap() {
+    public Map<String, Object> toUnencryptedMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().decryptedValue());
+            result.put(entry.getKey(), entry.getValue().unencryptedValue());
         }
         return result;
     }
 
     /**
-     * Settings with secrets masked for API responses. Scaffolding for the CRUD REST API follow-up; not invoked by
-     * anything in this PR. The GET handler will call this so secret fields appear as {@code "**********"} rather
-     * than their stored (eventually-encrypted) values.
+     * Settings with secrets masked for API responses. Scaffolding for the CRUD REST API follow-up;
+     * not invoked by anything in this PR. The GET handler will call this so secret fields appear
+     * as {@code "**********"} rather than their stored values.
      */
     public Map<String, Object> toMaskedMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().maskedOrDecryptedValue());
+            result.put(entry.getKey(), entry.getValue().maskedOrUnencryptedValue());
         }
         return result;
     }
@@ -166,9 +166,7 @@ public final class Datasource implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        // Do NOT delegate to Strings.toString(this) / toXContent(): that would write the raw (pre-encryption) secret
-        // values for secret settings, which can leak into logs via any code that logs a Datasource instance. Return a
-        // minimal summary instead; callers that need the full content with masking can use toMaskedMap() explicitly.
-        return "Datasource{name='" + name + "', type='" + type + "', settings=" + settings.size() + " entries}";
+        // Uses toMaskedMap() so secret values appear as "**********" rather than their raw form.
+        return "Datasource{name='" + name + "', type='" + type + "', description='" + description + "', settings=" + toMaskedMap() + "}";
     }
 }

@@ -33,7 +33,6 @@ import java.util.Objects;
 
 /**
  * Encapsulates datasource definitions as custom metadata inside ProjectMetadata within cluster state.
- * Follows the same pattern as {@link ViewMetadata}.
  */
 public final class DatasourceMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 

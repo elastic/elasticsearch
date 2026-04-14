@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -38,14 +39,67 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testRenamedBucketColumnHasNoMetadata() {
+    public void testBucketColumnMetadataRetainedOnKeep() {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | KEEP date, bucket
+            """))) {
+            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+        }
+    }
+
+    public void testRenameEvalBucketColumnHasNoMetadata() {
         try (var response = run(syncEsqlQueryRequest("""
             ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | EVAL renamed = bucket
-            | KEEP date, renamed
+            """))) {
+            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "renamed").meta(), nullValue());
+        }
+    }
+
+    public void testRenameBucketColumnHasNoMetadata() {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | RENAME bucket AS renamed
             """))) {
             assertThat(findColumn(response, "renamed").meta(), nullValue());
+        }
+    }
+
+    public void testMvExpandedBucketColumnHasNoMetadata() {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW points=[10, 20, 30, 40, 50]
+            | STATS count=SUM(MV_COUNT(points)) BY bucket=BUCKET(points, 5)
+            | MV_EXPAND bucket
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testSubqueryBucketMetadata() {
+        client().prepareBulk()
+            .add(client().prepareIndex("dates").setSource("date", "1985-07-09T00:00:00.000Z"))
+            .add(client().prepareIndex("numbers").setSource("number", 100))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM
+                (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")),
+                (FROM numbers | STATS number=VALUES(number) BY number_bucket=BUCKET(number, 5))
+            """))) {
+            assertThat(findColumn(response, "date_bucket").meta(), nullValue());
+            assertThat(findColumn(response, "number_bucket").meta(), nullValue());
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM
+                (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"))
+            """))) {
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
         }
     }
 

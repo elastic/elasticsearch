@@ -180,7 +180,7 @@ public class ViewResolver {
                 }
                 case Fork fork -> {
                     replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
-                        markResolved(result, resolvedPlans);
+                        plan.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     }));
                     return;
@@ -194,7 +194,7 @@ public class ViewResolver {
                         viewQueries,
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
-                            markResolved(result, resolvedPlans);
+                            plan.forEachDown(resolvedPlans::add);
                             l.onResponse(result);
                         })
                     );
@@ -205,14 +205,6 @@ public class ViewResolver {
             }
             planListener.onResponse(p);
         }, listener);
-    }
-
-    /**
-     * Marks a plan and all its descendants as already resolved, so the outer transformDown
-     * traversal will skip them and not re-process their view references.
-     */
-    private static void markResolved(LogicalPlan plan, Set<LogicalPlan> resolvedPlans) {
-        plan.forEachDown(resolvedPlans::add);
     }
 
     private void replaceViewsFork(

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -104,17 +105,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     }
 
     private static Increase readFrom(StreamInput in) throws IOException {
-        return readFrom(
-            in,
-            (source, field, filter, window, parameters) -> new Increase(
-                source,
-                field,
-                filter,
-                window,
-                parameters.getFirst(),
-                parameters.size() > 1 ? parameters.get(1) : null
-            )
-        );
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new Increase(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override

@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class BucketMetadataTests extends ESTestCase {
+public class BucketColumnMetadataTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
@@ -115,7 +115,7 @@ public class BucketMetadataTests extends ESTestCase {
 
     @SafeVarargs
     private static void assertBucketColumnMetadata(String query, Map<String, Object>... expectedMetadata) {
-        var resolver = Bucket.createColumnMetadataResolver(analyzedPlan(query), FoldContext.small());
+        var resolver = BucketColumnMetadata.createResolver(analyzedPlan(query), FoldContext.small());
         assertThat(resolver.all(), containsInAnyOrder(expectedMetadata));
     }
 

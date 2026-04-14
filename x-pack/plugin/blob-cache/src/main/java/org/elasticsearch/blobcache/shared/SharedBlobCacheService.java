@@ -1118,10 +1118,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
                 incRefEnsureOpen();
                 // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
-                final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(
-                    listener.map(unused -> false),
-                    this::decRef
-                );
+                final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(listener.map(unused -> false), this::decRef);
                 try {
                     if (tracker.waitForRangeIfPending(rangeToWrite, waitIfPendingListener)) {
                         return;

@@ -151,6 +151,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
+                    false, // hasLinkedProjects (irrelevant since checkAccess is false)
                     request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener

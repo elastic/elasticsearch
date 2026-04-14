@@ -38,7 +38,9 @@ dependencies {
     exclude group: 'org.xerial.snappy', module: 'snappy-java'
     // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
     exclude group: 'at.yawk.lz4', module: 'lz4-java'
-    exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
+    exclude group: 'com.aayushatharva.brotli4', module: 'brotli4'
+    // hadoop-client-runtime not needed: ORC only uses Configuration(false) with simple set/get
+    exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
   }
 
   // Hive storage API - provides VectorizedRowBatch and ColumnVector classes used by ORC's
@@ -50,17 +52,23 @@ dependencies {
   // com.google.protobuf.MessageOrBuilder at runtime
   implementation('com.google.protobuf:protobuf-java:3.25.8')
 
-  // Hadoop dependencies - required because ORC's Reader API uses Hadoop Configuration,
-  // Path, and FileSystem in its public interfaces.
+  // Hadoop API types — ORC's Reader API uses Configuration, Path, and FileSystem in
+  // its public interfaces. hadoop-client-runtime is NOT required: ORC only uses
+  // Configuration(false) with simple set()/get() which don't trigger loading of
+  // shaded classes from the runtime jar.
   implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
-  }
-  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
 
   // Re-add slf4j-api at the platform version to avoid jar hell with x-pack-core
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // hadoop-client-runtime is needed at test time because OrcFile.createWriter() triggers
+  // Configuration class initialization which requires shaded Woodstox classes.
+  // Not needed at runtime: the read path only uses Configuration(false) with simple set/get.
+  testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+  }
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -93,7 +101,7 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
-    // Hadoop internal uses sun.misc.Unsafe
+    // Hadoop internal uses sun.misc.Unsafe (from hadoop-client-api)
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
     'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
@@ -102,63 +110,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.service.launcher.InterruptEscalator',
     'org.apache.hadoop.service.launcher.IrqHandler',
     'org.apache.hadoop.util.SignalLogger$Handler',
-    // Hadoop shaded Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    // Hadoop shaded Avro uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
-    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
-    // Hadoop shaded Curator Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    // Hadoop thirdparty Protobuf uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
-    // Hadoop thirdparty Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     // Protobuf uses sun.misc.Unsafe
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil',

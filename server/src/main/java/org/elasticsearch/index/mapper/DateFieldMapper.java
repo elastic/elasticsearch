@@ -949,7 +949,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && indexType.hasDocValuesSkipper()) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     return new LongsBlockLoader(name());
@@ -964,7 +964,7 @@ public final class DateFieldMapper extends FieldMapper {
             }
             // supportsBlockLoaderConfig gates which configs are accepted, so reaching here means a programming error
             if (blContext.blockLoaderFunctionConfig() != null) {
-                throw new UnsupportedOperationException("function fusing only supported for doc values");
+                throw new UnsupportedOperationException("function fusing only supported for doc values skippers");
             }
 
             // Multi fields don't have fallback synthetic source.

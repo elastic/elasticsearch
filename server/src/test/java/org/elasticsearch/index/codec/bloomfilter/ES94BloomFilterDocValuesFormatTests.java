@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.LOW_BITS_PER_DOC;
+import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.DEFAULT_LOW_BITS_PER_DOC;
 import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -135,7 +135,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         assertThat(bloomFilterFormat.bloomFilterSizeInBytesForNewSegment(10_000_000), is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes())));
 
         // Boundary: largest doc count at which the flat large-segment formula (LOW_BPD bits/doc) hits the cap
-        int maxDocsBeforeCap = (int) (MAX_BLOOM_FILTER_SIZE.getBytes() * Byte.SIZE / LOW_BITS_PER_DOC);
+        int maxDocsBeforeCap = (int) (MAX_BLOOM_FILTER_SIZE.getBytes() * Byte.SIZE / DEFAULT_LOW_BITS_PER_DOC);
         assertThat(
             bloomFilterFormat.bloomFilterSizeInBytesForNewSegment(maxDocsBeforeCap),
             is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes()))
@@ -260,17 +260,17 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
     private void assertBloomFilterTestsPositiveForExistingDocs(IndexWriter writer, List<BytesRef> indexedIds) throws IOException {
         try (var directoryReader = StandardDirectoryReader.open(writer)) {
             for (LeafReaderContext leaf : directoryReader.leaves()) {
-                try (var bloomFilter = getBloomFilter(leaf)) {
-                    // the bloom filter reader is null only if the _id field is not stored during indexing
-                    assertThat(bloomFilter, is(not(nullValue())));
+                var bloomFilter = getBloomFilter(leaf);
+                // the bloom filter reader is null only if the _id field is not stored during indexing
+                assertThat(bloomFilter, is(not(nullValue())));
 
-                    for (BytesRef indexedId : indexedIds) {
-                        assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, indexedId), is(true));
-                    }
-                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("random")), is(oneOf(true, false)));
-
-                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("12345")), is(oneOf(true, false)));
+                for (BytesRef indexedId : indexedIds) {
+                    assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, indexedId), is(true));
                 }
+                assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("random")), is(oneOf(true, false)));
+
+                assertThat(bloomFilter.mayContainValue(IdFieldMapper.NAME, new BytesRef("12345")), is(oneOf(true, false)));
+
             }
 
             var storedFields = directoryReader.storedFields();

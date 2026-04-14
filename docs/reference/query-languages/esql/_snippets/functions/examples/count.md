@@ -93,4 +93,16 @@ ROW n=1
 | --- | --- |
 | 1 | 0 |
 
+`COUNT` can also operate on `exponential_histogram` fields, returning the total number of values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS cnt = COUNT(responseTime)
+```
+
+| cnt:long |
+| --- |
+| 8841 |
+
 

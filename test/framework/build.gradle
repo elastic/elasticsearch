@@ -15,6 +15,7 @@ dependencies {
   api project(':modules:transport-netty4')
   api project(':libs:ssl-config')
   api project(":server")
+  api project(":libs:native")
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
   api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {

@@ -1,0 +1,17 @@
+area: TSDB
+pr: 144184
+summary: By using synthetic `_id` field for indices in time_series mode, storage footprint is significantly reduced
+highlight:
+  title: Synthetic IDs for indices in time-series mode
+  body: |-
+    The `_id` field has a significant storage footprint in metrics applications, as it requires both storing and indexing
+    unique document identifiers that are rarely used for direct lookups. To alleviate this, we are introducing synthetic
+    IDs for indices in time-series mode. Instead of indexing the `_id` field, a Bloom filter is used for fast, lightweight
+    duplicate detection at ingest time. Lookups and operations that previously relied on `_id` are delegated to other
+    indexed fields on the document, such as timestamps, or dimension fields, preserving the same query and
+    retrieval functionality.
+
+    This offers up to 40% storage improvement for OTLP metrics and reduces the cpu overhead for segment merging due to the
+    lack of an inverted index for `_id` fields.
+  notable: true
+type: "enhancement"

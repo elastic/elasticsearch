@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -56,6 +57,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class BulkByScrollTask extends CancellableTask {
 
     private final boolean eligibleForRelocationOnShutdown;
+    private final boolean relocatedTask;
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
     private volatile LeaderBulkByScrollTaskState leaderState;
@@ -74,6 +76,7 @@ public class BulkByScrollTask extends CancellableTask {
     ) {
         super(taskId.getId(), type, action, description, parentTaskId, headers);
         this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.relocatedTask = relocationOrigin != null;
         this.relocationOrigin = relocationOrigin != null ? relocationOrigin : new ResumeInfo.RelocationOrigin(taskId, this.startTime);
     }
 
@@ -229,6 +232,20 @@ public class BulkByScrollTask extends CancellableTask {
     /** Returns the relocation origin if this task is a relocated continuation. */
     public ResumeInfo.RelocationOrigin relocationOrigin() {
         return relocationOrigin;
+    }
+
+    /** Returns true if this task was created via relocation from another node. */
+    public boolean isRelocatedTask() {
+        return relocatedTask;
+    }
+
+    @Override
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        if (relocatedTask) {
+            return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

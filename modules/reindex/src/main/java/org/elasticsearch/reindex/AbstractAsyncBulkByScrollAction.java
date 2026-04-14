@@ -1129,11 +1129,20 @@ public abstract class AbstractAsyncBulkByScrollAction<
     static class ScrollConsumableHitsResponse {
         private final PaginatedHitSource.AsyncResponse asyncResponse;
         private final List<? extends PaginatedHitSource.Hit> hits;
-        private int consumedOffset = 0;
+        /**
+         * Volatile for cross-thread visibility when {@link #remainingHits()} / {@link #hasRemainingHits()}
+         * are read while another thread updates this field. {@link #consumeHits} uses a non-atomic
+         * read-then-add on this value; {@code volatile} does not make that sequence atomic—callers rely
+         * on at most one thread executing {@code consumeHits} per response, coordinated by
+         * {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} CAS, not on this field alone.
+         */
+        private volatile int consumedOffset = 0;
+        private final Releasable releaseRemainingHitsOnce;
 
         ScrollConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
             this.hits = asyncResponse.response().getHits();
+            this.releaseRemainingHitsOnce = Releasables.releaseOnce(this::doReleaseRemainingHits);
         }
 
         PaginatedHitSource.Response response() {
@@ -1169,10 +1178,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         /**
-         * Release only the unconsumed hits (from consumedOffset to end). Call before fetching the next scroll when there are remaining hits
-         * so they are not leaked.
+         * Release only the unconsumed hits (from consumedOffset to end). Safe to call from multiple
+         * threads concurrently — only the first call releases; subsequent calls are no-ops. This
+         * prevents double-release in the window where both prepareBulkRequest (via the requestFinishing
+         * path) and finishHim can hold a reference to this response simultaneously.
          */
         void releaseRemainingHits() {
+            releaseRemainingHitsOnce.close();
+        }
+
+        private void doReleaseRemainingHits() {
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }

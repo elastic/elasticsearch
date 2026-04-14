@@ -649,6 +649,73 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
+     * Verifies that concurrent calls to {@code releaseRemainingHits()} release each unconsumed hit exactly once.
+     * This covers the race where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} (via the
+     * {@code requestFinishing} path) and {@link AbstractAsyncBulkByScrollAction#finishHim} both hold a reference
+     * to the same response and call {@code releaseRemainingHits()} concurrently. Without the {@code releaseOnce}
+     * guard the two threads would both iterate the same unconsumed range and double-release every remaining hit.
+     */
+    public void testReleaseRemainingHitsReleasesExactlyOnceUnderConcurrency() throws Exception {
+        CountingHit h0 = new CountingHit("0");
+        CountingHit h1 = new CountingHit("1");
+        CountingHit h2 = new CountingHit("2");
+        for (CountingHit h : List.of(h0, h1, h2)) {
+            h.setSource(new BytesArray("{}"), XContentType.JSON);
+        }
+        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+            false,
+            false,
+            emptyList(),
+            3,
+            List.of(h0, h1, h2),
+            scrollId(),
+            null
+        );
+        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            });
+
+        // Simulate prepareBulkRequest consuming h0 as a partial batch (maxDocs=1)
+        response.consumeHits(1);
+
+        // Both prepareBulkRequest (requestFinishing path) and finishHim reach releaseRemainingHits() concurrently.
+        // A start latch maximises overlap between the two callers.
+        CountDownLatch start = new CountDownLatch(1);
+        Future<?> preparePath = threadPool.generic().submit(() -> {
+            try {
+                assertTrue(start.await(30, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+            response.releaseRemainingHits();
+        });
+        Future<?> finishHimPath = threadPool.generic().submit(() -> {
+            try {
+                assertTrue(start.await(30, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+            response.releaseRemainingHits();
+        });
+        start.countDown();
+        preparePath.get(30, TimeUnit.SECONDS);
+        finishHimPath.get(30, TimeUnit.SECONDS);
+
+        assertThat("consumed hit must not be released by releaseRemainingHits", h0.releases.get(), equalTo(0));
+        assertThat("remaining hit h1 must be released exactly once", h1.releases.get(), equalTo(1));
+        assertThat("remaining hit h2 must be released exactly once", h2.releases.get(), equalTo(1));
+    }
+
+    /**
      * Mimicks bulk indexing failures.
      */
     public void testBulkFailuresAbortRequest() throws Exception {
@@ -1206,6 +1273,55 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(h2.releases.get(), equalTo(1));
         // Terminal path must release hits without submitting bulk; without requestFinishing prepare reaches sendBulkRequest.
         assertThat(sendBulkInvocations.get(), equalTo(0));
+    }
+
+    /**
+     * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByScrollAction#finishHim} runs first and
+     * wins {@link AbstractAsyncBulkByScrollAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
+     * A later {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} for the same
+     * {@link AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse} must lose
+     * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
+     */
+    public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedScrollResponse() {
+        configurePitOrScroll(false);
+        CountingHit h0 = new CountingHit("0");
+        CountingHit h1 = new CountingHit("1");
+        CountingHit h2 = new CountingHit("2");
+        for (CountingHit h : List.of(h0, h1, h2)) {
+            h.setSource(new BytesArray("{}"), XContentType.JSON);
+        }
+        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+            false,
+            false,
+            emptyList(),
+            3,
+            List.of(h0, h1, h2),
+            scrollId(),
+            null
+        );
+        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            }
+        );
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(scrollId());
+        action.setCurrentScrollResponseForTests(consumable);
+
+        action.finishHim(null);
+        assertThat(listener.isDone(), equalTo(true));
+
+        action.prepareBulkRequest(System.nanoTime(), consumable);
+
+        assertThat(h0.releases.get(), equalTo(1));
+        assertThat(h1.releases.get(), equalTo(1));
+        assertThat(h2.releases.get(), equalTo(1));
     }
 
     public void testScrollConsumableHitsResponseErrorHandling() {

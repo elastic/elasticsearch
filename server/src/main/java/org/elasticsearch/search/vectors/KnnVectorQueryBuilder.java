@@ -383,6 +383,10 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         this.inferenceIdForMapping = inferenceIdForMapping;
     }
 
+    String inferenceIdForMapping() {
+        return inferenceIdForMapping;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {

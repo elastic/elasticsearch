@@ -68,7 +68,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
+            description = "Identifier of an existing inference endpoint that will generate the embeddings. "
                 + "The inference endpoint must have the `text_embedding` task type and should use the same model "
                 + "that was used to embed your indexed data.",
             hint = @Param.Hint(

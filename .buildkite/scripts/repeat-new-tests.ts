@@ -13,26 +13,34 @@ const AGENTS = {
 };
 
 const SOURCE_SET_PATTERNS = [
-  { regex: /^(.+)\/src\/test\/java\/(.+)\.java$/, sourceSet: "test", kind: "test" as const },
+  { regex: /^(.+)\/src\/test\/java\/(.+Tests)\.java$/, sourceSet: "test", kind: "test" as const },
   {
-    regex: /^(.+)\/src\/internalClusterTest\/java\/(.+)\.java$/,
+    regex: /^(.+)\/src\/internalClusterTest\/java\/(.+IT)\.java$/,
     sourceSet: "internalClusterTest",
     kind: "internalClusterTest" as const,
   },
-  { regex: /^(.+)\/src\/javaRestTest\/java\/(.+)\.java$/, sourceSet: "javaRestTest", kind: "javaRestTest" as const },
+  { regex: /^(.+)\/src\/javaRestTest\/java\/(.+IT)\.java$/, sourceSet: "javaRestTest", kind: "javaRestTest" as const },
   {
     regex: /^(.+)\/src\/yamlRestTest\/resources\/rest-api-spec\/test\/(.+)\.yml$/,
     sourceSet: "yamlRestTest",
     kind: "yamlRestTestSuite" as const,
   },
   {
-    regex: /^(.+)\/src\/yamlRestTest\/java\/(.+)\.java$/,
+    regex: /^(.+)\/src\/yamlRestTest\/java\/(.+IT)\.java$/,
     sourceSet: "yamlRestTest",
     kind: "yamlRestTestRunner" as const,
   },
 ];
 
 type TestKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
+
+export const BATCH_CAPS: Record<TestKind, number> = {
+  test: 360,
+  internalClusterTest: 36,
+  javaRestTest: 4,
+  yamlRestTestSuite: 4,
+  yamlRestTestRunner: 1,
+};
 
 export interface ClassifiedTest {
   gradleProject: string;
@@ -153,39 +161,59 @@ export function deduplicateYamlRunners(tests: ClassifiedTest[]): ClassifiedTest[
   });
 }
 
-function generateStep(test: ClassifiedTest): { label: string; command: string } {
-  switch (test.kind) {
+export function generateBatchStep(batch: ClassifiedTest[]): { label: string; command: string } {
+  const kind = batch[0].kind;
+  const count = batch.length;
+
+  switch (kind) {
     case "test": {
-      const className = test.fqcn!.split(".").pop();
+      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
+      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
       return {
-        label: `${test.gradleProject}:test - ${className} (x100)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${test.gradleProject}:test --tests ${test.fqcn}`,
+        label:
+          count === 1
+            ? `${batch[0].gradleProject}:test - ${batch[0].fqcn!.split(".").pop()} (x100)`
+            : `test - ${count} tests (x100)`,
+        command: `.ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun ${projects.join(" ")} ${testFilters}`,
       };
     }
     case "internalClusterTest": {
-      const className = test.fqcn!.split(".").pop();
+      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
+      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
       return {
-        label: `${test.gradleProject}:internalClusterTest - ${className} (x20)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${test.gradleProject}:internalClusterTest --tests ${test.fqcn}`,
+        label:
+          count === 1
+            ? `${batch[0].gradleProject}:internalClusterTest - ${batch[0].fqcn!.split(".").pop()} (x20)`
+            : `internalClusterTest - ${count} tests (x20)`,
+        command: `.ci/scripts/run-gradle.sh -Dtests.iters=20 --rerun ${projects.join(" ")} ${testFilters}`,
       };
     }
     case "javaRestTest": {
-      const className = test.fqcn!.split(".").pop();
+      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:javaRestTest`))];
+      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
       return {
-        label: `${test.gradleProject}:javaRestTest - ${className} (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${test.gradleProject}:javaRestTest --tests ${test.fqcn}`,
+        label:
+          count === 1
+            ? `${batch[0].gradleProject}:javaRestTest - ${batch[0].fqcn!.split(".").pop()} (x10)`
+            : `javaRestTest - ${count} tests (x10)`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${projects.join(" ")} ${testFilters}`,
       };
     }
     case "yamlRestTestRunner": {
       return {
-        label: `${test.gradleProject}:yamlRestTest (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${test.gradleProject}:yamlRestTest`,
+        label: `${batch[0].gradleProject}:yamlRestTest (x10)`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${batch[0].gradleProject}:yamlRestTest`,
       };
     }
     case "yamlRestTestSuite": {
+      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))];
+      const suitePaths = batch.map((t) => t.suitePath).join(",");
       return {
-        label: `${test.gradleProject}:yamlRestTest - ${test.suitePath} (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${test.gradleProject}:yamlRestTest -Dtests.rest.suite=${test.suitePath}`,
+        label:
+          count === 1
+            ? `${batch[0].gradleProject}:yamlRestTest - ${batch[0].suitePath} (x10)`
+            : `yamlRestTest - ${count} suites (x10)`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${projects.join(" ")} -Dtests.rest.suite=${suitePaths}`,
       };
     }
   }
@@ -200,25 +228,41 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
     yamlRestTestSuite: "YAML REST Tests (x10)",
   };
 
-  // Use ordered array to maintain group ordering
+  const KIND_ORDER: TestKind[] = ["test", "internalClusterTest", "javaRestTest", "yamlRestTestRunner", "yamlRestTestSuite"];
+
+  const byKind = new Map<TestKind, ClassifiedTest[]>();
+  for (const test of tests) {
+    if (!byKind.has(test.kind)) {
+      byKind.set(test.kind, []);
+    }
+    byKind.get(test.kind)!.push(test);
+  }
+
   const groupOrder: string[] = [];
   const groups = new Map<string, PipelineStep[]>();
 
-  for (const test of tests) {
-    const { label, command } = generateStep(test);
-    const groupName = GROUP_NAMES[test.kind];
+  for (const kind of KIND_ORDER) {
+    const kindTests = byKind.get(kind);
+    if (!kindTests) continue;
+
+    const cap = BATCH_CAPS[kind];
+    const groupName = GROUP_NAMES[kind];
 
     if (!groups.has(groupName)) {
       groups.set(groupName, []);
       groupOrder.push(groupName);
     }
 
-    groups.get(groupName)!.push({
-      label,
-      command,
-      timeout_in_minutes: 60,
-      agents: { ...AGENTS },
-    });
+    for (let i = 0; i < kindTests.length; i += cap) {
+      const batch = kindTests.slice(i, i + cap);
+      const { label, command } = generateBatchStep(batch);
+      groups.get(groupName)!.push({
+        label,
+        command,
+        timeout_in_minutes: 60,
+        agents: { ...AGENTS },
+      });
+    }
   }
 
   const steps: PipelineGroup[] = [];

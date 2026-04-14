@@ -386,7 +386,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         // because ENABLED=false, so no downloads can occur
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
         for (DatabaseNodeService dns : internalCluster().getInstances(DatabaseNodeService.class)) {
-            assertTrue("downloadRequested should be true after requestDownloads()", dns.isDownloadRequested(ProjectId.DEFAULT));
+            assertTrue("downloadRequested should be true after requestDownloads()", dns.isDownloadRequested(ProjectId.DEFAULT.id()));
         }
         assertNull("downloader task should not be bootstrapped when disabled", getTask());
 

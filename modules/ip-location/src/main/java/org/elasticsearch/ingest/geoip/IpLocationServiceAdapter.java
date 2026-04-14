@@ -45,7 +45,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
     }
 
     @Override
-    public org.elasticsearch.iplocation.api.IpDataLookup createIpDataLookup(
+    public IpDataLookup createIpDataLookup(
         String projectIdStr,
         String databaseFile,
         List<String> propertyNames

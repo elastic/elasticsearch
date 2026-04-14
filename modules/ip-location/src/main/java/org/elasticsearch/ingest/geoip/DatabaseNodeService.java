@@ -99,7 +99,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpTaskState.getGeoIpTaskState;
  * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-public final class DatabaseNodeService implements IpDatabaseProvider, IpLocationService {
+public final class DatabaseNodeService implements IpLocationService, IpDatabaseProvider {
 
     private static final Logger logger = LogManager.getLogger(DatabaseNodeService.class);
 
@@ -285,6 +285,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+
+        // Clean up download requests for projects that have been removed from the cluster state
+        downloadRequested.removeIf(pid -> state.metadata().hasProject(pid) == false);
 
         if (downloadRequested.isEmpty()) {
             logger.trace("Not checking databases because no consumer has requested downloads on this node");
@@ -688,8 +691,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
         downloadRequested.remove(ProjectId.fromId(projectIdStr));
     }
 
-    boolean isDownloadRequested(ProjectId projectId) {
-        return downloadRequested.contains(projectId);
+    boolean isDownloadRequested(String projectIdStr) {
+        return downloadRequested.contains(ProjectId.fromId(projectIdStr));
     }
 
     @Nullable

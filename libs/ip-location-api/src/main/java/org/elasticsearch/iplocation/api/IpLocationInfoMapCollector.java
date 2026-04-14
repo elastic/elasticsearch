@@ -17,7 +17,7 @@ import java.util.Map;
  * into the map keyed by the field name string. Used by the ingest processor for
  * simple Map-based document enrichment.
  */
-public class IpLocationInfoMapCollector extends HashMap<String, Object> implements IpLocationInfoCollector {
+public final class IpLocationInfoMapCollector extends HashMap<String, Object> implements IpLocationInfoCollector {
 
     @Override
     public void ip(String ip) {

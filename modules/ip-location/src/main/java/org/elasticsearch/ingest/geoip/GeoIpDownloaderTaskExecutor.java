@@ -190,7 +190,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> databaseNodeService.isDownloadRequested(projectId),
+            () -> databaseNodeService.isDownloadRequested(projectId.id()),
             projectId
         );
     }

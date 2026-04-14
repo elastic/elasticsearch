@@ -1,0 +1,791 @@
+use super::jni_utils::*;
+use arrow::array::{
+    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array,
+    Int16Array, Int32Array, Int64Array, Int8Array, StringArray, TimestampMicrosecondArray,
+    TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray, UInt16Array,
+    UInt32Array, UInt64Array, UInt8Array,
+};
+use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatch;
+use jni::EnvUnowned;
+use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
+use jni::objects::{JClass, JLongArray, JString};
+use jni::sys::jlong;
+use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter};
+use parquet::arrow::ProjectionMask;
+use parquet::file::metadata::RowGroupMetaData;
+use parquet::schema::types::SchemaDescriptor;
+use std::sync::Arc;
+
+/// Filter expression tree built from Java via JNI, evaluated against
+/// both row group statistics (for pruning) and decoded Arrow batches (for row filtering).
+#[derive(Clone, Debug)]
+pub enum FilterExpr {
+    Column(String),
+    LiteralInt(i32),
+    LiteralLong(i64),
+    LiteralDouble(f64),
+    LiteralBool(bool),
+    LiteralString(String),
+    LiteralTimestampMillis(i64),
+    Eq(Box<FilterExpr>, Box<FilterExpr>),
+    NotEq(Box<FilterExpr>, Box<FilterExpr>),
+    Gt(Box<FilterExpr>, Box<FilterExpr>),
+    GtEq(Box<FilterExpr>, Box<FilterExpr>),
+    Lt(Box<FilterExpr>, Box<FilterExpr>),
+    LtEq(Box<FilterExpr>, Box<FilterExpr>),
+    And(Box<FilterExpr>, Box<FilterExpr>),
+    Or(Box<FilterExpr>, Box<FilterExpr>),
+    Not(Box<FilterExpr>),
+    IsNull(Box<FilterExpr>),
+    IsNotNull(Box<FilterExpr>),
+    InList(Box<FilterExpr>, Vec<FilterExpr>),
+    Like(Box<FilterExpr>, String),
+    NotLike(Box<FilterExpr>, String),
+    StartsWith(Box<FilterExpr>, String, Option<String>),
+}
+
+impl std::fmt::Display for FilterExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterExpr::Column(name) => write!(f, "{name}"),
+            FilterExpr::LiteralInt(v) => write!(f, "{v}"),
+            FilterExpr::LiteralLong(v) => write!(f, "{v}L"),
+            FilterExpr::LiteralDouble(v) => write!(f, "{v}"),
+            FilterExpr::LiteralBool(v) => write!(f, "{v}"),
+            FilterExpr::LiteralString(v) => write!(f, "'{v}'"),
+            FilterExpr::LiteralTimestampMillis(v) => write!(f, "ts_millis({v})"),
+            FilterExpr::Eq(l, r) => write!(f, "{l} = {r}"),
+            FilterExpr::NotEq(l, r) => write!(f, "{l} != {r}"),
+            FilterExpr::Gt(l, r) => write!(f, "{l} > {r}"),
+            FilterExpr::GtEq(l, r) => write!(f, "{l} >= {r}"),
+            FilterExpr::Lt(l, r) => write!(f, "{l} < {r}"),
+            FilterExpr::LtEq(l, r) => write!(f, "{l} <= {r}"),
+            FilterExpr::And(l, r) => write!(f, "({l} AND {r})"),
+            FilterExpr::Or(l, r) => write!(f, "({l} OR {r})"),
+            FilterExpr::Not(inner) => write!(f, "NOT ({inner})"),
+            FilterExpr::IsNull(inner) => write!(f, "{inner} IS NULL"),
+            FilterExpr::IsNotNull(inner) => write!(f, "{inner} IS NOT NULL"),
+            FilterExpr::InList(expr, items) => {
+                write!(f, "{expr} IN (")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "{item}")?;
+                }
+                write!(f, ")")
+            }
+            FilterExpr::Like(expr, pattern) => write!(f, "{expr} LIKE '{pattern}'"),
+            FilterExpr::NotLike(expr, pattern) => write!(f, "{expr} NOT LIKE '{pattern}'"),
+            FilterExpr::StartsWith(expr, prefix, _) => write!(f, "{expr} STARTS WITH '{prefix}'"),
+        }
+    }
+}
+
+fn box_expr(expr: FilterExpr) -> jlong {
+    Box::into_raw(Box::new(expr)) as jlong
+}
+
+unsafe fn unbox_expr(handle: jlong) -> Box<FilterExpr> {
+    unsafe { Box::from_raw(handle as *mut FilterExpr) }
+}
+
+// ---------------------------------------------------------------------------
+// Row group pruning using column statistics
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, PartialOrd, PartialEq)]
+enum StatValue {
+    Int(i32),
+    Long(i64),
+    Double(f64),
+    Bool(bool),
+    Str(String),
+}
+
+struct ColMinMax {
+    min: Option<StatValue>,
+    max: Option<StatValue>,
+    null_count: i64,
+    num_rows: i64,
+}
+
+fn get_col_stats(
+    rg: &RowGroupMetaData,
+    col_name: &str,
+    schema: &SchemaDescriptor,
+) -> Option<ColMinMax> {
+    let col_idx = (0..schema.num_columns())
+        .find(|&i| schema.column(i).name().eq_ignore_ascii_case(col_name))?;
+    let col_meta = rg.column(col_idx);
+    let stats = col_meta.statistics()?;
+    use parquet::file::statistics::Statistics::*;
+    let (min, max) = match stats {
+        Int32(s) => (
+            s.min_opt().map(|v| StatValue::Int(*v)),
+            s.max_opt().map(|v| StatValue::Int(*v)),
+        ),
+        Int64(s) => (
+            s.min_opt().map(|v| StatValue::Long(*v)),
+            s.max_opt().map(|v| StatValue::Long(*v)),
+        ),
+        Float(s) => (
+            s.min_opt().map(|v| StatValue::Double(*v as f64)),
+            s.max_opt().map(|v| StatValue::Double(*v as f64)),
+        ),
+        Double(s) => (
+            s.min_opt().map(|v| StatValue::Double(*v)),
+            s.max_opt().map(|v| StatValue::Double(*v)),
+        ),
+        Boolean(s) => (
+            s.min_opt().map(|v| StatValue::Bool(*v)),
+            s.max_opt().map(|v| StatValue::Bool(*v)),
+        ),
+        ByteArray(s) => (
+            s.min_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
+            s.max_opt().map(|v| StatValue::Str(String::from_utf8_lossy(v.data()).into())),
+        ),
+        _ => (None, None),
+    };
+    let null_count = stats.null_count_opt().unwrap_or(0) as i64;
+    Some(ColMinMax { min, max, null_count, num_rows: rg.num_rows() })
+}
+
+fn literal_to_stat(expr: &FilterExpr) -> Option<StatValue> {
+    match expr {
+        FilterExpr::LiteralInt(v) => Some(StatValue::Int(*v)),
+        FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => Some(StatValue::Long(*v)),
+        FilterExpr::LiteralDouble(v) => Some(StatValue::Double(*v)),
+        FilterExpr::LiteralBool(v) => Some(StatValue::Bool(*v)),
+        FilterExpr::LiteralString(v) => Some(StatValue::Str(v.clone())),
+        _ => None,
+    }
+}
+
+/// Returns false if the row group can definitely be skipped (no matching rows).
+pub fn row_group_matches(
+    expr: &FilterExpr,
+    rg: &RowGroupMetaData,
+    schema: &SchemaDescriptor,
+) -> bool {
+    match expr {
+        FilterExpr::Eq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let (Some(min), Some(max)) = (&cs.min, &cs.max) {
+                            return lit >= *min && lit <= *max;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::Lt(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(min) = &cs.min {
+                            return *min < lit;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::LtEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(min) = &cs.min {
+                            return *min <= lit;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::Gt(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(max) = &cs.max {
+                            return *max > lit;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::GtEq(left, right) => {
+            if let FilterExpr::Column(col) = left.as_ref() {
+                if let Some(lit) = literal_to_stat(right) {
+                    if let Some(cs) = get_col_stats(rg, col, schema) {
+                        if let Some(max) = &cs.max {
+                            return *max >= lit;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        FilterExpr::IsNull(inner) => {
+            if let FilterExpr::Column(col) = inner.as_ref() {
+                if let Some(cs) = get_col_stats(rg, col, schema) {
+                    return cs.null_count > 0;
+                }
+            }
+            true
+        }
+        FilterExpr::IsNotNull(inner) => {
+            if let FilterExpr::Column(col) = inner.as_ref() {
+                if let Some(cs) = get_col_stats(rg, col, schema) {
+                    return cs.null_count < cs.num_rows;
+                }
+            }
+            true
+        }
+        FilterExpr::And(a, b) => {
+            row_group_matches(a, rg, schema) && row_group_matches(b, rg, schema)
+        }
+        FilterExpr::Or(a, b) => {
+            row_group_matches(a, rg, schema) || row_group_matches(b, rg, schema)
+        }
+        FilterExpr::Not(inner) => {
+            // Conservative: can't generally negate stat-based pruning
+            let _ = inner;
+            true
+        }
+        _ => true,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Arrow row-level filter: convert FilterExpr to ArrowPredicateFn
+// ---------------------------------------------------------------------------
+
+/// Collects all column names referenced in the filter expression.
+pub fn collect_columns(expr: &FilterExpr) -> Vec<String> {
+    let mut cols = Vec::new();
+    collect_columns_inner(expr, &mut cols);
+    cols.sort();
+    cols.dedup();
+    cols
+}
+
+fn collect_columns_inner(expr: &FilterExpr, cols: &mut Vec<String>) {
+    match expr {
+        FilterExpr::Column(name) => cols.push(name.clone()),
+        FilterExpr::Eq(a, b) | FilterExpr::NotEq(a, b) | FilterExpr::Gt(a, b)
+        | FilterExpr::GtEq(a, b) | FilterExpr::Lt(a, b) | FilterExpr::LtEq(a, b)
+        | FilterExpr::And(a, b) | FilterExpr::Or(a, b) => {
+            collect_columns_inner(a, cols);
+            collect_columns_inner(b, cols);
+        }
+        FilterExpr::Not(inner) | FilterExpr::IsNull(inner) | FilterExpr::IsNotNull(inner) => {
+            collect_columns_inner(inner, cols);
+        }
+        FilterExpr::InList(e, items) => {
+            collect_columns_inner(e, cols);
+            for item in items {
+                collect_columns_inner(item, cols);
+            }
+        }
+        FilterExpr::Like(e, _) | FilterExpr::NotLike(e, _) => collect_columns_inner(e, cols),
+        FilterExpr::StartsWith(e, _, _) => collect_columns_inner(e, cols),
+        _ => {}
+    }
+}
+
+/// Builds a `RowFilter` from a `FilterExpr` for use with `ParquetRecordBatchReaderBuilder`.
+pub fn build_row_filter(
+    expr: &FilterExpr,
+    _schema: SchemaRef,
+    parquet_schema: &SchemaDescriptor,
+) -> RowFilter {
+    let cols = collect_columns(expr);
+    let col_indices: Vec<usize> = cols.iter()
+        .filter_map(|name| {
+            (0..parquet_schema.num_columns())
+                .find(|&i| parquet_schema.column(i).name().eq_ignore_ascii_case(name))
+        })
+        .collect();
+
+    let projection = ProjectionMask::leaves(parquet_schema, col_indices);
+    let expr_clone = expr.clone();
+    let pred = ArrowPredicateFn::new(projection, move |batch: RecordBatch| {
+        evaluate_filter(&expr_clone, &batch)
+    });
+    RowFilter::new(vec![Box::new(pred)])
+}
+
+fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::Result<BooleanArray> {
+    let num_rows = batch.num_rows();
+    match expr {
+        FilterExpr::Eq(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Equal),
+        FilterExpr::NotEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Equal),
+        FilterExpr::Lt(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Less),
+        FilterExpr::LtEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Greater),
+        FilterExpr::Gt(left, right) => eval_comparison(left, right, batch, |o| o == std::cmp::Ordering::Greater),
+        FilterExpr::GtEq(left, right) => eval_comparison(left, right, batch, |o| o != std::cmp::Ordering::Less),
+        FilterExpr::And(a, b) => {
+            let la = evaluate_filter(a, batch)?;
+            let lb = evaluate_filter(b, batch)?;
+            Ok(arrow::compute::kernels::boolean::and(&la, &lb)?)
+        }
+        FilterExpr::Or(a, b) => {
+            let la = evaluate_filter(a, batch)?;
+            let lb = evaluate_filter(b, batch)?;
+            Ok(arrow::compute::kernels::boolean::or(&la, &lb)?)
+        }
+        FilterExpr::Not(inner) => {
+            let inner_result = evaluate_filter(inner, batch)?;
+            Ok(arrow::compute::kernels::boolean::not(&inner_result)?)
+        }
+        FilterExpr::IsNull(inner) => {
+            if let FilterExpr::Column(name) = inner.as_ref() {
+                if let Some(col) = find_column(batch, name) {
+                    return Ok(arrow::compute::is_null(col.as_ref())?);
+                }
+            }
+            Ok(BooleanArray::from(vec![true; num_rows]))
+        }
+        FilterExpr::IsNotNull(inner) => {
+            if let FilterExpr::Column(name) = inner.as_ref() {
+                if let Some(col) = find_column(batch, name) {
+                    return Ok(arrow::compute::is_not_null(col.as_ref())?);
+                }
+            }
+            Ok(BooleanArray::from(vec![true; num_rows]))
+        }
+        FilterExpr::InList(col_expr, items) => {
+            if let FilterExpr::Column(name) = col_expr.as_ref() {
+                if let Some(col) = find_column(batch, name) {
+                    return eval_in_list(col, items, num_rows);
+                }
+            }
+            Ok(BooleanArray::from(vec![true; num_rows]))
+        }
+        FilterExpr::Like(col_expr, pattern) => eval_like(col_expr, pattern, batch, num_rows, false),
+        FilterExpr::NotLike(col_expr, pattern) => eval_like(col_expr, pattern, batch, num_rows, true),
+        FilterExpr::StartsWith(col_expr, prefix, upper) => {
+            eval_starts_with(col_expr, prefix, upper.as_deref(), batch, num_rows)
+        }
+        _ => Ok(BooleanArray::from(vec![true; num_rows])),
+    }
+}
+
+fn find_column(batch: &RecordBatch, name: &str) -> Option<Arc<dyn Array>> {
+    let lower = name.to_ascii_lowercase();
+    batch.schema().fields().iter().enumerate()
+        .find(|(_, f)| f.name().to_ascii_lowercase() == lower)
+        .map(|(i, _)| batch.column(i).clone())
+}
+
+fn eval_comparison(
+    left: &FilterExpr,
+    right: &FilterExpr,
+    batch: &RecordBatch,
+    accept: fn(std::cmp::Ordering) -> bool,
+) -> arrow::error::Result<BooleanArray> {
+    let num_rows = batch.num_rows();
+    if let FilterExpr::Column(name) = left {
+        if let Some(col) = find_column(batch, name) {
+            return compare_column_to_literal(col, right, num_rows, accept);
+        }
+    }
+    Ok(BooleanArray::from(vec![true; num_rows]))
+}
+
+/// Extract a column value at row `i` as i64, handling all integer, unsigned, date, and timestamp types.
+fn column_value_as_i64(col: &dyn Array, i: usize) -> Option<i64> {
+    if let Some(a) = col.as_any().downcast_ref::<Int64Array>() { return Some(a.value(i)); }
+    if let Some(a) = col.as_any().downcast_ref::<Int32Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<Int16Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<Int8Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<UInt64Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<UInt32Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<UInt16Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<UInt8Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<Date32Array>() { return Some(a.value(i) as i64); }
+    if let Some(a) = col.as_any().downcast_ref::<Date64Array>() { return Some(a.value(i)); }
+    if let Some(a) = col.as_any().downcast_ref::<TimestampMillisecondArray>() { return Some(a.value(i)); }
+    if let Some(a) = col.as_any().downcast_ref::<TimestampMicrosecondArray>() { return Some(a.value(i) / 1000); }
+    if let Some(a) = col.as_any().downcast_ref::<TimestampNanosecondArray>() { return Some(a.value(i) / 1_000_000); }
+    if let Some(a) = col.as_any().downcast_ref::<TimestampSecondArray>() { return Some(a.value(i) * 1000); }
+    None
+}
+
+fn compare_column_to_literal(
+    col: Arc<dyn Array>,
+    lit: &FilterExpr,
+    num_rows: usize,
+    accept: fn(std::cmp::Ordering) -> bool,
+) -> arrow::error::Result<BooleanArray> {
+    let mut results = Vec::with_capacity(num_rows);
+    for i in 0..num_rows {
+        if col.is_null(i) {
+            results.push(Some(false));
+            continue;
+        }
+        let ord = match lit {
+            FilterExpr::LiteralInt(v) => {
+                column_value_as_i64(col.as_ref(), i).and_then(|cv| (cv as i32).partial_cmp(v))
+            }
+            FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => {
+                column_value_as_i64(col.as_ref(), i).and_then(|cv| cv.partial_cmp(v))
+            }
+            FilterExpr::LiteralDouble(v) => {
+                if let Some(arr) = col.as_any().downcast_ref::<Float64Array>() {
+                    arr.value(i).partial_cmp(v)
+                } else if let Some(arr) = col.as_any().downcast_ref::<Float32Array>() {
+                    (arr.value(i) as f64).partial_cmp(v)
+                } else {
+                    None
+                }
+            }
+            FilterExpr::LiteralBool(v) => {
+                if let Some(arr) = col.as_any().downcast_ref::<BooleanArray>() {
+                    arr.value(i).partial_cmp(v)
+                } else {
+                    None
+                }
+            }
+            FilterExpr::LiteralString(v) => {
+                if let Some(arr) = col.as_any().downcast_ref::<StringArray>() {
+                    arr.value(i).partial_cmp(v.as_str())
+                } else if let Some(arr) = col.as_any().downcast_ref::<BinaryArray>() {
+                    arr.value(i).partial_cmp(v.as_bytes())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        results.push(ord.map(accept));
+    }
+    Ok(BooleanArray::from(results))
+}
+
+fn eval_in_list(
+    col: Arc<dyn Array>,
+    items: &[FilterExpr],
+    num_rows: usize,
+) -> arrow::error::Result<BooleanArray> {
+    let mut results = Vec::with_capacity(num_rows);
+    for i in 0..num_rows {
+        if col.is_null(i) {
+            results.push(Some(false));
+            continue;
+        }
+        let mut matched = false;
+        for item in items {
+            let eq = match item {
+                FilterExpr::LiteralInt(v) => {
+                    column_value_as_i64(col.as_ref(), i).map(|cv| cv as i32 == *v).unwrap_or(false)
+                }
+                FilterExpr::LiteralLong(v) | FilterExpr::LiteralTimestampMillis(v) => {
+                    column_value_as_i64(col.as_ref(), i).map(|cv| cv == *v).unwrap_or(false)
+                }
+                FilterExpr::LiteralDouble(v) => col.as_any().downcast_ref::<Float64Array>().map(|a| a.value(i) == *v).unwrap_or(false),
+                FilterExpr::LiteralString(v) => {
+                    col.as_any().downcast_ref::<StringArray>().map(|a| a.value(i) == v.as_str())
+                        .or_else(|| col.as_any().downcast_ref::<BinaryArray>().map(|a| a.value(i) == v.as_bytes()))
+                        .unwrap_or(false)
+                }
+                FilterExpr::LiteralBool(v) => col.as_any().downcast_ref::<BooleanArray>().map(|a| a.value(i) == *v).unwrap_or(false),
+                _ => false,
+            };
+            if eq {
+                matched = true;
+                break;
+            }
+        }
+        results.push(Some(matched));
+    }
+    Ok(BooleanArray::from(results))
+}
+
+fn eval_like(
+    col_expr: &FilterExpr,
+    pattern: &str,
+    batch: &RecordBatch,
+    num_rows: usize,
+    negate: bool,
+) -> arrow::error::Result<BooleanArray> {
+    if let FilterExpr::Column(name) = col_expr {
+        if let Some(col) = find_column(batch, name) {
+            let regex = like_pattern_to_regex(pattern);
+            let re = regex::Regex::new(&regex).unwrap_or_else(|_| regex::Regex::new(".*").unwrap());
+            let mut results = Vec::with_capacity(num_rows);
+            let str_arr = col.as_any().downcast_ref::<StringArray>();
+            let bin_arr = col.as_any().downcast_ref::<BinaryArray>();
+            for i in 0..num_rows {
+                if col.is_null(i) {
+                    results.push(Some(false));
+                } else {
+                    let val: Option<&str> = str_arr.map(|a| a.value(i))
+                        .or_else(|| bin_arr.and_then(|a| std::str::from_utf8(a.value(i)).ok()));
+                    let m = val.map(|v| re.is_match(v)).unwrap_or(false);
+                    results.push(Some(if negate { m == false } else { m }));
+                }
+            }
+            return Ok(BooleanArray::from(results));
+        }
+    }
+    Ok(BooleanArray::from(vec![true; num_rows]))
+}
+
+fn eval_starts_with(
+    col_expr: &FilterExpr,
+    prefix: &str,
+    upper: Option<&str>,
+    batch: &RecordBatch,
+    num_rows: usize,
+) -> arrow::error::Result<BooleanArray> {
+    if let FilterExpr::Column(name) = col_expr {
+        if let Some(col) = find_column(batch, name) {
+            let str_arr = col.as_any().downcast_ref::<StringArray>();
+            let bin_arr = col.as_any().downcast_ref::<BinaryArray>();
+            let mut results = Vec::with_capacity(num_rows);
+            for i in 0..num_rows {
+                if col.is_null(i) {
+                    results.push(Some(false));
+                } else {
+                    let val: Option<&str> = str_arr.map(|a| a.value(i))
+                        .or_else(|| bin_arr.and_then(|a| std::str::from_utf8(a.value(i)).ok()));
+                    let m = val.map(|v| v >= prefix && upper.map_or(true, |u| v < u)).unwrap_or(false);
+                    results.push(Some(m));
+                }
+            }
+            return Ok(BooleanArray::from(results));
+        }
+    }
+    Ok(BooleanArray::from(vec![true; num_rows]))
+}
+
+fn like_pattern_to_regex(pattern: &str) -> String {
+    let mut regex = String::from("^");
+    let mut escaped = false;
+    for c in pattern.chars() {
+        if escaped {
+            regex.push_str(&regex::escape(&c.to_string()));
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' => escaped = true,
+            '%' => regex.push_str(".*"),
+            '_' => regex.push('.'),
+            _ => regex.push_str(&regex::escape(&c.to_string())),
+        }
+    }
+    regex.push('$');
+    regex
+}
+
+// ---------------------------------------------------------------------------
+// JNI entry points for building FilterExpr trees
+// ---------------------------------------------------------------------------
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createColumn(
+    mut env: EnvUnowned,
+    _class: JClass,
+    name: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let col_name = name.try_to_string(env)?;
+        Ok(box_expr(FilterExpr::Column(col_name)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralInt(
+    mut env: EnvUnowned, _class: JClass, value: jni::sys::jint,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> { Ok(box_expr(FilterExpr::LiteralInt(value))) })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralLong(
+    mut env: EnvUnowned, _class: JClass, value: jni::sys::jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> { Ok(box_expr(FilterExpr::LiteralLong(value))) })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralTimestampMillis(
+    mut env: EnvUnowned, _class: JClass, value: jni::sys::jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> { Ok(box_expr(FilterExpr::LiteralTimestampMillis(value))) })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralDouble(
+    mut env: EnvUnowned, _class: JClass, value: jni::sys::jdouble,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> { Ok(box_expr(FilterExpr::LiteralDouble(value))) })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralBool(
+    mut env: EnvUnowned, _class: JClass, value: jni::sys::jboolean,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> { Ok(box_expr(FilterExpr::LiteralBool(value != jni::sys::JNI_FALSE as jni::sys::jboolean))) })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLiteralString(
+    mut env: EnvUnowned, _class: JClass, value: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let s = value.try_to_string(env)?;
+        Ok(box_expr(FilterExpr::LiteralString(s)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+macro_rules! binary_filter_op {
+    ($jni_name:ident, $variant:ident) => {
+        #[unsafe(no_mangle)]
+        pub extern "system" fn $jni_name(
+            mut env: EnvUnowned, _class: JClass, left: jlong, right: jlong,
+        ) -> jlong {
+            env.with_env(|_env| -> JniResult<jlong> {
+                let l = unsafe { *unbox_expr(left) };
+                let r = unsafe { *unbox_expr(right) };
+                Ok(box_expr(FilterExpr::$variant(Box::new(l), Box::new(r))))
+            })
+            .resolve::<ThrowRuntimeExAndDefault>()
+        }
+    };
+}
+
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createEquals, Eq);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createNotEquals, NotEq);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createGreaterThan, Gt);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createGreaterThanOrEqual, GtEq);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLessThan, Lt);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLessThanOrEqual, LtEq);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createAnd, And);
+binary_filter_op!(Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createOr, Or);
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createNot(
+    mut env: EnvUnowned, _class: JClass, child: jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(child) };
+        Ok(box_expr(FilterExpr::Not(Box::new(c))))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createIsNull(
+    mut env: EnvUnowned, _class: JClass, child: jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(child) };
+        Ok(box_expr(FilterExpr::IsNull(Box::new(c))))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createIsNotNull(
+    mut env: EnvUnowned, _class: JClass, child: jlong,
+) -> jlong {
+    env.with_env(|_env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(child) };
+        Ok(box_expr(FilterExpr::IsNotNull(Box::new(c))))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createInList(
+    mut env: EnvUnowned, _class: JClass, expr_handle: jlong, list_handles: JLongArray,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let e = unsafe { *unbox_expr(expr_handle) };
+        let len = list_handles.len(env)?;
+        let mut handles = vec![0i64; len];
+        list_handles.get_region(env, 0, &mut handles)?;
+        let mut items = Vec::with_capacity(len);
+        for h in handles {
+            items.push(unsafe { *unbox_expr(h) });
+        }
+        Ok(box_expr(FilterExpr::InList(Box::new(e), items)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createStartsWith(
+    mut env: EnvUnowned, _class: JClass, col_handle: jlong, prefix: JString, upper_bound: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(col_handle) };
+        let prefix_str = prefix.try_to_string(env)?;
+        let upper_opt = jstring_to_opt_string(&upper_bound, env)?;
+        Ok(box_expr(FilterExpr::StartsWith(Box::new(c), prefix_str, upper_opt)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createLike(
+    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(col_handle) };
+        let pat = pattern.try_to_string(env)?;
+        Ok(box_expr(FilterExpr::Like(Box::new(c), pat)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_createNotLike(
+    mut env: EnvUnowned, _class: JClass, col_handle: jlong, pattern: JString,
+) -> jlong {
+    env.with_env(|env| -> JniResult<jlong> {
+        let c = unsafe { *unbox_expr(col_handle) };
+        let pat = pattern.try_to_string(env)?;
+        Ok(box_expr(FilterExpr::NotLike(Box::new(c), pat)))
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_freeExpr(
+    mut env: EnvUnowned, _class: JClass, handle: jlong,
+) {
+    env.with_env(|_env| -> JniResult<()> {
+        if handle != 0 {
+            unsafe { unbox_expr(handle) };
+        }
+        Ok(())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>();
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_describeExpr(
+    mut env: EnvUnowned, _class: JClass, handle: jlong,
+) -> jni::sys::jobject {
+    env.with_env(|env| -> JniResult<jni::sys::jobject> {
+        let expr = unsafe { &*(handle as *const FilterExpr) };
+        let desc = format!("{expr}");
+        let jstr = env.new_string(&desc)?;
+        Ok(jstr.into_raw())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}

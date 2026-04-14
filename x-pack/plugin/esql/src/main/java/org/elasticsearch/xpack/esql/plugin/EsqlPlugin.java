@@ -208,6 +208,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    /**
+     * When true, the native parquet-rs Parquet reader is used instead of the Java-based parquet-mr reader.
+     * Only one Parquet plugin will be registered at runtime based on this toggle.
+     */
+    static final boolean USE_NATIVE_PARQUET = true;
+
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
@@ -244,6 +250,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
             }
         }
+
+        // Remove the inactive Parquet plugin based on the toggle so only one registers for "parquet"
+        allDataSourcePlugins.removeIf(p -> {
+            String name = p.getClass().getSimpleName();
+            if (USE_NATIVE_PARQUET) {
+                return "ParquetDataSourcePlugin".equals(name);
+            } else {
+                return "ParquetRsPlugin".equals(name);
+            }
+        });
 
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);

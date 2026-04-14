@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-parquet-rs'
+  description = 'parquet-rs backed native Parquet reader for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsPlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-parquet-rs'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+  compileOnly project(xpackModule('esql:arrow'))
+
+  // Arrow C Data Interface for zero-copy FFI transfer from Rust
+  implementation("org.apache.arrow:arrow-c-data:18.3.0") {
+    exclude group: 'org.slf4j'
+  }
+  implementation(project(':libs:arrow')) {
+    exclude group: 'org.slf4j'
+  }
+
+  testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  testImplementation("org.apache.hadoop:hadoop-client-api:3.4.3")
+  testImplementation("org.apache.hadoop:hadoop-client-runtime:3.4.3")
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+// ---------------------------------------------------------------------------
+// Native Rust library build
+// ---------------------------------------------------------------------------
+def nativeDir = "${project.projectDir}/native"
+
+def os = System.getProperty("os.name", "").toLowerCase()
+def arch = System.getProperty("os.arch", "").toLowerCase()
+
+String libFileName
+String platformDir
+if (os.contains("mac") || os.contains("darwin")) {
+  libFileName = "libesql_parquet_rs.dylib"
+  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "darwin-aarch64" : "darwin-x86_64"
+} else if (os.contains("linux")) {
+  libFileName = "libesql_parquet_rs.so"
+  platformDir = arch.contains("aarch64") || arch.contains("arm64") ? "linux-aarch64" : "linux-x86_64"
+} else {
+  libFileName = "libesql_parquet_rs.so"
+  platformDir = "unsupported"
+}
+
+def cargoOutputDir = "${nativeDir}/target/release"
+def resourceTarget = "${project.projectDir}/src/main/resources/platform/${platformDir}"
+
+tasks.register("cargoBuild", Exec) {
+  description = "Build the native parquet-rs library with cargo (release mode)"
+  workingDir nativeDir
+
+  def cargoPath = org.gradle.internal.os.OperatingSystem.current().findInPath("cargo")
+  if (cargoPath != null) {
+    commandLine cargoPath.absolutePath, "build", "--release"
+  } else {
+    commandLine "cargo", "build", "--release"
+  }
+
+  inputs.dir("${nativeDir}/src")
+  inputs.file("${nativeDir}/Cargo.toml")
+  inputs.file("${nativeDir}/Cargo.lock")
+  outputs.file("${cargoOutputDir}/${libFileName}")
+
+  onlyIf {
+    cargoPath != null
+  }
+}
+
+tasks.register("copyNativeLib", Copy) {
+  description = "Copy the built native library to the platform resources directory"
+  dependsOn "cargoBuild"
+  from "${cargoOutputDir}/${libFileName}"
+  into resourceTarget
+  onlyIf { new File("${cargoOutputDir}/${libFileName}").exists() }
+}
+
+tasks.named("processResources").configure {
+  dependsOn "copyNativeLib"
+}
+
+tasks.matching { it.name == "sourcesJar" }.configureEach {
+  dependsOn "copyNativeLib"
+}
+
+tasks.named("test").configure {
+  def nativeLib = "${project.projectDir}/native/target/release/libesql_parquet_rs.dylib"
+  if (new File(nativeLib).exists()) {
+    systemProperty 'tests.native.lib.path', nativeLib
+  }
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /parquet-.*/, to: 'parquet'
+  mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}

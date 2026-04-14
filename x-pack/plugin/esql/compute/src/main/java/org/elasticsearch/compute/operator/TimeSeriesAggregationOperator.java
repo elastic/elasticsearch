@@ -262,6 +262,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         return ArrayUtil.copyOfSubArray(positions, 0, idx);
     }
 
+    /** Returns {@code true} when {@code step} is aligned to the output bucket, or when there is no output bucket filter. */
+    private boolean isOutputAligned(long step, Rounding.Prepared outputRounding) {
+        if (outputRounding == null) {
+            return true;
+        }
+        long millis = timeResolution.roundDownToMillis(step);
+        return outputRounding.round(millis) == millis;
+    }
+
     private Rounding.Prepared optimizeOutputRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
         if (minTimestamp <= maxTimestamp) {
             long startMillis = timeResolution.roundDownToMillis(minTimestamp);
@@ -311,6 +320,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
         // Build tsid-contiguous output pages with inline null-fill
         Rounding.Prepared optimized = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
+        Rounding.Prepared optimizedOutput = outputTimeBucket != null
+            ? optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp())
+            : null;
         long minTs = tsBlockHash.minTimestamp();
         long maxTs = tsBlockHash.maxTimestamp();
         int numUniqueTsids = tsBlockHash.numUniqueTsids();
@@ -354,7 +366,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
         int numSteps = 0;
         for (long s = minTs; s <= maxTs; s = optimized.nextRoundingValue(s)) {
-            numSteps++;
+            if (isOutputAligned(s, optimizedOutput)) {
+                numSteps++;
+            }
         }
         int totalRows = numUniqueTsids * numSteps;
 
@@ -372,6 +386,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             for (int tsidOrdinal = 0; tsidOrdinal < numUniqueTsids; tsidOrdinal++) {
                 BytesRef tsidBytes = tsBlockHash.getTsidBytes(tsidOrdinal, scratch);
                 for (long step = minTs; step <= maxTs; step = optimized.nextRoundingValue(step)) {
+                    if (isOutputAligned(step, optimizedOutput) == false) {
+                        continue;
+                    }
                     tsidBuilder.appendBytesRef(tsidBytes);
                     tsBuilder.appendLong(step);
                     long groupId = tsBlockHash.getGroupId(tsidOrdinal, step);

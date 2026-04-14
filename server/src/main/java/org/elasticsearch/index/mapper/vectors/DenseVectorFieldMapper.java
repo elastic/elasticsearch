@@ -403,7 +403,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
             this.inferenceId = Parameter.stringParam("inference_id", true, m -> toType(m).fieldType().inferenceId, null)
                 .acceptsNull()
-                .setSerializerCheck((id, ic, v) -> v != null);
+                .setSerializerCheck((id, ic, v) -> v != null)
+                .addValidator(v -> {
+                    if (v != null && indexVersionCreated.before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
+                        throw new IllegalArgumentException(
+                            "Field [inference_id] requires an index created with version ["
+                                + IndexVersions.DENSE_VECTOR_INFERENCE_ID.toReleaseVersion()
+                                + "] or later"
+                        );
+                    }
+                });
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {

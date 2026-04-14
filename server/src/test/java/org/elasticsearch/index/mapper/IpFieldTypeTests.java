@@ -84,6 +84,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             Collections.emptyMap(),
             false,
+            false,
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
@@ -317,6 +318,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false,
             false
         );

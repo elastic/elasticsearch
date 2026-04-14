@@ -1333,6 +1333,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             null,
             Collections.emptyMap(),
             false,
+            false,
             false
         );
         testCase(iw -> {

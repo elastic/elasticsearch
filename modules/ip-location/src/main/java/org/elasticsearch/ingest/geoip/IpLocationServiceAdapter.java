@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.iplocation.api.DatabaseAvailabilityListener;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
@@ -63,7 +64,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
             try {
                 database.close();
             } catch (IOException e) {
-                logger.warn("failed to close database [{}]", databaseFile, e);
+                logger.warn(() -> Strings.format("failed to close database [%s]", databaseFile), e);
             }
         }
     }

@@ -650,7 +650,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             try {
                 loader.close();
             } catch (IOException e) {
-                logger.warn("failed to close database loader [{}]", databaseFile, e);
+                logger.warn(() -> Strings.format("failed to close database loader [%s]", databaseFile), e);
             }
         }
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -38,6 +39,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 
 public class ToBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBase64.class).unary(ToBase64::new).name("to_base64");
 
     @FunctionInfo(
         returnType = "keyword",

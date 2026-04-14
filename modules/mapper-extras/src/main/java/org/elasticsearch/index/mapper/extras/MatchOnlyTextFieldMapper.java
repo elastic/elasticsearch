@@ -1020,10 +1020,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 @Override
                 public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
                     // match_only_text fields with doc_values may have all values stored in fallback fields if every value exceeds
-                    // MAX_TERM_LENGTH. In that case, there will be no SortedSetDocValues, but the "main" field might still be indexed.
+                    // MAX_TERM_LENGTH. In that case, there will be no doc values at all, but the "main" field might still be indexed.
                     // As a result, we can't use SortedSetDocValuesSyntheticFieldLoaderLayer since it uses DocValues.getSortedSet(),
-                    // which will throw.
-                    if (reader.getSortedSetDocValues(fieldName()) == null) {
+                    // which will throw. Check for both SORTED_SET (multi-valued) and SORTED (multi_value=no) doc values types.
+                    if (reader.getSortedSetDocValues(fieldName()) == null && reader.getSortedDocValues(fieldName()) == null) {
                         return null;
                     }
                     return super.docValuesLoader(reader, docIdsInLeaf);

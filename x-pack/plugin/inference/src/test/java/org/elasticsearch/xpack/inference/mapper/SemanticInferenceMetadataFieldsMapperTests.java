@@ -152,7 +152,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         assertThat(ex.getMessage(), containsString("legacy semantic text format is not supported for new indices"));
     }
 
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+    public static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
         if (useLegacyFormat) {
             // Randomly choose an index version compatible with the legacy semantic text format
             if (randomBoolean()) {

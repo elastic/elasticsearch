@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -184,10 +185,16 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
 
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticChunkScorerTests.class.getResourceAsStream("mappings.json"));
-        var settings = Settings.builder()
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
-        return createMapperService(settings, mappings.utf8ToString());
+        if (useLegacyFormat) {
+            IndexVersion legacyVersion = getRandomCompatibleIndexVersion(true);
+            var settings = Settings.builder()
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(legacyVersion, settings, mapping(b -> {}));
+            merge(mapperService, mappings.utf8ToString());
+            return mapperService;
+        }
+        return createMapperService(Settings.EMPTY, mappings.utf8ToString());
     }
 
     private float[] readDenseVector(Object value) {

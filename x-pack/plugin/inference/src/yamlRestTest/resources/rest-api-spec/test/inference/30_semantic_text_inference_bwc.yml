@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      cluster_features: "semantic_text.legacy_format_forbidden"
+      reason: "Legacy format index creation is no longer supported on this cluster version"
+
   - requires:
       cluster_features: "gte_v8.15.0"
       reason: semantic_text introduced in 8.15.0

@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      cluster_features: "semantic_text.legacy_format_forbidden"
+      reason: "Legacy format index creation is no longer supported on this cluster version"
+
   - requires:
       cluster_features: "semantic_text.highlighter"
       reason: a new highlighter for semantic text field

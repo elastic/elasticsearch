@@ -130,6 +130,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT,
                 SEMANTIC_TEXT_AUTO_PREFILTERING,
                 SEMANTIC_TEXT_BFLOAT16_SUPPORT,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,

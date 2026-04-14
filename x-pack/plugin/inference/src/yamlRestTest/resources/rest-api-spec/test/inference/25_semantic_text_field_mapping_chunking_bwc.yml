@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      cluster_features: "semantic_text.legacy_format_forbidden"
+      reason: "Legacy format index creation is no longer supported on this cluster version"
+
   - requires:
       cluster_features: "semantic_text.support_chunking_config"
       reason: semantic_text chunking configuration added in 8.19

@@ -315,10 +315,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """, "Unknown column [_score]");
     }
 
-    /*
+    /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Project[[_score{m}#5]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     * }
      */
     public void testMetadataFieldDeclaredNullify() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.
@@ -339,10 +341,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    /*
+    /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Project[[_score{m}#5]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     * }
      */
     public void testMetadataFieldDeclaredLoad() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.
@@ -638,7 +642,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
@@ -655,7 +659,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
         }
@@ -672,7 +676,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
         }
@@ -688,7 +692,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
@@ -704,7 +708,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
         TestAnalyzer ta = analyzer();
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
@@ -727,7 +731,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
         TestAnalyzer ta = analyzer();
         for (var entry : resolutions.entrySet()) {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());

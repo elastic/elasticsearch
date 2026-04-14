@@ -75,6 +75,12 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "multiple values per row, and use the result with the `MIN` function",
                 file = "stats",
                 tag = "docsStatsMinNestedExpression"
+            ),
+            @Example(
+                description = "`MIN` can also operate on `exponential_histogram` fields, "
+                    + "returning the minimum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "minExpHistoForDocs"
             ) }
     )
     public Min(

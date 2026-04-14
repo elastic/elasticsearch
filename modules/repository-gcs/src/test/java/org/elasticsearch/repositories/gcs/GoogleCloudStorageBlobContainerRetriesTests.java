@@ -141,6 +141,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     protected BlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
         final @Nullable Boolean disableChunkedEncoding,
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
@@ -633,7 +634,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         // The blob needs to be large enough that it won't be entirely buffered on the first request
         final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
-        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null, null);
 
         final String key = randomIdentifier();
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);

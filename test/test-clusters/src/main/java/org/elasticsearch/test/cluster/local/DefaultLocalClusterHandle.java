@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +46,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
     private static final int HEALTH_CHECK_CONNECT_TIMEOUT_MS = 5000;
     private static final int HEALTH_CHECK_READ_TIMEOUT_MS = 5000;
+    private static final long HEALTH_CHECK_CACHE_TTL_NANOS = Duration.ofSeconds(1).toNanos();
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),
@@ -64,6 +66,8 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final String name;
     private final List<Node> nodes;
+    private final Object healthCheckLock = new Object();
+    private volatile long lastHealthCheckNanos = 0L;
 
     public DefaultLocalClusterHandle(String name, List<Node> nodes) {
         this.name = name;
@@ -257,14 +261,21 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return wait;
     }
 
-    private WaitForHttpResource configureHealthCheck() throws MalformedURLException {
-        Node node = nodes.get(0);
+    private WaitForHttpResource configureNodeHealthCheck(Node node) throws MalformedURLException {
         String scheme = resolveScheme(node);
         WaitForHttpResource check = new WaitForHttpResource(new URL(scheme + "://" + node.getHttpAddress() + "/_cluster/health"));
         configureAuthentication(check, node);
         check.setConnectTimeout(HEALTH_CHECK_CONNECT_TIMEOUT_MS);
         check.setReadTimeout(HEALTH_CHECK_READ_TIMEOUT_MS);
         return check;
+    }
+
+    protected List<WaitForHttpResource> createHealthChecks() throws MalformedURLException {
+        List<WaitForHttpResource> checks = new ArrayList<>(nodes.size());
+        for (Node node : nodes) {
+            checks.add(configureNodeHealthCheck(node));
+        }
+        return checks;
     }
 
     private String resolveScheme(Node node) {
@@ -335,23 +346,54 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         }));
     }
 
-    private void checkNodesAlive() {
-        if (started.get() == false) {
+    protected boolean isStartedForChecks() {
+        return started.get();
+    }
+
+    protected long healthCheckCacheTtlNanos() {
+        return HEALTH_CHECK_CACHE_TTL_NANOS;
+    }
+
+    protected void checkNodesAlive() {
+        if (isStartedForChecks() == false) {
+            return;
+        }
+        if (nodes.isEmpty()) {
             return;
         }
         if (areAllNodesAlive() == false) {
-            throw new IllegalStateException(
+            LOGGER.warn("Elasticsearch cluster [{}] node process(es) have died. Cluster is no longer available.", name);
+            throw new AssumptionViolatedException(
                 "Elasticsearch cluster [" + name + "] node process(es) have died. Cluster is no longer available."
             );
         }
-        try {
-            WaitForHttpResource healthCheck = configureHealthCheck();
-            healthCheck.check();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                "Elasticsearch cluster [" + name + "] is not responding to health checks. Cluster may be in a bad state.",
-                e
-            );
+        long now = System.nanoTime();
+        if (now - lastHealthCheckNanos < healthCheckCacheTtlNanos()) {
+            return;
+        }
+        synchronized (healthCheckLock) {
+            now = System.nanoTime();
+            if (now - lastHealthCheckNanos < healthCheckCacheTtlNanos()) {
+                return;
+            }
+            try {
+                for (WaitForHttpResource healthCheck : createHealthChecks()) {
+                    healthCheck.check();
+                }
+                lastHealthCheckNanos = System.nanoTime();
+            } catch (Exception e) {
+                if (areAllNodesAlive() == false) {
+                    LOGGER.warn("Elasticsearch cluster [{}] node process(es) died during health checks.", name);
+                    throw new AssumptionViolatedException(
+                        "Elasticsearch cluster [" + name + "] node process(es) died during health checks."
+                    );
+                }
+                // Nodes are still alive, but the cluster is unresponsive; fail to surface the unhealthy state.
+                throw new IllegalStateException(
+                    "Elasticsearch cluster [" + name + "] is not responding to health checks. Cluster may be in a bad state.",
+                    e
+                );
+            }
         }
     }
 

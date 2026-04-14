@@ -117,6 +117,55 @@ public class TimeSeriesCollapsedEmitTests extends ComputeTestCase {
     }
 
     /**
+     * When {@code outputTimeBucket} is coarser than {@code timeBucket}, only steps that are aligned
+     * to the output bucket boundary must appear in the collapsed output. Non-aligned input-bucket
+     * steps must be dropped, and output-bucket-aligned steps that have no data must be null-filled.
+     */
+    public void testOutputBucketFiltersNonAlignedSteps() {
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        // Use epoch-relative timestamps so that 0 and multiples of 5 minutes are trivially 5-min aligned.
+        long min0 = TIME_BUCKET.round(0L);               // 0 ms — 5-min aligned
+        long min1 = TIME_BUCKET.round(ONE_MINUTE);        // 60_000 ms — NOT 5-min aligned
+        long min5 = TIME_BUCKET.round(5 * ONE_MINUTE);    // 300_000 ms — 5-min aligned
+        long min10 = TIME_BUCKET.round(10 * ONE_MINUTE);  // 600_000 ms — 5-min aligned
+
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
+        TimeSeriesAggregationOperator op = new TimeSeriesAggregationOperator(
+            TIME_BUCKET,
+            org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS,
+            AggregatorMode.SINGLE,
+            List.of(
+                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(2)
+                )
+            ),
+            () -> new TimeSeriesBlockHash(0, 1, false, true, blockFactory),
+            fiveMinBucket,
+            true,
+            driverContext
+        );
+
+        // tsid1: data at min0, min1 (not 5-min aligned), and min10; min5 has no data -> null-fill
+        feedInput(
+            op,
+            blockFactory,
+            List.of(new InputRow("tsid1", min0, 10), new InputRow("tsid1", min1, 20), new InputRow("tsid1", min10, 30))
+        );
+        op.finish();
+        List<Row> result = drainExpandedRows(op);
+
+        // Range [min0, min10]. 5-min-aligned steps: min0, min5, min10.
+        // min1 has data but is not 5-min aligned -> excluded.
+        // min5 has no data -> null-fill.
+        assertThat(result.size(), equalTo(3));
+        assertThat(result.get(0), equalTo(new Row("tsid1", min0, 10L)));
+        assertThat(result.get(1), equalTo(new Row("tsid1", min5, null)));
+        assertThat(result.get(2), equalTo(new Row("tsid1", min10, 30L)));
+    }
+
+    /**
      * Verifies that null-fill rows propagate dimension values (e.g. cluster) from a representative
      * group of the same tsid, rather than emitting null. Without this fix, null-dimension rows
      * break the label-contiguity assumption of downstream operators like TimeSeriesCollapseOperator.

@@ -132,7 +132,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         FieldInfo info = reader.getFieldInfos().fieldInfo(field);
         // info.getVectorEncoding().equals(VectorEncoding.FLOAT32);
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues.size() == 0) {
+        if (floatVectorValues == null || floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
@@ -142,7 +142,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         }
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
-        TopDocs results = knnCollector.topDocs();
+        TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
+            ? bulkKnnCollector.unsortedTopK()
+            : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.TopDocs;
 
 /**
  * A {@link KnnCollector} that can accept bulk document-score arrays.
@@ -24,4 +25,6 @@ public interface BulkKnnCollector extends KnnCollector {
      * @return the number of entries that were accepted (added or replaced)
      */
     int bulkCollect(int[] docs, float[] scores, int count, float bestScore);
+
+    TopDocs unsortedTopK();
 }

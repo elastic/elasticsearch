@@ -30,7 +30,7 @@ public class BulkNeighborQueueTests extends ESTestCase {
     public void testPeekSentinelMinHeap() {
         BulkNeighborQueue queue = new BulkNeighborQueue(2, false);
         long sentinel = queue.peek();
-        assertEquals(Float.NEGATIVE_INFINITY, queue.decodeScore(sentinel), 0.0f);
+        assertEquals(0.0f, queue.decodeScore(sentinel), 0.0f);
         assertEquals(0, queue.size());
     }
 

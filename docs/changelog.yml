@@ -296,7 +296,7 @@ bundle:
   # Input directory containing changelog YAML files
   directory: docs/changelog/new
   # Output directory for bundled changelog files
-  output_directory: docs/releases-notes/changelog-bundles/new
+  output_directory: docs/release-notes/changelog-bundles/new
   # Whether to resolve (copy contents) by default
   resolve: true
   # Optional: default GitHub repo name applied to all profiles that do not specify their own.

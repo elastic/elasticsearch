@@ -1,0 +1,5481 @@
+﻿products:
+- product: elasticsearch
+  target: 9.4.0
+  repo: elasticsearch
+  owner: elastic
+entries:
+- file:
+    name: 142370.yaml
+    checksum: 3a390d20256e3c7c20c95f8813392f8a8a90cbc9
+  type: bug-fix
+  title: Replace IllegalStateException with IllegalArgumentException for conflicting time series metadata
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142370
+- file:
+    name: 139405.yaml
+    checksum: 6a382a205069f59d9e3887de1b3792193df85622
+  type: enhancement
+  title: Update Grok to use the new Matcher#setTimeout
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Ingest node
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139405
+- file:
+    name: 145374.yaml
+    checksum: 90f0394391b0b8e013b0948e902f97b630dbb0e9
+  type: enhancement
+  title: Set default semantic_text index type to disk_bbq by using dense_vector defaults
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145374
+- file:
+    name: 141788.yaml
+    checksum: 8d52f6f465e99195e71fdeeb490c83574974f6bc
+  type: enhancement
+  title: Handle preconfigured endpoints with embedding task type
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141788
+- file:
+    name: 139540.yaml
+    checksum: 5b390401131bf6a44e0575717053495e17607571
+  type: enhancement
+  title: ES|QL - Add parsing, preanalysis and analysis timing information to profile
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139540
+- file:
+    name: 141272.yaml
+    checksum: fd822531547c692d329dbd9b42ab75f28a5125e7
+  type: bug-fix
+  title: 'ESQL: SUM long overflow fix and TransportVersionAware interface'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141272
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/110437
+- file:
+    name: 140530.yaml
+    checksum: 56d8289ea028ff4bdc9c0e0568db430c56f09ad5
+  type: other
+  title: Upgrade zstd to version 1.5.7
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140530
+- file:
+    name: 143465.yaml
+    checksum: 5f7275c0eef894d081f0f7792a0535a87bb4c0bf
+  type: enhancement
+  title: Disable OCC in update/delete-by-query for seq_no-less indices
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143465
+- file:
+    name: 143035.yaml
+    checksum: f875d3be1d8ae7c9cd208a95e8d25262da716b57
+  type: feature
+  title: 'ESQL: Datasources: GZIP'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143035
+- file:
+    name: 141376.yaml
+    checksum: 46ad89d2a2bd961f48fe6bb39940451a5992bd4f
+  type: bug-fix
+  title: Add all read_cross_cluster privileges to read
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141376
+- file:
+    name: 141399.yaml
+    checksum: 811922bb05096c452184062569f9a416aa582c98
+  type: bug-fix
+  title: Fixed a bug where match only text delegates loading to an incorrect parent keyword field
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141399
+- file:
+    name: 144031.yaml
+    checksum: 33f32be1a05fcf00df45008e2f5d2cd7b4373e32
+  type: bug-fix
+  title: Fix ESQL TS requests with LIMIT 0
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144031
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144024
+- file:
+    name: 141819.yaml
+    checksum: 33c485de8a9cb3a779beb9dd578fb667c42c169a
+  type: enhancement
+  title: Account for ES|QL Lucene query rewrite in recent search load
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Engine
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141819
+- file:
+    name: 142736.yaml
+    checksum: c20c44915ac37815ac6ec6152c5b00d38f3bf607
+  type: enhancement
+  title: Support multimodal inputs for chat completion
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142736
+- file:
+    name: 139829.yaml
+    checksum: 96b38b390d3e0c3b4a0e801ebcdc2f305c4a9def
+  type: bug-fix
+  title: 'SQL: Fix exception in aggregations'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - SQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139829
+- file:
+    name: 143760.yaml
+    checksum: 380aafd62712684d9aec05c813e848fbc69bebcb
+  type: enhancement
+  title: Upgrade DiskBBQ algorithm
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143760
+- file:
+    name: 143449.yaml
+    checksum: b3fc8ac905d0d03648403c0b28bf2cb4bb69e556
+  type: bug-fix
+  title: Fix CSV-escaped quotes in generated docs examples
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143449
+- file:
+    name: 144733.yaml
+    checksum: a0242a9c82448fbb4823ea7bc4077d21fc181c5e
+  type: enhancement
+  title: GCS native async I/O via ReadChannel
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144733
+- file:
+    name: 143737.yaml
+    checksum: 4f484811318ce8bed40b74abd7184c01429dda75
+  type: bug-fix
+  title: 'ESQL: Fix ambiguous field type error propagation'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143737
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142761
+- file:
+    name: 140662.yaml
+    checksum: fc5236f8b80c70a4748e7f74edd114c24bd355e5
+  type: enhancement
+  title: Adding MV_INTERSECTS function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140662
+- file:
+    name: 141073.yaml
+    checksum: a082d3f89239cabb6ed4446bfb8227feefdf66e0
+  type: enhancement
+  title: Delay partial results
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141073
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139828
+- file:
+    name: 143408.yaml
+    checksum: edcdbb49945cf608ad20614c47a3cc54333941e6
+  type: bug-fix
+  title: Fix SQL client parsing of array header values
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - SQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143408
+- file:
+    name: 141570.yaml
+    checksum: 7963365593f853821ef8afc60b36f0d157455999
+  type: enhancement
+  title: Update View CRUD Actions to be Index Actions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Authorization
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141570
+- file:
+    name: 142472.yaml
+    checksum: 3f2d04afb56fc67746b8570c9fc95c7a47e3e23e
+  type: enhancement
+  title: Allow intermediate builds in PR-based benchmarks
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Performance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142472
+- file:
+    name: 141045.yaml
+    checksum: dbe7098e10260a5f6f85e62d3806819f6fb08337
+  type: enhancement
+  title: Add support for nested NDJSON records in TextStructure endpoints
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141045
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/127777
+- file:
+    name: 144247.yaml
+    checksum: c54b2e2e2dd2862d67fbf6e82dbe88e77a3d1054
+  type: enhancement
+  title: Making use of sort optimization written from search in search shards
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144247
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143945
+- file:
+    name: 139777.yaml
+    checksum: 5dd7b7995981dcd56f78780f37ef97f15b6e5ddc
+  type: enhancement
+  title: Always do bulk scoring for rescoring when possible
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139777
+- file:
+    name: 145456.yaml
+    checksum: 217da82220a5f78b3508bef1e5a809ad1b0a220b
+  type: bug-fix
+  title: KQL and QSTR were incorrectly rejected when used before a SAMPLE
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145456
+- file:
+    name: 140592.yaml
+    checksum: 83965cab734f587fcaf8cda45581828b002c6895
+  type: enhancement
+  title: 'ES|QL: add support for project METADATA'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140592
+- file:
+    name: 131828.yaml
+    checksum: 021c22f40559a32e52114648b8e9a31d1afd268a
+  type: feature
+  title: ES|QL approximate query execution
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/131828
+- file:
+    name: 142405.yaml
+    checksum: 8effad21536840df55ca6874fb6cf518bd37f8ae
+  type: bug-fix
+  title: Return 404 instead of 500 when scroll/PIT references nodes that have left the cluster
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142405
+- file:
+    name: 143306.yaml
+    checksum: d245c09e7df9e663d0c3779c4cc710462765a201
+  type: feature
+  title: Opt-in persistent task reassignment on node shutdown
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143306
+- file:
+    name: 141784.yaml
+    checksum: 7455ff6e51a2de10edd7beb9c782577a73ab565a
+  type: bug-fix
+  title: Update constant-value fields to support normalized wildcard queries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141784
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/138778
+- file:
+    name: 137397.yaml
+    checksum: 87136b4f8736346a4d255e51e27c9e8d24e070de
+  type: enhancement
+  title: Update text_similarity_rank_retriever to support inference ID as an argument when reranking on chunks
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137397
+- file:
+    name: 142297.yaml
+    checksum: 6bc5bbf4f8da745218b155a1e30ac1b66eca854f
+  type: enhancement
+  title: Relax PR-based benchmarks target branch
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Performance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142297
+- file:
+    name: 143486.yaml
+    checksum: f121d194df84c72e3c3e75175830a47febeccdf9
+  type: enhancement
+  title: Semantic text default inference id setting
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143486
+- file:
+    name: 143890.yaml
+    checksum: 80c333bc4045ba990bd5138705578529dd031786
+  type: enhancement
+  title: 'ESQL: Add configurable bracket-based multi-value support for CSV reader'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143890
+- file:
+    name: 143081.yaml
+    checksum: 527ba5df913867cab9d40d6ea40accf5b5fe3b83
+  type: enhancement
+  title: Parse endpoint metadata from persisted endpoints
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143081
+- file:
+    name: 145010.yaml
+    checksum: 50846e46976e1948eb983636d5ca9b20b979f605
+  type: enhancement
+  title: Remove Swiss Hash FF
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Engine
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145010
+- file:
+    name: 142106.yaml
+    checksum: 20d1c2726a5bdc2ab8c026f514328a339888dc16
+  type: enhancement
+  title: Track bloom filter disk usage in IndexDiskUsageAnalyzer
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142106
+- file:
+    name: 140838.yaml
+    checksum: fe3b2b40bbb32eb2be753aef2eeb9dbecac748de
+  type: enhancement
+  title: Add LongLongSwissHash - specialization for grouping by two long fields.
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140838
+- file:
+    name: 141881.yaml
+    checksum: 4ff11034a3cda466ae87c2586ddc93e4f40467ed
+  type: enhancement
+  title: Identify Elasticsearch as user-agent in S3 calls
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141881
+- file:
+    name: 142468.yaml
+    checksum: 3b71eb93b21eac8332cf8cfd4308c4c26ac9cd58
+  type: enhancement
+  title: Reduce memory usage of `TransportGetSnapshotsAction`
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142468
+- file:
+    name: 142192.yaml
+    checksum: 07dbfe7f36f735164c4417fb8c234df869cbada7
+  type: bug-fix
+  title: Ensure deletion of snapshot clone propagate state changes
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142192
+- file:
+    name: 140005.yaml
+    checksum: 1b6155f098a9661a8892e0f5c003bafe480dcb46
+  type: enhancement
+  title: Add dense_vector equality and inequality support in ES|QL
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140005
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139929
+- file:
+    name: 144800.yaml
+    checksum: e91f1b4cc5ece7c64f47ee76afab1f0a74b5043b
+  type: enhancement
+  title: Inject circuit breaker into forked SynonymMapBuilder
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144800
+- file:
+    name: 140394.yaml
+    checksum: 1243fb21df375b9618aab2f82e386b23b5749276
+  type: bug-fix
+  title: Limit heap used tracking `IndexMetadata` deletions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140394
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140018
+- file:
+    name: 143384.yaml
+    checksum: 66f50a133153df412587c84d0c71849885c1130d
+  type: enhancement
+  title: Add CCS Remote Views Detection
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143384
+- file:
+    name: 139034.yaml
+    checksum: f4ebc79808e90a0bf727b38395e92a0eff4921d3
+  type: bug-fix
+  title: Ensure that the buffer used for ES93BloomFilterStoredFieldsFormat is zeroed
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139034
+- file:
+    name: 142700.yaml
+    checksum: 1cd62a64a469df6938b6e1fa0c861d1f671a2f80
+  type: bug-fix
+  title: Do not push sort on many keyword fields to lucene
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142700
+- file:
+    name: 141205.yaml
+    checksum: 9b75f11402d549000086dc3612e0c03d0476cf33
+  type: enhancement
+  title: Add IntRangeVector for selected groups in aggregation
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141205
+- file:
+    name: 140101.yaml
+    checksum: ff156577ae9ca9031978f8f2209798a69da9190c
+  type: feature
+  title: 'ESQL: Add timezone to add and sub operators, and ConfigurationAware planning support'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140101
+- file:
+    name: 143900.yaml
+    checksum: b7b8f482b142e35c01c74ea2ba15c932c4e60d3d
+  type: enhancement
+  title: 'ESQL: Fix review feedback and add test coverage for PR #143703'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143900
+- file:
+    name: 145641.yaml
+    checksum: d37e1d09096caa4bb1b68e7123a31433c58b4a8e
+  type: enhancement
+  title: Schema-aware filter pushdown for DATETIME and DECIMAL
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145641
+- file:
+    name: 144050.yaml
+    checksum: 39c9b1935b7af735acf41ae867f59ee395185bf0
+  type: enhancement
+  title: 'ESQL: CSV schema inference and parsing enhancements'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144050
+- file:
+    name: 145640.yaml
+    checksum: 3ea2e853958f2a473584ef27d5fcf150f753705d
+  type: enhancement
+  title: Push STARTS_WITH/LIKE prefix to Parquet and ORC
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145640
+- file:
+    name: 143844.yaml
+    checksum: 052bf4f37fdee22802203727dd51ae929ae1a11f
+  type: bug-fix
+  title: 'ESQL: Fix bzip2 decompressor and NDJSON error recovery'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143844
+- file:
+    name: 139920.yaml
+    checksum: fd8f9ce5d5144cd14549c3e795619cc54e1717ba
+  type: enhancement
+  title: Analytic Query logging
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Logging
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139920
+- file:
+    name: 137744.yaml
+    checksum: 850083df9a527809b5c8f0c037349b4753064f8d
+  type: bug-fix
+  title: Catch DateTimeException in EsqlDataTypeConverter
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137744
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/137741
+- file:
+    name: 139520.yaml
+    checksum: 8af2fba16862dc57ea7712ffbdd49dbfc89acc91
+  type: enhancement
+  title: Add a suggestion for fixing the ML node allocation error
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139520
+- file:
+    name: 144010.yaml
+    checksum: 9b09fe5e13f107f15c39bfe1b9494e8a9a378ce0
+  type: enhancement
+  title: 'feat: add keep_alive to async task status'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144010
+- file:
+    name: 144505.yaml
+    checksum: 958ad02ae965a9698aa39709f40547e894797f7b
+  type: enhancement
+  title: Use vdotq_s32 for int7u/int8 distances on ARM
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144505
+- file:
+    name: 145314.yaml
+    checksum: 6b9e97a1eb862f3d9e49c543d6cb66a526664baf
+  type: bug-fix
+  title: Fix RecursiveChunkingSettings.validate() logic bug and add test coverage
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145314
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144815
+- file:
+    name: 143940.yaml
+    checksum: 42d023c7c77707ae02398f1a53e7a3058596ac60
+  type: enhancement
+  title: Push stats to external source via metadata
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143940
+- file:
+    name: 140004.yaml
+    checksum: f7f567de108f9999603869acba1d1f6556d76a55
+  type: feature
+  title: Adding ES|QL command URI_PARTS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Engine
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140004
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/134885
+- file:
+    name: 145343.yaml
+    checksum: 013a06a5a2b9e5d44df2cf07a3c18655c48c3dfa
+  type: bug-fix
+  title: Only use MemorySegment scorers when slices can be obtained from the IndexInput
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145343
+- file:
+    name: 143501.yaml
+    checksum: 66fe0c589b352fe263f2f27a55624b51dceaaa0f
+  type: enhancement
+  title: Expose byte offsets on XContentParser via getCurrentLocation()
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Core
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143501
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142873
+- file:
+    name: 143151.yaml
+    checksum: c3db146fe0a5a1a8a41ca1e77f46c2a229ae4893
+  type: enhancement
+  title: Support nested documents in time-series indices with synthetic id
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143151
+- file:
+    name: 141496.yaml
+    checksum: 43199c93ded1fdf18bba4549c4a81e656e31fc44
+  type: bug-fix
+  title: Use standard logic for conflicting types in TS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141496
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141379
+- file:
+    name: 141547.yaml
+    checksum: 842740167d8afb41dcbccbf02b828d547b565804
+  type: enhancement
+  title: Add multimodal embedding task support to ElasticInferenceService
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141547
+- file:
+    name: 145154.yaml
+    checksum: 9ad75ef9ce35ad00d80710671a9e7908891a6068
+  type: enhancement
+  title: Introduce Geospatial functions ST_Buffer and ST_SimplifyPreserveTopology
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Geo
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145154
+- file:
+    name: 143311.yaml
+    checksum: 151254d018414a56e1539e1af17cfd5d0f0e411e
+  type: enhancement
+  title: Painless hoist constant collection .contains calls
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Scripting
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143311
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/137849
+- file:
+    name: 142015.yaml
+    checksum: 7391ecb2c7d6542ced00492e185dc0537cb72bf1
+  type: enhancement
+  title: Create native byte vector scorers
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142015
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140317
+- file:
+    name: 140028.yaml
+    checksum: 1fb03cc9e29c52d3c2b81400cbee0c455d6c8d54
+  type: bug-fix
+  title: 'ES|QL: fix null folding of nested COALESCE'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140028
+- file:
+    name: 145553.yaml
+    checksum: 45720fc547b85e2fdcaff048568ade6c5f2b2b71
+  type: enhancement
+  title: Improve ndjson schema inference for date-time
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145553
+- file:
+    name: 145683.yaml
+    checksum: 054ddd3e78b2573f3476c4d6c359d61537b7b9f8
+  type: enhancement
+  title: AVX-512 int8 kernels with cascade unrolling
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145683
+- file:
+    name: 139058.yaml
+    checksum: c98fb58fe3f766411dc14e5880637a01496b1ceb
+  type: enhancement
+  title: Remove implicit `limit` appended to each subquery branch
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139058
+- file:
+    name: 143242.yaml
+    checksum: 92e8ddf9127b30e6fc76c57f9c013986f58be79d
+  type: enhancement
+  title: Implement reasoning support in chat completion API
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143242
+- file:
+    name: 142900.yaml
+    checksum: d5a25c3c1df52060f682e300f5b50ebbf6bb549e
+  type: feature
+  title: 'ESQL: Add support for ORC file format'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142900
+- file:
+    name: 144704.yaml
+    checksum: 5725af7743e800bf664fff2e715229a25363a414
+  type: enhancement
+  title: ES|QL Improve LOOKUP JOIN on single keyword
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144704
+- file:
+    name: 145816.yaml
+    checksum: 2f8e1eaba1e8bdb95eb1797491363ac23a919b45
+  type: enhancement
+  title: Allow deleting multiple views in one request
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145816
+- file:
+    name: 139664.yaml
+    checksum: 7ed49ae8812c2b651bda2a534fcf37934826c9a9
+  type: enhancement
+  title: 'ES|QL: Add MV_UNION Function'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139664
+- file:
+    name: 143491.yaml
+    checksum: ba3d309ead23cd5f8d31f8e18affc475c602de95
+  type: enhancement
+  title: Add memory tracking for TS_INFO and METRICS_INFO
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143491
+- file:
+    name: 140747.yaml
+    checksum: 65b8694cee10e89350cb26e1a01c955ca305ae60
+  type: enhancement
+  title: Optimize search shard iterator sort
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140747
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/135472
+- file:
+    name: 145400.yaml
+    checksum: c581e8c39b1e239c657659f075f387f843f8be05
+  type: breaking-change
+  title: Change the default behaviour of force merge in the downsample ILM action
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Downsampling
+  - ILM
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145400
+- file:
+    name: 143700.yaml
+    checksum: cde980e67a075d75180f2b71798bebb410398257
+  type: enhancement
+  title: 'ESQL: Buffer reuse in ParquetStorageObjectAdapter and StorageObject'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143700
+- file:
+    name: 140086.yaml
+    checksum: 861d3d93aa3e1df07bb77f083037dca4ddd362bb
+  type: bug-fix
+  title: Fix read/write counts for copy in repo analysis
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140086
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/126569
+- file:
+    name: 140069.yaml
+    checksum: 9a3b0ff5c9e9e6765de22451cb2b4e121b91d186
+  type: bug-fix
+  title: 'Aggs: Fix class cast exceptions in pipeline aggs'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Aggregations
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140069
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/136173
+  - https://github.com/elastic/elasticsearch/issues/137624
+- file:
+    name: 140788.yaml
+    checksum: 499376b7991424b833d76208d489433a7cdc43a1
+  type: enhancement
+  title: Flip cloud-ess-fips default from FIPS 140-2 to FIPS 140-3
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Packaging
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140788
+- file:
+    name: 145070.yaml
+    checksum: ab0bee6beccf71f11a0caf2ab30d9cda1cfca024
+  type: bug-fix
+  title: Record stats for adaptive replica selection in dfs queries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145070
+- file:
+    name: 143262.yaml
+    checksum: 869670acf0d3a4ad7c0f16c3a1ffc6ee74addfba
+  type: enhancement
+  title: Skip time series field type merge for non-TS agg queries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143262
+- file:
+    name: 142920.yaml
+    checksum: ad32a151b6fac7c96b4355a831e303e175c2776c
+  type: bug-fix
+  title: Synthesize ShardId for SnapshotInfo of failed clones
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142920
+- file:
+    name: 144118.yaml
+    checksum: d0e1ad4dedb8ea6624117c8af98dba6994bc0992
+  type: bug-fix
+  title: Fix Decay cast to Double to be a cast to Number instead
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144118
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143351
+- file:
+    name: 138517.yaml
+    checksum: 9a86f6311b7d503c518f42b2a09f3730f7e8ee12
+  type: feature
+  title: 'ESQL: Added timezone support to date_format and date_parse'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138517
+- file:
+    name: 144773.yaml
+    checksum: 74b2e96970430d1cf4f26aba59adb2ef2224ece0
+  type: feature
+  title: Health reports GREEN when provisionally unassigned replica
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144773
+- file:
+    name: 144909.yaml
+    checksum: f0fcaa78daf60b66bba87deea20698a01a653aec
+  type: bug-fix
+  title: Fix NPE when preview datafeed checks date_nanos for an unmapped time field
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144909
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144888
+- file:
+    name: 143673.yaml
+    checksum: 62dcd4ab7fec815575b1893d5aae35f63dc67ff6
+  type: enhancement
+  title: Adding 'mode' and 'codec' fields to ES monitoring template
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Monitoring
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143673
+- file:
+    name: 144509.yaml
+    checksum: ac7c33107fd6798adc5c617725fa1c6c8c5a75b0
+  type: enhancement
+  title: Enable multimodal inputs for all chat completion integrations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144509
+- file:
+    name: 140264.yaml
+    checksum: 8e5413f5d60b4bb59dde5654852c42947bf26b33
+  type: enhancement
+  title: BBQ Int4 to 1-bit dot product functions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140264
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/128523
+- file:
+    name: 145089.yaml
+    checksum: 744459b5a6e445b53f4a2219f0b17a6dfbdf49c2
+  type: enhancement
+  title: Collect dimensions only once per tsid when downsampling
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Downsampling
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145089
+- file:
+    name: 145123.yaml
+    checksum: b917321f008a8731f72f2e4220cfff01555fe31d
+  type: enhancement
+  title: 'ESQL: DS: Parquet file handling improvements'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145123
+- file:
+    name: 145820.yaml
+    checksum: 645f1ab395d484a3aed0915b05ca0548b3805a7b
+  type: bug-fix
+  title: Bugfix for CCS BWC in SearchShardsAction
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145820
+- file:
+    name: 143331.yaml
+    checksum: 11b8e7786fd7a7a81f5582e40b66a9c5b7301302
+  type: enhancement
+  title: 'ESQL: Bridge Connector SPI to ExternalSplit'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143331
+- file:
+    name: 142170.yaml
+    checksum: 64d151148839b3bca0bb391c46b2a2a5ecf9ef55
+  type: enhancement
+  title: CanMatch returns numSkipped per cluster instead of all skipped shards
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142170
+- file:
+    name: 143433.yaml
+    checksum: 888013166d57fd40093adfee41e96c6a51467379
+  type: enhancement
+  title: Rewrite `*substring*` wildcard queries to contains term queries for binary doc values keywords
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143433
+- file:
+    name: 140136.yaml
+    checksum: b5a2a11101c461612f906ce914ba497f3091f851
+  type: bug-fix
+  title: DocValuesBlockLoader should return ConstantNullsReader rather than null
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140136
+- file:
+    name: 142330.yaml
+    checksum: 5b448922e5a9959d5d4e617fc1c6ce05b7367b47
+  type: bug-fix
+  title: Log compute engine server failures as ERROR
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  - Engine
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142330
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139883
+- file:
+    name: 144067.yaml
+    checksum: 37728e75bb74e39fc154f43594204af18cce0f9f
+  type: enhancement
+  title: Ensure acquired snapshot commit is always flushed
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144067
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143993
+- file:
+    name: 143608.yaml
+    checksum: 8d6a64a345191f4bc1b38e64d475dc4614e3b3e2
+  type: enhancement
+  title: Only consider the primary sort when determining concurrency
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143608
+- file:
+    name: 142633.yaml
+    checksum: 70be73710343e4a66aac78c3c6d5e4e913a9dbbd
+  type: enhancement
+  title: " Add Clone API Key endpoint "
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Authentication
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142633
+- file:
+    name: 140198.yaml
+    checksum: 2df9023f781c7d33ec945928b742538719a297b0
+  type: enhancement
+  title: Preconditioning
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140198
+- file:
+    name: 142721.yaml
+    checksum: d845049166d44b9a0d49d3e9114ab14537910da0
+  type: enhancement
+  title: TS_INFO information retrieval command
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142721
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139296
+  - https://github.com/elastic/elasticsearch/issues/141413
+- file:
+    name: 128868.yaml
+    checksum: c168eb9129091600d6d4119c8906385692035636
+  type: bug-fix
+  title: Correctly ignore system indices when validating dot-prefixed indices
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/128868
+- file:
+    name: 142664.yaml
+    checksum: 4a6755b899dd4583ce4f699e85ab75ad092c40a2
+  type: enhancement
+  title: Add FireworksAI chat completion support
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142664
+- file:
+    name: 144476.yaml
+    checksum: 1e5a6bc097e63c1d3a053d61cfc4780aacc860e5
+  type: enhancement
+  title: Add anonymous GCS access via auth=none
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144476
+- file:
+    name: 142680.yaml
+    checksum: 0fb245663c21a561f6fd3c1fe86578238de9f981
+  type: feature
+  title: Adding ES|QL command REGISTERED_DOMAIN
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142680
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/133942
+- file:
+    name: 145779.yaml
+    checksum: a73ddd3e3a286d31b12b146ee02fc1ea88a78cf8
+  type: bug-fix
+  title: Fix BBQ and INT4 bulk scorers to use sparse vector resolution
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145779
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/145797
+- file:
+    name: 142815.yaml
+    checksum: 296a3fd6e571a9f5fe8577cfebd53d56fcc37786
+  type: enhancement
+  title: 'ESQL: Make datasources plugins lazy'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142815
+- file:
+    name: 140982.yaml
+    checksum: 8bc858fb0ddec4429cffb7cff8e5272741aa7ec0
+  type: enhancement
+  title: 'ESQL: Prune unused regex extract nodes in optimizer'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140982
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/132437
+- file:
+    name: 144703.yaml
+    checksum: 7fccdaa06515080960eb05863086844e310d21fa
+  type: enhancement
+  title: Three new simple but useful spatial functions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Geo
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144703
+- file:
+    name: 143480.yaml
+    checksum: 406a285e7abfe91a4fce0ba771751524cf784963
+  type: bug-fix
+  title: Added missing ST_SIMPLIFY error test and fixed bug with missing errors
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143480
+- file:
+    name: 143896.yaml
+    checksum: 91b64984481c49bd12ce1f82d4391bf4af16ac79
+  type: enhancement
+  title: Adding OAuth2 support for Azure OpenAI
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143896
+- file:
+    name: 142157.yaml
+    checksum: 8706b6b437f4ce14ba4c7eab28df0e147db2d0b9
+  type: enhancement
+  title: Do not mark bulk indexing requests as retried after primary relocations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142157
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141586
+- file:
+    name: 144596.yaml
+    checksum: 7aab2c85d7e2c613a64403f1b3b49372d316a32f
+  type: enhancement
+  title: 'ESQL: Route external source I/O through esql_worker pool'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144596
+- file:
+    name: 142550.yaml
+    checksum: 3467e587b962c39bfa9b2636b78dc47ea35d943e
+  type: enhancement
+  title: Add OpAMP field mappings to fleet-agents
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Plugins
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142550
+- file:
+    name: 141393.yaml
+    checksum: 09a59c981f9dfc0101ddb25466dae10956538de5
+  type: enhancement
+  title: Add mapping and model changes for exposing endpoint heuristics
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141393
+- file:
+    name: 142747.yaml
+    checksum: ebec191a1ade6f3fc908059b270c94f018e6520b
+  type: enhancement
+  title: Support target bucket count in `TBUCKET` with explicit from/to date range
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142747
+- file:
+    name: 140003.yaml
+    checksum: b39c6fce358555b93f63922b7b7fb652cc1375c1
+  type: bug-fix
+  title: Add validation to inference update operation
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140003
+- file:
+    name: 144040.yaml
+    checksum: 688f7c95c60162a06e2f54d94ec50bdca95a1063
+  type: bug-fix
+  title: Drop deprecation warnings when updating a mapping in the cluster state applier (#143884)
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144040
+- file:
+    name: 144806.yaml
+    checksum: 00b4908f9d2751b03a6be1a7b9355671a541932d
+  type: enhancement
+  title: Stats pushdown past EVAL/RENAME for external sources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144806
+- file:
+    name: 143228.yaml
+    checksum: e4520623e6feef224b7de99c686991c07c8812bf
+  type: feature
+  title: 'ESQL: Data sources: ZSTD, BZIP2'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143228
+- file:
+    name: 144851.yaml
+    checksum: fad080340bad2040392a09994f4a03705c5b2a40
+  type: feature
+  title: Support best_compression for synthetic ID indices
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144851
+- file:
+    name: 139198.yaml
+    checksum: 0dd2dff4c6ae3cc991dcfb6560986119ea977774
+  type: enhancement
+  title: Define bulk operations for vector square distance
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139198
+- file:
+    name: 140384.yaml
+    checksum: e6f81b26d052196724c18503a2db02b299c222db
+  type: enhancement
+  title: 'ESQL: Move union types out of `BlockLoader`'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140384
+- file:
+    name: 139618.yaml
+    checksum: 5599c52f0405e5593b089f6677e271e74753b7e3
+  type: enhancement
+  title: Various fixes to spatial functions (ST_ENVELOPE and ST_NPOINTS)
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Geo
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139618
+- file:
+    name: 144451.yaml
+    checksum: b8ee49f10a2933652a5245d923a5ec793a5af956
+  type: enhancement
+  title: Add sub-field support to flattened field type
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144451
+- file:
+    name: 145755.yaml
+    checksum: 8454b580f51c9f21b5c3fd1c306fced0b9adcc4d
+  type: enhancement
+  title: Per-file filter pushdown awareness
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145755
+- file:
+    name: 143906.yaml
+    checksum: d8fec1b6a5fc83759327d1a6d0acf66ab834c313
+  type: enhancement
+  title: Register TSV as a separate format with tab delimiter
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143906
+- file:
+    name: 143005.yaml
+    checksum: 0885e179ea57a6b3d91caec793b5393afdb0862d
+  type: enhancement
+  title: 'ESQL: Add split SPI, partition detection, and filter hint extraction'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143005
+- file:
+    name: 139835.yaml
+    checksum: 8cf0c15a7e945fbcd75dd9a8db755f1b77ec4aec
+  type: enhancement
+  title: DiskBBQ tail centroids should always be block encoded too
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139835
+- file:
+    name: 140150.yaml
+    checksum: 456ada0a81f68b486648d264974cae6fd557b541
+  type: bug-fix
+  title: Allow allocation to replacement target node on vacate completion
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140150
+- file:
+    name: 144543.yaml
+    checksum: 11905b7df4c4ffd082ed0866da521013b4fad58f
+  type: enhancement
+  title: 'ES|QL: Make MV_EXPAND GA'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144543
+- file:
+    name: 141736.yaml
+    checksum: c7f1b6334dd6eb5aa547892a1cdd0b38a4c4c601
+  type: bug-fix
+  title: 'SQL: Refresh PIT id after each response'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - SQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141736
+- file:
+    name: 145325.yaml
+    checksum: fc897679c82a69199b5a0f10333de0d7269b1f2a
+  type: bug-fix
+  title: Clear watch schedules when starting trigger engine
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145325
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/131964
+  - https://github.com/elastic/elasticsearch/issues/137562
+- file:
+    name: 140062.yaml
+    checksum: 8e26de1f210e04db7173bd01b261f8074e0866fc
+  type: enhancement
+  title: 'ESQL: Use less memory in ValuesFromMany'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140062
+- file:
+    name: 141389.yaml
+    checksum: 1ff4887bfb05a0c2ac73e995efc918f0fbdb9183
+  type: enhancement
+  title: Increase the per-index limit for merges to half the CPUs
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141389
+- file:
+    name: 144471.yaml
+    checksum: 6039ebec03e2906b9e6d0ec55fab40f1e46ee857
+  type: enhancement
+  title: Add anonymous S3 access via auth=none
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144471
+- file:
+    name: 143567.yaml
+    checksum: a5cf4dfa322744362a0ab2a46c652bfe20ff5d8e
+  type: enhancement
+  title: Update authorized endpoints when their fingerprint or version changed
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143567
+- file:
+    name: 144308.yaml
+    checksum: aeea1c1b97d110bc1c4f083f47d7eb7f82882fc4
+  type: bug-fix
+  title: Fix edge case in "_terms_enum" API for ip fields
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144308
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142811
+- file:
+    name: 144563.yaml
+    checksum: 46de94dc9928ce3881c91cee247568038ed6a42f
+  type: bug-fix
+  title: Record stats for "adaptive replica selection" in batched queries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144563
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144146
+- file:
+    name: 141331.yaml
+    checksum: ee6bb0a306a8b8fe60bfcb036ac93b61f72995fc
+  type: enhancement
+  title: Use avg metric for AMD default metric
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141331
+- file:
+    name: 143249.yaml
+    checksum: b366efe38c52fa1f28447c78684e3988ccfbef26
+  type: bug-fix
+  title: 'ESQL: Forbid MV_EXPAND before full text functions'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143249
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143121
+- file:
+    name: 144826.yaml
+    checksum: c4c3b26df041d9820b1cd340b7cb7918a1ffbb19
+  type: bug-fix
+  title: 'ESQL: propagate empty local relation past joins'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144826
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144329
+- file:
+    name: 140166.yaml
+    checksum: 486affd726ca9fecfeba05348a60a6b902e66367
+  type: bug-fix
+  title: 'fix: ensure CPS project routing appears in the right places for `_msearch/template`'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - CCS
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140166
+- file:
+    name: 139946.yaml
+    checksum: 90aa5f24d862d87a8eed5be66e1a9d518df26817
+  type: bug-fix
+  title: Fix validation of anomaly detection job config.
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139946
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/29843
+- file:
+    name: 140189.yaml
+    checksum: 7dc26f6fb3f2241c66375994fa4362fce0ef679b
+  type: enhancement
+  title: Store fallback match only text fields in binary doc values
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140189
+- file:
+    name: 145221.yaml
+    checksum: 3ad012c4f912342f89a3928cacc6f2b7e433b8fe
+  type: enhancement
+  title: Switch to int4 packed
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145221
+- file:
+    name: 142767.yaml
+    checksum: 6e4a25e908fe55315df010349de654c5eb686f29
+  type: bug-fix
+  title: Fix NPE when querying pattern_text field in segment with no field values
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142767
+- file:
+    name: 143463.yaml
+    checksum: ae2c54dce8b04070ea5acce5d41a8c882fbd7329
+  type: bug-fix
+  title: 'ES|QL: Fix LIMIT after all columns are dropped'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143463
+- file:
+    name: 139911.yaml
+    checksum: 0705b1305cd92a01a2fb33605dfc4d67670122fd
+  type: feature
+  title: 'ESQL: TRange timezone support'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139911
+- file:
+    name: 140977.yaml
+    checksum: 90d65d54c9b6ce482d5a71ac6c4f00aa7bd93f6a
+  type: enhancement
+  title: Makes scroll CPS compatible
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140977
+- file:
+    name: 138678.yaml
+    checksum: 5f0b8ad8293822bac59f89b46bf7398bebbdeae4
+  type: enhancement
+  title: Ensure that synthetic _id is usable after restarts/relocations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138678
+- file:
+    name: 137923.yaml
+    checksum: 959e6ca70f740448684d995aa4b3d738f4ac3059
+  type: bug-fix
+  title: Propagate converted fields through projections
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137923
+- file:
+    name: 144277.yaml
+    checksum: a91b2ba3447c0fb2750c15f405c3cdc0508883f2
+  type: enhancement
+  title: Harden distributed external source execution
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144277
+- file:
+    name: 143377.yaml
+    checksum: cc0c07bde4cf89ed620c911d2961ef263b5ee499
+  type: bug-fix
+  title: Re-use previously seen dynamically-created Mappers during document parsing
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143377
+- file:
+    name: 140388.yaml
+    checksum: 5b8f5d23ae07ce9a9ba9ef6babed67bc16b56c6f
+  type: enhancement
+  title: Fast codePointCount implementation for BytesRef
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140388
+- file:
+    name: 140672.yaml
+    checksum: 2a1f09b2598b15b4bf273a2e26b59ac1993bf2f7
+  type: enhancement
+  title: Implementing rerank on multi values.
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140672
+- file:
+    name: 144959.yaml
+    checksum: f24e542db9a36934a3793d59f75c7c733e168354
+  type: enhancement
+  title: Create bfloat16-specific scorers
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144959
+- file:
+    name: 144236.yaml
+    checksum: f023c3b178917985f333b4b6119ba361a0137c34
+  type: enhancement
+  title: Update semantic text to use BFLOAT16 by default
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144236
+- file:
+    name: 145427.yaml
+    checksum: 5a2ffc06a04d4a41216af3ff9001d39a978e94cd
+  type: bug-fix
+  title: Use query circuit breaker for wildcard/regexp determinization
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145427
+- file:
+    name: 142249.yaml
+    checksum: 37ff64aebf0d3335305aebb7a926fddcc3632cf7
+  type: enhancement
+  title: Use opaque random session IDs for ESQL compute sessions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142249
+- file:
+    name: 141873.yaml
+    checksum: b15b1a08c32775e7042878d8abfa59b3ff536b39
+  type: bug-fix
+  title: Fix downsampling configuration validation
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Downsampling
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141873
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141541
+- file:
+    name: 144688.yaml
+    checksum: 9d57465662efbe7e2c79acdbf04a6d1d4dcd336c
+  type: enhancement
+  title: 'ESQL: Add LZ4, Snappy, and Brotli decompression codecs'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144688
+- file:
+    name: 142160.yaml
+    checksum: f2b46521a82dcaf76c1da0976e41b3ff6f84861d
+  type: enhancement
+  title: Add appliesTo to the TRange and TBucket functions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142160
+- file:
+    name: 145021.yaml
+    checksum: 8a2b07dd702d37a3792cb75dcaadcd899f6a0411
+  type: bug-fix
+  title: Don't serialize endpoint metadata in semantic text mappings
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145021
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144969
+- file:
+    name: 141598.yaml
+    checksum: 8e22d5627b5c10c8117ca8fe796dab1c214e5bb1
+  type: enhancement
+  title: DiskBBQ - Always block encode doc vectors
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141598
+- file:
+    name: 145164.yaml
+    checksum: 56a39ece60f97ae6d9d61b2f7bb8a5d56059d82d
+  type: bug-fix
+  title: Prune no_fields from project in subquery
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145164
+- file:
+    name: 143233.yaml
+    checksum: c8ec00cae8d7f5799313f365970d4f0772b6ca13
+  type: enhancement
+  title: Fail MatchQueryParser if it generates a query with more clauses than allowed by max_clause_count
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143233
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143032
+- file:
+    name: 142834.yaml
+    checksum: 86afd0f351c256b15bea3ed360e0beacd534b82c
+  type: feature
+  title: 'ESQL: Remove snapshot protection from node reduce late materialization'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142834
+- file:
+    name: 139316.yaml
+    checksum: 03aa84f1d04db2dc40d5b8cfa13954d721d15f6b
+  type: enhancement
+  title: Support Failure Stores in Cross Cluster Search
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Authorization
+  - Data streams
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139316
+- file:
+    name: 141074.yaml
+    checksum: d8fdc3cf7b084e4e2d396f0252468494fcee2af2
+  type: enhancement
+  title: Add graph_build_threshold mapping parameter for HNSW vector fields
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141074
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/137027
+- file:
+    name: 141998.yaml
+    checksum: a20b4f6b6e8ff91c6aa695549186bfd226f1aeb5
+  type: enhancement
+  title: Batching of snapshot-delete start updates
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141998
+- file:
+    name: 144734.yaml
+    checksum: c0a58f0395007f7c12b173bb34a6496d0f235deb
+  type: enhancement
+  title: Add cloud API rate limiting for external sources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144734
+- file:
+    name: 143120.yaml
+    checksum: faafef828f2e2bd59c6147d5a43f7df1a27eba1b
+  type: enhancement
+  title: 'ESQL: Add pluggable partition detection and virtual columns'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143120
+- file:
+    name: 142361.yaml
+    checksum: 838a0d43e8ce996fdb9b2bac982e9e91681798a0
+  type: bug-fix
+  title: Fix incorrect totalTime when shard snapshot never started
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142361
+- file:
+    name: 141371.yaml
+    checksum: 134ff1af625de2a755786fcfa2e77d1b40d40003
+  type: bug-fix
+  title: Fix Analyzer infinite loop for subquery referencing indices with empty mappings
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141371
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141029
+- file:
+    name: 136309.yaml
+    checksum: 6049fc15068d7c3b5d265bc38f84ea6e907effb0
+  type: enhancement
+  title: Adds ST_SIMPLIFY geo spatial function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/136309
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/44747
+- file:
+    name: 143209.yaml
+    checksum: 5b628beb261742aa9ee773ba7fd65df0c1931ad9
+  type: enhancement
+  title: 'ESQL: Add data node execution for external sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143209
+- file:
+    name: 138985.yaml
+    checksum: 60be9a1303c033cc08cc6b521ec9d96fdacbc4d0
+  type: feature
+  title: 'ESQL: ToString/ToDatetime/ToDateNanos converters timezone support'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138985
+- file:
+    name: 145220.yaml
+    checksum: 30efd890884a027cf1c5665c675ca5c3e5bbd85b
+  type: enhancement
+  title: Add schema reconciliation for multi-file external sources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145220
+- file:
+    name: 143024.yaml
+    checksum: dc7f0e22211858d1ccd5344d43c813236dcafc39
+  type: bug-fix
+  title: Finalize failed clone entries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143024
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142919
+- file:
+    name: 140171.yaml
+    checksum: 699f0324f05f50ded8f964057baa3ab00080ccf5
+  type: enhancement
+  title: Convert `PackedValuesBlockHash.bytes` to `BreakingBytesRefBuilder` for better memory tracking
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140171
+- file:
+    name: 144562.yaml
+    checksum: 6f6bbddab6ca59406f834efbde000bad4de66544
+  type: bug-fix
+  title: Adjust the formula for "adaptive replica selection"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144562
+- file:
+    name: 145324.yaml
+    checksum: c3d29bfe3e806628571cd1e70bfb349e94326b32
+  type: bug-fix
+  title: Fix bug in NeighborQueue#popRawAndAddRaw
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145324
+- file:
+    name: 141388.yaml
+    checksum: 11c678bb7bbf23074c584d3200e28b72b64124e3
+  type: feature
+  title: Adding sparkline aggregate function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Engine
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141388
+- file:
+    name: 144057.yaml
+    checksum: fbb49ecbbdef2fb6984e0f2a4bec8ab33162acb0
+  type: enhancement
+  title: Make from/to optional in TBUCKET when Kibana timestamp filter is present
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144057
+- file:
+    name: 145216.yaml
+    checksum: f9a0db6c3a9ad2c9ab8cb35e6eceef5b50407539
+  type: enhancement
+  title: Enable large blocks for binary doc values by default
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145216
+- file:
+    name: 144112.yaml
+    checksum: 8eb91654d3db231dd6c0d07d246ab6e60af5f078
+  type: bug-fix
+  title: 'ESQL: loading unmapped fields on synthetic _source'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144112
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143916
+- file:
+    name: 139422.yaml
+    checksum: 0af403d8aa805c05274b3ed077b6b18940871363
+  type: enhancement
+  title: Use common retry logic for Azure
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139422
+- file:
+    name: 143907.yaml
+    checksum: ea362abe15683e73b39690659e9f920f10e449d3
+  type: enhancement
+  title: Remove redundant root doc values from flattened fields if index=false
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143907
+- file:
+    name: 144903.yaml
+    checksum: a4f51eaa5ea14baaaa1cbd81b1c5ead5d273a0f6
+  type: enhancement
+  title: Don't allow querying views with DLS or FLS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144903
+- file:
+    name: 140556.yaml
+    checksum: 060d8bc372334573185a9c3cc92f6725efa84d86
+  type: bug-fix
+  title: Fix potential NPE in SyntheticIdField empty token stream
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140556
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140492
+  - https://github.com/elastic/elasticsearch/issues/140665
+  - https://github.com/elastic/elasticsearch/issues/140624
+- file:
+    name: 142091.yaml
+    checksum: b3df303eb4b1bc22a814629995574b69f90fab6c
+  type: enhancement
+  title: Batch snapshot update tasks after external change
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142091
+- file:
+    name: 140385.yaml
+    checksum: ae9b21e140896a62c2991a187f95bf009fec7d8c
+  type: bug-fix
+  title: "Bugfix: Deleted async search won't show on any API"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140385
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/132423
+- file:
+    name: 140690.yaml
+    checksum: e6b56104e85475e52069ca96b2be6575e90f55e9
+  type: bug-fix
+  title: Fix to tdigest implicit eval
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140690
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140670
+- file:
+    name: 142707.yaml
+    checksum: 2d94bd95742d77224e38c9d00f123b1d5f4ca382
+  type: feature
+  title: 'ESQL: Reapply "Introduce pluggable external datasource framework (#141678)"'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142707
+- file:
+    name: 140956.yaml
+    checksum: f5ef54a65234a3a032fa8e20c1777e0238caa51a
+  type: enhancement
+  title: Small optimization in SyntheticIdPostingsEnum
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140956
+- file:
+    name: 145742.yaml
+    checksum: 05a170b37329d34e4b68b3d1f6b7c050fe2a400b
+  type: enhancement
+  title: Summary of Improvements on aggregate_metric_double in `9.4`
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145742
+- file:
+    name: 143696.yaml
+    checksum: b27fa431f853ef5e344785f38c339a912f2e7775
+  type: enhancement
+  title: Enable distributed pipeline breakers for external sources via FragmentExec
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143696
+- file:
+    name: 142711.yaml
+    checksum: 58b120f4bdc1bd78a184038a80f337fb88805691
+  type: bug-fix
+  title: Fix ShardFieldStats.liveDocsBytes
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142711
+- file:
+    name: 144942.yaml
+    checksum: 58d3e1a876843e0cdfcddb2428ce2ecc2c4eed6c
+  type: bug-fix
+  title: 'ESQL: Correctly manage NULL data type for SUM'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144942
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144914
+- file:
+    name: 142746.yaml
+    checksum: dfacf40a3c30ccbaf195f91d5d3b557e8f23efd5
+  type: enhancement
+  title: Add search task watchdog to log hot threads on slow search
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142746
+- file:
+    name: 141392.yaml
+    checksum: 86696fa5290c8aa00380fa8f668b0b01545bf401
+  type: enhancement
+  title: Periodically emit partial aggregation results
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141392
+- file:
+    name: 140645.yaml
+    checksum: 37564353b2c4f2451958201271aebe39da01bb18
+  type: feature
+  title: "\U0001F414 Add CHICKEN function to ES|QL"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140645
+- file:
+    name: 144578.yaml
+    checksum: 91f955bd08bfa4eeab6af21cc11b64cea0f42337
+  type: enhancement
+  title: 'ESQL: Make CHANGE_POINT accept arguments in any order'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144578
+- file:
+    name: 142855.yaml
+    checksum: 05921fee411b80bb29a91621cc40ffe72f4c9368
+  type: feature
+  title: 'ESQL: reapply "NDJSON datasource"'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142855
+- file:
+    name: 145390.yaml
+    checksum: bba16006ade34f1e4ad28655406232b8d65cb7d3
+  type: bug-fix
+  title: 'ESQL: Keywords mv count fix'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145390
+- file:
+    name: 142117.yaml
+    checksum: c72e343970e7677686bdd688b6b4e3d31fbed22d
+  type: enhancement
+  title: ES|QL Top Snippets multi-valued field support
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142117
+- file:
+    name: 139009.yaml
+    checksum: 09bd6c25c517a66d4854ab05b398a766c0c0e1c9
+  type: bug-fix
+  title: Always error out if CCS expression shows up when CCS is not supported
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - CCS
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139009
+- file:
+    name: 144885.yaml
+    checksum: b2ff110fd7de7a1d7c42a80787c4437acc5fc88e
+  type: enhancement
+  title: Default to bbq_disk (DiskBBQ) on new indices
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144885
+- file:
+    name: 143791.yaml
+    checksum: ea7f911cde62b292ca9920004bde03ca0acf7278
+  type: enhancement
+  title: 'ESQL: Fix Parquet and ORC datasource allocation overhead'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143791
+- file:
+    name: 142303.yaml
+    checksum: 6acafa15729618f289d1ee63712c096111a90113
+  type: enhancement
+  title: Correctly reference non-main branches in benchmark script
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Performance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142303
+- file:
+    name: 145429.yaml
+    checksum: 40faca080a73c28899c6cc5943375e520d6b8d8a
+  type: feature
+  title: 'ES|QL: Remove implicit limit for FORK'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145429
+- file:
+    name: 140555.yaml
+    checksum: d4244631064f95198725c6a60d8e5e239842148d
+  type: enhancement
+  title: Text embedding function GA
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140555
+- file:
+    name: 141651.yaml
+    checksum: 7743fa87e8d3f34e7dda8fd088dcd83c27867f48
+  type: bug-fix
+  title: Fix discrepancy in docs & kibana generation
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141651
+- file:
+    name: 140693.yaml
+    checksum: b638d7625544beeaf8f699383149edb052097002
+  type: enhancement
+  title: Panama vector implementation of codePointCount
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140693
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140567
+- file:
+    name: 141094.yaml
+    checksum: e7d6c876d1b6d074274810a49804ccd094ae2fa2
+  type: enhancement
+  title: Optimizes TopNOperator when the input is already sorted
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  - Engine
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141094
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/131221
+- file:
+    name: 144629.yaml
+    checksum: fdd37f51ea4f528fc6b046c522c8a1af6b8e7fcb
+  type: bug-fix
+  title: Ensure cancellation reason visible when task is canceled (#142079)
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144629
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142079
+- file:
+    name: 145038.yaml
+    checksum: 50e00594175473e2bb7d91a3922cde3189128c89
+  type: bug-fix
+  title: Validate base64 embedding inputs use data URI format
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145038
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144900
+- file:
+    name: 144107.yaml
+    checksum: 9ffc8e2ecb00fba9ed4f72cb1acf46e9d20bbf23
+  type: bug-fix
+  title: Fix NPE in multimodal check
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144107
+- file:
+    name: 144557.yaml
+    checksum: d8bff0dcdc68f71c6798626b4c12da7853b2ca04
+  type: enhancement
+  title: Add bulk-sparse native vector scoring for searchable snapshots via DirectAccessInput
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144557
+- file:
+    name: 141240.yaml
+    checksum: 9cf8426f3c235930d63e5353ad77af2a880b0e41
+  type: enhancement
+  title: " ES|QL CHUNK function multi-valued field support"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141240
+- file:
+    name: 143154.yaml
+    checksum: ce7ae3186896ec900e8b21794c1b360d23551311
+  type: enhancement
+  title: 'ESQL: Add local parallelism and partition detection for external sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143154
+- file:
+    name: 144384.yaml
+    checksum: 4be53d29490f5a28abb3036c241c2a9bddd26811
+  type: feature
+  title: 'ES|QL: Adding `USER_AGENT` command'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144384
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/134886
+- file:
+    name: 143969.yaml
+    checksum: 4cf06dcbcd9f26c68c055825d33033301aa117e4
+  type: bug-fix
+  title: Cleanup and bug fixes in NDJSON datasource
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143969
+- file:
+    name: 141811.yaml
+    checksum: 2f4f24a1a0c36ebb9455cacf90482952d003bef4
+  type: bug-fix
+  title: 'PIT: Throw error when unknown transport version is parsed'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141811
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140457
+- file:
+    name: 142913.yaml
+    checksum: 2c1198f7e9697c41f4818957aafdd3a530424707
+  type: enhancement
+  title: Avoid caching multiple times in doc-partitioning
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142913
+- file:
+    name: 138965.yaml
+    checksum: 598252db84daa0ac3b0b85739b7a2bbe41da44d7
+  type: enhancement
+  title: 'SQL: add project_routing to CLI'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - SQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138965
+- file:
+    name: 144717.yaml
+    checksum: 0ca6f3b649b3610fb9a9bc7e30933c5b5c3d7a8e
+  type: enhancement
+  title: Report shard snapshot pauses in shutdown status
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144717
+- file:
+    name: 143247.yaml
+    checksum: db9ddfb6f49ea0a53ee597fff56a95911baa1618
+  type: enhancement
+  title: Use the tdigest type and compression from TDigest in downsampling
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Downsampling
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143247
+- file:
+    name: 145393.yaml
+    checksum: c6d1bba490a5ecc1476aca096cace2ac71d7bd49
+  type: enhancement
+  title: 'ESQL: Upgrade external data source dependencies'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145393
+- file:
+    name: 143302.yaml
+    checksum: 6e1750670d888fe46acbac9ffa7aa809ef764975
+  type: enhancement
+  title: Use max instead of median for merged bloom filter size
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143302
+- file:
+    name: 143928.yaml
+    checksum: 5ac042b141311122ace70cf0085a95b880c0852a
+  type: enhancement
+  title: Add FormatReadContext to consolidate FormatReader API
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143928
+- file:
+    name: 145813.yaml
+    checksum: 506e8ecad6691f6ea9d5266140ae90783b2c75ff
+  type: bug-fix
+  title: 'EQL: Fix propagation of filters on join keys for missing events'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - EQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145813
+- file:
+    name: 141503.yaml
+    checksum: caf29c537715d98cc5d249011204a7889db9b4d0
+  type: bug-fix
+  title: Better error on some queries missing timestamps
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141503
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140606
+- file:
+    name: 138973.yaml
+    checksum: a2e0fca431c38d1284f18064e1c0444673dcce8b
+  type: bug-fix
+  title: 'ESQL: overflowing division in ROW gives wrong error message'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138973
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/138798
+- file:
+    name: 145794.yaml
+    checksum: 253a8d9ea00ef77af4a307892c3aaf10f59dcfa2
+  type: bug-fix
+  title: 'ES|QL: Fix handling of values on the time bucket boundaries for rate increase'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145794
+- file:
+    name: 142401.yaml
+    checksum: 9db17132a4b75e44f620330d901ba4d038a3159d
+  type: bug-fix
+  title: Fix async logging consistency and severity
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142401
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142316
+  - https://github.com/elastic/elasticsearch/issues/142374
+- file:
+    name: 141411.yaml
+    checksum: 805ab9bd7faa217c1592bea69db172bea71f0ea9
+  type: enhancement
+  title: Strengthen MPU-based CAS in S3 repo
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141411
+- file:
+    name: 140200.yaml
+    checksum: 039062bb5ee63d0f3acd917fd69162e4cab5df72
+  type: bug-fix
+  title: Use IllegalArgumentException over RepositoryException for readonly-repository checks
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140200
+- file:
+    name: 141935.yaml
+    checksum: cfa0f1450faf3a7417bb565c63095dea12cb53a4
+  type: enhancement
+  title: 'ES|QL: add logic to fold project tags metadata on data nodes'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141935
+- file:
+    name: 133309.yaml
+    checksum: ca62fb990bdab664d06520038888522bc6ee3166
+  type: enhancement
+  title: ES|QL date_range data type
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/133309
+- file:
+    name: 140735.yaml
+    checksum: ff1c97d27087335bcd30a8ff0e1d765a7160a75c
+  type: enhancement
+  title: Use IndexOrDocValuesQuery in IpFieldType#termQuery
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140735
+- file:
+    name: 141718.yaml
+    checksum: da358398182d61fb1494ed48b2917da450f70ca8
+  type: enhancement
+  title: "  Enable zero-copy SIMD vector scoring on searchable snapshots (frozen tier)"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141718
+- file:
+    name: 140666.yaml
+    checksum: e985beebe1cca3cda2c4d147673cba0325001be2
+  type: bug-fix
+  title: 'ESQL: Account for field readers in breaker'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140666
+- file:
+    name: 141427.yaml
+    checksum: 950172026db6a171af3f523b73a5950411300242
+  type: enhancement
+  title: Add mapper-size plugin's _size metadata attribute
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141427
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/136956
+- file:
+    name: 139529.yaml
+    checksum: e03d01a5e3948e7a2e3f878fdbbdba81e5ead362
+  type: enhancement
+  title: 'ESQL: Format "_query" response dates using the given timezone'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139529
+- file:
+    name: 145126.yaml
+    checksum: b0b9bd22f0d3e1457767ce4e551467214e30ab72
+  type: enhancement
+  title: 'GrokProcessor: add validate_only option to skip field extraction'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Ingest node
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145126
+- file:
+    name: 144388.yaml
+    checksum: ad73c604d5b3fad1c3621da1324ea4684d8980de
+  type: bug-fix
+  title: Handle null columns in ES|QL CHANGE_POINT
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144388
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142858
+- file:
+    name: 140631.yaml
+    checksum: 97fc470c7c64761004d765687d87549d6ddd6c3b
+  type: feature
+  title: Make ServiceAccountToken APIs Available in Serverless
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140631
+- file:
+    name: 137130.yaml
+    checksum: c7ab1cc6ff2ea51e53d152f7cb5144dd32c2c1c8
+  type: enhancement
+  title: Add FireworksAI Embeddings
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137130
+- file:
+    name: 142460.yaml
+    checksum: 0ff57dd7f4522d904629ff5816df033816dd4f52
+  type: bug-fix
+  title: Fix SharedBytes mmap leak by closing parent arena on close
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142460
+- file:
+    name: 142933.yaml
+    checksum: a895d8bc7d86dff202450ee13a277c8074e47c50
+  type: bug-fix
+  title: 'ES|QL: fix NPE on query log when CCS remotes are unavailable'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142933
+- file:
+    name: 142732.yaml
+    checksum: eacbc8ce1c622f670eef6e6fdf91565155ec554b
+  type: enhancement
+  title: Ref-counting SearchHits from InternalTopHits to SearchResponse
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142732
+- file:
+    name: 141667.yaml
+    checksum: 621a05392af1289ee7953e7a4f535988e85a5d2a
+  type: enhancement
+  title: 'feat: Add METRICS_INFO command'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141667
+- file:
+    name: 141237.yaml
+    checksum: ee12e52f0fd0259bc7f4c90609894071e44ff332
+  type: enhancement
+  title: Introduce adaptive block hash for long/int
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141237
+- file:
+    name: 144520.yaml
+    checksum: 7e9c9b029b8280b374c44f1f34e02b99fb44f206
+  type: enhancement
+  title: ESQL 137269 some csv tests for lookup join behavior with multivalues
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144520
+- file:
+    name: 143898.yaml
+    checksum: b940b69b691c7015d21d61d63e4010a13f1ae050
+  type: enhancement
+  title: Push contains binary doc values query down to es819 codec
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143898
+- file:
+    name: 139694.yaml
+    checksum: eeec7725a28ce2f8684bc1cd36d08c8750b5cb0f
+  type: enhancement
+  title: Refactor inference operator architecture for multi-value field support
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139694
+- file:
+    name: 139944.yaml
+    checksum: 11040da9862b327768fbe3db1d30b122cfa80d81
+  type: enhancement
+  title: Make quantization level of indexed vectors for 'bbq_disk' configurable
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139944
+- file:
+    name: 144218.yaml
+    checksum: e24c9180fe56c70c52b460bf3eb613d12153340f
+  type: enhancement
+  title: Byte-based buffer backpressure for external sources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144218
+- file:
+    name: 144074.yaml
+    checksum: b8338dd931203bf79fad7157b384923eaf4e0d24
+  type: enhancement
+  title: Batch index creation
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144074
+- file:
+    name: 144832.yaml
+    checksum: d506b13a676217b09881b1f1a2c028be3a955fd7
+  type: enhancement
+  title: Add Parquet filter pushdown with bloom filter, statistics, and dictionary row-group skipping
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144832
+- file:
+    name: 143420.yaml
+    checksum: 7bd7a60958819b7c02fb3cfcc0dbd5ce6baa4157
+  type: enhancement
+  title: 'ESQL: Add extended distribution tests and fault injection for external sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143420
+- file:
+    name: 145632.yaml
+    checksum: 8a90a47473a52c7db25d439aa0eefa59f02e49d6
+  type: bug-fix
+  title: "ESQL: don't use a Literal for constant_keyword fields when used inside full-text functions"
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145632
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/145570
+- file:
+    name: 142375.yaml
+    checksum: 68e31dc715d51293b3037ddbaec3345a4a1d2e1a
+  type: feature
+  title: Add JSON_EXTRACT ES|QL scalar function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142375
+- file:
+    name: 144425.yaml
+    checksum: 9399681b3ff15e83a9f1dd0b9f0966461aae10e1
+  type: bug-fix
+  title: 'ESQL: Fix BUCKET date rounding selection'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144425
+- file:
+    name: 141762.yaml
+    checksum: f4105beb21f42d3d9bfc44ced309820f0475dc84
+  type: enhancement
+  title: Using native scorers in BBQ
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141762
+- file:
+    name: 144649.yaml
+    checksum: 72d0a5ede8fc3b8b793335fa34ae284908df6bea
+  type: enhancement
+  title: '`int4` x86 SIMD optimizations'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144649
+- file:
+    name: 142772.yaml
+    checksum: 021592f6cb1535ae15df82281c626ab61f62f33c
+  type: enhancement
+  title: 'ES819 Binary doc values: compact doc offsets using bit packing'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142772
+- file:
+    name: 143533.yaml
+    checksum: 34a0562d8fbe128a7b0bcee2d4f9b47197d3a300
+  type: bug-fix
+  title: Date fields with ignore malformed do not ignore object and array values
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143533
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/109539
+- file:
+    name: 144599.yaml
+    checksum: 2df63f52b4e8b59e46fc012c3282fee76cb459b9
+  type: enhancement
+  title: Prefix centroid index clustering
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144599
+- file:
+    name: 145737.yaml
+    checksum: 234bfa4657dcb007804df2d66db77fb0dc0318fd
+  type: breaking-change
+  title: Disable sequence numbers for TSDB in release builds
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145737
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/136305
+- file:
+    name: 143460.yaml
+    checksum: 1d348e6fb0106bdbdd5348de4e88921c233d4091
+  type: feature
+  title: 'ESQL: Prevent pushdown of unmapped fields in filters and sorts'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143460
+- file:
+    name: 145625.yaml
+    checksum: 6cb139d21dea6995eb3e6e8205ee2eefdf75d18b
+  type: enhancement
+  title: TS rejects non-TSDS indices with misleading error
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145625
+  issues:
+  - '# PRIVATE: https://github.com/elastic/metrics-program/issues/310'
+- file:
+    name: 141666.yaml
+    checksum: 251e165a5ba85178bbd0dacf9615e4d0b5b82730
+  type: feature
+  title: Add semantic_text field type to MMR Result Diversification Retriever (v2)
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141666
+- file:
+    name: 142748.yaml
+    checksum: a6cd91a01eede79ee0bc94bcc9f74ba39d6b17be
+  type: enhancement
+  title: 'ES|QL: Implement EXPLAIN for local data node plans'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142748
+- file:
+    name: 145577.yaml
+    checksum: 1ebb9bbbc242bd5d3b4745f6642c24c511eb29a0
+  type: bug-fix
+  title: Fix intercepted query cases that can create orphaned unique async action consumers
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145577
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/145444
+- file:
+    name: 141534.yaml
+    checksum: 289eb10502d3bcc700aa5240f6505d4aaa88ca51
+  type: bug-fix
+  title: Improve mutability handling of Source#source()'s map
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141534
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141075
+- file:
+    name: 145824.yaml
+    checksum: 7c53a15ec6f987fc0967ea1febefffd324818936
+  type: enhancement
+  title: Add metadata mappings for OpAMP
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Plugins
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145824
+- file:
+    name: 139343.yaml
+    checksum: b9dc932661cefa69aac9d86125add361786d0be7
+  type: enhancement
+  title: Introduce SwissTable-based hashing (LongSwissHash, BytesRefSwissHash) for ES|QL STATS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  - Engine
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139343
+- file:
+    name: 144018.yaml
+    checksum: 50f885fd420efa44b8576ca32f5527b6e3c282fe
+  type: enhancement
+  title: Parquet row-group level split parallelism
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144018
+- file:
+    name: 139314.yaml
+    checksum: 0f83d927e9301137a67a2329ccee751b13bfd36c
+  type: enhancement
+  title: 'ESQL: Improve Lookup Join performance with CachedDirectoryReader'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139314
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/137268
+- file:
+    name: 141719.yaml
+    checksum: c80d4feb89ba8a0f0f3328938fc128bab2539795
+  type: enhancement
+  title: 'ES|QL: Add APM telemetry for SET statement'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141719
+- file:
+    name: 142135.yaml
+    checksum: 85524aa09d17bda9ed1450221a7669b21c6daace
+  type: enhancement
+  title: Aggregate metric double use average
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142135
+- file:
+    name: 142565.yaml
+    checksum: 48e6817e9b09f971fe0efe9ac8877437f0ea3a40
+  type: enhancement
+  title: Review fixes for datasource framework
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142565
+- file:
+    name: 138790.yaml
+    checksum: 9255aa62aeb18cc8a7691df85029004ad57547bb
+  type: enhancement
+  title: Simple thread local store metric capture
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138790
+- file:
+    name: 143661.yaml
+    checksum: 3580e7e1d32bdcb1ee7f63d0b14da9796c4bdb3a
+  type: enhancement
+  title: Support window smaller than time bucket
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143661
+- file:
+    name: 140734.yaml
+    checksum: 718305c2c861f8a99a4185b0694e2808a84f3ab1
+  type: enhancement
+  title: Use IndexOrDocValuesQuery in NumberFieldType#termQuery implementations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140734
+- file:
+    name: 139752.yaml
+    checksum: 18a589603e0a93cdf639140d3f477ae46a7f8c8c
+  type: enhancement
+  title: Take control of max clause count verification in Lucene searcher
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139752
+- file:
+    name: 141060.yaml
+    checksum: dceb89131cde0ad16ce34e2d39f9fdde0b6ec385
+  type: enhancement
+  title: 'Support arithmetic operations for dense_vectors: scalar version'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141060
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140538
+- file:
+    name: 140221.yaml
+    checksum: 4fed7124b1a9f3fa45560587a17e453096d958bc
+  type: bug-fix
+  title: Retrieve routing hash from synthetic id for translog operations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140221
+- file:
+    name: 144059.yaml
+    checksum: 13e71445997e8ebf6864a6119616318ccf70fcd0
+  type: enhancement
+  title: Fix Parquet type support gaps
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144059
+- file:
+    name: 145131.yaml
+    checksum: fb2ce69e4f731c36b40596a74160b55ac990eefe
+  type: enhancement
+  title: Add passthrough behavior for FlattenedFieldMapper mapped sub-fields
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145131
+- file:
+    name: 145074.yaml
+    checksum: fa556975af698ed1bcddb1932edc8daff1f44a04
+  type: enhancement
+  title: Fix ORC type support gaps
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145074
+- file:
+    name: 144184.yaml
+    checksum: 12686aa671b11c7eeb55a431dbb371e907bb1674
+  type: feature
+  title: Synthetic id field for time_series indices (remove feature flag)
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144184
+- file:
+    name: 141386.yaml
+    checksum: 12735f074d66c9bee05787ab1b0a6246856b3625
+  type: enhancement
+  title: Make TDigest field type a time series metric.
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  - Downsampling
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141386
+- file:
+    name: 143704.yaml
+    checksum: d7f72433e9cd499f46f5e428a2fa3ce84d6702c2
+  type: enhancement
+  title: Window that is not an exact multiple of the bucket
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143704
+- file:
+    name: 144491.yaml
+    checksum: b1712bd7980f4fde6ca20e5dc3095d4055bb589c
+  type: enhancement
+  title: Add circuit breaker to the Parquet datasource
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144491
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/282'
+- file:
+    name: 139908.yaml
+    checksum: b32ad89faa71ab851fa6b5ede808082d169a5d62
+  type: enhancement
+  title: 'ES|QL: add syntax support and parsing for SET approximate'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139908
+- file:
+    name: 142545.yaml
+    checksum: 25e7f8e1d4cb8630ba7b14684a11a73c7efb47e6
+  type: enhancement
+  title: Split blob-cache freelist using decays
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142545
+- file:
+    name: 143883.yaml
+    checksum: 2821852835ef19d3278767b57937441e70d28595
+  type: enhancement
+  title: Ensure DLM only runs one general loop at a time
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Data streams
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143883
+- file:
+    name: 145111.yaml
+    checksum: c0a359ee202ba6198ad62e5fba6e5f797e4481be
+  type: enhancement
+  title: Add blocks and vectors for more Arrow numeric types
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145111
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/399'
+- file:
+    name: 144429.yaml
+    checksum: 46fb9baaa09b4d49f82e4b93b28d5d7611644ce9
+  type: enhancement
+  title: SIMD implementations for native `int4` vector scoring
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144429
+- file:
+    name: 142841.yaml
+    checksum: 7b42742de83230db0a07818b38d2b40f9c7e7938
+  type: feature
+  title: Attribute ES|QL shard search load in Lucene operators
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Engine
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142841
+- file:
+    name: 140169.yaml
+    checksum: 7021a2baee320af88af28e14a90fd508e328f31d
+  type: enhancement
+  title: Add native operations for scoring floats
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140169
+- file:
+    name: 140539.yaml
+    checksum: c333961428ab246c8837bca4a004b1e69ebf547d
+  type: enhancement
+  title: 'Support arithmetic operations for dense_vectors: vector version'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140539
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140537
+- file:
+    name: 140217.yaml
+    checksum: e52410499e934534cb39df9cd41b69206efc87b1
+  type: enhancement
+  title: 'ESQL: Support intra-row field references in ROW command'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140217
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140119
+- file:
+    name: 142380.yaml
+    checksum: 4631165fab498f7e83d45dc29167a1ae28dc794c
+  type: bug-fix
+  title: Correctly preserve class information for internal endpoints on update
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142380
+- file:
+    name: 144311.yaml
+    checksum: bc70d8d30aba9ddd406cc63e8796f4047b010d7d
+  type: enhancement
+  title: Enable Prometheus plugin by default
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144311
+- file:
+    name: 137351.yaml
+    checksum: 945d944703366e202b9b55608176300150b9f38c
+  type: bug-fix
+  title: Fix nested aggregation top_hits with query inner_hits
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Aggregations
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137351
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/136893
+- file:
+    name: 143440.yaml
+    checksum: 7406d16cd7769f8e4dfd7d67179011c3eade27be
+  type: bug-fix
+  title: Fix unified highlighter crash on multi-value fields
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Highlighting
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143440
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/122418
+- file:
+    name: 142528.yaml
+    checksum: 73bd6b912e7cf3e9f870fdc61f292c9775f16454
+  type: enhancement
+  title: Extract centroid from doc values for ST_CENTROID_AGG over geo_shape and cartesian_shape
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Geo
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142528
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142640
+- file:
+    name: 140515.yaml
+    checksum: a80558f4eef2c6ad517a5925b5d60f5170b05343
+  type: enhancement
+  title: 'Ids Query: Use max result window as upper limit'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140515
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/138758
+- file:
+    name: 140684.yaml
+    checksum: 0ad7fcdaea118b2d46dfbebf10d568bbef99e0a2
+  type: feature
+  title: 'MMR Command: Grammar and Logical Plan'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140684
+- file:
+    name: 139748.yaml
+    checksum: c38e0eae48a85bb102b4808045871f534c7f9735
+  type: enhancement
+  title: Optimize script sorts that do not require query scores
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139748
+- file:
+    name: 143417.yaml
+    checksum: 0e4a979f10141c251a2152ec4913dc033eba3037
+  type: bug-fix
+  title: 'ESQL: Fix datasource test failures on Windows and FIPS'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143417
+- file:
+    name: 139461.yaml
+    checksum: c7c8936366c8e32a706ed81d66e8a16ab7d31d47
+  type: bug-fix
+  title: 'ES|QL: fix checks to define if a JOIN is remote'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139461
+- file:
+    name: 142969.yaml
+    checksum: d66f41afdf8b81d2e09cbba26a6b83333f6a412f
+  type: enhancement
+  title: Add custom headers for Azure OpenAI Service
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142969
+- file:
+    name: 143381.yaml
+    checksum: fa465feddd266309b5e13d7b50572cd259c88ebd
+  type: enhancement
+  title: Aggregate counter downsampling preserves resets
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Downsampling
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143381
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/136178
+- file:
+    name: 143544.yaml
+    checksum: 648cd94739d2b84b1b2cbd7e513f2d489da1db0e
+  type: bug-fix
+  title: Do not enable doc-partitioning for count
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143544
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/134512
+- file:
+    name: 143114.yaml
+    checksum: 779a325bbb986b5e423c7b86cbec352d774583fc
+  type: enhancement
+  title: 'ESQL: Add split discovery and distribution for external sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143114
+- file:
+    name: 145097.yaml
+    checksum: d868bc7e8ea44f7a11dbfb2b2876c98d32481fe7
+  type: enhancement
+  title: Disable sequence numbers for new TSDB indices
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145097
+- file:
+    name: 144686.yaml
+    checksum: 63a42cce6972d7f1a3c7ce0d3e98717d568bf4cb
+  type: enhancement
+  title: 'ESQL: Add ORC predicate pushdown via SearchArgument'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144686
+- file:
+    name: 139973.yaml
+    checksum: a45b9cd72cb171069bdec511c955de0009eb5afe
+  type: bug-fix
+  title: 'ESQL: Split aggs results'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139973
+- file:
+    name: 145701.yaml
+    checksum: 8cefbcee432fe1d5fe4a9dddcb9c1c3056379338
+  type: enhancement
+  title: Skip files with no projected column overlap in UNION_BY_NAME
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145701
+- file:
+    name: 141525.yaml
+    checksum: 5e7ca47cbe91f13a80f1c6420460d1f8bc07a924
+  type: enhancement
+  title: Rolling upgrade test for synthetic id
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141525
+- file:
+    name: 145835.yaml
+    checksum: c88c461afda116d6a37a1af2d0a429c00cc393c2
+  type: enhancement
+  title: Use VectorScorer to consume AcceptDocs iterator for lazy bulk scoring in VectorScoringUtils
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Ranking
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145835
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/145834
+- file:
+    name: 142974.yaml
+    checksum: 17a5557bb43c1182d897fb16a191bc9d68731738
+  type: enhancement
+  title: 'feat(es|ql): add dense_vector support in coalesce'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142974
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139928
+- file:
+    name: 144009.yaml
+    checksum: abc813df0cd92b5fa68989cfa814c4672c17335f
+  type: enhancement
+  title: Add indexing pressure tracking to OTLP endpoints
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144009
+- file:
+    name: 143236.yaml
+    checksum: 404cd1f8a95868454f26c96bc7a13156dfa8d990
+  type: feature
+  title: 'ESQL: Data sources: Azure plugin'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143236
+- file:
+    name: 141564.yaml
+    checksum: 0470be19f0e77fb2e11c101b24467214c2e67140
+  type: enhancement
+  title: Add 'logs.otel' and 'logs.ecs' stream types
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Data streams
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141564
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141040
+- file:
+    name: 141708.yaml
+    checksum: 20ad6cf070d239e14a757f0acd0debb0466e40f8
+  type: bug-fix
+  title: Add cancellation support to IndicesRequestCache
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141708
+- file:
+    name: 143220.yaml
+    checksum: bac74fd4174729ab21d65ad6be10b784ea31aabe
+  type: enhancement
+  title: Prevent creating too many nested boolean clauses while creating the lucene query to avoid query explosion
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143220
+- file:
+    name: 140637.yaml
+    checksum: 4a407ec995c7779108b3ef6f4e7bea747bac4596
+  type: enhancement
+  title: CPS Field Caps to handles datastreams
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140637
+- file:
+    name: 145065.yaml
+    checksum: 2963e65f4126a1fdc1bf702749d9fb0b39aa826b
+  type: breaking-change
+  title: Make exponential_histogram the default histogram type for HTTP OTLP endpoint
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145065
+- file:
+    name: 145209.yaml
+    checksum: 150162ea91b789840906fcebee1141a02ef2eaec
+  type: bug-fix
+  title: Do not attempt marking store as corrupted if the check is rejected due to shutdown
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145209
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/123773
+- file:
+    name: 142036.yaml
+    checksum: 2d7eba1c0313a352ac1a3334987cfd9e392816e9
+  type: bug-fix
+  title: Check for support for native vector ops before calling them
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142036
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141863
+- file:
+    name: 143060.yaml
+    checksum: 2c75d82facd56e0884ad659f17d80ce42b2e2852
+  type: enhancement
+  title: Support custom rulesets in analysis-icu/icu-transform plugin
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Analysis
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143060
+- file:
+    name: 140135.yaml
+    checksum: a76618f80b7c8aee706b833e080ea1d146f211b6
+  type: enhancement
+  title: Add support for top-level arithmetic ops to TS|STATS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140135
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139570
+- file:
+    name: 139446.yaml
+    checksum: 6ce1f3fd4dedb6d8e01cd826377dbeddc34e53a6
+  type: enhancement
+  title: CPS and project routing support for templated searches
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - CCS
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139446
+- file:
+    name: 142763.yaml
+    checksum: 86d50f6dab13d30f67310b8061807e9f326829b4
+  type: enhancement
+  title: 'ES|QL: Validate TOP_SNIPPETS query argument is foldable'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142763
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142462
+- file:
+    name: 145225.yaml
+    checksum: b6221d5f7e61e032c9a4d088f6902be2af2b5576
+  type: feature
+  title: Makes LIMIT BY Tech Preview
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145225
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/112918
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/424'
+- file:
+    name: 139411.yaml
+    checksum: dd604d8df5e35894ca0ac5c6012796b4f264831e
+  type: enhancement
+  title: Add Chat Completion to Amazon Bedrock for the Inference API
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139411
+- file:
+    name: 143922.yaml
+    checksum: 1a170592237b3a4e932ce67123c02fa59d2e766d
+  type: enhancement
+  title: Add panama simd implementation of `contains` function for BinaryDocValuesContainsTermQuery
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143922
+- file:
+    name: 137675.yaml
+    checksum: e2d1de0dc599eab7d671f6be03e33f12ed74eeae
+  type: enhancement
+  title: PIT context relocation work on main repo
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/137675
+- file:
+    name: 143867.yaml
+    checksum: fca06dca2d088bd462478a28915d38d7ac64203b
+  type: feature
+  title: Release MMR command
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143867
+- file:
+    name: 145376.yaml
+    checksum: 2b16bc0cd86b762c159b9d3300a729b41e8d253f
+  type: enhancement
+  title: Add option to enable accurate leaf arrays for flattened fields
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145376
+- file:
+    name: 140524.yaml
+    checksum: 0e8de15250c2a2ba3d3b74700af6c792cc9e975e
+  type: bug-fix
+  title: Fix AD job update overrides categorization_examples_limit with default
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140524
+- file:
+    name: 145726.yaml
+    checksum: 465f5757ca47ed45739da95ae8742fed2a96818e
+  type: bug-fix
+  title: Fix parsing "request" parameter in clear cache API
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145726
+- file:
+    name: 142667.yaml
+    checksum: 7138c8b17a79631bb7fad76ded858b90ad37c6ec
+  type: enhancement
+  title: 'ESQL: Add Connector SPI and gRPC/Arrow Flight module'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142667
+- file:
+    name: 143133.yaml
+    checksum: 9b83f2b26da1f97d3654d982138775cb19d38239
+  type: enhancement
+  title: ES|QL - LuceneTopNSourceOperator data partition strategy uses ContextIndexSearcher slicing
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143133
+- file:
+    name: 145634.yaml
+    checksum: 55794a4e654a5536750fc7b18df073807c1253aa
+  type: enhancement
+  title: Add info into the profile of METRICS_INFO and TS_INFO
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - TSDB
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145634
+- file:
+    name: 144475.yaml
+    checksum: dfeef671b740751b704ba2da1a8ce7a8a91ede40
+  type: enhancement
+  title: Add anonymous Azure access via auth=none
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144475
+- file:
+    name: 140089.yaml
+    checksum: e3569325894af76959cbc672232c63285de1ae77
+  type: enhancement
+  title: 'ESQL: Shrink description'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140089
+- file:
+    name: 138611.yaml
+    checksum: 4795939b718bc1094e3219d8a8a63a674c5dc20a
+  type: enhancement
+  title: More actionable `PUT /{index}/_settings` error
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Indices APIs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138611
+- file:
+    name: 141179.yaml
+    checksum: e41cf63f1bd3f5adef5e62bd2082adb9212274c6
+  type: enhancement
+  title: Add SparseFileTracker.getAbsentBytesWithin
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141179
+- file:
+    name: 141895.yaml
+    checksum: 49fad73ba421610312d551214d7839a8f5626bda
+  type: feature
+  title: ESQL mv_difference function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141895
+- file:
+    name: 134995.yaml
+    checksum: 8eadd381635bdcc70d5fb4587cf80e1952207ab4
+  type: feature
+  title: ES|QL Views
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/134995
+- file:
+    name: 141342.yaml
+    checksum: d13ee566fd78f01d054735d89db72b44eaa87082
+  type: enhancement
+  title: Add dynamic bloom filter sizing based on document count
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141342
+- file:
+    name: 145751.yaml
+    checksum: 2bdef25e0514666615a69eab21ef927a108d24a3
+  type: bug-fix
+  title: 'Fix waiting for enrich policy execution for users without the `monitor` privilege '
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Ingest node
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145751
+- file:
+    name: 141657.yaml
+    checksum: daf3cc7567be8a23c8eb421e6e79605baf89f606
+  type: enhancement
+  title: Support shapes in ST_CENTROID_AGG
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Geo
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141657
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/104658
+- file:
+    name: 140545.yaml
+    checksum: 5fa46ef8ba561bfa7f90eaa8c83a2df1d584bcb4
+  type: enhancement
+  title: Vector functions are GA
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140545
+- file:
+    name: 142981.yaml
+    checksum: cb883f009b98538fc172c237bc75f9b2ec5ec46a
+  type: enhancement
+  title: Add Arrow-native Block & Vector implementations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142981
+- file:
+    name: 143693.yaml
+    checksum: dcb4067f561d2f81475da8844d0362b337cf5c08
+  type: feature
+  title: 'ESQL: Type conflict resolution in unmapped-fields load'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143693
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142004
+  - https://github.com/elastic/elasticsearch/issues/141912
+- file:
+    name: 142597.yaml
+    checksum: afd698073fe6a7a217e32b92410dc62089edde0a
+  type: enhancement
+  title: Add implementation to update service settings method for AI21 service
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142597
+- file:
+    name: 143105.yaml
+    checksum: 6abf5410e32cc9b2a28931fb89075fe54952e941
+  type: bug-fix
+  title: Better estimation on loading large text field from `_source`
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143105
+- file:
+    name: 141138.yaml
+    checksum: a21abf65f571783ef40a196e7ad453ff09050865
+  type: enhancement
+  title: Count aggregation for histograms
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141138
+- file:
+    name: 143410.yaml
+    checksum: d77eee23c7b086c33cac058004bfa8e960d728c7
+  type: feature
+  title: Embedding query vector builder
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143410
+- file:
+    name: 146002.yaml
+    checksum: 602bd29ce36c3ca7c514be6f811f7a1fc6059e7c
+  type: bug-fix
+  title: Ensure bloom filter is not shared across threads
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/146002
+- file:
+    name: 141397.yaml
+    checksum: 2b3db01160fd34bacae554791b2c9429c48ed68b
+  type: bug-fix
+  title: Resolve *.geo.location as geopoint in otel dynamic mappings
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141397
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/140506
+- file:
+    name: 143345.yaml
+    checksum: 27e43f9b4366d46bb09048db8e7930dc6192ed40
+  type: enhancement
+  title: 'ESQL: Add parallel execution for Arrow Flight multi-endpoint sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143345
+- file:
+    name: 142738.yaml
+    checksum: 76ede8bb386bfe400008dee330484cb3fe2a1de6
+  type: enhancement
+  title: Add implementation to update service settings method for Alibaba Cloud Search service
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142738
+- file:
+    name: 143241.yaml
+    checksum: 175053936baf25c791ab03b1dcb9897bb713b5b8
+  type: bug-fix
+  title: Fix int overflow in vector similarity bounds checks for segments larger than 2GB
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143241
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143232
+- file:
+    name: 145116.yaml
+    checksum: e8372c77861180efc30f6444707d9f81f0743db5
+  type: enhancement
+  title: Optimize ARM sqri8/sqri7u kernels using vabdq + vdotq
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145116
+- file:
+    name: 143703.yaml
+    checksum: 8cd47c9a4758765903e35ddce67ddec5fa49bf0a
+  type: enhancement
+  title: Columnar I/O and vectorized block conversion for external sources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143703
+- file:
+    name: 141047.yaml
+    checksum: 4dabbfe137afba6cd2e18e5cc0cf5c86b6d884c4
+  type: enhancement
+  title: Optimized ARM (SVE) functions for BBQ Int4 to 1-bit dot product
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141047
+- file:
+    name: 143095.yaml
+    checksum: 228c3b012c8abf00309074cd13c1a69eb46475fe
+  type: enhancement
+  title: Enable doc-partitioning for more queries
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143095
+- file:
+    name: 143996.yaml
+    checksum: c3cdcb9f57f43632cfe71e510f3ae550e935e570
+  type: enhancement
+  title: Add support for binary operators with AMD
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143996
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142094
+- file:
+    name: 143997.yaml
+    checksum: 9581a8d618e647f178c92fea223ab89bd278128b
+  type: enhancement
+  title: Wire parallel parsing into production for text formats
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143997
+- file:
+    name: 142685.yaml
+    checksum: b5544b03b4551233e41d952ac6936db8cf2fec69
+  type: enhancement
+  title: Trigger cache decay at 5% left on freq 0
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142685
+- file:
+    name: 144478.yaml
+    checksum: 30f341b4cde82405d1326f9ba57ddecf5976430e
+  type: enhancement
+  title: Add exponential-backoff retry for AD job opening during system-initiated reassignments
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144478
+- file:
+    name: 142406.yaml
+    checksum: 494d34be2820835d2c2b6c4f49bfefb2a7e57152
+  type: enhancement
+  title: ESQL - Add min competitive aware collection for multiple shards / threads in LuceneTopNSourceOperator
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142406
+- file:
+    name: 143702.yaml
+    checksum: 6043d5a67e0383bd73cc89436a3396617234f84e
+  type: enhancement
+  title: 'JSON_EXTRACT: zero-copy byte slicing for object, array, and number extraction'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143702
+- file:
+    name: 145052.yaml
+    checksum: 2d8ae8b7190a1eb73499766c084e3ae41aff6ef8
+  type: enhancement
+  title: 'ESQL: enable unmapped_fields="load" in tech preview'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145052
+- file:
+    name: 142514.yaml
+    checksum: 233a78f526ae51a792461805dd02c4adbd8ba894
+  type: bug-fix
+  title: Fix AVX-512 fpclass mask to classify negative infinity as negative in MIP scoring.
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142514
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142289
+- file:
+    name: 140246.yaml
+    checksum: e8cebfecf5988654760888e8d55109742b03c113
+  type: enhancement
+  title: 'Store flattened field data in binary doc values '
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140246
+- file:
+    name: 143893.yaml
+    checksum: b564a2716a5a5c7084cdd6f13cc7ae4c244fcf58
+  type: bug-fix
+  title: 'ESQL: evaluate ReferenceAttributes to potentially FieldAttributes for full-text functions restriction'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143893
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143859
+- file:
+    name: 142851.yaml
+    checksum: 09e36dd45cf0ea5dfbd169d858f79d8b7c3c0b5a
+  type: feature
+  title: Default index.mapping.use_doc_values_skipper to true for logsdb
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142851
+- file:
+    name: 141050.yaml
+    checksum: 3de85f3c844ebd0c78ea977e4fcfaa15198dfca6
+  type: enhancement
+  title: Add Views Security Model
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Security
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141050
+- file:
+    name: 144679.yaml
+    checksum: ab61992030c8a200e4954b48994cd9723bb8c5bc
+  type: enhancement
+  title: Bump heap usage limits for INLINE STATS
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144679
+- file:
+    name: 141882.yaml
+    checksum: f0a045bbd1aae495eed0d177143fd66b0ddb46d7
+  type: other
+  title: Upgrade Elasticsearch to Apache Lucene 10.4
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141882
+- file:
+    name: 145341.yaml
+    checksum: bfcb6dd862f9b50b388e373d41234d7aecdc1037
+  type: bug-fix
+  title: Wait for queue saturation in MaxScoreTopKnnCollector
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145341
+- file:
+    name: 140905.yaml
+    checksum: 4a9048f48b89dd07148b087b3394c336e4bd5fd9
+  type: bug-fix
+  title: Fix ES:QL Driver logging for 4xx errors and cancellations
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140905
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/138008
+- file:
+    name: 144291.yaml
+    checksum: 87bcd55b104bc1399ebbf318d51a2cb7da0d4f35
+  type: enhancement
+  title: Fix window validation in time-series aggregations when TBUCKET uses a numeric target count
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144291
+- file:
+    name: 142129.yaml
+    checksum: 11b7e9f2d3092b1bbfd7488213331a9cd2b4b4f8
+  type: enhancement
+  title: ESQL - Add dense_vector SUM function
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142129
+- file:
+    name: 142980.yaml
+    checksum: dd855c5589017ef4ef21304a503c05dbaa15cc41
+  type: enhancement
+  title: Switch default model for semantic_text to jina-v5
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142980
+- file:
+    name: 143954.yaml
+    checksum: 31c7868fe0fd46cd324b128430ccd25d2ff1a536
+  type: bug-fix
+  title: 'ESQL: Preserve type conflict error metadata for subqueries'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143954
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142499
+- file:
+    name: 145300.yaml
+    checksum: a9663735d2ea37be7f4710e2a7f100646c7d575f
+  type: enhancement
+  title: Add coordinator-only caching for external source metadata
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145300
+- file:
+    name: 144454.yaml
+    checksum: 0a0c5f247a8f8524cfc83c616af5d9388b274d61
+  type: enhancement
+  title: 'ESQL: Speed up remote Parquet reads'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144454
+- file:
+    name: 141482.yaml
+    checksum: c27a23b0f5add3cd89d7144f059758229dd6863b
+  type: enhancement
+  title: 'ESQL: Add Warning for Sort Under Lookup Join'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141482
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141483
+- file:
+    name: 145838.yaml
+    checksum: 0fe2ebb38a8082f4206bace8d6df9778bab01e93
+  type: bug-fix
+  title: Use 504 for timeout REST status code response
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145838
+- file:
+    name: 143515.yaml
+    checksum: c52acba709d365f17a8cf4b9ba5ca79d1d78f10c
+  type: enhancement
+  title: 'ESQL: Add limit pushdown for external data sources'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143515
+- file:
+    name: 140293.yaml
+    checksum: 27865183f1523024f9d9c8d967d0821537b0e836
+  type: enhancement
+  title: Improve locality by placing parent - child centroids next to each other
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140293
+- file:
+    name: 143903.yaml
+    checksum: 19b4c38e805777ca8a217056abedaefeadccfd90
+  type: enhancement
+  title: Add column pruning for external datasources
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143903
+- file:
+    name: 145357.yaml
+    checksum: 25378c801786ddcfb074b4ccbdefd1ca3ff90ce1
+  type: enhancement
+  title: Add reindex-from-remote blocklist setting
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145357
+- file:
+    name: 143779.yaml
+    checksum: 4c41a32b8e5612c1da10bf4f895756815d894cb9
+  type: enhancement
+  title: 'ESQL: Add error policy and configurable options for CSV format reader'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143779
+- file:
+    name: 139830.yaml
+    checksum: ff69afe410f8ab299432d628e04732f51a7d7c54
+  type: enhancement
+  title: GA chunk_rescorer in text_similarity_reranker
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139830
+- file:
+    name: 142187.yaml
+    checksum: b2f8e1b166a0006cf450b01576810db651cd785b
+  type: bug-fix
+  title: Terminate Azure get blob retries when node is shutting down
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142187
+- file:
+    name: 144474.yaml
+    checksum: 362be59de73f40bc15ee9c288548efda6f972fc7
+  type: enhancement
+  title: Add DateFormatter.tryParse()
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Infra/Core
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144474
+- file:
+    name: 140088.yaml
+    checksum: e74be5ff89f77f40582433ad31c6a8d7fbe3a99c
+  type: enhancement
+  title: 'ESQL: Stream results from topn'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140088
+- file:
+    name: 142148.yaml
+    checksum: 63e2cefdd060981fc7124816c5f1ae2385fd3d16
+  type: deprecation
+  title: Deprecate the 'logs' stream type
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Data streams
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142148
+- file:
+    name: 139955.yaml
+    checksum: 532cf86248c4174f88106fe737d7c46c7673508a
+  type: enhancement
+  title: Prefetch vectors during rescoring
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139955
+- file:
+    name: 138217.yaml
+    checksum: 77593c6e3254b636e364f327da7f3093ef2df58e
+  type: enhancement
+  title: Increase DiskBBQ vector block bulk size to 32
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/138217
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/134224
+- file:
+    name: 139685.yaml
+    checksum: 9c3fafc36296bcbbd214c436221900c8d6eb51c5
+  type: bug-fix
+  title: Reduce priority of clear-cache tasks
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139685
+- file:
+    name: 141508.yaml
+    checksum: 77ceb2a442e90465c3793e21cf3af909f4320f27
+  type: enhancement
+  title: ES|QL command RERANK is GA
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141508
+- file:
+    name: 141322.yaml
+    checksum: d155267d6d3769721bb6b3ce565250a6c9131901
+  type: enhancement
+  title: Allow loading BYTE_LENGTH without decompressing Zstd byte ref blocks
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141322
+- file:
+    name: 143935.yaml
+    checksum: db57b205d298cc93a2d5f5639a05e50f38386548
+  type: bug-fix
+  title: Fix FollowingEngine#lookupPrimaryTerm when sequence numbers are disabled
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143935
+- file:
+    name: 144462.yaml
+    checksum: 3e1dcea330576980980e97a657a16d504b6d3d67
+  type: bug-fix
+  title: AMD return 0 on Count with no rows
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144462
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/141852
+- file:
+    name: 139914.yaml
+    checksum: 2bd044df994e641dc3f91aa44463d8625343a60d
+  type: enhancement
+  title: ES|QL - dense_vector support for COUNT, PRESENT, ABSENT aggregator functions
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139914
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/135688
+- file:
+    name: 139596.yaml
+    checksum: 458adfa9ad4c5ac8082adcda8f51db7babfe93d2
+  type: bug-fix
+  title: 'CPS: Copy existing resolved index expressions when constructing a new `SearchRequest` from an existing one'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - CCS
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/139596
+- file:
+    name: 143333.yaml
+    checksum: 04fcac2bd26a6d912889a3fab2c7acd28f62df69
+  type: enhancement
+  title: 'ESQL: Add error handling and propagation for external source execution'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/143333
+- file:
+    name: 145658.yaml
+    checksum: c1d9cbfcdf519cb3331cf6882169e65cc4b83a5e
+  type: enhancement
+  title: Use DirectAccessInput in ZstdDecompressor to avoid intermediate heap copy
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Codec
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145658
+- file:
+    name: 145571.yaml
+    checksum: c986879e586a05696c8b3c0deb0c70e869e2a5e9
+  type: enhancement
+  title: 'ESQL: Document and test Parquet page-index filtering'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145571
+- file:
+    name: 140323.yaml
+    checksum: 1c3b78585f8f91de0e6a60e723c628ec892008d9
+  type: enhancement
+  title: Add support for embedding task to JinaAI service
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140323
+- file:
+    name: 145434.yaml
+    checksum: e5681e15fa25f8bbefacb7552d92ca2f5e31ec11
+  type: bug-fix
+  title: 'ESQL: Solves CsvIT stats*WithOverFlowRow failing'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/145434
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/145415
+  - https://github.com/elastic/elasticsearch/issues/145424
+- file:
+    name: 142575.yaml
+    checksum: 7e2b300c2f46b7b8217d0ee9e75d1278148c3e04
+  type: bug-fix
+  title: Handle not preferred in replica shards allocator
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142575
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/142424
+- file:
+    name: 141836.yaml
+    checksum: b94547e019a637a3366de5db95b1a64604ba7f3b
+  type: enhancement
+  title: 'ES|QL: Add telemetry (stack) for query settings'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141836
+- file:
+    name: 142563.yaml
+    checksum: 366dcfc643baf63e393f2438b2b758eb8130c030
+  type: feature
+  title: 'ESQL: Add Google Cloud Storage data source plugin'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142563
+- file:
+    name: 144008.yaml
+    checksum: 48b7753538df7fbf67c610592a0810ee7b8693ee
+  type: enhancement
+  title: Use bulk scoring for filtered scenarios in DiskBBQ
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144008
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/143901
+- file:
+    name: 140677.yaml
+    checksum: 792a5dd2635ddddcbb63bcf51d780f81f562b2e3
+  type: enhancement
+  title: Case and Coalesce Support for Compound Types
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/140677
+- file:
+    name: 142021.yaml
+    checksum: d8cc9ce7c4d76278f4a0d8a682b25efd14cf51de
+  type: enhancement
+  title: 'SQL: add support for API key to JDBC and CLI'
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - SQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/142021
+- file:
+    name: 141877.yaml
+    checksum: 7028cab2687b8a4d292ba5901f952f926cd04529
+  type: enhancement
+  title: Deprecate aggregate metric double default metric configuration
+  products:
+  - product: elasticsearch
+    target: 9.4.0
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/141877

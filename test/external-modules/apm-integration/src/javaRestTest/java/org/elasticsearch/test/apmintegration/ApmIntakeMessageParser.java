@@ -55,7 +55,7 @@ public final class ApmIntakeMessageParser {
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
-                // We don't care about these
+                // All keys in the event are known-but-unneeded types (e.g. "metadata", "error") — skip silently.
                 return Optional.empty();
             } else {
                 throw new IOException("Unexpected event type: " + map.keySet());

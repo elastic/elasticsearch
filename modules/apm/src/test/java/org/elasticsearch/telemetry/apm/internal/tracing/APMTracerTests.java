@@ -116,7 +116,7 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
-     * Check that when a nested trace is discarded e.g.g due to transaction_max_spans exceeded, the tracer does not record it.
+     * Check that when a nested trace is discarded e.g. due to transaction_max_spans exceeded, the tracer does not record it.
      */
     public void test_onNestedTraceStarted_ifNotRecorded_doesNotStartTrace() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();

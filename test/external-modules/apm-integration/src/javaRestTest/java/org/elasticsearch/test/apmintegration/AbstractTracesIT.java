@@ -58,6 +58,13 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
      */
     static final int TELEMETRY_TIMEOUT = 40;
 
+    /**
+     * OTLP batches can contain both root and child spans delivered in a single call.
+     * After the root-span latch fires, wait briefly for the consumer thread to drain
+     * any trailing child spans before asserting the received count.
+     */
+    static final long OTLP_BATCH_GRACE_PERIOD_MS = 500;
+
     protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     /**
@@ -207,7 +214,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         // Grace period: on the OTLP SDK path a batch can contain both root and child spans delivered in
         // a single received.addAll() call. The consumer thread processes them sequentially, so child spans
         // may still be in the queue when the root-span latch trips. Give the consumer time to drain them.
-        Thread.sleep(500);
+        Thread.sleep(OTLP_BATCH_GRACE_PERIOD_MS);
 
         assertEquals("Expected only root span, but received child spans too: " + receivedSpans, 1, receivedSpans.size());
     }

@@ -158,16 +158,16 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
-    private static java.nio.file.Path nodeConfigDir;
-
     @BeforeClass
     public static void setupCluster() throws Exception {
-        nodeConfigDir = createConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
+        var nodeDirectory = createTempDir();
+        var configDirectory = nodeDirectory.resolve("config");
+        createCustomRegexConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
-            createTempDir(),
+            nodeDirectory,
             false,
             true,
             1,
@@ -184,7 +184,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return nodeConfigDir;
+                    return configDirectory;
                 }
             },
             0,
@@ -550,9 +550,7 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    private static Path createConfigDir() throws IOException {
-        Path configDir = createTempDir();
-
+    private static void createCustomRegexConfig(Path configDir) throws IOException {
         // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
         Path userAgentDir = configDir.resolve("user-agent");
         Files.createDirectories(userAgentDir);
@@ -560,8 +558,6 @@ public class CsvIT extends ESTestCase {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
-
-        return configDir;
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

@@ -254,6 +254,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
 
         /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -262,6 +268,16 @@ public class EsqlCapabilities {
          *     Support for rejecting loading subfields of flattened fields
          */
         OPTIONAL_FIELDS_V5,
+
+        /**
+         * Unconditionally load partially mapped keyword fields, whether they are mentioned in expressions or not.
+         * <p>
+         * Also, always load values of partially mapped fields from the indices where they are mapped.
+         * <p>
+         * Fixes https://github.com/elastic/elasticsearch/issues/141994
+         * and https://github.com/elastic/elasticsearch/issues/145206
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1218,6 +1234,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
 
         /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -1686,6 +1708,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -2399,11 +2425,6 @@ public class EsqlCapabilities {
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
-        /**
-         * Support CHANGE_POINT arguments in any order
-         */
-        CHANGE_POINT_ARGS_ANY_ORDER,
-
         FIX_DIV_ERROR_MESSAGE,
 
         /**
@@ -2459,6 +2480,22 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/145570
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
+
+        /**
+         * Fix for {@code PropagateNullable} incorrectly discarding surviving OR branches when
+         * a field is constrained by {@code IS NULL} or {@code IS NOT NULL} in the same AND conjunction.
+         * Previously {@code (a IS NOT NULL OR p) AND a IS NULL} was optimized to {@code null AND a IS NULL}
+         * (dropping {@code p}); now it correctly becomes {@code p AND a IS NULL}.
+         * Symmetric fix: {@code (a IS NULL OR p) AND a IS NOT NULL} now correctly becomes
+         * {@code p AND a IS NOT NULL} instead of remaining unoptimized.
+         * See https://github.com/elastic/elasticsearch/issues/141579
+         */
+        FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
+
+        /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

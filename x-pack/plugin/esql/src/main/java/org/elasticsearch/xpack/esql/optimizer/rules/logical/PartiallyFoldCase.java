@@ -15,13 +15,13 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
 
 /**
  * Fold the arms of {@code CASE} statements.
- * <pre>{@code
+ * {@snippet lang="esql" :
  * EVAL c=CASE(true, foo, bar)
- * }</pre>
+ * }
  * becomes
- * <pre>{@code
+ * {@snippet lang="esql" :
  * EVAL c=foo
- * }</pre>
+ * }
  */
 public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
     public PartiallyFoldCase() {

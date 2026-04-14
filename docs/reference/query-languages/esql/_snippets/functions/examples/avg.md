@@ -22,4 +22,16 @@ FROM employees
 | --- |
 | 1.3904535865 |
 
+`AVG` can also operate on `exponential_histogram` fields, computing the average of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS average = ROUND(AVG(responseTime), 4)
+```
+
+| average:double |
+| --- |
+| 0.1666 |
+
 

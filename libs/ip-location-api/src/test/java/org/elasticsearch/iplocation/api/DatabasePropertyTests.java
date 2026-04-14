@@ -23,7 +23,7 @@ public class DatabasePropertyTests extends ESTestCase {
      * on the {@link IpLocationInfoCollector} interface, ensuring they stay in sync.
      */
     public void testAllDatabasePropertiesHaveCollectorMethods() {
-        Set<String> collectorMethodNames = Arrays.stream(IpLocationInfoCollector.class.getDeclaredMethods())
+        Set<String> collectorMethodNames = Arrays.stream(IpLocationInfoCollector.class.getMethods())
             .map(Method::getName)
             .collect(Collectors.toSet());
 
@@ -51,7 +51,7 @@ public class DatabasePropertyTests extends ESTestCase {
             .map(DatabaseProperty::fieldName)
             .collect(Collectors.toSet());
 
-        for (Method method : IpLocationInfoCollector.class.getDeclaredMethods()) {
+        for (Method method : IpLocationInfoCollector.class.getMethods()) {
             String fieldName = camelToSnake(method.getName());
             assertTrue(
                 "IpLocationInfoCollector method '"

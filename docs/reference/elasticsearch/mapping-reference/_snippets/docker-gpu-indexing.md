@@ -1,5 +1,5 @@
 ```plaintext
-FROM docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+FROM docker.elastic.co/elasticsearch/elasticsearch:9.3.3
 
 USER root
 

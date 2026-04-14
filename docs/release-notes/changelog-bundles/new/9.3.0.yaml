@@ -1,7 +1,6 @@
 ﻿products:
 - product: elasticsearch
   target: 9.3.0
-  lifecycle: ga
   repo: elasticsearch
   owner: elastic
 entries:

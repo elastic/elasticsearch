@@ -36,7 +36,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Replaces the Node Shutdown plugin to make it work as desired for Serverless, which is primarily converting how k8s wants to talk to
+ * Replaces the Node Shutdown plugin to make it work as desired for stateless, which is primarily converting how k8s wants to talk to
  * Elasticsearch (SIGTERM, you're welcome) into Node Shutdown requests.
  */
 public class StatelessSigtermPlugin extends ShutdownPlugin {

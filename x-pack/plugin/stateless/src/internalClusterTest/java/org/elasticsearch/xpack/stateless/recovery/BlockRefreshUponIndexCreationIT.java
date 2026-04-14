@@ -217,7 +217,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
                         String.join(",", searchNodes)
                     )
                 )
-                    // Do not wait for any shards to be available as ONE in serverless waits for the search replica to be available
+                    // Do not wait for any shards to be available as ONE in stateless waits for the search replica to be available
                     .setWaitForActiveShards(ActiveShardCount.NONE)
             );
             ensureYellowAndNoInitializingShards(indexName);
@@ -231,7 +231,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
                 prepareCreate(randomIdentifier()).setSettings(
                     indexSettings(1, 2).put("index.routing.allocation.exclude._name", String.join(",", searchNodes))
                 )
-                    // Do not wait for any shards to be available as ONE in serverless waits for the search replica to be available
+                    // Do not wait for any shards to be available as ONE in stateless waits for the search replica to be available
                     .setWaitForActiveShards(ActiveShardCount.NONE)
             );
         }
@@ -490,7 +490,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             }
         }
 
-        // In serverless the default ActiveShardCount waits for the search replica to be active before allowing any indexing,
+        // In stateless the default ActiveShardCount waits for the search replica to be active before allowing any indexing,
         // hence the reason to use ActiveShardCount.NONE
         bulkRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         return bulkRequest.execute();

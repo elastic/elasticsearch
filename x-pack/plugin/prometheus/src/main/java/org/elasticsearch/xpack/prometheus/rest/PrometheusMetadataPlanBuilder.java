@@ -102,8 +102,8 @@ final class PrometheusMetadataPlanBuilder {
             )
         );
 
-        // Deduplicates rows across data streams that agree on (metric_name, metric_type, unit) while
-        // preserving distinct definitions when data streams disagree on type or unit.
+        // Deduplicates rows across data streams that match on (metric_name, metric_type, unit) while
+        // preserving distinct definitions when data streams diverge on type or unit.
         UnresolvedAttribute metricNameField = new UnresolvedAttribute(Source.EMPTY, METRIC_NAME_FIELD);
         metricTypeField = new UnresolvedAttribute(Source.EMPTY, METRIC_TYPE_FIELD);
         unitField = new UnresolvedAttribute(Source.EMPTY, UNIT_FIELD);

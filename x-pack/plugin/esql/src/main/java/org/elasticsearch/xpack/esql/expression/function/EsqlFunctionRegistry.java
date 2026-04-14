@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -608,7 +609,8 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION } };
+                Sparkline.DEFINITION,
+                Embedding.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

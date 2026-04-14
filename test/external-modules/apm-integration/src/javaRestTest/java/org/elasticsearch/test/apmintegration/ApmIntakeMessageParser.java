@@ -29,11 +29,10 @@ import java.util.Set;
  */
 public final class ApmIntakeMessageParser {
 
-    static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata");
+    static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata", "error");
 
     private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
     private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
-    private static final Set<String> ERROR_DECODED_KEYS = Set.of("id", "trace_id", "transaction_id", "parent_id", "exception");
 
     private ApmIntakeMessageParser() {}
 
@@ -55,8 +54,6 @@ public final class ApmIntakeMessageParser {
                 return Optional.of(parseTransaction(map));
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
-            } else if (map.containsKey("error")) {
-                return Optional.of(parseError(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
                 // We don't care about these
                 return Optional.empty();
@@ -163,37 +160,6 @@ public final class ApmIntakeMessageParser {
         }
         Map<String, Object> attributes = flattenAttributes(span, SPAN_DECODED_KEYS);
         return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId), attributes);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ReceivedTelemetry parseError(Map<String, Object> root) throws IOException {
-        Object errorObj = root.get("error");
-        if (errorObj == null || (errorObj instanceof Map<?, ?> == false)) {
-            throw new IOException("error missing or not an object");
-        }
-        Map<String, Object> error = (Map<String, Object>) errorObj;
-        String id = getString(error, "id");
-        String traceId = getString(error, "trace_id");
-        if (id == null || traceId == null) {
-            throw new IOException("error missing id or trace_id");
-        }
-        String txId = getString(error, "transaction_id");
-        if (txId == null) {
-            txId = getString(error, "parent_id");
-        }
-        Object exceptionObj = error.get("exception");
-        String exceptionType = "";
-        String exceptionMessage = "";
-        boolean hasStacktrace = false;
-        if (exceptionObj instanceof Map<?, ?> exception) {
-            exceptionType = getString((Map<String, Object>) exception, "type");
-            if (exceptionType == null) exceptionType = "";
-            exceptionMessage = getString((Map<String, Object>) exception, "message");
-            if (exceptionMessage == null) exceptionMessage = "";
-            Object stacktrace = exception.get("stacktrace");
-            hasStacktrace = stacktrace instanceof List<?> list && list.isEmpty() == false;
-        }
-        return new ReceivedTelemetry.ReceivedError(id, traceId, Optional.ofNullable(txId), exceptionType, exceptionMessage, hasStacktrace);
     }
 
     /**

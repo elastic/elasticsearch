@@ -56,28 +56,6 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * An error event captured from the APM intake protocol.
-     * {@code hasStacktrace} is {@code true} when the APM agent included stack frames
-     * (i.e. {@code stack_trace_limit > 0}); {@code false} when frames were suppressed.
-     */
-    record ReceivedError(
-        String id,
-        String traceId,
-        Optional<String> transactionId,
-        String exceptionType,
-        String exceptionMessage,
-        boolean hasStacktrace
-    ) implements ReceivedTelemetry {
-        public ReceivedError {
-            requireNonNull(id);
-            requireNonNull(traceId);
-            transactionId.ifPresent(Objects::requireNonNull);
-            requireNonNull(exceptionType);
-            requireNonNull(exceptionMessage);
-        }
-    }
-
-    /**
      * Value of a single metric sample: either a scalar or histogram counts.
      */
     sealed interface ReceivedMetricValue {}

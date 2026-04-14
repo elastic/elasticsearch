@@ -910,6 +910,7 @@ sample_data_ts_long    | 1698069301543
 
 typeConflictLongDateUnmappedNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -2427,14 +2428,15 @@ FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.name
 | SORT _index
 ;
+ignoreOrder:true
 
 _index:keyword           | city.country.continent.name:text
 addresses_no_continent   | null
 addresses_no_continent   | null
 addresses_no_continent   | null
-addresses_text           | North America
 addresses_text           | Asia
 addresses_text           | Europe
+addresses_text           | North America
 ;
 
 // Cast city.country.continent.name (text, partially unmapped) to keyword via MultiTypeEsField.

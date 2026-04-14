@@ -376,10 +376,6 @@ cnt:long
 ;
 
 
-// != below range with nulls
-// NOTE: This currently returns 100 instead of 90 due to a known 3VL gap.
-// `languages != 0` parses as `NOT(languages == 0)`. The optimizer rule folds `languages == 0`
-// to FALSE because min=1. Then NOT(FALSE) becomes TRUE, keeping the 10 null rows incorrectly.
 comparisonNotEqualsBelowRangeWithNulls
 from employees
 | where languages != 0
@@ -387,7 +383,7 @@ from employees
 ;
 
 cnt:long
-100
+90
 ;
 
 

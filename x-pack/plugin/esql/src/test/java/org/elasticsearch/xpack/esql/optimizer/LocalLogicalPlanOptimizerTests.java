@@ -51,10 +51,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -1863,12 +1867,22 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep salary
             """);
 
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
 
         var localPlan = localPlan(plan, searchStats);
         // PruneFilters transforms Filter(FALSE) into an empty LocalRelation
         var localRelation = as(localPlan, LocalRelation.class);
-        // Actually, let's just assert it is a LocalRelation since we know it's EMPTY
+        // Actually, let's just assert it is a LocalRelation since we know it's EMPTY,
         // and we can also check the localSupplier
         assertThat(localRelation.supplier(), org.hamcrest.Matchers.instanceOf(EmptyLocalSupplier.class));
     }
@@ -1929,8 +1943,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(localPlan, Project.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(20000, right.value());
     }
 
     public void testEvalSafeguardBypass() {
@@ -2001,7 +2018,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where salary >= 75000
             | keep salary
             """);
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
         var localPlan = localPlan(plan, searchStats);
         assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -2047,8 +2074,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         };
         var localPlan = localPlan(plan, searchStats);
         var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+        var gte = as(filter.condition(), GreaterThanOrEqual.class);
+        assertThat(as(gte.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(gte.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(25324, right.value());
     }
 
     // 2. LessThan (<)
@@ -2059,7 +2089,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where salary < 25324
             | keep salary
             """);
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
         var localPlan = localPlan(plan, searchStats);
         assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -2105,8 +2145,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         };
         var localPlan = localPlan(plan, searchStats);
         var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
-        var isNotNull = as(filter.condition(), IsNotNull.class);
-        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+        var lt = as(filter.condition(), LessThan.class);
+        assertThat(as(lt.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(lt.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(75000, right.value());
     }
 
     // 3. LessThanOrEqual (<=)
@@ -2117,7 +2160,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where salary <= 25323
             | keep salary
             """);
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
         var localPlan = localPlan(plan, searchStats);
         assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -2152,7 +2205,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where salary == 10000
             | keep salary
             """);
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
         var localPlan = localPlan(plan, searchStats);
         assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -2163,7 +2226,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where salary == 100000
             | keep salary
             """);
-        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return 1000;
+            }
+        };
         var localPlan = localPlan(plan, searchStats);
         assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -2232,11 +2305,13 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             }
         };
         var localPlan = localPlan(plan, searchStats);
-        // Note: ESQL parses `!=` as `NOT(==)`. The rule folds `salary == 10000` to `FALSE`,
-        // and then outer logic evaluates `NOT(FALSE)` to `TRUE`, completely pruning the filter.
-        // This is a known 3VL gap because it drops the implicit `IS NOT NULL` requirement.
-        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
-        assertThat(source.indexPattern(), is("test"));
+        var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
+        var not = as(filter.condition(), Not.class);
+        var eq = as(not.field(), Equals.class);
+        assertThat(as(eq.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(eq.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(10000, right.value());
     }
 
     public void testNotEqualsUniqueValue() {

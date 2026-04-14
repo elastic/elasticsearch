@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -108,21 +107,22 @@ public class ReplaceComparisonWithConstantFromMinMax extends ParameterizedRule<L
                     return comp;
                 }
 
-                if (result == false) {
-                    // Comparison is always false
-                    return Literal.of(comp, false);
-                }
-
-                // Comparison is always true - but check for nulls
                 long fieldCount = stats.count(fa.fieldName());
                 long totalCount = stats.count();
 
-                // If counts are unavailable or there are nulls, replace with IS NOT NULL
+                // If counts are unavailable or there are nulls, we cannot safely fold the comparison
+                // to TRUE or FALSE because in 3VL (Three-Valued Logic), NULL comparisons yield UNKNOWN.
+                // An UNKNOWN value inside a NOT() or OR() behaves differently from TRUE or FALSE.
                 if (totalCount < 0 || fieldCount < totalCount) {
-                    return new IsNotNull(comp.source(), fa);
+                    return comp;
                 }
 
-                // No nulls - comparison is always true
+                if (result == false) {
+                    // Comparison is always false, and there are no nulls
+                    return Literal.of(comp, false);
+                }
+
+                // Comparison is always true, and there are no nulls
                 return Literal.of(comp, true);
             }
         }

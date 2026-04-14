@@ -38,7 +38,7 @@ dependencies {
     exclude group: 'org.xerial.snappy', module: 'snappy-java'
     // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
     exclude group: 'at.yawk.lz4', module: 'lz4-java'
-    exclude group: 'com.aayushatharva.brotli4', module: 'brotli4'
+    exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
     // hadoop-client-runtime not needed: ORC only uses Configuration(false) with simple set/get
     exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
   }

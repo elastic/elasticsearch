@@ -11,14 +11,14 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
+import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.NO_RESULTS;
+
 class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
-    static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
     private long minCompetitiveDocScore;
     private float minCompetitiveSimilarity;
     protected final NeighborQueue queue;

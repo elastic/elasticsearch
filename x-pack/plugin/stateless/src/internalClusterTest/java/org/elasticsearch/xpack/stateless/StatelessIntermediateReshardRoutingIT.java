@@ -34,7 +34,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
-import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -74,7 +73,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 // Test that requests (index, flush, refresh) handled by a stale coordinating are forwarded correctly by the primary node
 // -- When the coordinator that is coordinating a replication request has stale cluster state (w.r.t resharding state),
@@ -868,7 +866,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         String shard0docId,
         String shard1docId,
         Runnable unblock
-    ) throws InterruptedException {
+    ) {
         // Realtime get for a document still on the source shard should succeed without retry
         GetResponse getShard0Response = client(coordinatorNode).prepareGet(indexName, shard0docId)
             .setRouting(shard0docId)
@@ -916,12 +914,12 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         );
         mgetThread.start();
 
-        getsArrived.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        safeAwait(getsArrived);
         logger.info("All GETs have arrived");
         unblock.run();
 
-        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
-        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+        safeJoin(getShard1Thread);
+        safeJoin(mgetThread);
 
         assertThat("Document routed to target shard should be found", realtimeGetShard1Response.get().isExists(), equalTo(true));
         assertThat(realtimeGetShard1Response.get().getSource().get("field"), equalTo("value_shard1"));
@@ -935,10 +933,10 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         assertThat(item0.getResponse().isExists(), equalTo(true));
         assertThat(item0.getResponse().getSource().get("field"), equalTo("value_shard0"));
 
-        // Document that moves to shard 1 (target) should fail due to stale routing
+        // Document that moves to shard 1 (target) should succeed after internal retry caused by stale routing
         MultiGetItemResponse item1 = mgetResponse.get().getResponses()[1];
-        assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), equalTo(true));
-        assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
+        assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), equalTo(false));
+        assertThat(item1.getResponse().getSource().get("field"), equalTo("value_shard1"));
     }
 
     /**

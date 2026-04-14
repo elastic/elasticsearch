@@ -188,7 +188,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1481,9 +1480,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     // test GET during resharding
     // Two gets are issued before resharding starts, so they see only the original shard.
-    // They are blocked until resharding completes. Each routes to a different shard. Both should succeed
+    // They are blocked until resharding completes. Each routes to a different shard. Both should succeed,
     // but the one that routes to the target must retry after the coordinator sees the split.
-    public void testGet() throws InterruptedException {
+    public void testGet() {
         startMasterOnlyNode();
         startSearchNode();
         final var indexNode = startIndexNode();
@@ -1498,10 +1497,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
 
         // We'll set up two gets before resharding, so that they route as if there is only 1 shard.
-        // this document should be found by get after resharding, on the original shard
+        // get should find this document after resharding, on the original shard
         final var shard0docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 0);
-        // this document should be found by get after resharding, on the original shard until delete-unowned runs,
-        // after which it should raise an error because the get is stale
+        // get should find this document after resharding, on the target after an internal retry.
         final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard0docId, "field", "shard0");
         indexDoc(indexName, shard1docId, "field", "shard1");
@@ -1554,8 +1552,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
         reshardDone.countDown();
 
-        getShard0Thread.join(SAFE_AWAIT_TIMEOUT.millis());
-        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+        safeJoin(getShard0Thread);
+        safeJoin(getShard1Thread);
 
         assertThat("Document should exist on source shard", getShard0Response.get().isExists(), is(true));
         assertThat(getShard0Response.get().getSource().get("field"), equalTo("shard0"));
@@ -1565,7 +1563,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     // test MultiGet during resharding - same pattern as testGet but with a single multiget request
-    public void testMultiGet() throws InterruptedException {
+    public void testMultiGet() {
         String masterOnlyNode = startMasterOnlyNode();
         startSearchNode();
         final var indexNode = startIndexNode();
@@ -1604,11 +1602,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             if ((SHARD_MGET_ACTION).equals(action)) {
                 // signal that multiget has been prepared so resharding can start
                 mgetPrepared.countDown();
-                try {
-                    reshardDone.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                safeAwait(reshardDone);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -1632,28 +1626,24 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         mgetThread.start();
 
         // don't start resharding until multiget is waiting to be sent to shard
-        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
         waitForReshardCompletion(indexName);
         reshardDone.countDown();
 
-        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+        safeJoin(mgetThread);
 
         response = mgetResponse.get();
         assertThat(response.getResponses().length, equalTo(2));
 
-        // This mget request is too stale to be served since its summary is not current
-        // and there is no ongoing split.
-        // This is the best result we can get now since we don't resplit/retry mgets.
-        // This should be updated once that is implemented similar to `testGet()` above.
-        MultiGetItemResponse item0 = response.getResponses()[0];
-        assertThat("Document on source shard should fail", item0.isFailed(), is(true));
-        assertThat(item0.getFailure().getFailure(), instanceOf(StaleRequestException.class));
-
-        MultiGetItemResponse item1 = response.getResponses()[1];
-        assertThat("Document on target shard should fail", item1.isFailed(), is(true));
-        assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
+        // Although the request is initially too stale to serve, it should retry internally and succeed.
+        for (int i = 0; i < response.getResponses().length; i++) {
+            final var item = response.getResponses()[i];
+            assertThat(item.getFailure(), is(nullValue()));
+            assertThat(item.getResponse().isExists(), is(true));
+            assertThat(item.getResponse().getSource().get("field"), equalTo("shard" + i));
+        }
     }
 
     // A successful realtime get should return the latest value of a doc regardless of refresh.
@@ -1741,8 +1731,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     // A successful realtime multiget should return the latest values of docs regardless of refresh.
-    // Items may fail if they have been routed to a stale shard due to concurrent resharding.
-    public void testRealtimeMultiGet() throws InterruptedException {
+    public void testRealtimeMultiGet() {
         startMasterOnlyNode();
         final var searchNode = startSearchNode();
         final var indexNode = startIndexNode();
@@ -1776,7 +1765,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final var mgetPrepared = new CountDownLatch(1);
         final var atSplit = new CountDownLatch(1);
-        final var mgetComplete = new CountDownLatch(1);
 
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
@@ -1786,11 +1774,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             if ((TransportShardMultiGetFomTranslogAction.NAME).equals(action)) {
                 // signal that multiget has been prepared so resharding can start
                 mgetPrepared.countDown();
-                try {
-                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                safeAwait(atSplit);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -1799,14 +1783,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
 
                 if (actualRequest instanceof SplitStateRequest splitStateRequest) {
-                    try {
-                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
-                            // block SPLIT transition until multiget has been processed
-                            atSplit.countDown();
-                            mgetComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                        atSplit.countDown();
                     }
                 }
             }
@@ -1825,28 +1803,24 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // Check that we have results for both documents
             assertThat(mgetResponse.getResponses().length, equalTo(2));
 
-            // Document that stays on shard 0 should succeed
             MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
             assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
             assertThat(item0.getResponse().isExists(), is(true));
 
-            // Document that moves to shard 1 should fail
             MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
-            assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), is(true));
-            assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
+            assertThat("Document moved to target shard should succeed after retry", item1.isFailed(), is(false));
+            assertThat(item1.getResponse().isExists(), is(true));
 
-            // unblock SPLIT transition
-            mgetComplete.countDown();
         });
         mgetThread.start();
 
         // don't start resharding until multiget is waiting on search shard
-        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
         waitForReshardCompletion(indexName);
 
-        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+        safeJoin(mgetThread);
     }
 
     public void testReshardMustMatchExpectedNumberOfShards() {

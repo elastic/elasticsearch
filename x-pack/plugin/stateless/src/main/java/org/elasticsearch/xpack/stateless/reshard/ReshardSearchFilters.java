@@ -118,7 +118,7 @@ public class ReshardSearchFilters {
                     /// The grace period to drain queued search requests has passed but we still received this stale search request.
                     /// We have to reject it since we are about to delete unowned data which
                     /// would make such requests impossible to fulfill (we simply won't have the data).
-                    throw new StaleRequestException("Search request for shard {} is stale due to concurrent split operation.", shardId);
+                    throw new StaleRequestException(shardId, summary);
                 }
 
                 /// Otherwise we are in the middle of a split and received a request that was not routed to the target shard.
@@ -148,10 +148,7 @@ public class ReshardSearchFilters {
                     yield split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
                 }
             }
-            case INVALID -> throw new StaleRequestException(
-                "Search request for shard {} is stale due to an index split operation.",
-                shardId
-            );
+            case INVALID -> throw new StaleRequestException(shardId, summary);
         };
     }
 

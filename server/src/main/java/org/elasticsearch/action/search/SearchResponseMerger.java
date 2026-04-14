@@ -234,7 +234,8 @@ public final class SearchResponseMerger implements Releasable {
                 shardFailures,
                 clusters,
                 null,
-                topHitsToRelease
+                topHitsToRelease,
+                null
             );
         } finally {
             mergedSearchHits.decRef();

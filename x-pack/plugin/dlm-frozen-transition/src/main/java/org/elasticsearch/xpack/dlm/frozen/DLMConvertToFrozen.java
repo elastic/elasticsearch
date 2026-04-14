@@ -451,28 +451,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            cleanupMountedIndex(mountedIndexName, snapshotName);
             throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
         }
 
-    }
-
-    /**
-     * Attempts to delete a partially-mounted index so that subsequent DLM cycles can retry the mount cleanly.
-     * Any failure during deletion is logged but not rethrown, so it does not mask the original error.
-     */
-    private void cleanupMountedIndex(String mountedIndexName, String snapshotName) {
-        try {
-            logger.debug("DLM cleaning up partially-mounted index [{}] for snapshot [{}]", mountedIndexName, snapshotName);
-            deleteIndex(mountedIndexName);
-        } catch (IndexNotFoundException ignored) {} catch (Exception e) {
-            logger.warn(
-                "DLM failed to clean up partially-mounted index [{}] for snapshot [{}]: {}",
-                mountedIndexName,
-                snapshotName,
-                e.getMessage()
-            );
-        }
     }
 
     private boolean isIndexReadOnly() {
@@ -1012,7 +993,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     static String snapshotName(String indexName) {
         return SNAPSHOT_NAME_PREFIX + indexName;
     }
-  
+
     /**
      * Checks whether the snapshot for the index is already mounted by
      * looking for an index with the expected mounted name in the project metadata.
@@ -1021,6 +1002,5 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectMetadata projectMetadata = getProjectState().metadata();
         return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
-
 
 }

@@ -139,18 +139,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         assertNull(capturedMountRequest.get());
     }
 
-    public void testMountsSuccessfully() throws InterruptedException {
-        createProjectState();
-        RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 1, 1);
-        mockMountResponse.set(new RestoreSnapshotResponse(restoreInfo));
-
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
-        convert.maybeMountSearchableSnapshot(indexName);
-
-        assertThat(capturedMountRequest.get(), is(notNullValue()));
-        assertNull("No delete request should be issued on successful mount", capturedDeleteRequest.get());
-    }
-
     public void testMountRequestHasCorrectParameters() throws InterruptedException {
         createProjectState();
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 1, 1);
@@ -180,8 +168,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("restore info was missing"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountHasFailedShards() {
@@ -196,8 +182,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountHasZeroSuccessfulShards() {
@@ -212,8 +196,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards or no successful shards"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountFails() {
@@ -227,8 +209,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("mounting snapshot"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     /**

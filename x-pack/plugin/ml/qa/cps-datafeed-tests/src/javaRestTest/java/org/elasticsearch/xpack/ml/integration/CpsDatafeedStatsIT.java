@@ -369,7 +369,15 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             stopDatafeed(datafeedId);
         }
 
-        // Phase 2: Update indices to include project_b, restart
+        // Phase 2: Update indices to include project_b, restart.
+        // Index fresh data so the restarted datafeed's lookback finds new records and
+        // triggers a CCS search, which is required to establish the CrossClusterSearchStats baseline.
+        try (RestClient remoteA = remoteClientA()) {
+            indexRemoteData(remoteA, remoteIndex);
+        }
+        try (RestClient remoteB = remoteClientB()) {
+            indexRemoteData(remoteB, remoteIndex);
+        }
         updateDatafeedIndices(datafeedId, "project_a:" + remoteIndex + ",project_b:" + remoteIndex);
         startDatafeed(datafeedId);
 
@@ -517,6 +525,15 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(entityAsString(infoResponse), containsString("project_b"));
         }, 30, TimeUnit.SECONDS);
 
+        // Index fresh data so the restarted datafeed's lookback finds new records and
+        // triggers a CCS search, which is required to establish the CrossClusterSearchStats baseline.
+        try (RestClient remoteA = remoteClientA()) {
+            indexRemoteData(remoteA, sharedIndex);
+        }
+        try (RestClient remoteB = remoteClientB()) {
+            indexRemoteData(remoteB, sharedIndex);
+        }
+
         // Restart the same datafeed with the same *: pattern
         startDatafeed(datafeedId);
 
@@ -598,6 +615,11 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         // Phase 2: update the datafeed to target project_a only (project_b cluster stays
         // configured but the datafeed no longer references it). This mirrors the real-world
         // operation of updating a datafeed's indices rather than delete+recreate.
+        // Index fresh data so the restarted datafeed's lookback finds new records and
+        // triggers a CCS search, which is required to establish the CrossClusterSearchStats baseline.
+        try (RestClient remoteA = remoteClientA()) {
+            indexRemoteData(remoteA, sharedIndex);
+        }
         updateDatafeedIndices(datafeedId, "project_a:" + sharedIndex);
         startDatafeed(datafeedId);
 

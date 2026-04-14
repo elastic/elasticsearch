@@ -38,7 +38,7 @@ public class DatasetTests extends ESTestCase {
 
         assertEquals(dataset, deserialized);
         assertEquals("access_logs", deserialized.getName());
-        assertEquals("my-s3", deserialized.datasource());
+        assertEquals("my-s3", deserialized.dataSource());
         assertEquals("s3://bucket/logs/*.parquet", deserialized.resource());
         assertEquals("Access logs dataset", deserialized.description());
         assertEquals("hive", deserialized.settings().get("partition_detection"));

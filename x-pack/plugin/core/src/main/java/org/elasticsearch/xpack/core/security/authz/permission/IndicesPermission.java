@@ -553,28 +553,30 @@ public final class IndicesPermission {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
-            } else if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
-                return List.of(indexAbstraction.getName());
-            } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
-                for (var idx : failureIndices) {
-                    concreteIndexNames.add(idx.getName());
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW
+                || indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
+                    return List.of(indexAbstraction.getName());
+                } else if (IndexComponentSelector.FAILURES.equals(selector)) {
+                    final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
+                    for (var idx : failureIndices) {
+                        concreteIndexNames.add(idx.getName());
+                    }
+                    return concreteIndexNames;
+                } else {
+                    final List<Index> indices = indexAbstraction.getIndices();
+                    final List<String> concreteIndexNames = new ArrayList<>(indices.size());
+                    for (var idx : indices) {
+                        concreteIndexNames.add(idx.getName());
+                    }
+                    return concreteIndexNames;
                 }
-                return concreteIndexNames;
-            } else {
-                final List<Index> indices = indexAbstraction.getIndices();
-                final List<String> concreteIndexNames = new ArrayList<>(indices.size());
-                for (var idx : indices) {
-                    concreteIndexNames.add(idx.getName());
-                }
-                return concreteIndexNames;
-            }
         }
 
         public boolean canHaveBackingIndices() {
             return indexAbstraction != null
                 && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX
-                && indexAbstraction.getType() != IndexAbstraction.Type.VIEW;
+                && indexAbstraction.getType() != IndexAbstraction.Type.VIEW
+                && indexAbstraction.getType() != IndexAbstraction.Type.DATASET;
         }
 
         public String nameWithSelector() {

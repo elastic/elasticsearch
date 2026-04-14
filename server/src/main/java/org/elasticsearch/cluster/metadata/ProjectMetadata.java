@@ -1512,6 +1512,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return (DatasetMetadata) this.customs.getOrDefault(DatasetMetadata.TYPE, DatasetMetadata.EMPTY);
         }
 
+        public Dataset dataset(String datasetName) {
+            return datasetMetadata().datasets().get(datasetName);
+        }
+
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
             DataStreamMetadata existing = dataStreamMetadata();
@@ -1767,7 +1771,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         /**
          * Verifies that the names of indices, aliases, data streams, views, and datasets do not collide
-         * with each other. Note that datasources are not included in this check: they are not index
+         * with each other. Note that dataSources are not included in this check: they are not index
          * abstractions and do not participate in the index namespace — they are configuration objects
          * referenced by datasets, not queryable entities themselves.
          */

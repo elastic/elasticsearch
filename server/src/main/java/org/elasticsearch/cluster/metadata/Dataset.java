@@ -29,15 +29,15 @@ import java.util.Objects;
 /**
  * Represents a dataset definition stored in cluster state. A dataset is a named reference
  * to external data that participates in the index namespace alongside indices, aliases, and views.
- * Datasets inherit credentials from their parent datasource at query time.
+ * Datasets inherit credentials from their parent dataSource at query time.
  *
  * <p>Dataset settings are plain values ({@code Map<String, Object>}) — no secrets.
- * Credentials are always inherited from the parent {@link Datasource}.
+ * Credentials are always inherited from the parent {@link DataSource}.
  */
 public final class Dataset implements Writeable, ToXContentObject, IndexAbstraction {
 
     private static final ParseField NAME = new ParseField("name");
-    private static final ParseField DATASOURCE = new ParseField("datasource");
+    private static final ParseField DATASOURCE = new ParseField("dataSource");
     private static final ParseField RESOURCE = new ParseField("resource");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
@@ -64,14 +64,14 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     }
 
     private final String name;
-    private final String datasource;
+    private final String dataSource;
     private final String resource;
     private final String description;
     private final Map<String, Object> settings;
 
-    public Dataset(String name, String datasource, String resource, String description, Map<String, Object> settings) {
+    public Dataset(String name, String dataSource, String resource, String description, Map<String, Object> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
-        this.datasource = Objects.requireNonNull(datasource, "datasource must not be null");
+        this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");
         this.description = description;
         this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
@@ -79,7 +79,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     public Dataset(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.datasource = in.readString();
+        this.dataSource = in.readString();
         this.resource = in.readString();
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
@@ -89,7 +89,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(datasource);
+        out.writeString(dataSource);
         out.writeString(resource);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeGenericValue);
@@ -99,8 +99,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return name;
     }
 
-    public String datasource() {
-        return datasource;
+    public String dataSource() {
+        return dataSource;
     }
 
     public String resource() {
@@ -123,7 +123,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
-        builder.field(DATASOURCE.getPreferredName(), datasource);
+        builder.field(DATASOURCE.getPreferredName(), dataSource);
         builder.field(RESOURCE.getPreferredName(), resource);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
@@ -176,7 +176,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         if (o == null || getClass() != o.getClass()) return false;
         Dataset that = (Dataset) o;
         return Objects.equals(name, that.name)
-            && Objects.equals(datasource, that.datasource)
+            && Objects.equals(dataSource, that.dataSource)
             && Objects.equals(resource, that.resource)
             && Objects.equals(description, that.description)
             && Objects.equals(settings, that.settings);
@@ -184,7 +184,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, datasource, resource, description, settings);
+        return Objects.hash(name, dataSource, resource, description, settings);
     }
 
     @Override

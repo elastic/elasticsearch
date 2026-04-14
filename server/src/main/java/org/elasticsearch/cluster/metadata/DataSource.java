@@ -25,10 +25,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents a datasource definition stored in cluster state. A datasource holds
+ * Represents a dataSource definition stored in cluster state. A dataSource holds
  * connection settings (credentials, endpoints, auth) for an external data provider.
  */
-public final class Datasource implements Writeable, ToXContentObject {
+public final class DataSource implements Writeable, ToXContentObject {
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -36,10 +36,10 @@ public final class Datasource implements Writeable, ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Datasource, Void> PARSER = new ConstructingObjectParser<>(
-        "datasource",
+    static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
+        "dataSource",
         false,
-        (args, ctx) -> new Datasource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
+        (args, ctx) -> new DataSource((String) args[0], (String) args[1], (String) args[2], (Map<String, DataSourceSetting>) args[3])
     );
 
     static {
@@ -61,14 +61,14 @@ public final class Datasource implements Writeable, ToXContentObject {
     private final String description;
     private final Map<String, DataSourceSetting> settings;
 
-    public Datasource(String name, String type, String description, Map<String, DataSourceSetting> settings) {
+    public DataSource(String name, String type, String description, Map<String, DataSourceSetting> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
         this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "settings must not be null"));
     }
 
-    public Datasource(StreamInput in) throws IOException {
+    public DataSource(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
         this.description = in.readOptionalString();
@@ -100,36 +100,34 @@ public final class Datasource implements Writeable, ToXContentObject {
         return settings;
     }
 
-    /**
-     * Flatten settings for the query pipeline. Scaffolding for the CRUD REST API follow-up;
-     * not invoked by anything in this PR. The query-execution path will call this to get the
-     * plaintext settings map needed to construct storage/format clients.
-     */
+    /** Flatten settings for the query pipeline. Values are plaintext including secrets. */
     public Map<String, Object> toUnencryptedMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
             result.put(entry.getKey(), entry.getValue().unencryptedValue());
         }
-        return result;
+        return Map.copyOf(result);
     }
 
-    /**
-     * Settings with secrets masked for API responses. Scaffolding for the CRUD REST API follow-up;
-     * not invoked by anything in this PR. The GET handler will call this so secret fields appear
-     * as {@code "**********"} rather than their stored values.
-     */
-    public Map<String, Object> toMaskedMap() {
+    /** Settings with secrets masked. Safe for REST responses. */
+    public Map<String, Object> toPresentationMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().maskedOrUnencryptedValue());
+            result.put(entry.getKey(), entry.getValue().presentationValue());
         }
-        return result;
+        return Map.copyOf(result);
     }
 
-    public static Datasource fromXContent(XContentParser parser) throws IOException {
+    public static DataSource fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Emits the in-memory plaintext representation, including secret values as-is. Used for cluster-state
+     * persistence (GATEWAY/SNAPSHOT) and is not reached from the API context because
+     * {@link DataSourceMetadata#context()} excludes API. Callers producing REST responses should route through
+     * {@link #toPresentationMap()}. See {@link DataSourceSetting} for the encryption-boundary contract.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -152,7 +150,7 @@ public final class Datasource implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Datasource that = (Datasource) o;
+        DataSource that = (DataSource) o;
         return Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
             && Objects.equals(description, that.description)
@@ -166,7 +164,15 @@ public final class Datasource implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        // Uses toMaskedMap() so secret values appear as "**********" rather than their raw form.
-        return "Datasource{name='" + name + "', type='" + type + "', description='" + description + "', settings=" + toMaskedMap() + "}";
+        // Uses toPresentationMap() so secret values appear as "**********" rather than their raw form.
+        return "DataSource{name='"
+            + name
+            + "', type='"
+            + type
+            + "', description='"
+            + description
+            + "', settings="
+            + toPresentationMap()
+            + "}";
     }
 }

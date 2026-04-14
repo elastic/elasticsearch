@@ -60,7 +60,7 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
     }
 
     static Dataset randomDataset(String name) {
-        String datasource = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        String dataSource = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         String resource = "s3://" + randomAlphaOfLength(8) + "/" + randomAlphaOfLength(6) + ".parquet";
         String description = randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32);
         int numSettings = randomIntBetween(0, 4);
@@ -68,6 +68,6 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
         for (int i = 0; i < numSettings; i++) {
             settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean()));
         }
-        return new Dataset(name, datasource, resource, description, settings);
+        return new Dataset(name, dataSource, resource, description, settings);
     }
 }

@@ -94,8 +94,8 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // Shared with DatasourceMetadata — both metadata containers ship together
-        return DatasourceMetadata.ESQL_DATASOURCES;
+        // Shared with DataSourceMetadata — both metadata containers ship together
+        return DataSourceMetadata.ESQL_DATASOURCES;
     }
 
     @Override

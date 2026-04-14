@@ -76,14 +76,14 @@ public class DataSourceSettingTests extends ESTestCase {
         assertEquals("secret-key", setting.unencryptedValue());
     }
 
-    public void testMaskedOrUnencryptedValueSecret() {
+    public void testPresentationValueSecret() {
         var setting = new DataSourceSetting("secret-key", true);
-        assertEquals("**********", setting.maskedOrUnencryptedValue());
+        assertEquals("**********", setting.presentationValue());
     }
 
-    public void testMaskedOrUnencryptedValuePlaintext() {
+    public void testPresentationValuePlaintext() {
         var setting = new DataSourceSetting("us-east-1", false);
-        assertEquals("us-east-1", setting.maskedOrUnencryptedValue());
+        assertEquals("us-east-1", setting.presentationValue());
     }
 
     public void testToStringMasksSecrets() {

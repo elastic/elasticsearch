@@ -35,27 +35,19 @@ import java.util.Objects;
  *   <li>{@link #unencryptedValue()} — returns the in-memory plaintext value as {@code Object}.</li>
  *   <li>{@link #secretValue()} — returns the plaintext as a {@link SecureString} for secrets only;
  *       use in a try-with-resources to zero the chars when done.</li>
- *   <li>{@link #maskedOrUnencryptedValue()} — masks if secret, else returns the plaintext;
+ *   <li>{@link #presentationValue()} — masks if secret, else returns the plaintext;
  *       safe for REST responses.</li>
  *   <li>{@link #toString()} — masks secret values.</li>
  * </ul>
  *
- * <p><b>Encryption contract — Option A: encryption boundary at (de)serialization.</b>
- * The {@code value} field is always plaintext in memory. When the encryption layer ships,
- * the four touch points marked {@code // ENCRYPTION BOUNDARY} below — {@link #writeTo},
- * {@link #toXContent}, the {@link #DataSourceSetting(StreamInput) StreamInput constructor},
- * and {@link #fromXContent} — encrypt before emitting and decrypt on read. Read accessors
- * remain pure in-memory plaintext readers; {@link #unencryptedValue()} does not become a
- * crypto operation.
- *
- * <p><b>Migration trajectory.</b> The current serialization format is gated by the
- * {@code esql_datasources} transport version. The encryption layer will introduce a new
- * transport version and the four touch points will branch on it: cluster state persisted
- * under the older transport version remains readable via the plaintext branch, and new
- * writes use the encrypted branch. Existing plaintext entries migrate organically as
- * cluster state is rewritten, or via an explicit migration API if one is added.
+ * <p><b>Encryption contract.</b> The {@code value} field is always plaintext in memory. The four
+ * touch points marked {@code // ENCRYPTION BOUNDARY} below — {@link #writeTo}, {@link #toXContent},
+ * the {@link #DataSourceSetting(StreamInput) StreamInput constructor}, and {@link #fromXContent} —
+ * are where the encryption layer wires in. Read accessors remain pure in-memory plaintext readers.
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
+
+    static final String MASK_SENTINEL = "**********";
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField SECRET = new ParseField("secret");
@@ -80,6 +72,8 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     private final boolean secret;
 
     public DataSourceSetting(Object value, boolean secret) {
+        // Null check before the instanceof: null values are allowed for secret settings (explicit "no value"),
+        // and `null instanceof String` would throw NPE if the null-check were skipped.
         if (secret && value != null && value instanceof String == false) {
             throw new IllegalArgumentException(
                 "secret datasource settings must be String-valued; got [" + value.getClass().getName() + "]"
@@ -90,14 +84,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        // ENCRYPTION BOUNDARY: when encryption ships, decrypt the value here based on transport version + secret flag.
+        // ENCRYPTION BOUNDARY
         this.value = in.readGenericValue();
         this.secret = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // ENCRYPTION BOUNDARY: when encryption ships, encrypt the value here based on transport version + secret flag.
+        // ENCRYPTION BOUNDARY
         out.writeGenericValue(value);
         out.writeBoolean(secret);
     }
@@ -114,6 +108,11 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     /**
      * Plaintext secret value as a {@link SecureString}. Caller should use try-with-resources to clear the chars.
      * Throws if this setting is not classified as a secret.
+     *
+     * <p>Memory-hygiene caveat: the underlying {@code value} is stored as a Java {@code String} today, so zeroing
+     * the returned {@code SecureString} chars does not zero the originating backing string (Java strings are
+     * immutable and cannot be cleared). The {@link SecureString} wrapper is primarily a warning-typed API; true
+     * memory hygiene requires end-to-end {@code char[]} storage, which lands with the encryption layer.
      */
     public SecureString secretValue() {
         if (secret == false) {
@@ -123,19 +122,18 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     /** Returns the masked sentinel for secrets, or the plaintext value otherwise. Safe for REST responses. */
-    public Object maskedOrUnencryptedValue() {
-        return secret ? "**********" : unencryptedValue();
+    public Object presentationValue() {
+        return secret ? MASK_SENTINEL : unencryptedValue();
     }
 
     public static DataSourceSetting fromXContent(XContentParser parser) throws IOException {
-        // ENCRYPTION BOUNDARY: when encryption ships, parsing should consume the encrypted representation
-        // and decrypt before populating the value field, based on transport version + secret flag.
+        // ENCRYPTION BOUNDARY
         return PARSER.parse(parser, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // ENCRYPTION BOUNDARY: when encryption ships, emit the encrypted representation here for secret values.
+        // ENCRYPTION BOUNDARY
         builder.startObject();
         builder.field(VALUE.getPreferredName(), value);
         builder.field(SECRET.getPreferredName(), secret);
@@ -158,6 +156,6 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "DataSourceSetting{value=" + (secret ? "***" : value) + ", secret=" + secret + "}";
+        return "DataSourceSetting{value=" + (secret ? MASK_SENTINEL : value) + ", secret=" + secret + "}";
     }
 }

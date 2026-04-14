@@ -440,6 +440,7 @@ public record IndicesOptions(
      * to both concrete target and wildcard resolution paths.
      * @param resolveAliases, aliases will be included in the result, if false we treat them like they do not exist. Defaults to true.
      * @param resolveViews, views will be included in the result, if false we treat them like they do not exist. Defaults to false.
+     * @param resolveDatasets, datasets will be included in the result, if false we treat them like they do not exist. Defaults to false.
      */
     public record IndexAbstractionOptions(boolean resolveAliases, boolean resolveViews, boolean resolveDatasets) {
 

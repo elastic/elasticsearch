@@ -32,73 +32,75 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Encapsulates datasource definitions as custom metadata inside ProjectMetadata within cluster state.
+ * Encapsulates dataSource definitions as custom metadata inside ProjectMetadata within cluster state.
  */
-public final class DatasourceMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "esql_datasource";
     public static final List<NamedWriteableRegistry.Entry> ENTRIES = List.of(
-        new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, DatasourceMetadata::readFromStream),
+        new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, DataSourceMetadata::readFromStream),
         new NamedWriteableRegistry.Entry(
             NamedDiff.class,
             TYPE,
-            in -> DatasourceMetadata.readDiffFrom(Metadata.ProjectCustom.class, TYPE, in)
+            in -> DataSourceMetadata.readDiffFrom(Metadata.ProjectCustom.class, TYPE, in)
         )
     );
-    public static final DatasourceMetadata EMPTY = new DatasourceMetadata(Collections.emptyMap());
+    public static final DataSourceMetadata EMPTY = new DataSourceMetadata(Collections.emptyMap());
 
     /**
-     * Shared transport version for {@link DatasourceMetadata} and {@link DatasetMetadata}. Both metadata
+     * Shared transport version for {@link DataSourceMetadata} and {@link DatasetMetadata}. Both metadata
      * containers are introduced together and evolve together, so they share a single version gate.
      */
     static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
 
-    private static final ParseField DATASOURCES = new ParseField("datasources");
+    private static final ParseField DATASOURCES = new ParseField("dataSources");
 
-    private final Map<String, Datasource> datasources;
+    private final Map<String, DataSource> dataSources;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DatasourceMetadata, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<DataSourceMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "datasource_metadata",
         true,
-        (args, ctx) -> new DatasourceMetadata((Map<String, Datasource>) args[0])
+        (args, ctx) -> new DataSourceMetadata((Map<String, DataSource>) args[0])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, Datasource> datasources = new HashMap<>();
+            Map<String, DataSource> dataSources = new HashMap<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String name = p.currentName();
-                datasources.put(name, Datasource.fromXContent(p));
+                dataSources.put(name, DataSource.fromXContent(p));
             }
-            return datasources;
+            return dataSources;
         }, DATASOURCES);
     }
 
-    public static DatasourceMetadata fromXContent(XContentParser parser) throws IOException {
+    public static DataSourceMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public static DatasourceMetadata readFromStream(StreamInput in) throws IOException {
-        return new DatasourceMetadata(in.readMap(Datasource::new));
+    public static DataSourceMetadata readFromStream(StreamInput in) throws IOException {
+        return new DataSourceMetadata(in.readMap(DataSource::new));
     }
 
-    public DatasourceMetadata(Map<String, Datasource> datasources) {
-        this.datasources = Collections.unmodifiableMap(datasources);
+    public DataSourceMetadata(Map<String, DataSource> dataSources) {
+        this.dataSources = Collections.unmodifiableMap(dataSources);
     }
 
-    public Map<String, Datasource> datasources() {
-        return datasources;
+    public Map<String, DataSource> dataSources() {
+        return dataSources;
     }
 
     @Nullable
-    public Datasource get(String name) {
-        return datasources.get(name);
+    public DataSource get(String name) {
+        return dataSources.get(name);
     }
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+        // Excludes API context: the raw XContent contains plaintext secret setting values, which must not appear in
+        // GET /_cluster/state. The CRUD REST layer exposes datasources separately via a masked path (presentationValue).
+        return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override
@@ -113,28 +115,28 @@ public final class DatasourceMetadata extends AbstractNamedDiffable<Metadata.Pro
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.datasources, StreamOutput::writeWriteable);
+        out.writeMap(this.dataSources, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentObjectFields(DATASOURCES.getPreferredName(), datasources);
+        return ChunkedToXContentHelper.xContentObjectFields(DATASOURCES.getPreferredName(), dataSources);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DatasourceMetadata that = (DatasourceMetadata) o;
-        return Objects.equals(datasources, that.datasources);
+        DataSourceMetadata that = (DataSourceMetadata) o;
+        return Objects.equals(dataSources, that.dataSources);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datasources);
+        return Objects.hash(dataSources);
     }
 
-    public static DatasourceMetadata get(ProjectMetadata project) {
+    public static DataSourceMetadata get(ProjectMetadata project) {
         return project.custom(TYPE, EMPTY);
     }
 }

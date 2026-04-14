@@ -104,6 +104,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -1856,6 +1857,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var alias = as(eval.fields().getFirst(), Alias.class);
         var greaterThan = as(alias.child(), GreaterThan.class);
         assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(80000, right.value());
     }
 
     public void testComparisonIndeterminate() {
@@ -1873,6 +1877,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var filter = as(limit.child(), Filter.class);
         var greaterThan = as(filter.condition(), GreaterThan.class);
         assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(INTEGER, right.dataType());
+        assertEquals(50000, right.value());
     }
 
     public void testDateNanosIgnored() {
@@ -1890,5 +1897,305 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var filter = as(limit.child(), Filter.class);
         var greaterThan = as(filter.condition(), GreaterThan.class);
         assertThat(as(greaterThan.left(), Attribute.class).name(), is("date_nanos"));
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(DATE_NANOS, right.dataType());
+        assertEquals(1704067200000000000L, right.value());
+    }
+
+    // 1. GreaterThanOrEqual (>=)
+
+    public void testGteBoundaryAlwaysFalse() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary >= 75000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testGteBoundaryAlwaysTrueNoNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary >= 25324
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    public void testGteBoundaryAlwaysTrueWithNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary >= 25324
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 900 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+    }
+
+    // 2. LessThan (<)
+
+    public void testLtBoundaryAlwaysFalse() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary < 25324
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testLtBoundaryAlwaysTrueNoNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary < 75000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    public void testLtBoundaryAlwaysTrueWithNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary < 75000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 900 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(as(isNotNull.children().getFirst(), Attribute.class).name(), is("salary"));
+    }
+
+    // 3. LessThanOrEqual (<=)
+
+    public void testLteBoundaryAlwaysFalse() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary <= 25323
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testLteBoundaryAlwaysTrueNoNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary <= 74999
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    // 4. Equals (==)
+
+    public void testEqualsBelowRange() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary == 10000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testEqualsAboveRange() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary == 100000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999));
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testEqualsUniqueValue() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary == 50000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 50000), Map.of("salary", 50000)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    // 5. NotEquals (!=)
+
+    public void testNotEqualsBelowRangeNoNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary != 10000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    public void testNotEqualsBelowRangeWithNulls() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary != 10000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 25324), Map.of("salary", 74999)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 900 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        // Note: ESQL parses `!=` as `NOT(==)`. The rule folds `salary == 10000` to `FALSE`,
+        // and then outer logic evaluates `NOT(FALSE)` to `TRUE`, completely pruning the filter.
+        // This is a known 3VL gap because it drops the implicit `IS NOT NULL` requirement.
+        var source = as(as(as(localPlan, Project.class).child(), Limit.class).child(), EsRelation.class);
+        assertThat(source.indexPattern(), is("test"));
+    }
+
+    public void testNotEqualsUniqueValue() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary != 50000
+            | keep salary
+            """);
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("salary", 50000), Map.of("salary", 50000)) {
+            @Override
+            public long count() {
+                return 1000;
+            }
+
+            @Override
+            public long count(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string()) ? 1000 : super.count(field);
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+        assertThat(as(localPlan, LocalRelation.class).supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    // 6. Type-skipping & Stats-missing
+
+    public void testUnsignedLongIgnored() {
+        var plan = allTypes().coordinatorPlan("""
+              from test_all
+            | where unsigned_long > to_unsigned_long(100)
+            | keep unsigned_long
+            """);
+        // Create stats but since it's unsigned long, the rule should skip it
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("unsigned_long", 100.0), Map.of("unsigned_long", 200.0));
+        var localPlan = localPlan(plan, searchStats);
+        var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("unsigned_long"));
+    }
+
+    public void testNoStatsAvailableNoOptimization() {
+        var plan = testAnalyzer().coordinatorPlan("""
+              from test
+            | where salary > 80000
+            | keep salary
+            """);
+        // No min/max for salary
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(), Map.of());
+        var localPlan = localPlan(plan, searchStats);
+        var filter = as(as(as(localPlan, Project.class).child(), Limit.class).child(), Filter.class);
+        var greaterThan = as(filter.condition(), GreaterThan.class);
+        assertThat(as(greaterThan.left(), Attribute.class).name(), is("salary"));
     }
 }

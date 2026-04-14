@@ -77,6 +77,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 termVectorsRequest.routing(project.resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
                 String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project, termVectorsRequest).getName();
                 shardId = OperationRouting.shardId(project, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+                termVectorsRequest.setSplitShardCountSummary(project, concreteSingleIndex);
             } catch (RoutingMissingException e) {
                 responses.set(
                     i,

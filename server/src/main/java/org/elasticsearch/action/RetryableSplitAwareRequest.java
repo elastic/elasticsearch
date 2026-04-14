@@ -9,7 +9,11 @@
 
 package org.elasticsearch.action;
 
-/// Marker interface that marks requests that are used in actions that have special logic
-/// to handle resharding splits.
-/// This is used mostly for assertions.
-public interface SplitAwareRequest {}
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+
+public interface RetryableSplitAwareRequest extends SplitAwareRequest {
+    SplitShardCountSummary getSplitShardCountSummary();
+
+    void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index);
+}

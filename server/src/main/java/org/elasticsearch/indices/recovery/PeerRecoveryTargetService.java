@@ -456,9 +456,23 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
                 startingSeqNo = UNASSIGNED_SEQ_NO;
             }
-        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) { // happens on an empty Lucene folder
+            // Normally, an empty index folder implies no translog data either so startingSeqNo should be UNASSIGNED.
+            // But in rare cases (e.g., filesystem corruption or random I/O errors in tests), the Lucene index files
+            // may be lost/deleted/unreadable while reading a sequence number from the translog succeeded. In this
+            // situation we throw an exception to fail the recovery and to remove the inconsistent local shard files.
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.error(
+                    "{} index not found but starting seq no is [{}], failing recovery due to inconsistent state",
+                    recoveryTarget,
+                    startingSeqNo
+                );
+                throw new RecoveryFailedException(
+                    recoveryTarget.state(),
+                    "index not found with non-empty starting sequence number [" + startingSeqNo + "]",
+                    e
+                );
+            }
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (final IOException e) {

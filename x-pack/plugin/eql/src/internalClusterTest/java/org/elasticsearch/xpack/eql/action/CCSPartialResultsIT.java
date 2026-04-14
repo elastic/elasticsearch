@@ -112,7 +112,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
     // queries with full cluster (no missing shards)
     // ------------------------------------------------------------------------
 
-    public void testNoFailures() throws ExecutionException, InterruptedException, IOException {
+    public void testNoFailures() throws Exception {
         createSchema();
 
         // event query
@@ -120,93 +120,101 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
             .query("process where true")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        EqlSearchResponse response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(10));
-        for (int i = 0; i < 10; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + i));
-        }
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(10));
+            for (int i = 0; i < 10; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + i));
+            }
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on both shards
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 1] [process where value == 2]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 1] [process where value == 3]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 0] [process where value == 2]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 0"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 0"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query with missing event on unavailable shard
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence with maxspan=10s [process where value == 1] ![process where value == 2] [process where value == 3]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on both shards
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sample by key [process where value == 2] [process where value == 1]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sample by key [process where value == 3] [process where value == 1]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sample by key [process where value == 2] [process where value == 0]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
     }
 
@@ -215,7 +223,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
     // and allow_partial_sequence_result=true
     // ------------------------------------------------------------------------
 
-    public void testAllowPartialSearchAndSequence_event() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearchAndSequence_event() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -228,15 +236,16 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+            }
+            assertThat(response.shardFailures().length, is(1));
+        });
     }
 
-    public void testAllowPartialSearchAndSequence_sequence() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearchAndSequence_sequence() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -251,11 +260,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -264,14 +274,15 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -280,11 +291,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -293,18 +305,19 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
-    public void testAllowPartialSearchAndSequence_sample() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearchAndSequence_sample() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -318,11 +331,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -330,14 +344,15 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -345,11 +360,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -358,7 +374,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
     // and default allow_partial_sequence_results (ie. false)
     // ------------------------------------------------------------------------
 
-    public void testAllowPartialSearch_event() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearch_event() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -371,16 +387,17 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+            }
+            assertThat(response.shardFailures().length, is(1));
+        });
 
     }
 
-    public void testAllowPartialSearch_sequence() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearch_sequence() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -394,11 +411,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -406,11 +424,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -418,11 +437,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -430,15 +450,16 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
-    public void testAllowPartialSearch_sample() throws ExecutionException, InterruptedException, IOException {
+    public void testAllowPartialSearch_sample() throws Exception {
         var remoteNode = createSchema();
         // ------------------------------------------------------------------------
         // stop one of the nodes, make one of the shards unavailable
@@ -452,11 +473,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -464,14 +486,15 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
@@ -479,11 +502,12 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(localClient(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 

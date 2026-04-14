@@ -39,6 +39,7 @@ class SequencePayload extends AbstractPayload {
                     events.add(Event.MISSING_EVENT);
                 } else {
                     try {
+                        // Event(SearchHit) retains _source; decRef only releases the hit wrapper.
                         events.add(new Event(hit));
                     } finally {
                         hit.decRef();

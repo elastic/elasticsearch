@@ -19,8 +19,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
-import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 import java.util.Collection;
@@ -114,93 +112,101 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             .query("process where true")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(10));
-        for (int i = 0; i < 10; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + i));
-        }
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(10));
+            for (int i = 0; i < 10; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + i));
+            }
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on both shards
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 1] [process where value == 2]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 1] [process where value == 3]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 0] [process where value == 2]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 0"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 0"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sequence query with missing event on unavailable shard
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence with maxspan=10s [process where value == 1] ![process where value == 2] [process where value == 3]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on both shards
         request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 2] [process where value == 1]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 3] [process where value == 1]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 2] [process where value == 0]")
             .allowPartialSearchResults(randomBoolean())
             .allowPartialSequenceResults(randomBoolean());
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
-        assertThat(response.shardFailures().length, is(0));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
+            assertThat(response.shardFailures().length, is(0));
+        });
 
     }
 
@@ -280,12 +286,13 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+            }
+            assertThat(response.shardFailures().length, is(1));
+        });
 
     }
 
@@ -305,11 +312,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             request = request.allowPartialSearchResults(true);
         }
 
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
@@ -318,14 +326,15 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
@@ -334,11 +343,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices("test-*")
@@ -347,14 +357,15 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        sequence = response.hits().sequences().get(0);
-        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
-        assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sequence = response.hits().sequences().get(0);
+            assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+            assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -373,11 +384,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
@@ -386,14 +398,15 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
@@ -402,11 +415,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -428,12 +442,13 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+            }
+            assertThat(response.shardFailures().length, is(1));
+        });
 
     }
 
@@ -450,33 +465,36 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 3]");
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices("test-*")
@@ -484,11 +502,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -505,36 +524,39 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 3] [process where value == 1]");
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 0]");
         if (randomBoolean()) {
             request = request.allowPartialSearchResults(true);
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.assertWithEqlResponse(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -552,12 +574,14 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // event query
-        var response = runAsync("process where true", true);
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        EqlSearchRequest request = buildAsyncPartialSearchRequest("process where true", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().events().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+            }
+            assertThat(response.shardFailures().length, is(1));
+        });
 
     }
 
@@ -570,35 +594,43 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // sequence query on both shards
-        var response = runAsync("sequence [process where value == 1] [process where value == 2]", true);
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchRequest request = buildAsyncPartialSearchRequest("sequence [process where value == 1] [process where value == 2]", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the available shard only
-        response = runAsync("sequence [process where value == 1] [process where value == 3]", true);
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        request = buildAsyncPartialSearchRequest("sequence [process where value == 1] [process where value == 3]", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query on the unavailable shard only
-        response = runAsync("sequence [process where value == 0] [process where value == 2]", true);
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        request = buildAsyncPartialSearchRequest("sequence [process where value == 0] [process where value == 2]", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
-        response = runAsync(
+        request = buildAsyncPartialSearchRequest(
             "sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]",
             true
         );
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -610,28 +642,37 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
 
         internalCluster().stopNode(assignedNodeForIndex1);
         // sample query on both shards
-        var response = runAsync("sample by key [process where value == 2] [process where value == 1]", true);
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        EqlSearchRequest request = buildAsyncPartialSearchRequest(
+            "sample by key [process where value == 2] [process where value == 1]",
+            true
+        );
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the available shard only
-        response = runAsync("sample by key [process where value == 3] [process where value == 1]", true);
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        request = buildAsyncPartialSearchRequest("sample by key [process where value == 3] [process where value == 1]", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(1));
+            var sample = response.hits().sequences().get(0);
+            assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+            assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
         // sample query on the unavailable shard only
-        response = runAsync("sample by key [process where value == 2] [process where value == 0]", true);
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        request = buildAsyncPartialSearchRequest("sample by key [process where value == 2] [process where value == 0]", true);
+        EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
+            assertThat(response.hits().sequences().size(), equalTo(0));
+            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures()[0].index(), is("test-1"));
+            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        });
 
     }
 
@@ -731,23 +772,14 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         ).get();
     }
 
-    private static EqlSearchResponse runAsync(String query, Boolean allowPartialSearchResults) throws InterruptedException,
-        ExecutionException {
-        EqlSearchRequest request;
-        EqlSearchResponse response;
-        request = new EqlSearchRequest().indices("test-*").query(query).waitForCompletionTimeout(TimeValue.ZERO);
+    private EqlSearchRequest buildAsyncPartialSearchRequest(String query, Boolean allowPartialSearchResults) {
+        EqlSearchRequest request = new EqlSearchRequest().indices("test-*").query(query).waitForCompletionTimeout(TimeValue.ZERO);
         if (allowPartialSearchResults != null) {
-            if (allowPartialSearchResults == false || randomBoolean()) request = request.allowPartialSearchResults(
-                allowPartialSearchResults
-            );
+            if (allowPartialSearchResults == false || randomBoolean()) {
+                request = request.allowPartialSearchResults(allowPartialSearchResults);
+            }
         }
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        while (response.isRunning()) {
-            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
-                .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
-            response = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
-        }
-        return response;
+        return request;
     }
 
     private static void shouldFail(String query) throws InterruptedException {

@@ -38,16 +38,31 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
 
+    @Override
+    protected void dispose(EqlSearchResponse instance) {
+        if (instance != null) {
+            instance.decRef();
+        }
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
         EqlSearchResponse response = randomEqlSearchResponse(xContentType);
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        EqlSearchResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsed = EqlSearchResponse.fromXContent(parser);
+        try {
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            EqlSearchResponse parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                parsed = EqlSearchResponse.fromXContent(parser);
+            }
+            try {
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            } finally {
+                parsed.decRef();
+            }
+        } finally {
+            response.decRef();
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     private static class RandomSource implements ToXContentObject {

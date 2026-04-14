@@ -36,6 +36,7 @@ class SamplePayload extends AbstractPayload {
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
                 try {
+                    // Event(SearchHit) retains _source; decRef only releases the hit wrapper.
                     events.add(new Event(hit));
                 } finally {
                     hit.decRef();

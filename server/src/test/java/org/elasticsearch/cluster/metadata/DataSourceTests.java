@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class DataSourceTests extends ESTestCase {
@@ -119,23 +120,18 @@ public class DataSourceTests extends ESTestCase {
     }
 
     public void testXContentRoundTripHeterogeneousSettings() throws IOException {
-        // Exercises all JSON-native value types inside the settings map (String, Integer, Boolean)
-        // to verify both the per-setting XContent contract and the containing DataSource's map serialization.
-        var dataSource = new DataSource(
-            "my-s3",
-            "s3",
-            "Production S3 bucket",
-            Map.of(
-                "access_key",
-                new DataSourceSetting("AKIA123", true),
-                "region",
-                new DataSourceSetting("us-east-1", false),
-                "max_retries",
-                new DataSourceSetting(7, false),
-                "use_path_style",
-                new DataSourceSetting(true, false)
-            )
-        );
+        // Exercises all JSON-native value types inside the settings map (String, Integer, Long, Double,
+        // Boolean, null) to verify both the per-setting XContent contract and the containing DataSource's
+        // map serialization. Secrets must be String-valued (invariant), so the non-String cases are non-secret.
+        Map<String, DataSourceSetting> settings = new HashMap<>();
+        settings.put("access_key", new DataSourceSetting("AKIA123", true));
+        settings.put("region", new DataSourceSetting("us-east-1", false));
+        settings.put("max_retries", new DataSourceSetting(7, false));
+        settings.put("max_attempts", new DataSourceSetting(9_999_999_999L, false));
+        settings.put("backoff_multiplier", new DataSourceSetting(1.5, false));
+        settings.put("use_path_style", new DataSourceSetting(true, false));
+        settings.put("optional_label", new DataSourceSetting(null, false));
+        var dataSource = new DataSource("my-s3", "s3", "Production S3 bucket", settings);
         assertXContentRoundTrip(dataSource);
     }
 

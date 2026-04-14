@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class DatasetTests extends ESTestCase {
@@ -109,13 +110,17 @@ public class DatasetTests extends ESTestCase {
     }
 
     public void testXContentRoundTrip() throws IOException {
-        var dataset = new Dataset(
-            "access_logs",
-            "my-s3",
-            "s3://bucket/logs/*.parquet",
-            "Access logs dataset",
-            Map.of("partition_detection", "hive", "schema_sample_size", 50, "error_mode", "skip_row")
-        );
+        // Dataset.writeTo / fromXContent use writeGenericValue / p.map() directly — cover all JSON-native
+        // value types here so the generic-value wire path is exercised end-to-end at the container level.
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("partition_detection", "hive");
+        settings.put("schema_sample_size", 50);
+        settings.put("max_file_size", 9_999_999_999L);
+        settings.put("backoff_multiplier", 1.5);
+        settings.put("case_insensitive", true);
+        settings.put("optional_label", null);
+        settings.put("error_mode", "skip_row");
+        var dataset = new Dataset("access_logs", "my-s3", "s3://bucket/logs/*.parquet", "Access logs dataset", settings);
         assertXContentRoundTrip(dataset);
     }
 

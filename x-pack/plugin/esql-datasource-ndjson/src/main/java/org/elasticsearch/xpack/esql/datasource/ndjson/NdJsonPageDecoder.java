@@ -241,25 +241,50 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        private void beginPositionEntry() {
+        /**
+         * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this only for JSON
+         *        arrays of objects (e.g. {@code [{"a":1},{"a":2}]}) where every child column shares one MV slot per
+         *        element. For arrays of primitives (e.g. {@code salary_change} as doubles while {@code salary_change.int}
+         *        is a separate top-level field), {@code false} so children are not opened for values they will never
+         *        receive from this array.
+         */
+        private void beginPositionEntry(boolean includeChildren) {
             // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
             if (blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.beginPositionEntry();
             }
-            if (children != null) {
+            if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.beginPositionEntry();
+                    child.beginPositionEntry(includeChildren);
                 }
             }
         }
 
-        private void endPositionEntry() {
+        private void endPositionEntry(boolean includeChildren) {
             if (blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.endPositionEntry();
             }
-            if (children != null) {
+            if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.endPositionEntry();
+                    child.endPositionEntry(includeChildren);
+                }
+            }
+        }
+
+        /**
+         * An empty JSON array {@code []} must not run {@link Block.Builder#beginPositionEntry()} with no values:
+         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts on empty multi-value
+         * slots. Treat {@code []} like a missing field for every leaf column under this decoder subtree.
+         */
+        private void appendNullsForEmptyArray() {
+            if (blockBuilder != null) {
+                if (dataType != DataType.NULL) {
+                    blockTracker.set(blockIdx);
+                    blockBuilder.appendNull();
+                }
+            } else if (children != null) {
+                for (var child : children.values()) {
+                    child.appendNullsForEmptyArray();
                 }
             }
         }
@@ -279,13 +304,22 @@ public class NdJsonPageDecoder implements Closeable {
                 // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
                 // Calling it twice implicitly calls endPositionEntry().
                 if (!inArray) {
-                    beginPositionEntry();
+                    JsonToken first = parser.nextToken();
+                    if (first == JsonToken.END_ARRAY) {
+                        appendNullsForEmptyArray();
+                        return;
+                    }
+                    boolean includeChildren = first == JsonToken.START_OBJECT;
+                    beginPositionEntry(includeChildren);
+                    decodeValue(parser, true);
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        decodeValue(parser, true);
+                    }
+                    endPositionEntry(includeChildren);
+                    return;
                 }
                 while (parser.nextToken() != JsonToken.END_ARRAY) {
                     decodeValue(parser, true);
-                }
-                if (!inArray) {
-                    endPositionEntry();
                 }
                 return;
             }

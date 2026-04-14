@@ -104,13 +104,61 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMultipleStats() {
+        // dropping bucket in subsequent aggregation
         try (var response = run(syncEsqlQueryRequest("""
-            ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-            | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-            | SORT bucket
-            | STATS COUNT(*) BY count=MV_COUNT(date)
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS number=VALUES(number), date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | SORT number
+            | STATS count() BY date
             """))) {
-            assertThat(findColumn(response, "count").meta(), nullValue());
+            assertThat(response.columns().stream().allMatch(c -> c.meta() == null), equalTo(true));
+        }
+        // retaining bucket in subsequent aggregation
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS number=VALUES(number), date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | SORT number
+            | STATS count() BY date_bucket
+            """))) {
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+        }
+        // introducing bucket in subsequent aggregation
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS number=VALUES(number) BY date
+            | SORT number
+            | STATS count() BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+        }
+    }
+
+    public void testStatsWithMultiBucket() {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | STATS count() BY
+                date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"),
+                number_bucket=BUCKET(number, 10)
+            """))) {
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("numeric_range", 10.0))));
+        }
+    }
+
+    public void testMultipleStatsWithBucket() {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    """
+                        ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+                         | STATS number=VALUES(number), date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+                         | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
+                        """
+                )
+            )
+        ) {
+            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
+            assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("numeric_range", 10.0))));
         }
     }
 

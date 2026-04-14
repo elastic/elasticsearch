@@ -280,11 +280,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected IndexVersion getVersion() {
+        if (useLegacyFormat) {
+            return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true);
+        }
+        return super.getVersion();
+    }
+
+    @Override
     protected Settings getIndexSettings() {
-        return Settings.builder()
-            .put(super.getIndexSettings())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
+        if (useLegacyFormat) {
+            return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+        }
+        return super.getIndexSettings();
     }
 
     @Override

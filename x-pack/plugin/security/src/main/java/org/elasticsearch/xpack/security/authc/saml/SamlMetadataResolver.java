@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.EntitledFileWatcher;
+import org.elasticsearch.xpack.security.support.LogThrottle;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.FilesystemMetadataResolver;
@@ -59,18 +60,20 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 
 /**
  * Encapsulates SAML IdP metadata resolution with a cached entity descriptor.
- * Resolution (including blocking HTTP or file I/O) runs only on a background thread,
- * so the auth hot path can read the cache without blocking on OpenSAML's metadata
- * resolver lock. The cache is updated from the resolver periodically (every 60s);
- * the resolver itself is not forced to refresh on that schedule. For HTTP metadata,
- * OpenSAML's resolver refreshes on its own min/max delay; for file metadata, the
- * file watcher calls {@code resolver.refresh()} on change.
+ * After construction, resolution (including blocking HTTP or file I/O) runs on the
+ * generic thread pool or the scheduled refresh thread, so the auth hot path can read
+ * the cache without blocking on OpenSAML's metadata resolver lock. The constructing
+ * thread may run the initial {@link #updateCachedDescriptor()} during {@link #create}.
+ * The cache is updated from the resolver periodically (every 60s); the resolver itself
+ * is not forced to refresh on that schedule. For HTTP metadata, OpenSAML's resolver
+ * refreshes on its own min/max delay; for file metadata, the file watcher calls
+ * {@code resolver.refresh()} on change.
  */
 final class SamlMetadataResolver implements Releasable, Supplier<EntityDescriptor> {
 
     private static final Logger logger = LogManager.getLogger(SamlMetadataResolver.class);
     private static final TimeValue REFRESH_INTERVAL = TimeValue.timeValueSeconds(60);
-    private static final long LOGGING_PERIOD_MS = TimeValue.timeValueMinutes(30).millis();
+    private static final TimeValue LOGGING_PERIOD = TimeValue.timeValueMinutes(30);
 
     private final AbstractReloadingMetadataResolver resolver;
     private final String entityId;
@@ -82,7 +85,8 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
     private final AtomicReference<EntityDescriptor> cachedEntity = new AtomicReference<>();
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
-    private volatile long lastErrorLogMs = -1;
+    private final LogThrottle nullCacheWarnThrottle;
+    private final LogThrottle refreshFailureLogThrottle;
 
     private volatile Scheduler.Cancellable refreshTask;
 
@@ -99,6 +103,8 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         this.failOnError = failOnError;
         this.threadPool = threadPool;
         this.unresolvedDescriptor = new UnresolvedEntity(entityId, sourceLocation);
+        this.nullCacheWarnThrottle = new LogThrottle(threadPool, LOGGING_PERIOD);
+        this.refreshFailureLogThrottle = new LogThrottle(threadPool, LOGGING_PERIOD);
     }
 
     /**
@@ -106,7 +112,6 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
      * and start the 60-second refresh schedule.
      */
     public static SamlMetadataResolver create(
-        Logger logger,
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService,
@@ -120,7 +125,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         if (metadataPath.startsWith("https://")) {
             tuple = parseHttpMetadata(metadataPath, config, sslService);
         } else {
-            tuple = parseFileSystemMetadata(logger, metadataPath, config, watcherService);
+            tuple = parseFileSystemMetadata(metadataPath, config, watcherService);
         }
         final AbstractReloadingMetadataResolver resolver = tuple.v1();
         final boolean failOnError = tuple.v2();
@@ -133,7 +138,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
         // Start periodic refresh
         metadataResolver.refreshTask = threadPool.scheduleWithFixedDelay(
-            metadataResolver::asyncUpdateCachedDescriptor,
+            metadataResolver::periodicMetadataRefresh,
             REFRESH_INTERVAL,
             threadPool.generic()
         );
@@ -151,20 +156,34 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         if (descriptor == null) {
             // Trigger an immediate background refresh so a subsequent call might see resolved metadata
             asyncUpdateCachedDescriptor();
-            logger.warn(
-                "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
-                entityId,
-                sourceLocation
-            );
+            if (nullCacheWarnThrottle.acquire()) {
+                logger.warn(
+                    "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
+                    entityId,
+                    sourceLocation
+                );
+            }
             return unresolvedDescriptor;
         }
         return descriptor;
     }
 
     /**
-     * Called by the scheduled task every {@link #REFRESH_INTERVAL} seconds.
-     * Submits a runnable to the generic pool that syncs the cache from the resolver.
-     * If the interval has elapsed and no run is already in progress, the runnable is submitted.
+     * Called on a fixed delay on the generic executor. Syncs the cache on this thread (no extra submit).
+     */
+    private void periodicMetadataRefresh() {
+        if (inProgress.compareAndSet(false, true)) {
+            try {
+                tryUpdateCachedDescriptor();
+            } catch (Exception e) {
+                inProgress.compareAndSet(true, false);
+                logger.debug(() -> "SAML metadata periodic refresh failed for [" + entityId + "]", e);
+            }
+        }
+    }
+
+    /**
+     * Queues a cache sync on the generic pool (e.g. when {@link #get()} sees a null cache).
      */
     void asyncUpdateCachedDescriptor() {
         if (inProgress.compareAndSet(false, true)) {
@@ -185,6 +204,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
             updateCachedDescriptor();
         } finally {
             if (inProgress.compareAndSet(true, false) == false) {
+                assert false : "Unexpected CAS state: in progress should have been true";
                 logger.warn("Unexpected CAS state: in progress should have been true");
             }
         }
@@ -212,26 +232,23 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     }
 
     /**
-     * Log the exception. It is a warning if we haven't logged in the last {@link #LOGGING_PERIOD_MS}, otherwise it's a debug.
+     * Log the exception. It is a warning if we haven't logged in the last {@link #LOGGING_PERIOD}, otherwise it's a debug.
      * This prevents us from filling the logs every time we fail, but also logs errors regularly enough to be noticed
      */
     private void maybeLog(Exception ex) {
-        final Supplier<String> msg = () -> Strings.format("Failed to refresh SAML metadata for [%s]", entityId);
-        final long now = threadPool.relativeTimeInMillis();
-        if (lastErrorLogMs < 0 || now - lastErrorLogMs > LOGGING_PERIOD_MS) {
-            logger.warn(msg, ex);
-            lastErrorLogMs = now;
+        org.apache.logging.log4j.util.Supplier<String> message = () -> Strings.format("Failed to refresh SAML metadata for [%s]", entityId);
+        if (refreshFailureLogThrottle.acquire()) {
+            logger.warn(message, ex);
         } else {
-            logger.debug(msg, ex);
+            logger.debug(message, ex);
         }
     }
 
     /**
-     * Resolves the entity descriptor from the resolver. If the first resolve returns null,
+     * Resolves the entity descriptor from the OpenSAML resolver. If the first resolve returns null,
      * forces a resolver refresh and retries once (same "refresh when null" behavior as the original code).
-     * Returns a tuple of (descriptor, errorToLog). The descriptor is a real EntityDescriptor,
-     * UnresolvedEntity, or null on failure. The errorToLog is the most important exception to log
-     * (e.g. a ResolverException from refresh); log it via maybeLog in the caller.
+     * Returns a non-null {@link EntityDescriptor} on success; otherwise throws (typically
+     * {@link ResolverException} or a SAML exception from {@link SamlUtils#samlException}).
      */
     private EntityDescriptor resolveEntityDescriptor() throws ResolverException {
         var criteria = new CriteriaSet(new EntityIdCriterion(entityId));
@@ -297,7 +314,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
             }
         }
 
-        HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
+        HTTPMetadataResolver resolver = new ThreadCheckingHTTPMetadataResolver(builder.build(), metadataUrl);
         resolver.setMinRefreshDelay(Duration.ofMillis(minRefresh.millis()));
         resolver.setMaxRefreshDelay(Duration.ofMillis(maxRefresh.millis()));
 
@@ -309,9 +326,12 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         return new Tuple<>(resolver, failOnError);
     }
 
-    private static final class PrivilegedHTTPMetadataResolver extends HTTPMetadataResolver {
+    /**
+     * Ensures SAML metadata HTTP fetch does not run on transport worker threads.
+     */
+    private static final class ThreadCheckingHTTPMetadataResolver extends HTTPMetadataResolver {
 
-        PrivilegedHTTPMetadataResolver(final HttpClient client, final String metadataURL) throws ResolverException {
+        ThreadCheckingHTTPMetadataResolver(final HttpClient client, final String metadataURL) throws ResolverException {
             super(client, metadataURL);
         }
 
@@ -324,7 +344,6 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
     @SuppressForbidden(reason = "uses toFile")
     private static Tuple<AbstractReloadingMetadataResolver, Boolean> parseFileSystemMetadata(
-        Logger logger,
         String metadataPath,
         RealmConfig config,
         ResourceWatcherService watcherService
@@ -342,8 +361,9 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         )) {
             if (config.hasSetting(httpSetting.apply(config.type()))) {
                 logger.info(
-                    "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
-                    RealmSettings.getFullSettingKey(config, httpSetting.apply(config.type()))
+                    "Ignoring setting [{}] because the IdP metadata is being loaded from a file for SAML realm [{}]",
+                    RealmSettings.getFullSettingKey(config, httpSetting.apply(config.type())),
+                    config.name()
                 );
             }
         }
@@ -370,7 +390,14 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
                 try {
                     resolver.refresh();
                 } catch (Exception e) {
-                    logger.warn(() -> "An error occurred while reloading file [" + file + "]", e);
+                    logger.warn(
+                        () -> Strings.format(
+                            "An error occurred while reloading SAML metadata file [%s] for SAML realm [%s]",
+                            file,
+                            config.name()
+                        ),
+                        e
+                    );
                 }
             }
         });

@@ -23,7 +23,6 @@ import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -65,9 +64,6 @@ public class SamlRestTestCase extends ESRestTestCase {
             }
         })).around(cluster);
     }
-
-    @ClassRule
-    public static TestRule ruleChain = buildRuleChain(true);
 
     private static void initWebserver() {
         try {

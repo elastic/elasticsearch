@@ -182,7 +182,7 @@ public final class SamlRealm extends Realm implements Releasable {
             );
         }
 
-        final SamlMetadataResolver metadataResolver = SamlMetadataResolver.create(logger, config, sslService, watcherService, threadPool);
+        final SamlMetadataResolver metadataResolver = SamlMetadataResolver.create(config, sslService, watcherService, threadPool);
 
         final Clock clock = Clock.systemUTC();
         final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver.getResolver(), metadataResolver);

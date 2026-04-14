@@ -66,7 +66,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
     @org.junit.After
     public void shutdownThreadPool() {
         if (threadPool != null) {
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 
@@ -74,7 +74,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
         final Path path = getDataPath("idp1.xml");
         Tuple<RealmConfig, SSLService> config = buildConfig(path.toString());
         final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-        try (SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)) {
+        try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
             assertIdp1MetadataParsedCorrectly(resolver.get());
         }
     }
@@ -92,9 +92,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
             Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
             logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            try (
-                SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)
-            ) {
+            try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
                 assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
                 assertIdp1MetadataParsedCorrectly(resolver.get());
             }
@@ -123,7 +121,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
             var exception = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)
+                () -> SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)
             );
             assertThat(exception, throwableWithMessage("cannot load SAML metadata from [" + metadataPath + "]"));
         }
@@ -176,9 +174,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
             });
             logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            try (
-                SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)
-            ) {
+            try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
                 final int firstRequestCount = webServer.requests().size();
                 assertThat(firstRequestCount, greaterThanOrEqualTo(1));
                 assertThat(resolver.get(), instanceOf(UnresolvedEntity.class));
@@ -223,9 +219,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
             assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(customReadTimeout));
 
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            try (
-                SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)
-            ) {
+            try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
                 assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
                 assertIdp1MetadataParsedCorrectly(resolver.get());
             }
@@ -247,9 +241,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
             assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(TimeValue.timeValueSeconds(10)));
 
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            try (
-                SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)
-            ) {
+            try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
                 assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
                 assertIdp1MetadataParsedCorrectly(resolver.get());
             }
@@ -273,7 +265,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
         final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
 
         // initialization should complete even though the connection fails
-        try (SamlMetadataResolver resolver = SamlMetadataResolver.create(logger, config.v1(), config.v2(), watcherService, threadPool)) {
+        try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
             EntityDescriptor descriptor = resolver.get();
             assertThat(descriptor, instanceOf(UnresolvedEntity.class));
         }

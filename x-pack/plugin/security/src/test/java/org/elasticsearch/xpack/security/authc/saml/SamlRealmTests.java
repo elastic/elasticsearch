@@ -129,7 +129,7 @@ public class SamlRealmTests extends SamlTestCase {
     @org.junit.After
     public void shutdownThreadPool() {
         if (threadPool != null) {
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 
@@ -1306,13 +1306,7 @@ public class SamlRealmTests extends SamlTestCase {
             try (ResourceWatcherService watcherService = new ResourceWatcherService(resourceWatcherSettings, testThreadPool)) {
                 Tuple<RealmConfig, SSLService> config = buildConfig(realmMetadataPath.toString());
                 try (
-                    SamlMetadataResolver resolver = SamlMetadataResolver.create(
-                        logger,
-                        config.v1(),
-                        config.v2(),
-                        watcherService,
-                        testThreadPool
-                    )
+                    SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, testThreadPool)
                 ) {
                     assertIdp1MetadataParsedCorrectly(resolver.get());
                     final IdpConfiguration idpConf = SamlRealm.getIdpConfiguration(realmConfig, resolver.getResolver(), resolver);

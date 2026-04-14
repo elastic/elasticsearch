@@ -37,10 +37,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int targetSize = (int) ((float) nVectors / (float) nClusters);
         HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
 
-        double tic = System.nanoTime();
         KMeansResult result = hkmeans.cluster(vectors, targetSize);
-        double toc = System.nanoTime();
-        System.out.println("Time: " + (toc - tic) / 1e6 + "ms");
 
         int[] assignmentsTemp = result.assignments();
         int[] serialClusterSizes = new int[result.centroids().length];

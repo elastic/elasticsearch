@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -33,7 +34,7 @@ public class RestDeleteViewAction extends BaseRestHandler {
         DeleteViewAction.Request req = new DeleteViewAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            request.param("name")
+            Strings.splitStringByCommaToArray(request.param("name"))
         );
         return channel -> client.execute(DeleteViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }

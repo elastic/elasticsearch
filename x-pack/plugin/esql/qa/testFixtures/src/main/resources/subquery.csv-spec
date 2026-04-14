@@ -5,12 +5,16 @@
 subqueryInFrom
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+// tag::basic_subquery[]
+FROM employees,
+     (FROM sample_data)
+| WHERE (emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
 | SORT emp_no, client_ip
-| KEEP  emp_no, languages, client_ip
+| KEEP emp_no, languages, client_ip
+// end::basic_subquery[]
 ;
 
+// tag::basic_subquery-result[]
 emp_no:integer | languages:integer | client_ip:ip
 10091          | 3                 | null
 10092          | 1                 | null
@@ -22,21 +26,26 @@ null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
 null           | null              | 172.21.3.15
+// end::basic_subquery-result[]
 ;
 
 subqueryInFromWithoutMainIndexPattern
 required_capability: subquery_in_from_command
 
+// tag::subquery_only[]
 FROM (FROM employees)
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | SORT emp_no
-| KEEP  emp_no, languages
+| KEEP emp_no, languages
+// end::subquery_only[]
 ;
 
+// tag::subquery_only-result[]
 emp_no:integer | languages:integer
 10091          | 3
 10092          | 1
 10093          | 3
+// end::subquery_only-result[]
 ;
 
 subqueryInFromWithoutMainIndexPatternWithMultipleSubqueries
@@ -189,15 +198,19 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 subqueryInFromWithWhereInSubquery
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data metadata _index
-                                | WHERE client_ip == "172.21.3.15" ) 
-           metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+// tag::subquery_with_filter[]
+FROM employees,
+     (FROM sample_data metadata _index
+      | WHERE client_ip == "172.21.3.15")
+     metadata _index
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT emp_no
-| KEEP _index,  emp_no, languages, client_ip
+| KEEP _index, emp_no, languages, client_ip
+// end::subquery_with_filter[]
 ;
 
+// tag::subquery_with_filter-result[]
 _index:keyword | emp_no:integer | languages:integer | client_ip:ip
 employees      | 10091          | 3                 | null
 employees      | 10092          | 1                 | null
@@ -206,20 +219,25 @@ sample_data    | null           | null              | 172.21.3.15
 sample_data    | null           | null              | 172.21.3.15
 sample_data    | null           | null              | 172.21.3.15
 sample_data    | null           | null              | 172.21.3.15
+// end::subquery_with_filter-result[]
 ;
 
 subqueryInFromWithStatsInSubquery
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data metadata _index
-                                | STATS cnt = count(*) by _index, client_ip )
-          metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+// tag::subquery_with_aggregation[]
+FROM employees,
+     (FROM sample_data metadata _index
+      | STATS cnt = count(*) by _index, client_ip)
+     metadata _index
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT _index, emp_no, client_ip
 | KEEP _index, emp_no, languages, cnt, client_ip
+// end::subquery_with_aggregation[]
 ;
 
+// tag::subquery_with_aggregation-result[]
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
 employees | 10091          | 3                 | null     | null
 employees | 10092          | 1                 | null     | null
@@ -228,25 +246,31 @@ sample_data | null           | null              | 1        | 172.21.0.5
 sample_data | null           | null              | 1        | 172.21.2.113
 sample_data | null           | null              | 1        | 172.21.2.162
 sample_data | null           | null              | 4        | 172.21.3.15
+// end::subquery_with_aggregation-result[]
 ;
 
 subqueryInFromWithStatsInSubqueryConjunctiveFilterInMainQuery
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data  metadata _index
-                                | STATS cnt = count(*) by _index, client_ip )
-                              , (FROM sample_data_str  metadata _index
-                                | STATS cnt = count(*) by _index, client_ip )
-             metadata _index
+// tag::multiple_subqueries[]
+FROM employees,
+     (FROM sample_data metadata _index
+      | STATS cnt = count(*) by _index, client_ip),
+     (FROM sample_data_str metadata _index
+      | STATS cnt = count(*) by _index, client_ip)
+     metadata _index
 | EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
 | WHERE client_ip == "172.21.3.15" AND cnt >0
 | SORT _index, emp_no, client_ip
 | KEEP _index, emp_no, languages, cnt, client_ip
+// end::multiple_subqueries[]
 ;
 
+// tag::multiple_subqueries-result[]
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
 sample_data |null           | null              | 4        | 172.21.3.15
 sample_data_str |null           | null              | 4        | 172.21.3.15
+// end::multiple_subqueries-result[]
 ;
 
 subqueryInFromWithStatsInSubqueryDisjunctiveFilterInMainQuery
@@ -295,14 +319,18 @@ cnt:long | client_ip:ip
 subqueryInFromWithLookupJoinInSubquery
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data
-                                | EVAL client_ip = client_ip::keyword
-                                | LOOKUP JOIN clientips_lookup ON client_ip ) 
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+// tag::subquery_with_lookup_join[]
+FROM employees,
+     (FROM sample_data
+      | EVAL client_ip = client_ip::keyword
+      | LOOKUP JOIN clientips_lookup ON client_ip)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, client_ip, env
+// end::subquery_with_lookup_join[]
 ;
 
+// tag::subquery_with_lookup_join-result[]
 emp_no:integer | languages:integer | client_ip:keyword | env:keyword
 10091          | 3                 | null              | null
 10092          | 1                 | null              | null
@@ -314,6 +342,7 @@ null           | null              | 172.21.3.15       | Production
 null           | null              | 172.21.3.15       | Production
 null           | null              | 172.21.3.15       | Production
 null           | null              | 172.21.3.15       | Production
+// end::subquery_with_lookup_join-result[]
 ;
 
 subqueryInFromWithLookupJoinInMainQuery
@@ -386,20 +415,25 @@ emp_no:long | languages:integer | language_name:keyword
 subqueryInFromWithSortInSubquery
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data
-                                | STATS cnt = count(*) by client_ip
-                                | SORT cnt DESC
-                                | LIMIT 1 )
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+// tag::subquery_with_sort[]
+FROM employees,
+     (FROM sample_data
+      | STATS cnt = count(*) by client_ip
+      | SORT cnt DESC
+      | LIMIT 1)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, cnt, client_ip
+// end::subquery_with_sort[]
 ;
 
+// tag::subquery_with_sort-result[]
 emp_no:integer | languages:integer | cnt:long | client_ip:ip
 10091          | 3                 | null     | null
 10092          | 1                 | null     | null
 10093          | 3                 | null     | null
 null           | null              | 4        | 172.21.3.15
+// end::subquery_with_sort-result[]
 ;
 
 subqueryInFromWithSortInSubqueryWithoutExplicitLimit
@@ -1007,6 +1041,7 @@ FROM sample_data, sample_data_str,
 
 subqueryInFromWithUnionTypesWithoutCommonTypesWithoutExplicitCasting
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos
@@ -1018,7 +1053,7 @@ FROM sample_data, sample_data_str,
 | SORT @timestamp
 ;
 
-@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:keyword
+@timestamp:date_nanos          | event_duration:long | message:keyword       | client_ip:unsupported
 1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected          | null
 2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
 2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | null
@@ -1093,6 +1128,7 @@ FROM k8s-downsampled, (FROM sample_data)
 
 subqueryInFromWithTimeSeriesDataTypesInMainQueryAndSubquery
 required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
@@ -1100,7 +1136,7 @@ FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z"
 | SORT @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
-@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
+@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:unsupported
 2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
 2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
 2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
@@ -1152,3 +1188,32 @@ FROM (FROM books | EVAL x = 1 | WHERE x > 100 | KEEP author),
 
 author:text | emp_no:long
 ;
+
+
+subqueryInFromUnionConflictingTypes
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM (FROM sample_data), (FROM sample_data_str)
+| KEEP client_ip
+| LIMIT 1
+;
+
+client_ip:unsupported
+null                 
+;
+
+
+subqueryInFromUnionMixedNumericTypes
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM (FROM employees), (FROM employees_incompatible)
+| KEEP emp_no
+| LIMIT 1
+;
+
+emp_no:unsupported
+null                 
+;
+

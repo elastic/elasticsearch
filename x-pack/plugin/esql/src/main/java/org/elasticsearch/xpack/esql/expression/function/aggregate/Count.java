@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -46,6 +47,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class).unary(Count::new).name("count");
 
     @FunctionInfo(
         returnType = "long",
@@ -73,7 +75,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
                 `COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
                 three-valued logic ({wikipedia}/Three-valued_logic[3VL]): `TRUE OR NULL` is `TRUE`, but
-                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null") }
+                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null"),
+            @Example(
+                description = "`COUNT` can also operate on `exponential_histogram` fields, "
+                    + "returning the total number of values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "countExpHistoForDocs"
+            ) }
     )
     public Count(
         Source source,

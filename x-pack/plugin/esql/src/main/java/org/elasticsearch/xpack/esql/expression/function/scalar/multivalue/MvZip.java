@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,6 +46,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class MvZip extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvZip.class).ternary(MvZip::new).name("mv_zip");
 
     private final Expression mvLeft, mvRight, delim;
     private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), DataType.TEXT);

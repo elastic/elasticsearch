@@ -106,6 +106,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
     private static final Map<String, List<Object>> roundToAllTypes = new HashMap<>(
         Map.ofEntries(
+
             Map.entry("byte", List.of(2, 1, 3, 4)),
             Map.entry("short", List.of(1, 3, 2, 4)),
             Map.entry("integer", List.of(1, 2, 3, 4)),
@@ -906,8 +907,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         PhysicalPlan firstBranch = mergeChildren.get(0);
         ProjectExec firstProject = as(firstBranch, ProjectExec.class);
         EvalExec firstEval = as(firstProject.child(), EvalExec.class);
-        LimitExec firstLimit = as(firstEval.child(), LimitExec.class);
-        AggregateExec firstFinalAgg = as(firstLimit.child(), AggregateExec.class);
+        AggregateExec firstFinalAgg = as(firstEval.child(), AggregateExec.class);
         assertThat(firstFinalAgg.getMode(), is(FINAL));
         var firstGroupings = firstFinalAgg.groupings();
         assertThat(firstGroupings, hasSize(1));
@@ -926,8 +926,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         PhysicalPlan secondBranch = mergeChildren.get(1);
         ProjectExec secondProject = as(secondBranch, ProjectExec.class);
         EvalExec secondEval = as(secondProject.child(), EvalExec.class);
-        LimitExec secondLimit = as(secondEval.child(), LimitExec.class);
-        AggregateExec secondFinalAgg = as(secondLimit.child(), AggregateExec.class);
+        AggregateExec secondFinalAgg = as(secondEval.child(), AggregateExec.class);
         assertThat(secondFinalAgg.getMode(), is(FINAL));
         var secondGroupings = secondFinalAgg.groupings();
         assertThat(secondGroupings, hasSize(1));

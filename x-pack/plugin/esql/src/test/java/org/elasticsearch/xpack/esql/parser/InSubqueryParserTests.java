@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -61,11 +64,9 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
     }
 
-    /**
-     * Basic WHERE x IN (FROM subquery_index) test.
-     *
-     * Filter[InSubquery[?x, subquery_plan]]
-     *   \_UnresolvedRelation[]
+    /*
+     * Filter[InSubquery[?x,UnresolvedRelation[sub_index]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryBasic() {
         String query = "FROM main_index | WHERE x IN (FROM sub_index)";
@@ -73,7 +74,7 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
         InSubquery inSubquery = as(filter.condition(), InSubquery.class);
-        Attribute value = as(inSubquery.value(), Attribute.class);
+        UnresolvedAttribute value = as(inSubquery.value(), UnresolvedAttribute.class);
         assertEquals("x", value.name());
 
         UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
@@ -83,11 +84,9 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
-     * WHERE x NOT IN (FROM subquery_index) test.
-     *
-     * Filter[Not[InSubquery[?x, subquery_plan]]]
-     *   \_UnresolvedRelation[]
+    /*
+     * Filter[NOT(InSubquery[?x,UnresolvedRelation[sub_index]])]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereNotInSubquery() {
         String query = "FROM main_index | WHERE x NOT IN (FROM sub_index)";
@@ -96,15 +95,26 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Filter filter = as(plan, Filter.class);
         Not not = as(filter.condition(), Not.class);
         InSubquery inSubquery = as(not.field(), InSubquery.class);
-        Attribute value = as(inSubquery.value(), Attribute.class);
+        UnresolvedAttribute value = as(inSubquery.value(), UnresolvedAttribute.class);
         assertEquals("x", value.name());
 
         UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
         assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * (NOT) IN subquery with multiple processing commands in the subquery.
+     *
+     * Filter[(NOT) InSubquery[?x, subquery_plan]]
+     * \_UnresolvedRelation[main_index]
+     *
+     * subquery_plan: ChangePoint -> Enrich -> LookupJoin[right=UnresolvedRelation[lookup_index]]
+     *   -> MvExpand -> Rename -> Keep -> Drop -> Limit -> OrderBy -> Grok -> Dissect
+     *   -> InlineStats -> Aggregate -> Aggregate -> Fork[2 branches]
+     *   each branch: Eval -> Filter -> Eval -> Filter -> UnresolvedRelation[sub_index]
      */
     public void testWhereInSubqueryMultipleProcessingCommands() {
         boolean negated = randomBoolean();
@@ -171,32 +181,32 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * WHERE (NOT) IN subquery ends with different modes to verify lexer mode transitions.
      */
     public void testWhereInSubqueryEndsWithDifferentModes() {
-        List<String> processingCommands = List.of(
-            "WHERE a > 10",
-            "EVAL b = a * 2",
-            "KEEP x",
-            "DROP y",
-            "SORT a",
-            "LIMIT 10",
-            "STATS cnt = COUNT(*) BY a",
-            "RENAME a AS b",
-            "MV_EXPAND m",
-            "CHANGE_POINT a ON b",
-            "ENRICH my_policy ON x",
-            "FORK (WHERE a > 1)(WHERE a < 10)",
-            "INLINE STATS cnt = COUNT(*) BY a",
-            "LOOKUP JOIN lookup_index ON x"
+        Map<String, Class<? extends LogicalPlan>> processingCommands = Map.ofEntries(
+            Map.entry("WHERE a > 10", Filter.class),
+            Map.entry("EVAL b = a * 2", Eval.class),
+            Map.entry("KEEP x", Keep.class),
+            Map.entry("DROP y", Drop.class),
+            Map.entry("SORT a", OrderBy.class),
+            Map.entry("LIMIT 10", Limit.class),
+            Map.entry("STATS cnt = COUNT(*) BY a", Aggregate.class),
+            Map.entry("RENAME a AS b", Rename.class),
+            Map.entry("MV_EXPAND m", MvExpand.class),
+            Map.entry("CHANGE_POINT a ON b", ChangePoint.class),
+            Map.entry("ENRICH my_policy ON x", Enrich.class),
+            Map.entry("FORK (WHERE a > 1)(WHERE a < 10)", Fork.class),
+            Map.entry("INLINE STATS cnt = COUNT(*) BY a", InlineStats.class),
+            Map.entry("LOOKUP JOIN lookup_index ON x", LookupJoin.class)
         );
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT" : "";
-        for (String processingCommand : processingCommands) {
+        for (var entry : processingCommands.entrySet()) {
             String query = LoggerMessageFormat.format(null, """
                 FROM main_index | WHERE x {} IN (FROM sub_index | {})
-                """, notClause, processingCommand);
+                """, notClause, entry.getKey());
 
             LogicalPlan plan = query(query);
             Filter filter = as(plan, Filter.class);
@@ -207,12 +217,13 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
             } else {
                 inSubquery = as(filter.condition(), InSubquery.class);
             }
+            as(inSubquery.subquery(), entry.getValue());
             UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
             assertEquals("main_index", mainRelation.indexPattern().indexPattern());
         }
     }
 
-    /**
+    /*
      * WHERE IN subquery combined with other boolean expressions.
      *
      * Filter[And[GreaterThan[?a, 5], InSubquery[?x, ...]]]
@@ -228,10 +239,18 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         InSubquery inSubquery = as(and.right(), InSubquery.class);
         Attribute value = as(inSubquery.value(), Attribute.class);
         assertEquals("x", value.name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        UnresolvedRelation subqueryRelation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * Existing value list IN still works after the grammar changes.
+     *
+     * Filter[In[?x, [1, 2, 3]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInValueListStillWorks() {
         String query = "FROM main_index | WHERE x IN (1, 2, 3)";
@@ -242,11 +261,16 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Attribute value = as(in.value(), Attribute.class);
         assertEquals("x", value.name());
         assertEquals(3, in.list().size());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN value-list with a mix of constants and field references:
      * {@code WHERE x IN (1, y, "hello", z)}
+     *
+     * Filter[In[?x, [1, ?y, "hello", ?z]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInListMixedConstantsAndFields() {
         String query = "FROM main_index | WHERE x IN (1, y, \"hello\", z)";
@@ -260,18 +284,24 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         List<Expression> list = in.list();
         assertEquals(4, list.size());
-        Literal lit1 = as(list.get(0), Literal.class);
-        assertEquals(1, lit1.value());
+        Literal literal = as(list.get(0), Literal.class);
+        assertEquals(1, literal.value());
         UnresolvedAttribute fieldY = as(list.get(1), UnresolvedAttribute.class);
         assertEquals("y", fieldY.name());
-        Literal litHello = as(list.get(2), Literal.class);
-        assertEquals(new BytesRef("hello"), litHello.value());
+        literal = as(list.get(2), Literal.class);
+        assertEquals(new BytesRef("hello"), literal.value());
         UnresolvedAttribute fieldZ = as(list.get(3), UnresolvedAttribute.class);
         assertEquals("z", fieldZ.name());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * Multiple IN and/or NOT IN subqueries in the same WHERE clause, combined with AND or OR.
+     *
+     * Filter[And|Or[(NOT) InSubquery[?x, Keep[UnresolvedRelation[sub1]]], (NOT) InSubquery[?y, Keep[UnresolvedRelation[sub2]]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testMultipleInSubqueries() {
         boolean firstNegated = randomBoolean();
@@ -327,8 +357,11 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * Two IN predicates in the same WHERE clause, each randomly an IN value-list or IN subquery, with random NOT.
+     *
+     * Filter[And[(NOT) In|InSubquery[?x, ...], (NOT) In|InSubquery[?y, ...]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryMixedWithInList() {
         boolean leftIsSubquery = randomBoolean();
@@ -353,8 +386,11 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery where the subquery's FROM command includes METADATA fields.
+     *
+     * Filter[InSubquery[?x, Keep[UnresolvedRelation[sub_index, METADATA _id, _index]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithMetadata() {
         String query = """
@@ -371,10 +407,16 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("sub_index", subRelation.indexPattern().indexPattern());
         List<String> metadataFieldNames = subRelation.metadataFields().stream().map(NamedExpression::name).toList();
         assertEquals(List.of("_id", "_index"), metadataFieldNames);
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery where the subquery's FROM command references a remote cluster index.
+     *
+     * Filter[InSubquery[?x, Keep[UnresolvedRelation[remote_cluster:sub_index]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithRemoteCluster() {
         String query = """
@@ -389,11 +431,17 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Keep keep = as(inSubquery.subquery(), Keep.class);
         UnresolvedRelation subRelation = as(keep.child(), UnresolvedRelation.class);
         assertEquals("remote_cluster:sub_index", subRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery whose FROM command contains a nested FROM-subquery:
      * {@code FROM main | WHERE x IN (FROM sub1, (FROM sub2) | KEEP a)}
+     *
+     * Filter[InSubquery[?x, Keep[UnionAll[UnresolvedRelation[sub1], Subquery[UnresolvedRelation[sub2]]]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithNestedFromSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -411,14 +459,20 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals(2, unionAll.children().size());
         UnresolvedRelation sub1 = as(unionAll.children().get(0), UnresolvedRelation.class);
         assertEquals("sub1", sub1.indexPattern().indexPattern());
-        Subquery nested = as(unionAll.children().get(1), Subquery.class);
-        UnresolvedRelation sub2 = as(nested.child(), UnresolvedRelation.class);
+        Subquery subquery = as(unionAll.children().get(1), Subquery.class);
+        UnresolvedRelation sub2 = as(subquery.child(), UnresolvedRelation.class);
         assertEquals("sub2", sub2.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * Nested IN subqueries: the inner subquery itself contains a WHERE IN subquery:
      * {@code FROM main | WHERE x IN (FROM sub1 | WHERE y IN (FROM sub2 | KEEP b) | KEEP a)}
+     *
+     * Filter[InSubquery[?x, Keep[Filter[InSubquery[?y, Keep[UnresolvedRelation[sub2]]]]][UnresolvedRelation[sub1]]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithNestedInSubquery() {
         String query = """
@@ -445,9 +499,13 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", main.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * FROM subquery where one branch contains a WHERE IN subquery:
      * {@code FROM main, (FROM sub1 | WHERE x IN (FROM sub2 | KEEP a) | KEEP x)}
+     *
+     * UnionAll
+     * \_UnresolvedRelation[main]
+     * \_Subquery[Keep[Filter[InSubquery[?x, Keep[UnresolvedRelation[sub2]]]][UnresolvedRelation[sub1]]]]
      */
     public void testFromSubqueryWithWhereInSubqueryInside() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -482,161 +540,106 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
     // ---- WHERE (NOT) IN subquery with parameters ----
 
-    /**
-     * WHERE ?val IN (FROM sub) with a named value parameter on the LHS.
-     * The named parameter resolves to a Literal.
+    /*
+     * Single parameter for constant values on the LHS of IN subquery, the parameter resolves to a Literal.
+     *
+     * Filter[(NOT) InSubquery[42, Filter[Equals[42, ?x]][UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
      */
-    public void testWhereInSubqueryWithNamedValueParam() {
+    public void testWhereInSubqueryWithSingleParam() {
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "?val IN (FROM sub_index)";
+        Map<String, QueryParam> params = Map.ofEntries(
+            Map.entry("?val", paramAsConstant("val", 42)),
+            Map.entry("?1", paramAsConstant(null, 42)),
+            Map.entry("?", paramAsConstant(null, 42))
+        );
 
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant("val", 42))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
+        for (Map.Entry<String, QueryParam> entry : params.entrySet()) {
+            String query = "FROM main_index | WHERE "
+                + notClause
+                + entry.getKey()
+                + " IN (FROM sub_index | WHERE "
+                + entry.getKey()
+                + " == x)";
+
+            LogicalPlan plan = query(query, new QueryParams(List.of(entry.getValue(), entry.getValue())));
+            Filter filter = as(plan, Filter.class);
+            InSubquery inSubquery;
+            if (negated) {
+                Not not = as(filter.condition(), Not.class);
+                inSubquery = as(not.field(), InSubquery.class);
+            } else {
+                inSubquery = as(filter.condition(), InSubquery.class);
+            }
+            Literal value = as(inSubquery.value(), Literal.class);
+            assertEquals(42, value.value());
+
+            Filter subqueryFilter = as(inSubquery.subquery(), Filter.class);
+            Equals equals = as(subqueryFilter.condition(), Equals.class);
+            value = as(equals.left(), Literal.class);
+            assertEquals(42, value.value());
+            UnresolvedRelation subqueryRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
+            assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+            UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+            assertEquals("main_index", mainRelation.indexPattern().indexPattern());
         }
-        Literal value = as(inSubquery.value(), Literal.class);
-        assertEquals(42, value.value());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
-
-        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
-        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
-     * WHERE ?1 IN (FROM sub) with a positional value parameter on the LHS.
+    /*
+     * Double parameter for identifiers on the LHS of IN subquery, the parameter resolves to an UnresolvedAttribute.
+     *
+     * Filter[(NOT) InSubquery[?x, Filter[Equals[?x, 1]][UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
      */
-    public void testWhereInSubqueryWithPositionalValueParam() {
-        boolean negated = randomBoolean();
-        String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "?1 IN (FROM sub_index)";
-
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant(null, 42))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
-        }
-        Literal value = as(inSubquery.value(), Literal.class);
-        assertEquals(42, value.value());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
-    }
-
-    /**
-     * WHERE ? IN (FROM sub) with an anonymous value parameter on the LHS.
-     */
-    public void testWhereInSubqueryWithAnonymousValueParam() {
-        boolean negated = randomBoolean();
-        String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "? IN (FROM sub_index)";
-
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant(null, 42))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
-        }
-        Literal value = as(inSubquery.value(), Literal.class);
-        assertEquals(42, value.value());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
-    }
-
-    /**
-     * WHERE ??field IN (FROM sub) with a named identifier parameter on the LHS.
-     * The identifier parameter resolves to an UnresolvedAttribute.
-     */
-    public void testWhereInSubqueryWithNamedIdentifierParam() {
+    public void testWhereInSubqueryWithDoubleParam() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "??field IN (FROM sub_index)";
+        Map<String, QueryParam> params = Map.ofEntries(
+            Map.entry("??field", paramAsConstant("field", "x")),
+            Map.entry("??1", paramAsConstant(null, "x")),
+            Map.entry("??", paramAsConstant(null, "x"))
+        );
+        for (Map.Entry<String, QueryParam> entry : params.entrySet()) {
+            String query = "FROM main_index | WHERE "
+                + notClause
+                + entry.getKey()
+                + " IN (FROM sub_index | WHERE "
+                + entry.getKey()
+                + " == 1 )";
 
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant("field", "x"))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
+            LogicalPlan plan = query(query, new QueryParams(List.of(entry.getValue(), entry.getValue())));
+            Filter filter = as(plan, Filter.class);
+            InSubquery inSubquery;
+            if (negated) {
+                Not not = as(filter.condition(), Not.class);
+                inSubquery = as(not.field(), InSubquery.class);
+            } else {
+                inSubquery = as(filter.condition(), InSubquery.class);
+            }
+            Attribute attribute = as(inSubquery.value(), Attribute.class);
+            assertEquals("x", attribute.name());
+
+            Filter subqueryFilter = as(inSubquery.subquery(), Filter.class);
+            Equals equals = as(subqueryFilter.condition(), Equals.class);
+            attribute = as(equals.left(), Attribute.class);
+            assertEquals("x", attribute.name());
+            UnresolvedRelation subqueryRelation = as(subqueryFilter.child(), UnresolvedRelation.class);
+            assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+            UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+            assertEquals("main_index", mainRelation.indexPattern().indexPattern());
         }
-        Attribute value = as(inSubquery.value(), Attribute.class);
-        assertEquals("x", value.name());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
     }
 
-    /**
-     * WHERE ??1 IN (FROM sub) with a positional identifier parameter on the LHS.
-     */
-    public void testWhereInSubqueryWithPositionalIdentifierParam() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        boolean negated = randomBoolean();
-        String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "??1 IN (FROM sub_index)";
-
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant(null, "x"))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
-        }
-        Attribute value = as(inSubquery.value(), Attribute.class);
-        assertEquals("x", value.name());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
-    }
-
-    /**
-     * WHERE ?? IN (FROM sub) with an anonymous identifier parameter on the LHS.
-     */
-    public void testWhereInSubqueryWithAnonymousIdentifierParam() {
-        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        boolean negated = randomBoolean();
-        String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | WHERE " + notClause + "?? IN (FROM sub_index)";
-
-        LogicalPlan plan = query(query, new QueryParams(List.of(paramAsConstant(null, "x"))));
-        Filter filter = as(plan, Filter.class);
-        InSubquery inSubquery;
-        if (negated) {
-            Not not = as(filter.condition(), Not.class);
-            inSubquery = as(not.field(), InSubquery.class);
-        } else {
-            inSubquery = as(filter.condition(), InSubquery.class);
-        }
-        Attribute value = as(inSubquery.value(), Attribute.class);
-        assertEquals("x", value.name());
-
-        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
-        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
-    }
-
-    /**
+    /*
      * Parameters inside the subquery: WHERE x IN (FROM sub | WHERE a > ?val | KEEP ??field).
      * Tests named, positional, and anonymous variants.
+     *
+     * Filter[InSubquery[?x, Keep[Filter[GreaterThan[?a, 10]][UnresolvedRelation[sub_index]]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithParamsInsideSubquery() {
         // Named params
@@ -676,9 +679,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals(10, anonymousThreshold.value());
     }
 
-    /**
+    /*
      * Parameters on both the LHS and inside the subquery:
      * WHERE ?val IN (FROM sub | WHERE a > ?threshold) with named, positional, and anonymous variants.
+     *
+     * Filter[InSubquery[42, Filter[GreaterThan[?a, 10]][UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithParamsOnBothSides() {
         // Named params
@@ -722,9 +728,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
     // Parser does not block IN subquery inside these commands, however not all of them are fully supported
     // Analyzer will do some additional validation to block the unsupported cases.
 
-    /**
+    /*
      * EVAL with (NOT) IN subquery as a boolean expression:
      * {@code FROM main | EVAL is_match = x IN (FROM sub)}
+     *
+     * Eval[is_match = (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithInSubquery() {
         boolean negated = randomBoolean();
@@ -754,9 +763,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * EVAL with (NOT) IN subquery as an implicit field name (no alias):
      * {@code FROM main | EVAL x IN (FROM sub)}
+     *
+     * Eval[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithInSubqueryImplicitName() {
         boolean negated = randomBoolean();
@@ -767,18 +779,27 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Eval eval = as(plan, Eval.class);
         assertEquals(1, eval.fields().size());
         Alias alias = eval.fields().get(0);
-
+        InSubquery inSubquery;
         if (negated) {
             Not not = as(alias.child(), Not.class);
-            as(not.field(), InSubquery.class);
+            inSubquery = as(not.field(), InSubquery.class);
         } else {
-            as(alias.child(), InSubquery.class);
+            inSubquery = as(alias.child(), InSubquery.class);
         }
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * EVAL with multiple fields where one is an (NOT) IN subquery:
      * {@code FROM main | EVAL a = 1, is_match = x IN (FROM sub), b = y + 2}
+     *
+     * Eval[a = 1, is_match = (NOT) InSubquery[?x, UnresolvedRelation[sub_index]], b = ?y]
+     * \_UnresolvedRelation[main_index]
      */
     public void testEvalWithInSubqueryAmongMultipleFields() {
         boolean negated = randomBoolean();
@@ -795,20 +816,30 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         Alias second = eval.fields().get(1);
         assertEquals("is_match", second.name());
+        InSubquery inSubquery;
         if (negated) {
             Not not = as(second.child(), Not.class);
-            as(not.field(), InSubquery.class);
+            inSubquery = as(not.field(), InSubquery.class);
         } else {
-            as(second.child(), InSubquery.class);
+            inSubquery = as(second.child(), InSubquery.class);
         }
 
         Alias third = eval.fields().get(2);
         assertEquals("b", third.name());
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * SORT with (NOT) IN subquery as the sort expression:
      * {@code FROM main | SORT x IN (FROM sub) ASC}
+     *
+     * OrderBy[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]] ASC]
+     * \_UnresolvedRelation[main_index]
      */
     public void testSortWithInSubquery() {
         boolean negated = randomBoolean();
@@ -838,9 +869,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * STATS aggregation with (NOT) IN subquery in the WHERE filter:
      * {@code FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub)}
+     *
+     * Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testStatsAggFilterWithInSubquery() {
         boolean negated = randomBoolean();
@@ -869,12 +903,18 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
         assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * STATS with (NOT) IN subquery in the BY clause:
      * {@code FROM main | STATS c = COUNT(*) BY x IN (FROM sub)}
      * The BY expression is wrapped in an Alias with an auto-generated name.
+     *
+     * Aggregate[c = COUNT(*), BY (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testStatsByWithInSubquery() {
         boolean negated = randomBoolean();
@@ -899,11 +939,18 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
         assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * LIMIT BY with (NOT) IN subquery as a grouping expression:
      * {@code FROM main | SORT a | LIMIT 10 BY x IN (FROM sub)}
+     *
+     * LimitBy[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]
+     * \_OrderBy
+     *   \_UnresolvedRelation[main_index]
      */
     public void testLimitByWithInSubquery() {
         boolean negated = randomBoolean();
@@ -932,26 +979,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
-     * LOOKUP JOIN ON rejects (NOT) IN subquery because the ON clause requires at least one binary comparison
-     * relating the left index and the lookup index.
-     */
-    public void testLookupJoinOnRejectsInSubquery() {
-        assumeTrue(
-            "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
-        );
-        boolean negated = randomBoolean();
-        String notClause = negated ? "NOT " : "";
-        String query = "FROM main_index | LOOKUP JOIN lookup_index ON x " + notClause + "IN (FROM sub_index)";
-
-        var e = expectThrows(ParsingException.class, () -> query(query));
-        assertThat(e.getMessage(), containsString("JOIN ON clause with expressions must contain at least one condition relating"));
-    }
-
-    /**
+    /*
      * (NOT) IN subquery as a function argument:
      * {@code FROM main | EVAL result = COALESCE(x IN (FROM sub), false)}
+     *
+     * Eval[result = COALESCE((NOT) InSubquery[?x, UnresolvedRelation[sub_index]], false)]
+     * \_UnresolvedRelation[main_index]
      */
     public void testInSubqueryAsFunctionArgument() {
         boolean negated = randomBoolean();
@@ -978,13 +1011,36 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
         UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
         assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * LOOKUP JOIN ON rejects (NOT) IN subquery because the ON clause requires at least one binary comparison
+     * relating the left index and the lookup index.
+     */
+    public void testLookupJoinOnRejectsInSubquery() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | LOOKUP JOIN lookup_index ON x " + notClause + "IN (FROM sub_index)";
+
+        var e = expectThrows(ParsingException.class, () -> query(query));
+        assertThat(e.getMessage(), containsString("JOIN ON clause with expressions must contain at least one condition relating"));
     }
 
     // ---- WHERE with IN subquery nested in other expressions ----
 
-    /**
+    /*
      * IN subquery combined with AND:
      * {@code WHERE a > 5 AND x IN (FROM sub) AND b < 10}
+     *
+     * Filter[And[And[GreaterThan[?a, 5], (NOT) InSubquery[?x, UnresolvedRelation[sub_index]]], LessThan[?b, 10]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryNestedInAnd() {
         boolean negated = randomBoolean();
@@ -997,17 +1053,26 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         And innerAnd = as(outerAnd.left(), And.class);
 
         as(innerAnd.left(), GreaterThan.class);
+        InSubquery inSubquery;
         if (negated) {
             Not not = as(innerAnd.right(), Not.class);
-            as(not.field(), InSubquery.class);
+            inSubquery = as(not.field(), InSubquery.class);
         } else {
-            as(innerAnd.right(), InSubquery.class);
+            inSubquery = as(innerAnd.right(), InSubquery.class);
         }
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery combined with OR:
      * {@code WHERE x IN (FROM sub1) OR y IN (FROM sub2)}
+     *
+     * Filter[Or[(NOT) InSubquery[?x, UnresolvedRelation[sub1]], (NOT) InSubquery[?y, UnresolvedRelation[sub2]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryNestedInOr() {
         boolean firstNegated = randomBoolean();
@@ -1037,11 +1102,16 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         }
         assertEquals("y", as(rightIn.value(), Attribute.class).name());
         assertEquals("sub2", as(rightIn.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * Double NOT with IN subquery:
      * {@code WHERE NOT (x NOT IN (FROM sub))}
+     *
+     * Filter[NOT(NOT(InSubquery[?x, UnresolvedRelation[sub_index]]))]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereDoubleNotInSubquery() {
         String query = "FROM main_index | WHERE NOT (x NOT IN (FROM sub_index))";
@@ -1052,11 +1122,19 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Not innerNot = as(outerNot.field(), Not.class);
         InSubquery inSubquery = as(innerNot.field(), InSubquery.class);
         assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery inside parenthesized expression:
      * {@code WHERE (x IN (FROM sub)) AND y > 5}
+     *
+     * Filter[And[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], GreaterThan[?y, 5]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryInParentheses() {
         boolean negated = randomBoolean();
@@ -1076,11 +1154,19 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         }
         assertEquals("x", as(inSubquery.value(), Attribute.class).name());
         as(and.right(), GreaterThan.class);
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery mixed with IN value-list in the same WHERE clause:
      * {@code WHERE x IN (FROM sub) AND y IN (1, 2, 3)}
+     *
+     * Filter[And[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]], (NOT) In[?y, [1, 2, 3]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryMixedWithInValueList() {
         boolean subqueryNegated = randomBoolean();
@@ -1094,11 +1180,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         And and = as(filter.condition(), And.class);
 
         // Left side: IN subquery
+        InSubquery inSubquery;
         if (subqueryNegated) {
             Not not = as(and.left(), Not.class);
-            as(not.field(), InSubquery.class);
+            inSubquery = as(not.field(), InSubquery.class);
         } else {
-            as(and.left(), InSubquery.class);
+            inSubquery = as(and.left(), InSubquery.class);
         }
 
         // Right side: IN value list
@@ -1110,11 +1197,19 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
             In in = as(and.right(), In.class);
             assertEquals(3, in.list().size());
         }
+
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery as a CASE function condition:
      * {@code FROM main | WHERE CASE(x IN (FROM sub), true, false)}
+     *
+     * Filter[CASE((NOT) InSubquery[?x, UnresolvedRelation[sub_index]], true, false)]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryInCaseFunction() {
         boolean negated = randomBoolean();
@@ -1136,11 +1231,17 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         }
         assertEquals("x", as(inSubquery.value(), Attribute.class).name());
         assertEquals("sub_index", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
-    /**
+    /*
      * IN subquery combined with IS NULL:
      * {@code WHERE (x IN (FROM sub)) IS NOT NULL}
+     *
+     * Filter[IsNotNull[(NOT) InSubquery[?x, UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
      */
     public void testWhereInSubqueryWithIsNull() {
         boolean negated = randomBoolean();
@@ -1153,7 +1254,19 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         Expression condition = filter.condition();
         // The expression tree for IS NOT NULL depends on the parser implementation,
         // but the key is that it parses without error and contains an InSubquery
-        assertNotNull(condition);
+        IsNotNull isNotNull = as(condition, IsNotNull.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(isNotNull.field(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(isNotNull.field(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
     }
 
     // ---- WHERE IN subquery negative tests ----

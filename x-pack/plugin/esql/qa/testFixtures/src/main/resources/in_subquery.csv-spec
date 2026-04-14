@@ -1770,63 +1770,7 @@ emp_no:long | first_name:text | salary:long
 10003       | Parto           | 61805
 ;
 
-constantIntegerInSubquery
-required_capability: where_in_subquery
-
-FROM employees
-| WHERE 10001 IN (FROM employees | KEEP emp_no)
-| SORT emp_no
-| KEEP emp_no, first_name
-| LIMIT 3
-;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-10002          | Bezalel
-10003          | Parto
-;
-
-constantIntegerNotInSubquery
-required_capability: where_in_subquery
-
-FROM employees
-| WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
-| SORT emp_no
-| KEEP emp_no, first_name
-;
-
-emp_no:integer | first_name:keyword
-;
-
-constantStringInSubquery
-required_capability: where_in_subquery
-
-FROM employees
-| WHERE "Georgi" IN (FROM employees | KEEP first_name)
-| SORT emp_no
-| KEEP emp_no, first_name
-| LIMIT 3
-;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-10002          | Bezalel
-10003          | Parto
-;
-
-constantStringInSubqueryNoMatch
-required_capability: where_in_subquery
-
-FROM employees
-| WHERE "nonexistent_name" IN (FROM employees | KEEP first_name)
-| SORT emp_no
-| KEEP emp_no
-;
-
-emp_no:integer
-;
-
-debugConstantIntNotInAll
+constantIntegerNotInSubqueryNotExists
 required_capability: where_in_subquery
 
 FROM employees
@@ -1842,7 +1786,35 @@ emp_no:integer
 10003
 ;
 
-constantStringNotInSubqueryNoMatch
+constantStringInSubqueryStringExists
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "Georgi" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantStringInSubqueryStringNotExists
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "nonexistent_name" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+constantStringNotInSubqueryStringNotExistsWithoutNulls
 required_capability: where_in_subquery
 
 FROM employees
@@ -1858,7 +1830,20 @@ emp_no:integer | first_name:keyword
 10003          | Parto
 ;
 
-constantStringNotInSubqueryMatchExists
+constantStringNotInSubqueryStringNotExistsWithNulls
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE "nonexistent" NOT IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantStringNotInSubqueryStringExistsWithNull
 required_capability: where_in_subquery
 
 FROM employees
@@ -1870,7 +1855,35 @@ FROM employees
 emp_no:integer | first_name:keyword
 ;
 
-constantInSubqueryNoMatch
+constantIntegerInSubqueryIntegerExists
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantIntegerNotInSubqueryStringExists
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantIntegerInSubqueryIntegerNotExists
 required_capability: where_in_subquery
 
 FROM employees
@@ -1882,7 +1895,7 @@ FROM employees
 emp_no:integer
 ;
 
-constantNotInSubqueryNoMatch
+constantIntegerNotInSubqueryNoMatchIntegerNotExists
 required_capability: where_in_subquery
 
 FROM employees
@@ -1898,7 +1911,7 @@ emp_no:integer | first_name:keyword
 10003          | Parto
 ;
 
-constantInSubqueryWithFilteredSubquery
+constantIntegerInSubqueryWithFilteredSubquery
 required_capability: where_in_subquery
 
 FROM employees
@@ -1914,11 +1927,12 @@ emp_no:integer | first_name:keyword
 10003          | Parto
 ;
 
-constantInSubqueryWithAndCondition
+constantIntegerInSubqueryWithAndCondition
 required_capability: where_in_subquery
 
 FROM employees
-| WHERE 10001 IN (FROM employees | KEEP emp_no) AND salary > 60000
+| WHERE 10001 IN (FROM employees | KEEP emp_no)
+  AND salary > 60000
 | SORT emp_no
 | KEEP emp_no, first_name, salary
 | LIMIT 3
@@ -1934,7 +1948,8 @@ constantNotInSubqueryWithAndCondition
 required_capability: where_in_subquery
 
 FROM employees
-| WHERE 99999 NOT IN (FROM employees | KEEP emp_no) AND salary > 70000
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+  AND salary > 70000
 | SORT emp_no
 | KEEP emp_no, first_name, salary
 | LIMIT 3

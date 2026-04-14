@@ -434,6 +434,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression value = expression(ctx.valueExpression());
         LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
         Source source = source(ctx);
+        // InSubquery is a special expression, it has a LogicalPlan as an attribute.
         Expression e = new InSubquery(source, value, subqueryPlan);
         return ctx.NOT() == null ? e : new Not(source, e);
     }

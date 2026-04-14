@@ -1187,15 +1187,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     private static ClusterService createClusterService(boolean useLegacyFormat) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        var indexVersion = useLegacyFormat
-            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
-            : IndexVersion.current();
-        var indexSettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion);
-        if (useLegacyFormat) {
-            indexSettingsBuilder = indexSettingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
-        }
-        when(indexMetadata.getSettings()).thenReturn(indexSettingsBuilder.build());
+        var indexSettings = useLegacyFormat
+            ? SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true)
+            : Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()).build();
+        when(indexMetadata.getSettings()).thenReturn(indexSettings);
 
         ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
         when(project.index(anyString())).thenReturn(indexMetadata);

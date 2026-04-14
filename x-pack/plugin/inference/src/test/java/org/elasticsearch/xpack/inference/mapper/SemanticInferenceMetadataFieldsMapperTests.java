@@ -152,6 +152,13 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         assertThat(ex.getMessage(), containsString("legacy semantic text format is not supported for new indices"));
     }
 
+    public static Settings randomIndexSettings(boolean useLegacyFormat) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), getRandomCompatibleIndexVersion(useLegacyFormat))
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .build();
+    }
+
     public static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
         if (useLegacyFormat) {
             // Randomly choose an index version compatible with the legacy semantic text format

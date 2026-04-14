@@ -27,8 +27,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -324,11 +324,9 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
         if (useLegacyFormat) {
-            var settings = Settings.builder()
-                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-                .build();
+            Settings settings = SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
             MapperService mapperService = createMapperService(
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true),
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings),
                 settings,
                 mapping(b -> {})
             );

@@ -28,8 +28,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -47,6 +47,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.mockito.Mockito;
 
@@ -58,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
-import static org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -186,11 +186,12 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticChunkScorerTests.class.getResourceAsStream("mappings.json"));
         if (useLegacyFormat) {
-            IndexVersion legacyVersion = getRandomCompatibleIndexVersion(true);
-            var settings = Settings.builder()
-                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-                .build();
-            MapperService mapperService = createMapperService(legacyVersion, settings, mapping(b -> {}));
+            Settings settings = SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+            MapperService mapperService = createMapperService(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings),
+                settings,
+                mapping(b -> {})
+            );
             merge(mapperService, mappings.utf8ToString());
             return mapperService;
         }

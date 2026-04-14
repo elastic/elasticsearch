@@ -36,6 +36,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -44,13 +45,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
+
 /**
- * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
- * the OpenTelemetry API to capture spans.
+ * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
+ * module ({@code modules/apm}). It records spans using the OpenTelemetry API. Export is separate: spans may be
+ * shipped by the Elasticsearch APM Java agent (via {@link GlobalOpenTelemetry}) or, for metrics, by an
+ * OpenTelemetry SDK path configured elsewhere in this module.
  * <p>
- * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
- * API's default, no-op implementation would be used. However, when the APM Java is attached, it
- * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
+ * Elasticsearch does not bundle an OpenTelemetry API implementation. Normally the API's default no-op would
+ * apply. When the Elasticsearch APM Java agent is attached, it intercepts {@link GlobalOpenTelemetry} and
+ * supplies a real implementation for export to Elastic APM.
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
@@ -58,6 +63,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
+
+    /** Time to wait in attemptFlushTraces when using the agent (2× export interval). */
+    private final long agentFlushWaitMs;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -92,6 +100,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
+        this.agentFlushWaitMs = agentFlushWaitTimeMs(settings);
+    }
+
+    /**
+     * Ensures buffered traces are exported on a best-effort basis. When using the APM agent (no ES-owned
+     * tracer provider), this waits for 2× the agent export interval.
+     */
+    public void attemptFlushTraces() {
+        if (enabled == false) {
+            return;
+        }
+        AgentExportHelpers.sleepForAgentExport(agentFlushWaitMs);
     }
 
     public void setEnabled(boolean enabled) {

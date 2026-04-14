@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -60,9 +59,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
 
         Boolean returnToken = extractOptionalBoolean(map, RETURN_TOKEN, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchSparseTaskSettings(inputType, returnToken);
     }
@@ -180,8 +177,8 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     }
 
     @Override
-    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(new HashMap<>(newSettings));
+    public AlibabaCloudSearchSparseTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

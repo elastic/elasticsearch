@@ -29,7 +29,6 @@ import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -106,11 +105,11 @@ class DfsQueryPhase extends SearchPhase {
                 .sendExecuteQuery(connection, querySearchRequest, context.getTask(), new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
-                    protected void innerOnResponse(QuerySearchResult response) {
+                    protected void innerOnResponse(SearchPhaseResult response) {
                         try {
-                            response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            response.queryResult().setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
                             if (dfsResult.searchTimedOut()) {
-                                response.searchTimedOut(true);
+                                response.queryResult().searchTimedOut(true);
                             }
                             counter.onResult(response);
                         } catch (Exception e) {

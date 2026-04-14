@@ -44,9 +44,7 @@ public record GoogleVertexAiEmbeddingsRequestTaskSettings(@Nullable Boolean auto
 
         Boolean autoTruncate = extractOptionalBoolean(map, GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsRequestTaskSettings(autoTruncate, inputType);
     }

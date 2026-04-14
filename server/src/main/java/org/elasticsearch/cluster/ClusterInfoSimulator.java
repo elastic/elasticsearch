@@ -43,6 +43,7 @@ public class ClusterInfoSimulator {
     // Maps node id to heap usage.
     private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
+    private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
@@ -52,6 +53,7 @@ public class ClusterInfoSimulator {
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.estimatedHeapUsages = new HashMap<>(allocation.clusterInfo().getEstimatedHeapUsages());
         this.estimatedShardHeapUsages = allocation.clusterInfo().getEstimatedShardHeapUsages();
+        this.defaultShardHeapUsageForShardsWithoutMetrics = allocation.clusterInfo().getDefaultShardHeapUsageForShardsWithoutMetrics();
         this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
     }
 
@@ -137,22 +139,24 @@ public class ClusterInfoSimulator {
 
     public void simulateAddIndexToNode(String nodeId, Index index) {
         var nodeHeap = estimatedHeapUsages.get(nodeId);
-        // Use any shard ID since index stats are the same. There is an edge case where the 0 shard is unassigned and lacks an estimate,
-        // whereas another shard is assigned and has stats. This is an unhandled edge case.
-        // TODO (ES-13897): absence of shard stats should use a default value.
-        var shardAndIndexHeap = estimatedShardHeapUsages.get(new ShardId(index, 0));
-        if (nodeHeap != null && shardAndIndexHeap != null) {
+        // Use any shard ID since index stats are the same.
+        if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
             estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes()));
         }
     }
 
     public void simulateRemoveIndexFromNode(String nodeId, Index index) {
         var nodeHeap = estimatedHeapUsages.get(nodeId);
-        // Use any shard ID since index stats are the same. There is an edge case where the 0 shard is unassigned and lacks an estimate,
-        // whereas another shard is assigned and has stats. This is an unhandled edge case.
-        // TODO (ES-13897): absence of shard stats should use a default value.
-        var shardAndIndexHeap = estimatedShardHeapUsages.get(new ShardId(index, 0));
-        if (nodeHeap != null && shardAndIndexHeap != null) {
+        // Use any shard ID since index stats are the same.
+        if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
             estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes()));
         }
     }
@@ -186,10 +190,7 @@ public class ClusterInfoSimulator {
             return;
         }
 
-        var shardAndIndexHeap = estimatedShardHeapUsages.get(shardId);
-        if (shardAndIndexHeap == null) {
-            return;
-        }
+        var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
 
         var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
         switch (modification) {

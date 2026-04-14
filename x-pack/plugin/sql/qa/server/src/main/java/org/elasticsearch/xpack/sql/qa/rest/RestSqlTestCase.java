@@ -283,24 +283,26 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144194")
+    /**
+     * SQL defaults {@code time_zone} to UTC ({@link CoreProtocol#TIME_ZONE}). {@code DAY_OF_YEAR} on a {@code date} field
+     * uses that zone; both indexed timestamps fall on the same calendar day in UTC (day 208 in 2017).
+     */
     public void testTimeZone() throws IOException {
         String mode = randomMode();
         boolean columnar = randomBoolean();
         index("{\"test\":\"2017-07-27 00:00:00\"}", "{\"test\":\"2017-07-27 01:00:00\"}");
 
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", singletonMap("test", singletonMap("type", "text")));
+        expected.put("columns", singletonList(columnInfo(mode, "dy", "integer", JDBCType.INTEGER, 11)));
+        int dayOfYear = 208;
         if (columnar) {
-            expected.put("values", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+            expected.put("values", singletonList(Arrays.asList(dayOfYear, dayOfYear)));
         } else {
-            // TODO: what exactly is this test suppossed to do. We need to check the 2074 issue above.
-            expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+            expected.put("rows", Arrays.asList(singletonList(dayOfYear), singletonList(dayOfYear)));
         }
-        expected.put("size", 2);
 
         // Default TimeZone is UTC
-        assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test), COUNT(*) FROM " + indexPattern("test"), columnar));
+        assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test::DATETIME) AS dy FROM " + indexPattern("test"), columnar));
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {

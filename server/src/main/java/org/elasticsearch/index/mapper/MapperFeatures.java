@@ -14,6 +14,8 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
@@ -82,6 +84,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
+    public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -139,7 +142,10 @@ public class MapperFeatures implements FeatureSpecification {
             TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
-            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            ES940_DISK_BBQ,
+            FLATTENED_PASSTHROUGH_FEATURE
         );
     }
 }

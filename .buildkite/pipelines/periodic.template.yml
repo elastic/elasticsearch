@@ -1,17 +1,3 @@
-# Smart Retries Configuration
-# SMART_RETRIES=true enables intelligent test filtering on retry attempts.
-# The pre-command hook fetches failed test history from Develocity API and
-# the InternalTestRerunPlugin filters test execution to only run previously failed tests.
-#
-# Retry Strategy:
-# - exit_status "-1": Agent/infrastructure failures (3 retries)
-# - signal_reason agent_stop: Agent stops (3 retries)
-# - exit_status "1": Test/build failures (1 retry with smart filtering)
-#
-# Note: exit_status "1" retries all failures including configuration errors.
-# Future improvement: Implement distinct exit codes for different failure types.
-env:
-  SMART_RETRIES: "true"
 steps:
   - group: bwc
     steps: $BWC_STEPS
@@ -198,6 +184,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk25
+              - openjdk26
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -223,6 +210,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk25
+              - openjdk26
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
@@ -274,7 +262,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / azure
@@ -289,7 +278,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / gcs
@@ -304,7 +294,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / geoip
@@ -314,7 +305,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / s3
@@ -329,7 +321,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / ms-graph
@@ -341,7 +334,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
   - group: lucene-compat
@@ -374,7 +368,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-8
+      machineType: n4-standard-8
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
 
@@ -384,7 +379,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-2
+      machineType: n4-standard-2
+      diskType: hyperdisk-balanced
 
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

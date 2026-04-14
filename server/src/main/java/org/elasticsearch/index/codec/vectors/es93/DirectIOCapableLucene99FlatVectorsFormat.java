@@ -212,6 +212,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
+        public int getVectorByteLength() {
+            return inner.getVectorByteLength();
+        }
+
+        @Override
         public float[] vectorValue(int ord) throws IOException {
             return inner.vectorValue(ord);
         }

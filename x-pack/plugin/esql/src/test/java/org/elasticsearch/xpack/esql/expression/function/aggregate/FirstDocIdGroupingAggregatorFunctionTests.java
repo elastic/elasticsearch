@@ -62,7 +62,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                     expectedFirstDocs.putIfAbsent(group, doc);
                 }
                 DocVector docVector = docs.shardRefCounters(new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs))
-                    .build(DocVector.config());
+                    .build(DocVector.config().mayContainDuplicates());
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }

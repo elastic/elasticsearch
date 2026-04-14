@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -40,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -2719,7 +2721,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -2812,7 +2814,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
+            equalTo("Found ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
         );
     }
 
@@ -2829,7 +2831,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -3146,7 +3148,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true) | limit 100";
 
         defaultAnalyzer().query(queryPrefix + " | fuse");
         defaultAnalyzer().query(queryPrefix + " | fuse rrf");
@@ -3271,6 +3273,11 @@ public class VerifierTests extends ESTestCase {
         );
 
         defaultAnalyzer().error(
+            "FROM test METADATA _index, _score, _id | FORK (WHERE true) (WHERE true) | FUSE",
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
+        );
+
+        defaultAnalyzer().error(
             "FROM test | LIMIT 10 | FUSE",
             equalTo(
                 "1:24: FUSE requires a score column, default [_score] column not found.\n"
@@ -3352,44 +3359,91 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        var withInference = defaultAnalyzer().addAnalysisTestsInferenceResolution();
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(null, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
-
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(42, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(42, ?)] must be [string], found value [42] type [integer]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
-
-        withInference.error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(last_name, ?)",
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(last_name, ?)] must be a constant, received [last_name]"),
-            TEXT_EMBEDDING_INFERENCE_ID
-        );
+        assertInvalidEmbeddingFirstArgument("TEXT_EMBEDDING", TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING);
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
+        assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
+    }
+
+    public void testEmbeddingFunctionInvalidQuery() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        assertInvalidEmbeddingFirstArgument("EMBEDDING", EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+    }
+
+    public void testEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        assertInvalidEmbeddingSecondArgument("EMBEDDING");
+    }
+
+    private static void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
+        defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
+            .error(
+                "from test | EVAL embedding = " + functionName + "(null, ?)",
+                equalTo("1:30: first argument of [" + functionName + "(null, ?)] cannot be null, received [null]"),
+                inferenceId
+            );
+        defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
+            .error(
+                "from test | EVAL embedding = " + functionName + "(42, ?)",
+                equalTo("1:30: first argument of [" + functionName + "(42, ?)] must be [string], found value [42] type [integer]"),
+                inferenceId
+            );
+    }
+
+    private static void assertInvalidEmbeddingSecondArgument(String functionName) {
         defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, null)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]"),
+            "from test | EVAL embedding = " + functionName + "(?, null)",
+            equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]"),
             "query text"
         );
 
         defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, 42)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]"),
+            "from test | EVAL embedding = " + functionName + "(?, 42)",
+            equalTo("1:30: second argument of [" + functionName + "(?, 42)] must be [string], found value [42] type [integer]"),
             "query text"
+        );
+    }
+
+    public void testEmbeddingFunctionOptions() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        // invalid type value
+        TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image]"),
+            "query text",
+            EMBEDDING_INFERENCE_ID
         );
 
-        defaultAnalyzer().error(
-            "from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)",
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]"),
-            "query text"
+        // invalid timeout value
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"invalid\"})",
+            containsString("1:30: Invalid options for EMBEDDING: failed to parse [invalid]"),
+            "query text",
+            EMBEDDING_INFERENCE_ID
         );
+    }
+
+    public void testEmbeddingLiteralValues() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
+        analyzer.query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, ?)
+            """, EMBEDDING_INFERENCE_ID);
+        analyzer.query("""
+            from test
+            | EVAL embedding = EMBEDDING(CONCAT("hello", "world"), ?)
+            """, EMBEDDING_INFERENCE_ID);
+        analyzer.query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, CONCAT("embedding-", "inference-id"))
+            """);
     }
 
     public void testInlineStatsInTSNotAllowed() {
@@ -3459,16 +3513,16 @@ public class VerifierTests extends ESTestCase {
             "FROM test\n"
                 + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
                 + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
-                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "| SORT _fork, emp_no"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender",
             containsString(
-                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+                "9:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@5:11]"
             )
         );
 
@@ -3489,16 +3543,14 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "FROM test\n"
                 + "| KEEP emp_no, languages, gender\n"
-                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | LIMIT 100)\n"
+                + "       (WHERE emp_no == 10081 OR emp_no == 10087 | LIMIT 100)\n"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
                 + "| SORT emp_no, gender, _fork\n"
                 + "| LIMIT 5",
             containsString(
-                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"
+                    + " but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@3:52]"
             )
         );
     }
@@ -3878,10 +3930,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testMMRLimitIsValid() {
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
-
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
-            equalTo("1:58: MMR limit must be a positive integer")
+            equalTo("1:58: MMR limit must be a positive integer, got [-5]")
+        );
+
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 0",
+            equalTo("1:58: MMR limit must be a positive integer, got [0]")
         );
     }
 
@@ -3900,6 +3956,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+
+        fullText().error(
+            "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
+            equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
     }
 
     public void testMMRLambdaValueIsValid() {
@@ -3909,23 +3970,28 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
-            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+            equalTo("1:58: Invalid option [unknown] in [mmr on dense_embedding limit 10 with { \"unknown\": true }]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                 + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
-            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+            containsString("1:58: Invalid option [unknown_extra]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [2.5]")
         );
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [-2.5]")
         );
+
+        defaultAnalyzer().error("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr on dense_embedding limit 10 with { "lambda": "hello" }
+            """, equalTo("2:3: expected lambda to be numeric, got [\"hello\"]"));
     }
 
     public void testMMRLimitedInput() {
@@ -3950,6 +4016,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
+    /**
+     * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
+     * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.
+     */
+    public void testWithoutOnlyInTimeSeriesStats() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        k8s().error("""
+            FROM k8s
+            | STATS mc = max(network.cost) BY cluster, pod, region
+            | STATS d = sum(mc) BY WITHOUT(region)
+            """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
     private static TestAnalyzer defaultAnalyzer() {

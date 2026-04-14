@@ -528,6 +528,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
             asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
         } else {
+            // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
             onScrollResponse(asyncResponse);
         }
     }

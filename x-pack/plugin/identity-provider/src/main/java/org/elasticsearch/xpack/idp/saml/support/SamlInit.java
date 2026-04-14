@@ -36,6 +36,7 @@ public final class SamlInit {
                 LOGGER.debug("Initializing OpenSAML");
                 try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
                     InitializationService.initialize();
+                    // Force-load to initialize its static fields before any OpenSAML usage
                     var ignore2 = new X509CertificateBuilder().buildObject();
                 }
                 LOGGER.debug("Initialized OpenSAML");

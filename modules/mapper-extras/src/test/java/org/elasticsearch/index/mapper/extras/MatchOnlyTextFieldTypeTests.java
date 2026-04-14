@@ -38,7 +38,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
@@ -51,12 +50,10 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -246,7 +243,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
-            IndexVersion.current(),
             false,
             false
         );
@@ -270,7 +266,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             true,
-            IndexVersion.current(),
             false,
             false
         );
@@ -278,8 +273,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // when
         BlockLoader blockLoader = ft.blockLoader(mockContext());
 
-        // then - should load from binary doc values using separate count format
-        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
+        // then - should load from a fallback stored field
+        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
     public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
@@ -301,7 +296,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             syntheticSourceDelegate,
             true,
-            IndexVersion.current(),
             false,
             false
         );
@@ -350,7 +344,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             syntheticSourceDelegate,
             false,
-            IndexVersion.current(),
             false,
             false
         );
@@ -402,7 +395,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             syntheticSourceDelegate,
             false,
-            IndexVersion.current(),
             false,
             false
         );
@@ -439,7 +431,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             keywordFieldType,
             false,
-            IndexVersion.current(),
             false,
             false
         );
@@ -489,7 +480,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             false,
-            IndexVersion.current(),
             false,
             false
         );
@@ -514,7 +504,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             true,
-            IndexVersion.current(),
             false,
             false
         );
@@ -523,32 +512,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         BlockLoader blockLoader = ft.blockLoader(context);
 
-        // then - should load from a fallback binary doc values field using separate count format
-        assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
-    }
-
-    public void testBlockLoaderLoadsFromFallbackBinaryDocValuesWhenSyntheticSourceIsEnabledWithPreviousIndexVersion() {
-        // given
-        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
-            "field",
-            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-            mock(NamedAnalyzer.class),
-            true,
-            Collections.emptyMap(),
-            false,
-            false,
-            null,
-            true,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
-            false,
-            false
-        );
-
-        // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
-        BlockLoader blockLoader = ft.blockLoader(context);
-
-        // then - should load from a fallback binary doc values field using integrated count format
+        // then - should load from a fallback binary doc values field
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 

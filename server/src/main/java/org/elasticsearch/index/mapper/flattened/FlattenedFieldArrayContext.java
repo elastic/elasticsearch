@@ -60,11 +60,10 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
             BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
 
             if (encoded != null) {
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                     context.doc(),
                     offsetsFieldName,
-                    encoded,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    encoded
                 );
             }
         }

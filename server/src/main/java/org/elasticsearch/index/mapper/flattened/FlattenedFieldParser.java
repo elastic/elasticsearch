@@ -16,7 +16,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -47,7 +46,6 @@ class FlattenedFieldParser {
     private final boolean usesBinaryDocValues;
     private final boolean hasRootDocValues;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
-    private final IndexVersion indexVersion;
 
     private final Map<String, FieldMapper> mappedSubFields;
 
@@ -65,8 +63,7 @@ class FlattenedFieldParser {
         boolean hasRootDocValues,
         Map<String, FieldMapper> mappedSubFields,
         boolean storeIgnoredFieldsInBinaryDocValues,
-        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
-        IndexVersion indexVersion
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -80,7 +77,6 @@ class FlattenedFieldParser {
         this.mappedSubFields = mappedSubFields;
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
         this.preserveLeafArrays = preserveLeafArrays;
-        this.indexVersion = indexVersion;
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -181,13 +177,14 @@ class FlattenedFieldParser {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        context.documentParserContext.doc(),
-                        keyedIgnoredValuesFieldFullPath,
-                        BytesRef.deepCopyOf(bytesKeyedValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-                        indexVersion
-                    );
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.documentParserContext.doc()
+                        .getByKey(keyedIgnoredValuesFieldFullPath);
+                    if (field == null) {
+                        // deduplicate and sort to match the behavior of other fields that use binary doc values for ignored fields
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(keyedIgnoredValuesFieldFullPath, false);
+                        context.documentParserContext.doc().addWithKey(keyedIgnoredValuesFieldFullPath, field);
+                    }
+                    field.add(BytesRef.deepCopyOf(bytesKeyedValue));
                 } else {
                     context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
                 }
@@ -221,18 +218,16 @@ class FlattenedFieldParser {
         if (fieldType.hasDocValues()) {
             if (usesBinaryDocValues) {
                 if (hasRootDocValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         rootFieldFullPath,
-                        bytesValue,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                        bytesValue
                     );
                 }
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
-                    bytesKeyedValue,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    bytesKeyedValue
                 );
             } else {
                 if (hasRootDocValues) {

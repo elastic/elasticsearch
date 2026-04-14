@@ -253,7 +253,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case NORMAL, FROZEN -> {
                 int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(0, 3);
+                int replicas = randomIntBetween(0, Math.min(3, availableRoom - 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * (replicas + 1));
             }
@@ -267,7 +267,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case SEARCH -> {
                 int existingShards = counts.getFirstIndexShards() * counts.getFirstIndexReplicas();
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(1, nodesInCluster);
+                int replicas = randomIntBetween(1, Math.max(Math.min(nodesInCluster, availableRoom), 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / replicas, 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * replicas);
             }

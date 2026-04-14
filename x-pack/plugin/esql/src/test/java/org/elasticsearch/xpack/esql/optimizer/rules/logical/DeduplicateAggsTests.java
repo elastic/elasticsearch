@@ -56,12 +56,12 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[s{r}#4 AS d, s{r}#4, last_name{f}#21, first_name{f}#18]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[last_name{f}#21, first_name{f}#18],[SUM(salary{f}#22) AS s, last_name{f}#21, first_name{f}#18]]
      *     \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
-     * }</pre>
+     * }
      */
     public void testCombineProjectionWithDuplicateAggregation() {
         var plan = plan("""
@@ -81,13 +81,13 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[c1{r}#2, c2{r}#4, cs{r}#6, cm{r}#8, cexp{r}#10]]
      * \_Eval[[c1{r}#2 AS c2, c1{r}#2 AS cs, c1{r}#2 AS cm, c1{r}#2 AS cexp]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
@@ -114,7 +114,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[a{r}#5, b{r}#9, $$max(salary)_+_3>$COUNT$2{r}#46 AS d, $$count(salary)_->$MIN$3{r}#47 AS e, $$avg(salary)_+_m
      * >$MAX$1{r}#45 AS g]]
      * \_Eval[[$$$$avg(salary)_+_m>$AVG$0$SUM$0{r}#48 / $$max(salary)_+_3>$COUNT$2{r}#46 AS $$avg(salary)_+_m>$AVG$0, $$avg(
@@ -125,7 +125,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * , COUNT(salary{f}#39) AS $$max(salary)_+_3>$COUNT$2, MIN(salary{f}#39) AS $$count(salary)_->$MIN$3]]
      *       \_Eval[[languages{f}#37 % 2[INTEGER] AS w]]
      *         \_EsRelation[test][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
-     * }</pre>
+     * }
      */
     public void testStatsExpOverAggsWithScalarAndDuplicateAggs() {
         var plan = optimizedPlan("""
@@ -187,13 +187,13 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
      * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
      *   \_Limit[1000[INTEGER]]
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
@@ -222,12 +222,12 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[min{r}#1385, max{r}#1388, min{r}#1385 AS min2, max{r}#1388 AS max2, gender{f}#1398]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[gender{f}#1398],[MIN(salary{f}#1401) AS min, MAX(salary{f}#1401) AS max, gender{f}#1398]]
      *     \_EsRelation[test][_meta_field{f}#1402, emp_no{f}#1396, first_name{f}#..]
-     * }</pre>
+     * }
      */
     public void testEliminateDuplicateAggsMixed() {
         var plan = plan("""
@@ -254,12 +254,12 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[max(x){r}#11, max(x){r}#11 AS max(y), max(x){r}#11 AS max(z)]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[],[MAX(salary{f}#21) AS max(x)]]
      *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
-     * }</pre>
+     * }
      */
     public void testEliminateDuplicateAggsNonCount() {
         var plan = plan("""
@@ -287,11 +287,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_Aggregate[[salary{f}#12],[salary{f}#12, salary{f}#12 AS x]]
      *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     * }</pre>
+     * }
      */
     public void testEliminateDuplicateRenamedGroupings() {
         var plan = plan("""
@@ -310,11 +310,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[a{r}#5, c{r}#8]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
-     * }</pre>
+     * }
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggWithNull() {
@@ -327,14 +327,14 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[a{r}#8, b{r}#12, c{r}#15, c{r}#15 AS d#18]]
      * \_Eval[[a{r}#8 + a{r}#8 AS b#12]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[],[COUNT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#8,
      *     COUNTDISTINCT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],10[INTEGER]) AS c#15]]
      *       \_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
-     * }</pre>
+     * }
      */
     public void testAggsDeduplication() {
         String query = """
@@ -384,13 +384,13 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[MAX(y){r}#16, 2* MAX(a){r}#18]]
      * \_Eval[[MAX(y){r}#16 * 2[INTEGER] AS 2* MAX(a)#18]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[],[MAX(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS MAX(y)#16]]
      *       \_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
-     * }</pre>
+     * }
      */
     public void testAggsDeduplicationWithComplicatedAliasChains() {
         String query = """
@@ -433,14 +433,14 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[COUNT(y){r}#7, 2 * COUNT(scalerank){r}#9, y{r}#5]]
      * \_Eval[[COUNT(y){r}#7 * 2[INTEGER] AS 2 * COUNT(scalerank)#9]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[scalerank{f}#13],[COUNT(scalerank{f}#13,true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(y)#7, scalerank{f}#13 AS y
      * #5]]
      *       \_EsRelation[airports][abbrev{f}#11, city{f}#17, city_location{f}#18, coun..]
-     * }</pre>
+     * }
      */
     public void testAggsDeduplicationInByClauses() {
         String query = """
@@ -477,14 +477,14 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[a{r}#5, b{r}#9, c{r}#13]]
      * \_Eval[[a{r}#5 * 2[INTEGER] AS b#9]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[],[COUNT(scalerank{f}#16,scalerank{f}#16 > 7[INTEGER],PT0S[TIME_DURATION]) AS a#5, COUNTDISTINCT(scalerank{f}#
      * 16,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#13]]
      *       \_EsRelation[airports][abbrev{f}#14, city{f}#20, city_location{f}#21, coun..]
-     * }</pre>
+     * }
      */
     public void testDuplicatedAggsWithSameCannonicalizationInWhereCondition() {
         String query = """

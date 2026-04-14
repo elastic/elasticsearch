@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 
 import java.util.List;
@@ -58,6 +59,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * Normally we would want to transition these to either system indices, or
      * to use an internal origin for the client. These are shorter-term
      * workarounds until that work can be completed.
+     * Note that system indices and data streams do not need to be included here, as they are automatically ignored by the validator.
      *
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML
@@ -67,18 +69,35 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
+            // indices defined in files in x-pack/plugin/core/template-resources/src/main/resources/ml:
             "\\.ml-anomalies-.*",
             "\\.ml-annotations-\\d+",
-            "\\.ml-state-\\d+",
-            "\\.ml-stats-\\d+",
+            "\\.ml-notifications-.*",
+            "\\.ml-state.*",
+            "\\.ml-stats-.*",
+            // Observability indices:
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
+            // Security index:
             "\\.entities\\.v\\d+\\..*",
+            // indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:
             "\\.monitoring-es-8-.*",
             "\\.monitoring-logstash-8-.*",
             "\\.monitoring-kibana-8-.*",
             "\\.monitoring-beats-8-.*",
-            "\\.monitoring-ent-search-8-.*"
+            "\\.monitoring-ent-search-8-.*",
+            // data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/fleet-*:
+            "\\.fleet-fileds-fromhost-data-.*",
+            "\\.fleet-fileds-fromhost-meta-.*",
+            "\\.fleet-fileds-tohost-data-.*",
+            "\\.fleet-fileds-tohost-meta-.*",
+            // data stream definied in x-pack/plugin/core/template-resources/src/main/resources/kibana-reporting@template.json:
+            "\\.kibana-reporting.*",
+            // data stream defined in x-pack/plugin/core/template-resources/src/main/resources/slm-history.json:
+            "\\.slm-history-7.*",
+            // index defined in
+            // x-pack/plugin/ent-search/src/main/java/org/elasticsearch/xpack/application/connector/ConnectorTemplateRegistry.java
+            "\\.search-acl-filter-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {
@@ -94,12 +113,14 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
     private final ThreadContext threadContext;
+    private final SystemIndices systemIndices;
     private final boolean isEnabled;
     private final boolean isStateless;
     private volatile Set<Pattern> ignoredIndexPatterns;
 
-    public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService) {
+    public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService, SystemIndices systemIndices) {
         this.threadContext = threadContext;
+        this.systemIndices = systemIndices;
         this.isEnabled = VALIDATE_DOT_PREFIXES.get(clusterService.getSettings());
         this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
         this.ignoredIndexPatterns = IGNORED_INDEX_PATTERNS_SETTING.get(clusterService.getSettings())
@@ -139,10 +160,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                     if (c == '.') {
                         final String strippedName = stripDateMath(index);
                         if (IGNORED_INDEX_NAMES.contains(strippedName)) {
-                            return;
+                            continue;
+                        }
+                        if (systemIndices.isSystemName(strippedName)) {
+                            continue;
                         }
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
-                            return;
+                            continue;
                         }
                         if (isStateless) {
                             throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");

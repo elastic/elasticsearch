@@ -50,9 +50,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
-   * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
-   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]

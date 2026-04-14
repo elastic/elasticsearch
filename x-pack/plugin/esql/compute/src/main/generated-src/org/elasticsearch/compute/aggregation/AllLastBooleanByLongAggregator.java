@@ -34,14 +34,16 @@ import java.util.BitSet;
  * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "LONG"),
         @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
 @GroupingAggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
@@ -301,7 +303,6 @@ public class AllLastBooleanByLongAggregator {
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());

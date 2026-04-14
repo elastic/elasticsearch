@@ -366,10 +366,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 // (e.g. logs-<integration>.<dataset>)
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-*.*").privileges("read").build(),
                 // Kibana Security Solution EDR workflows team
-                // - `.endpoint-script-file*`:
+                // - `.endpoint-fleetfiles-*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".endpoint-script-file-meta-*", ".endpoint-script-file-data-*")
+                    .indices(".endpoint-fleetfiles-*")
                     .privileges("auto_configure", "read", "write", "delete", "create_index", "manage")
                     .build(),
 
@@ -663,6 +663,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*updates*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()

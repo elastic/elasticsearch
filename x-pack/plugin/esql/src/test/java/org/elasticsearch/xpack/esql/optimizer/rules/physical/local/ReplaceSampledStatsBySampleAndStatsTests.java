@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
 
     public void testReplace_count() {
-        Alias count = countAlias(Literal.keyword(Source.EMPTY, "*"));
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count), List.of(), AggregatorMode.INITIAL, 0.5);
 
         PhysicalPlan result = applyRule(sampledAgg);
@@ -61,21 +61,9 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
     }
 
-    public void testReplace_sumWithGrouping_noSampling() {
-        FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
-        Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
-        FieldAttribute dept = fieldAttribute("dept", DataType.KEYWORD);
-        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(sum), List.of(dept), AggregatorMode.INITIAL, 1.0);
-
-        PhysicalPlan result = applyRule(sampledAgg);
-
-        AggregateExec aggExec = assertAggregate(result, sampledAgg);
-        assertThat(aggExec.child(), instanceOf(EsQueryExec.class));
-    }
-
     public void testReplace_countAndStddev_finalMode() {
         FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
-        Alias count = countAlias(empNo);
+        Alias count = countApproximateAlias(empNo);
         Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
         SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count, stddev), List.of(), AggregatorMode.FINAL, 0.3);
 
@@ -94,7 +82,7 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
     }
 
     public void testReplace_countAndSum() {
-        Alias count = countAlias(Literal.keyword(Source.EMPTY, "*"));
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
         Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
         FieldAttribute dept = fieldAttribute("dept", DataType.KEYWORD);
@@ -188,8 +176,8 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         return new EsQueryExec(Source.EMPTY, "test", IndexMode.STANDARD, List.of(), null, null, null, List.of());
     }
 
-    private static Alias countAlias(Expression field) {
-        return new Alias(Source.EMPTY, "count", new Count(Source.EMPTY, field));
+    private static Alias countApproximateAlias(Expression field) {
+        return new Alias(Source.EMPTY, "count", new CountApproximate(Source.EMPTY, field));
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType type) {

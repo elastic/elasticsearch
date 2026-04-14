@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -36,6 +39,10 @@ public final class Expressions {
     /**
      * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
+     * <p>
+     * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
+     * converted to an {@link UnsupportedAttribute} via
+     * {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a clear user-facing error.
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(
         List<? extends NamedExpression> named,
@@ -52,9 +59,11 @@ public final class Expressions {
         for (NamedExpression exp : named) {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
-            ReferenceAttribute refAttr = exp instanceof ReferenceAttribute ra
-                ? (ReferenceAttribute) ra.withId(id)
-                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            Attribute refAttr = switch (exp) {
+                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.flagTypeConflicts();
+                case ReferenceAttribute ra -> ra.withId(id);
+                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            };
             list.add(refAttr);
         }
         return list;
@@ -188,21 +197,37 @@ public final class Expressions {
         return true;
     }
 
-    public static boolean listSemanticEquals(List<Expression> leftList, List<Expression> rightList) {
-        if (leftList.size() != rightList.size()) {
+    public static boolean listSemanticEqualsIgnoreOrder(List<Expression> left, List<Expression> right) {
+        if (left.size() != right.size()) {
             return false;
         }
-        for (int i = 0; i < leftList.size(); i++) {
-            Expression left = leftList.get(i);
-            Expression right = rightList.get(i);
-            if (left == null || right == null) {
-                throw new IllegalArgumentException("Unexpected null expression in list at index [" + i + "]");
-            }
-            if (left.semanticEquals(right) == false) {
+
+        Set<SemanticExpression> rightLookup = new HashSet<>(right.size());
+        for (Expression e : right) {
+            rightLookup.add(new SemanticExpression(e));
+        }
+        for (Expression l : left) {
+            if (rightLookup.contains(new SemanticExpression(l)) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Wrapper that delegates {@code hashCode} and {@code equals} to
+     * {@link Expression#semanticHash()} and {@link Expression#semanticEquals(Expression)}.
+     */
+    private record SemanticExpression(Expression expression) {
+        @Override
+        public int hashCode() {
+            return expression.semanticHash();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof SemanticExpression other && expression.semanticEquals(other.expression);
+        }
     }
 
     public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {

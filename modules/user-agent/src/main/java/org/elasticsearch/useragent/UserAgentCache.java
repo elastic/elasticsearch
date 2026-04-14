@@ -20,13 +20,13 @@ class UserAgentCache {
         cache = CacheBuilder.<CompositeCacheKey, Details>builder().setMaximumWeight(cacheSize).build();
     }
 
-    public Details get(String parserName, String userAgent) {
-        return cache.get(new CompositeCacheKey(parserName, userAgent));
+    public Details get(String parserName, String userAgent, boolean extractDeviceType) {
+        return cache.get(new CompositeCacheKey(parserName, userAgent, extractDeviceType));
     }
 
-    public void put(String parserName, String userAgent, Details details) {
-        cache.put(new CompositeCacheKey(parserName, userAgent), details);
+    public void put(String parserName, String userAgent, Details details, boolean extractDeviceType) {
+        cache.put(new CompositeCacheKey(parserName, userAgent, extractDeviceType), details);
     }
 
-    private record CompositeCacheKey(String parserName, String userAgent) {}
+    private record CompositeCacheKey(String parserName, String userAgent, boolean extractDeviceType) {}
 }

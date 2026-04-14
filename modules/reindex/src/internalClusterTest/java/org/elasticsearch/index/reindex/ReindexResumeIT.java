@@ -23,6 +23,8 @@ import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.reindex.ReindexMetrics;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
@@ -30,6 +32,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.net.InetSocketAddress;
@@ -43,13 +47,15 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class ReindexResumeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ReindexPlugin.class, MainRestPlugin.class);
+        return List.of(ReindexPlugin.class, MainRestPlugin.class, TestTelemetryPlugin.class);
     }
 
     @Override
@@ -430,6 +436,78 @@ public class ReindexResumeIT extends ESIntegTestCase {
         final long expectedDocsDest = totalDocs - firstBatchDocsTotal;
         assertHitCount(expectedDocsDest, prepareSearch(destIndex));
         assertEquals(0, currentNumberOfScrollContexts());
+    }
+
+    public void testResumeReindexMetricsRecordsDurationFromRelocationOrigin() {
+        assertThat(internalCluster().numDataNodes(), equalTo(1));
+        final String dataNodeName = internalCluster().getRandomDataNodeName();
+        final TestTelemetryPlugin telemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        telemetryPlugin.resetMeter(); // reset previous test metrics
+
+        final String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        final String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
+        final int totalDocs = randomIntBetween(20, 100);
+        final int batchSize = randomIntBetween(1, 10);
+
+        indexRandom(true, sourceIndex, totalDocs);
+
+        final String scrollId;
+        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
+            .setScroll(DEFAULT_SCROLL_TIMEOUT)
+            .setSize(batchSize)
+            .get();
+        try {
+            scrollId = searchResponse.getScrollId();
+            assertNotNull(scrollId);
+        } finally {
+            searchResponse.decRef();
+        }
+
+        final int originalStartAgoSeconds = randomIntBetween(2, 10);
+        final long originStartTimeMillis = System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(originalStartAgoSeconds);
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(
+            new TaskId(randomAlphanumericOfLength(10), randomNonNegativeLong()),
+            originStartTimeMillis
+        );
+
+        final ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setDestIndex(destIndex)
+            .setSourceBatchSize(batchSize)
+            .setRefresh(true)
+            .setResumeInfo(
+                new ResumeInfo(
+                    origin,
+                    new ScrollWorkerResumeInfo(scrollId, timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS)), randomStats(), null),
+                    null
+                )
+            );
+        // execute resume on data node because that's where we'll check the metrics
+        final ResumeBulkByScrollResponse resumeResponse = client(dataNodeName).execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByScrollRequest(request)
+        ).actionGet();
+        clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+
+        telemetryPlugin.collect();
+        final List<Measurement> histograms = telemetryPlugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
+        assertThat(histograms.size(), equalTo(1));
+        assertThat(histograms.getFirst().getLong(), greaterThanOrEqualTo((long) originalStartAgoSeconds));
+        assertThat(
+            histograms.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE),
+            equalTo(ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL)
+        );
+        assertThat(histograms.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
+        final List<Measurement> completions = telemetryPlugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
+        assertThat(completions.size(), equalTo(1));
+        assertNull(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
     }
 
     public void testRejectWithoutResumeInfo() {

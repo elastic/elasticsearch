@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -145,7 +146,8 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 EsStatsQueryExec.Stat stat = statsBuilder.computeIfAbsent(attribute, a -> {
                     if (agg instanceof Alias as) {
                         Expression child = as.child();
-                        if (child instanceof Count count) {
+                        if (child instanceof Count || child instanceof CountApproximate) {
+                            AggregateFunction count = (AggregateFunction) child;
                             var target = count.field();
                             String fieldName = null;
                             QueryBuilder query = null;
@@ -187,12 +189,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 if (stat != null) {
                     NamedExpression aggForIntermediate = agg;
                     if (agg instanceof Alias as && as.child() instanceof CountApproximate ca) {
-                        aggForIntermediate = new Alias(
-                            as.source(),
-                            as.name(),
-                            new Count(ca.source(), ca.field(), ca.filter(), ca.window()),
-                            as.id()
-                        );
+                        aggForIntermediate = as.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()));
                     }
                     List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
                         singletonList(aggForIntermediate),

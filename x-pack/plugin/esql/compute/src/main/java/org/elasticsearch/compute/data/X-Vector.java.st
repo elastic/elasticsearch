@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,26 +26,62 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
+    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(int)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $else$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector,
-    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $endif$
 
 $if(BytesRef)$
+    /**
+     * Build a contiguous array of bytes for the value stored at the
+     * given position. The underlying data is generally stored in pages
+     * that look like {@code byte[][]} with some data spanning more than
+     * one of the inner {@code byte[]} arrays. In that case, this builds
+     * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
+     * returns it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data. Except arrow. Arrow always copies.
+     * <p>
+     *    If possible, use {@link #get} because it only needs to copy
+     *    in the arrow implementation.
+     * </p>
+     * @param position the position index
+     * @param dest the destination
+     * @return the data value (as a BytesRef)
+     */
     BytesRef getBytesRef(int position, BytesRef dest);
+
+    /**
+     * Retrieves the bytes value stored at the given value index using a
+     * {@link PagedBytesCursor} for zero-copy access to the underlying paged
+     * byte storage. Except arrow. Arrow always copies.
+     *
+     * @param position the position index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
 
 $else$
     $type$ get$Type$(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = get$Type$(srcPosition + i);
+        }
+    }
 $endif$
 
     @Override
@@ -260,6 +297,13 @@ $endif$
          */
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         @Override
         $Type$Vector build();
     }

@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,9 +51,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings, TopNProvider
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topNDocumentsOnly, returnDocuments);
     }
@@ -165,7 +162,7 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings, TopNProvider
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        HuggingFaceRerankTaskSettings updatedSettings = HuggingFaceRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        HuggingFaceRerankTaskSettings updatedSettings = HuggingFaceRerankTaskSettings.fromMap(newSettings);
         return HuggingFaceRerankTaskSettings.of(this, updatedSettings);
     }
 }

@@ -234,12 +234,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             final TaskResult relocatedReindex = getRunningReindex(relocatedTaskId);
             assertThat("relocated reindex should be on nodeA", relocatedReindex.getTask().taskId().getNodeId(), equalTo(nodeAId));
             assertRunningReindexTaskExpectedState(relocatedReindex.getTask(), expectedDescription, slices, shards);
+            assertThat("relocated task should reference original", relocatedReindex.getTask().originalTaskId(), equalTo(originalTaskId));
         });
 
         // Speed up reindex post-relocation to keep the test fast
         unthrottleReindex(relocatedTaskId);
 
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, slices, shards);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards);
 
         // Assert nodeA recorded success metrics for the relocated reindex
         assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices);
@@ -293,7 +294,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             );
 
             unthrottleReindex(relocatedTaskId);
-            assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
+            assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, localReindexDescription(), 1, shards);
             assertExpectedNumberOfDocumentsInDestinationIndex();
         } finally {
             BlockTasksWritePlugin.blockedNodeName = null;
@@ -429,6 +430,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
     private void assertRelocatedTaskExpectedEndState(
         final TaskId taskId,
+        final TaskId originalTaskId,
         final Matcher<String> expectedTaskDescription,
         final int slices,
         final int shards
@@ -460,6 +462,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(taskInfo.description(), is(expectedTaskDescription));
         assertThat(taskInfo.cancelled(), equalTo(false));
         assertThat(taskInfo.cancellable(), equalTo(true));
+        assertThat("completed relocated task should reference original", taskInfo.originalTaskId(), equalTo(originalTaskId));
 
         final Map<String, Object> taskStatus = ((RawTaskStatus) taskInfo.status()).toMap();
         assertThat(taskStatus.get("slice_id"), is(nullValue()));

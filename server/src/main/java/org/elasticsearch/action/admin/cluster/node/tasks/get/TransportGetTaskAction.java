@@ -347,18 +347,20 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         );
 
         TaskInfo mergedInfo = new TaskInfo(
-            originalInfo.taskId(),
+            relocatedInfo.taskId(),
             relocatedInfo.type(),
             relocatedInfo.node(),
             relocatedInfo.action(),
-            originalInfo.description(),
+            relocatedInfo.description(),
             relocatedInfo.status(),
             originalInfo.startTime(),
             adjustedRunningTimeNanos,
             relocatedInfo.cancellable(),
             relocatedInfo.cancelled(),
             relocatedInfo.parentTaskId(),
-            relocatedInfo.headers()
+            relocatedInfo.headers(),
+            relocatedInfo.originalTaskId(),
+            relocatedInfo.originalStartTimeMillis()
         );
 
         return new GetTaskResponse(new TaskResult(relocated.isCompleted(), mergedInfo, relocated.getError(), relocated.getResponse()));

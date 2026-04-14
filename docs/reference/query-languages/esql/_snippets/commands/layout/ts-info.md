@@ -1,12 +1,19 @@
 ```yaml {applies_to}
-serverless: ga 9.4.0
+serverless: ga
 stack: preview 9.4.0
 ```
 
-The `TS_INFO` [processing command](/reference/query-languages/esql/commands/processing-commands.md) returns one
-row per (metric, time series) combination in a
-[time series data stream](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md),
-with metadata about each metric and the dimension values that identify the time series.
+The `TS_INFO` [processing command](/reference/query-languages/esql/commands/processing-commands.md) retrieves
+information about the metrics and individual time series available in
+[time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md),
+along with the dimension values that identify each series.
+
+`TS_INFO` is a more fine-grained variant of
+[`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md). Where `METRICS_INFO` returns one row
+per distinct metric, `TS_INFO` returns one row per metric **and** time series combination. This
+lets you discover the exact dimension values (labels) that identify each series. Like
+`METRICS_INFO`, any [`WHERE`](/reference/query-languages/esql/commands/where.md) filters that precede
+`TS_INFO` narrow the set of time series considered.
 
 ## Syntax
 
@@ -16,14 +23,17 @@ TS_INFO
 
 ## Parameters
 
+:::{note}
 `TS_INFO` takes no parameters.
+:::
 
 ## Description
 
-`TS_INFO` is a more fine-grained variant of
-[`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md). Where `METRICS_INFO` returns one row
-per distinct metric signature, `TS_INFO` returns one row per metric **and** time series. This lets you
-inspect the exact dimension values that identify each series.
+`TS_INFO` produces one row for every (metric, time series) combination that matches the
+preceding filters. It includes all columns from
+[`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md), plus a `dimensions` column
+containing a JSON-encoded representation of the dimension key/value pairs that identify the
+time series.
 
 The output contains the following columns, all of type `keyword`:
 
@@ -44,11 +54,12 @@ The output contains the following columns, all of type `keyword`:
 :   The Elasticsearch field type, for example `long`, `double`, or `integer` (multi-valued when definitions differ).
 
 `dimension_fields`
-:   The dimension field names associated with this metric (multi-valued).
+:   The dimension field names associated with this metric (multi-valued). The union of dimension
+    keys across all time series for that metric.
 
 `dimensions`
 :   A JSON-encoded object containing the dimension key/value pairs that identify the time series (single-valued).
-    For example: `{"cluster":"prod","pod":"one","region":"us"}`.
+    For example: `{"job":"elasticsearch","instance":"instance_1"}`.
 
 ### Restrictions
 
@@ -58,15 +69,30 @@ The output contains the following columns, all of type `keyword`:
   [`STATS`](/reference/query-languages/esql/commands/stats-by.md),
   [`SORT`](/reference/query-languages/esql/commands/sort.md), or
   [`LIMIT`](/reference/query-languages/esql/commands/limit.md).
-- The output replaces the original table — downstream commands operate on the metadata rows, not the
+- The output replaces the original table: downstream commands operate on the metadata rows, not the
   raw time series documents.
 
 ## Examples
 
 ### List all metric–time-series combinations
 
+Return every (metric, time series) pair in the targeted data stream, sorted by metric name and
+dimension values:
+
 ```esql
 TS k8s
+| TS_INFO
+| SORT metric_name, dimensions
+```
+
+### Discover series matching a filter
+
+Place a [`WHERE`](/reference/query-languages/esql/commands/where.md) clause before `TS_INFO` to restrict
+the time series considered. Only metrics and series with matching data are returned:
+
+```esql
+TS metrics-*
+| WHERE job == "elasticsearch"
 | TS_INFO
 | SORT metric_name, dimensions
 ```
@@ -76,13 +102,17 @@ TS k8s
 Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to return only the columns you need:
 
 ```esql
-TS k8s
+TS metrics-*
+| WHERE job == "elasticsearch"
 | TS_INFO
 | KEEP metric_name, dimensions
 | SORT metric_name, dimensions
 ```
 
 ### Filter by metric type
+
+Use [`WHERE`](/reference/query-languages/esql/commands/where.md) after `TS_INFO` to narrow results by
+metadata:
 
 ```esql
 TS k8s
@@ -104,6 +134,9 @@ TS k8s
 ```
 
 ### Count distinct metrics per time series
+
+Find out how many different metrics each time series reports. This can help identify series that
+report an unusually small or large number of metrics:
 
 ```esql
 TS k8s

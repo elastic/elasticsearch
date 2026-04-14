@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -173,8 +174,11 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Settings createTestIndexSettings() {
+        IndexVersion indexVersion = useLegacyFormat
+            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true)
+            : IndexVersion.current();
         return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
     }

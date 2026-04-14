@@ -316,7 +316,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     /**
      * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
      */
-    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+    protected static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
         if (qe == null || qe.outputSchema() == null) {
             return qe;
         }

@@ -23,6 +23,8 @@ tasks.named('internalClusterTestTestingConventions').configure {
 dependencies {
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:ip-location')
+  testImplementation project(':modules:ip-location')
+  testImplementation(testArtifact(project(":modules:ip-location")))
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
   yamlRestTestImplementation(testArtifact(project(":modules:ip-location"), "yamlRestTest"))
   internalClusterTestImplementation project(':modules:reindex')

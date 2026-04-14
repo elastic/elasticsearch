@@ -259,12 +259,29 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // The actual logic is handled by IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor().
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
-            IpDataLookup lookup = ipLocationService.createIpDataLookup(projectId.id(), databaseFile, propertyNames);
+            final IpDataLookup lookup;
+            try {
+                lookup = ipLocationService.createIpDataLookup(projectId.id(), databaseFile, propertyNames);
+            } catch (IllegalArgumentException e) {
+                String msg = e.getMessage();
+                if (msg != null && msg.startsWith("Unsupported database type")) {
+                    throw newConfigurationException(type, processorTag, "database_file", msg);
+                }
+                throw newConfigurationException(type, processorTag, "properties", msg);
+            }
             if (lookup == null) {
                 return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
             }
 
             String databaseType = lookup.getInfo().getDatabaseType();
+            if (databaseType == null) {
+                throw newConfigurationException(
+                    type,
+                    processorTag,
+                    "database_file",
+                    Strings.format("Unsupported database type [null] for file [%s]", databaseFile)
+                );
+            }
             if (GEOIP_TYPE.equals(type)) {
                 String lower = databaseType.toLowerCase(Locale.ROOT);
                 if (lower.startsWith("ipinfo ")) {

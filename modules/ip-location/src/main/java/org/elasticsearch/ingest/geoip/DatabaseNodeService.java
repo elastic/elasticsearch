@@ -657,7 +657,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
 
     @Override
     public IpDataLookupInfo getIpDataLookupInfo(String databaseFile) {
-        String dbType = guessDatabaseType(databaseFile);
+        String dbType = resolveDatabaseType(databaseFile);
         if (dbType == null) {
             return null;
         }
@@ -691,13 +691,22 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         return downloadRequested.contains(ProjectId.fromId(projectIdStr));
     }
 
+    /**
+     * Resolves the database type for the given file name. Tries to read the actual type from a loaded
+     * config database first (consistent with how {@link #createIpDataLookup} reads the type).
+     * Falls back to filename-based guessing for databases not yet loaded as config databases.
+     */
     @Nullable
-    private static String guessDatabaseType(String databaseFile) {
-        String name = databaseFile;
-        if (name.endsWith(".mmdb")) {
-            name = name.substring(0, name.length() - 5);
+    private String resolveDatabaseType(String databaseFile) {
+        DatabaseReaderLazyLoader loader = configDatabases.getDatabase(databaseFile);
+        if (loader != null) {
+            try {
+                return loader.getDatabaseType();
+            } catch (IOException e) {
+                logger.debug("failed to read database type from config database [{}], falling back to filename", databaseFile);
+            }
         }
-        return name;
+        return IpDataLookupFactories.guessDatabaseType(databaseFile);
     }
 
     private DatabaseReaderLazyLoader getProjectLazyLoader(ProjectId projectId, String databaseName) {

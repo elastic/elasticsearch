@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -285,6 +287,42 @@ public class IpLocationServiceTests extends ESTestCase {
         try (DatabaseReaderLazyLoader loader = databaseNodeService.getDatabaseReaderLazyLoader(projectId, "GeoLite2-City.mmdb")) {
             assertThat(loader, notNullValue());
             assertThat(loader.current(), equalTo(1));
+        }
+    }
+
+    public void testGetIpDataLookupInfoConsistentWithCreateIpDataLookup() {
+        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", geoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"));
+        configDatabases.updateDatabase(geoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"), true);
+
+        List<String> allDatabaseFiles = List.of(
+            "GeoLite2-ASN.mmdb",
+            "GeoLite2-City.mmdb",
+            "GeoLite2-Country.mmdb",
+            "ip_geolocation_standard_sample.mmdb"
+        );
+
+        for (String databaseFile : allDatabaseFiles) {
+            IpDataLookupInfo info = databaseNodeService.getIpDataLookupInfo(databaseFile);
+            assertNotNull("getIpDataLookupInfo returned null for [" + databaseFile + "]", info);
+
+            IpDataLookup lookup = databaseNodeService.createIpDataLookup(projectId.id(), databaseFile, null);
+            assertNotNull("createIpDataLookup returned null for [" + databaseFile + "]", lookup);
+
+            assertThat(
+                "database type mismatch for [" + databaseFile + "]",
+                info.getDatabaseType(),
+                equalTo(lookup.getInfo().getDatabaseType())
+            );
+
+            List<String> allProperties = new ArrayList<>(info.getFields().keySet());
+            IpDataLookup fullLookup = databaseNodeService.createIpDataLookup(projectId.id(), databaseFile, allProperties);
+            assertNotNull("full-property lookup returned null for [" + databaseFile + "]", fullLookup);
+
+            assertThat(
+                "field set mismatch for [" + databaseFile + "]",
+                fullLookup.getInfo().getFields().keySet(),
+                equalTo(info.getFields().keySet())
+            );
         }
     }
 

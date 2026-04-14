@@ -71,7 +71,10 @@ public final class IpLocationServiceAdapter implements IpLocationService {
 
     @Override
     public IpDataLookupInfo getIpDataLookupInfo(String databaseFile) {
-        String dbType = guessDatabaseType(databaseFile);
+        // The adapter doesn't have project-agnostic database access, so it falls back
+        // to filename-based type guessing. This works for standard databases (MaxMind)
+        // but may not resolve non-standard filenames (e.g. ipinfo).
+        String dbType = IpDataLookupFactories.guessDatabaseType(databaseFile);
         Database database = IpDataLookupFactories.getDatabase(dbType);
         if (database == null) {
             return null;
@@ -92,14 +95,6 @@ public final class IpLocationServiceAdapter implements IpLocationService {
     @Override
     public void cancelDownloadRequest(String projectId) {
         // bridge manages its own databases
-    }
-
-    private static String guessDatabaseType(String databaseFile) {
-        String name = databaseFile;
-        if (name.endsWith(".mmdb")) {
-            name = name.substring(0, name.length() - 5);
-        }
-        return name;
     }
 
     /**

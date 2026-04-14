@@ -58,6 +58,21 @@ final class IpDataLookupFactories {
         return database;
     }
 
+    /**
+     * Strips the {@code .mmdb} extension from a database filename to produce a type-like string.
+     * This is a heuristic fallback for when the actual database metadata is not available.
+     * For standard databases (e.g. "GeoLite2-City.mmdb"), the stripped name matches the metadata type.
+     * For non-standard databases (e.g. ipinfo), the stripped name may not match, and callers
+     * should prefer reading the type from the database metadata when possible.
+     */
+    static String guessDatabaseType(String databaseFile) {
+        String name = databaseFile;
+        if (name.endsWith(".mmdb")) {
+            name = name.substring(0, name.length() - 5);
+        }
+        return name;
+    }
+
     static IpDataLookupFactory get(final String databaseType, final String databaseFile) {
         final Database database = getDatabase(databaseType);
         if (database == null) {

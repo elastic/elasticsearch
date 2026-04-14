@@ -139,7 +139,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         client = mock(Client.class);
         when(client.projectClient(any())).thenReturn(projectClient);
         clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
+        when(clusterService.state()).thenReturn(
+            ClusterState.builder(new ClusterName("test")).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build()
+        );
         geoIpTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(
             geoIpTmpDir,

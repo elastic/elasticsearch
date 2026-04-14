@@ -14,9 +14,17 @@ import com.maxmind.db.Reader;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -28,6 +36,8 @@ import java.util.List;
 import java.util.Set;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class GeoIpTestUtils {
 
@@ -65,6 +75,57 @@ public final class GeoIpTestUtils {
             copyDatabase(database, directory);
             configDatabases.updateDatabase(directory.resolve(database), true);
         }
+    }
+
+    /**
+     * Creates a {@link DatabaseNodeService} configured with default GeoLite2 databases and any additional databases.
+     * This factory handles package-private classes ({@link GeoIpCache}, {@link ConfigDatabases}) so that tests in
+     * other packages can obtain a fully functional service instance.
+     *
+     * @param geoIpConfigDir directory where database files will be placed
+     * @param tmpDir temporary directory for the service
+     * @param projectId project to register in the cluster state
+     * @param projectResolver project resolver for the service
+     * @param additionalDatabases optional resource paths of extra databases to copy and register (e.g. "ipinfo/foo.mmdb")
+     * @return a started {@link DatabaseNodeService}
+     */
+    public static DatabaseNodeService createTestDatabaseNodeService(
+        Path geoIpConfigDir,
+        Path tmpDir,
+        ProjectId projectId,
+        ProjectResolver projectResolver,
+        String... additionalDatabases
+    ) throws IOException {
+        Files.createDirectories(geoIpConfigDir);
+
+        GeoIpCache cache = new GeoIpCache(1000);
+        ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
+
+        for (String db : additionalDatabases) {
+            String fileName = Path.of(db).getFileName().toString();
+            Path target = geoIpConfigDir.resolve(fileName);
+            copyDatabase(db, target);
+            configDatabases.updateDatabase(target, true);
+        }
+
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        when(clusterService.state()).thenReturn(state);
+
+        DatabaseNodeService service = new DatabaseNodeService(
+            tmpDir,
+            mock(Client.class),
+            cache,
+            configDatabases,
+            Runnable::run,
+            clusterService,
+            projectResolver
+        );
+        service.initialize("nodeId", mock(ResourceWatcherService.class));
+        return service;
     }
 
     /**

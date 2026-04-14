@@ -9,132 +9,230 @@
 
 package org.elasticsearch.ingest.iplocation;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.geoip.DatabaseNodeService;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeService;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYPE;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class GeoIpProcessorFactoryTests extends ESTestCase {
 
-    private static IpDataLookup mockLookup(String databaseType) {
-        IpDataLookupInfo info = mock(IpDataLookupInfo.class);
-        when(info.getDatabaseType()).thenReturn(databaseType);
-        SequencedMap<String, Class<?>> fields = new LinkedHashMap<>();
-        fields.put("city_name", String.class);
-        when(info.getFields()).thenReturn(fields);
+    private DatabaseNodeService databaseNodeService;
+    private ProjectId projectId;
 
-        IpDataLookup lookup = mock(IpDataLookup.class);
-        when(lookup.isValid()).thenReturn(true);
-        when(lookup.getInfo()).thenReturn(info);
-        return lookup;
+    @Before
+    public void loadDatabaseReaders() throws IOException {
+        boolean multiProject = randomBoolean();
+        projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
+        ProjectResolver projectResolver = multiProject
+            ? TestProjectResolvers.singleProject(projectId)
+            : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+
+        databaseNodeService = createTestDatabaseNodeService(
+            createTempDir().resolve("ingest-geoip"),
+            createTempDir(),
+            projectId,
+            projectResolver,
+            "ipinfo/ip_geolocation_standard_sample.mmdb"
+        );
+    }
+
+    @After
+    public void closeDatabaseReaders() throws IOException {
+        databaseNodeService.shutdown();
+        databaseNodeService = null;
     }
 
     public void testBuildDefaults() throws Exception {
-        IpDataLookup lookup = mockLookup("GeoLite2-City");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), eq("GeoLite2-City.mmdb"), any())).thenReturn(lookup);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
 
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
+        config.put("field", "_field");
+        String processorTag = randomAlphaOfLength(10);
 
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
-        GeoIpProcessor geoIpProcessor = (GeoIpProcessor) processor;
-        assertThat(geoIpProcessor.getField(), equalTo("source_field"));
-        assertThat(geoIpProcessor.getTargetField(), equalTo("geoip"));
-        assertThat(geoIpProcessor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertThat(geoIpProcessor.isIgnoreMissing(), equalTo(false));
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, processorTag, null, config, projectId);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
+        assertFalse(processor.isIgnoreMissing());
+    }
+
+    public void testSetIgnoreMissing() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("ignore_missing", true);
+        String processorTag = randomAlphaOfLength(10);
+
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, processorTag, null, config, projectId);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
+        assertTrue(processor.isIgnoreMissing());
     }
 
     public void testBuildTargetField() throws Exception {
-        IpDataLookup lookup = mockLookup("GeoLite2-City");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
-
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("target_field", "custom_target");
-
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
-        GeoIpProcessor geoIpProcessor = (GeoIpProcessor) processor;
-        assertThat(geoIpProcessor.getTargetField(), equalTo("custom_target"));
+        config.put("field", "_field");
+        config.put("target_field", "_field");
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("_field"));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildDbFile() throws Exception {
-        IpDataLookup lookup = mockLookup("GeoLite2-Country");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), eq("GeoLite2-Country.mmdb"), any())).thenReturn(lookup);
-
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
+        config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
-        GeoIpProcessor geoIpProcessor = (GeoIpProcessor) processor;
-        assertThat(geoIpProcessor.getDatabaseType(), equalTo("GeoLite2-Country"));
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
     }
 
     public void testBuildWithProperties() throws Exception {
-        IpDataLookup lookup = mockLookup("GeoLite2-City");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), anyString(), eq(List.of("city_name", "country_name")))).thenReturn(lookup);
-
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
+        config.put("field", "_field");
         config.put("properties", List.of("city_name", "country_name"));
-
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
+        Processor processor = factory.create(null, null, null, config, projectId);
         assertThat(processor, instanceOf(GeoIpProcessor.class));
     }
 
+    public void testBuildIllegalFieldOption() {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("invalid"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1, projectId));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_IN_EUROPEAN_UNION, COUNTRY_ISO_CODE, "
+                    + "COUNTRY_NAME, CONTINENT_CODE, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, "
+                    + "LOCATION, POSTAL_CODE, ACCURACY_RADIUS, REGISTERED_COUNTRY_IN_EUROPEAN_UNION, REGISTERED_COUNTRY_ISO_CODE, "
+                    + "REGISTERED_COUNTRY_NAME]"
+            )
+        );
+
+        Map<String, Object> config2 = new HashMap<>();
+        config2.put("field", "_field");
+        config2.put("properties", "invalid");
+        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config2, projectId));
+        assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
+    }
+
     public void testBuildNonExistingDbFile() throws Exception {
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(null);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
 
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("database_file", "DoesNotExist.mmdb");
-
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
+        config.put("field", "_field");
+        config.put("database_file", "does-not-exist.mmdb");
+        Processor processor = factory.create(null, null, null, config, projectId);
         assertThat(processor, instanceOf(DatabaseUnavailableProcessor.class));
     }
 
     public void testBuildMissingField() throws Exception {
-        IpLocationService service = mock(IpLocationService.class);
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         Map<String, Object> config = new HashMap<>();
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, "_tag", null, config, ProjectId.DEFAULT)
+            () -> factory.create(null, "_tag", null, config, projectId)
         );
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
+    }
+
+    public void testDownloadDatabaseOnPipelineCreation() throws IOException {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomIdentifier());
+        config.put("download_database_on_pipeline_creation", randomBoolean());
+        factory.create(null, null, null, config, projectId);
+        assertThat(config, anEmptyMap());
+    }
+
+    public void testDownloadDatabaseOnPipelineCreationStaticHelper() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("download_database_on_pipeline_creation", false);
+        assertFalse(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(config));
+
+        config.put("download_database_on_pipeline_creation", true);
+        assertTrue(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(config));
+
+        assertTrue(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(Map.of()));
+    }
+
+    public void testBuildIpLocationType() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(IP_LOCATION_TYPE, databaseNodeService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("database_file", "ip_geolocation_standard_sample.mmdb");
+
+        Processor processor = factory.create(null, "_tag", null, config, projectId);
+        assertThat(processor, instanceOf(GeoIpProcessor.class));
+        assertThat(processor.getType(), equalTo("ip_location"));
+    }
+
+    public void testDatabaseNotReadyYet() throws Exception {
+        IpLocationService service = mock(IpLocationService.class);
+        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(null);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("database_file", "GeoLite2-City.mmdb");
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "89.160.20.128");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        DatabaseUnavailableProcessor processor = (DatabaseUnavailableProcessor) factory.create(null, null, null, config, ProjectId.DEFAULT);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
+        assertThat(
+            ingestDocument.getSourceAndMetadata().get("tags"),
+            equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb"))
+        );
     }
 
     public void testBuildUnsupportedDatabase() throws Exception {
@@ -151,52 +249,24 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> factory.create(null, "_tag", null, config, ProjectId.DEFAULT)
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unsupported database type"));
+        assertThat(e.getMessage(), containsString("Unsupported database type"));
     }
 
-    public void testBuildIpLocationType() throws Exception {
-        IpDataLookup lookup = mockLookup("IPinfo standard_asn");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
-
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(IP_LOCATION_TYPE, service);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("database_file", "asn.mmdb");
-
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
-        assertThat(processor.getType(), equalTo("ip_location"));
-    }
-
-    public void testDownloadDatabaseOnPipelineCreation() {
-        Map<String, Object> config = new HashMap<>();
-        config.put("download_database_on_pipeline_creation", false);
-        assertFalse(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(config));
-
-        config.put("download_database_on_pipeline_creation", true);
-        assertTrue(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(config));
-
-        assertTrue(GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(Map.of()));
-    }
-
-    public void testSetIgnoreMissing() throws Exception {
-        IpDataLookup lookup = mockLookup("GeoLite2-City");
+    public void testBuildNullDatabaseType() throws Exception {
+        IpDataLookup lookup = mockLookup(null);
         IpLocationService service = mock(IpLocationService.class);
         when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
 
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("ignore_missing", true);
+        config.put("field", "_field");
+        config.put("properties", List.of("ip"));
 
-        Processor processor = factory.create(null, "_tag", null, config, ProjectId.DEFAULT);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
-        GeoIpProcessor geoIpProcessor = (GeoIpProcessor) processor;
-        assertThat(geoIpProcessor.getField(), equalTo("source_field"));
-        assertThat(geoIpProcessor.getTargetField(), equalTo("geoip"));
-        assertThat(geoIpProcessor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertTrue(geoIpProcessor.isIgnoreMissing());
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(null, null, null, config, ProjectId.DEFAULT)
+        );
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
     public void testStrictMaxmindSupport() throws Exception {
@@ -236,5 +306,18 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         factory.create(null, null, null, config, ProjectId.DEFAULT);
         assertWarnings(GeoIpProcessor.UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE.replaceAll("\\{}", "some_custom_database.mmdb-City"));
+    }
+
+    private static IpDataLookup mockLookup(String databaseType) {
+        IpDataLookupInfo info = mock(IpDataLookupInfo.class);
+        when(info.getDatabaseType()).thenReturn(databaseType);
+        SequencedMap<String, Class<?>> fields = new LinkedHashMap<>();
+        fields.put("city_name", String.class);
+        when(info.getFields()).thenReturn(fields);
+
+        IpDataLookup lookup = mock(IpDataLookup.class);
+        when(lookup.isValid()).thenReturn(true);
+        when(lookup.getInfo()).thenReturn(info);
+        return lookup;
     }
 }

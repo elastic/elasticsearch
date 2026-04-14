@@ -45,13 +45,17 @@ public interface IpLocationService {
     IpDataLookup createIpDataLookup(String projectId, String databaseFile, List<String> propertyNames);
 
     /**
-     * Get metadata for a database. Always available immediately, derived from
-     * file name convention -- no download needed.
-     * Returns all fields for the database type (not filtered by properties).
+     * Get metadata for a database, returning all fields for the database type (not filtered by properties).
+     * Available immediately without waiting for database download -- does not require a project context.
+     * <p>
+     * Implementations should resolve the database type consistently with {@link #createIpDataLookup}:
+     * if the database is already loaded, the type should be read from the database metadata rather
+     * than guessed from the filename. This ensures that both methods agree on the database type for
+     * non-standard filenames (e.g. ipinfo databases). Filename-based guessing is acceptable as a
+     * fallback when the database is not yet loaded.
      *
      * @param databaseFile the database file name (e.g. "GeoLite2-City.mmdb")
      * @return metadata with ordered field map and database type string, or null if unknown
-     * @throws IllegalArgumentException if the database type cannot be determined
      */
     @Nullable
     IpDataLookupInfo getIpDataLookupInfo(String databaseFile);

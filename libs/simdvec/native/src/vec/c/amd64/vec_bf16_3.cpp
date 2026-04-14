@@ -86,22 +86,13 @@ static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q,
 /*
  * BFloat16 single operation with manual bf16->f32 conversion + fmadd.
  * Processes 16 bf16 elements per batch (256-bit bf16 load -> 512-bit f32).
+ * Uses masked SIMD loads for the tail instead of scalar fallback.
  *
- * Template parameters:
- * Q: the type of query vector
- * load_q: loads the query vector as a __m512 of 32-bit floats
- * inner_op: SIMD per-dimension vector operation, takes a, b, sum, returns new sum
- * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
- *
- * This should compile to a single inline method, with no function callouts.
+ * Template parameter:
+ * vector_op: SIMD per-dimension vector operation, takes a, b, sum, returns new sum
  */
-template<
-    typename TQuery,
-    __m512(*load_q)(const TQuery*, const int),
-    __m512(*vector_op)(const __m512, const __m512, const __m512),
-    f32_t(*scalar_op)(const bf16_t, const TQuery)
->
-static inline f32_t bf16_inner_avx512(const bf16_t* d, const TQuery* q, const int32_t elementCount) {
+template<__m512(*vector_op)(const __m512, const __m512, const __m512)>
+static inline f32_t bf16Qf32_inner_avx512(const bf16_t* d, const f32_t* q, const int32_t elementCount) {
     constexpr int batches = 4;
 
     __m512 sums[batches];
@@ -115,19 +106,27 @@ static inline f32_t bf16_inner_avx512(const bf16_t* d, const TQuery* q, const in
     constexpr int stride = elements * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
         apply_indexed<batches>([&](auto I) {
-            sums[I] = vector_op(load_bf16(d, i + I * elements), load_q(q, i + I * elements), sums[I]);
+            sums[I] = vector_op(load_bf16(d, i + I * elements), load_f32(q, i + I * elements), sums[I]);
         });
     }
 
-    // Combine all partial sums
     __m512 total_sum = tree_reduce<batches, __m512, _mm512_add_ps>(sums);
-    f32_t result = _mm512_reduce_add_ps(total_sum);
 
-    for (; i < elementCount; ++i) {
-        result += scalar_op(d[i], q[i]);
+    // Non-batched tail
+    for (; i + elements <= elementCount; i += elements) {
+        total_sum = vector_op(load_bf16(d, i), load_f32(q, i), total_sum);
     }
 
-    return result;
+    // Masked tail: remaining elements < 16
+    const int rem = elementCount - i;
+    if (rem > 0) {
+        __mmask16 mask = (__mmask16)((1U << rem) - 1);
+        __m512 d_rem = bf16_to_f32(_mm256_maskz_loadu_epi16(mask, d + i));
+        __m512 q_rem = _mm512_maskz_loadu_ps(mask, q + i);
+        total_sum = vector_op(d_rem, q_rem, total_sum);
+    }
+
+    return _mm512_reduce_add_ps(total_sum);
 }
 
 EXPORT f32_t vec_dotDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
@@ -135,7 +134,7 @@ EXPORT f32_t vec_dotDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t
 }
 
 EXPORT f32_t vec_dotDbf16Qf32_3(const bf16_t* a, const f32_t* b, const int32_t elementCount) {
-    return bf16_inner_avx512<f32_t, load_f32, _mm512_fmadd_ps, dot_scalar>(a, b, elementCount);
+    return bf16Qf32_inner_avx512<_mm512_fmadd_ps>(a, b, elementCount);
 }
 
 static inline __m512 sqrf32_vector(const __m512 a, const __m512 b, const __m512 sum) {
@@ -144,7 +143,7 @@ static inline __m512 sqrf32_vector(const __m512 a, const __m512 b, const __m512 
 }
 
 EXPORT f32_t vec_sqrDbf16Qf32_3(const bf16_t* a, const f32_t* b, const int32_t elementCount) {
-    return bf16_inner_avx512<f32_t, load_f32, sqrf32_vector, sqr_scalar>(a, b, elementCount);
+    return bf16Qf32_inner_avx512<sqrf32_vector>(a, b, elementCount);
 }
 
 /*

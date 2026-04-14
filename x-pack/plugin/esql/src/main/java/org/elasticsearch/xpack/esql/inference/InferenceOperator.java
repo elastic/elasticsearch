@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.ArrayList;
@@ -100,6 +101,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         );
     }
 
+    @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
             BulkInferenceRequestItemIterator requests = inferenceRequestsFactory.create(input);
@@ -177,6 +179,18 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     }
 
     /**
+     * Dispatches an inference request to the appropriate InferenceService method.
+     * Subclasses may override this to route to a different service method (e.g. {@code executeEmbeddingInference}).
+     */
+    protected void dispatchInferenceRequest(
+        InferenceService inferenceService,
+        BaseInferenceActionRequest request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        inferenceService.executeInference((InferenceAction.Request) request, listener);
+    }
+
+    /**
      * Executes a single inference request and handles the response.
      *
      * @param bulkOperation The bulk inference operation managing the request.
@@ -190,7 +204,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             return;
         }
 
-        inferenceService.executeInference(
+        dispatchInferenceRequest(
+            inferenceService,
             request.inferenceRequest(),
             new ThreadedActionListener<>(
                 inferenceService.threadPool().executor(ThreadPool.Names.SEARCH),
@@ -221,7 +236,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *                            and position 2 contributed 2 values (multi-valued field).
      * @param seqNo The sequence number for ordering.
      */
-    public record BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, int[] positionValueCounts, long seqNo) {
+    public record BulkInferenceRequestItem(BaseInferenceActionRequest inferenceRequest, int[] positionValueCounts, long seqNo) {
 
         public static final int[] SINGLE_ZERO_POSITION_VALUE_COUNTS = new int[] { 0 };
         public static final int[] SINGLE_ONE_POSITION_VALUE_COUNTS = new int[] { 1 };
@@ -239,7 +254,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         /**
          * Constructor for batched requests without sequence number.
          */
-        public BulkInferenceRequestItem(InferenceAction.Request inferenceRequest, PositionValueCountsBuilder positionValueCounts) {
+        public BulkInferenceRequestItem(BaseInferenceActionRequest inferenceRequest, PositionValueCountsBuilder positionValueCounts) {
             this(inferenceRequest, positionValueCounts.build(), NO_SEQ_NO);
         }
 

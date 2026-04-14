@@ -333,6 +333,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:subquery.subqueryInFromWithNoFieldCountStarInSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/146180
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGenerateRoutingPathFromDynamicTemplate
+  issue: https://github.com/elastic/elasticsearch/issues/146197
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsMappingsMerging
+  issue: https://github.com/elastic/elasticsearch/issues/146198
 
 # Examples:
 #

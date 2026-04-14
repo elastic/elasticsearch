@@ -63,7 +63,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         // The only non-unary plans that are currently supported are Joins.
         // At the moment, the left side of the join is the "expensive" side and
         // will be sampled, while the right side is just a lookup table.
-        // This will probably change in the future, in which case ths logic
+        // This will probably change in the future, in which case this logic
         // must be reconsidered.
         Holder<Boolean> sampledAdded = new Holder<>(false);
         PhysicalPlan child = plan.child().transformDown(p -> {

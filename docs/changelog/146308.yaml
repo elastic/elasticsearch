@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146308
+summary: Optimized Parquet reader with batch decode and async I/O
+type: enhancement

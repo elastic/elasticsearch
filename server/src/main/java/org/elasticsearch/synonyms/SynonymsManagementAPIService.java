@@ -453,9 +453,7 @@ public class SynonymsManagementAPIService {
             );
             return;
         }
-        if (synonymsSet.length > PRE_LARGE_SETS_LIMIT
-            && clusterService != null
-            && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
+        if (clusterSupportsLargeSynonymSets(synonymsSet.length) == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
@@ -566,19 +564,17 @@ public class SynonymsManagementAPIService {
                         listener.onFailure(
                             new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
                         );
-                    } else if (synonymsSetSize >= PRE_LARGE_SETS_LIMIT
-                        && clusterService != null
-                        && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
-                            listener.onFailure(
-                                new IllegalStateException(
-                                    "Cannot write more than "
-                                        + PRE_LARGE_SETS_LIMIT
-                                        + " synonym rules until all nodes in the cluster have been upgraded"
-                                )
-                            );
-                        } else {
-                            indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
-                        }
+                    } else if (clusterSupportsLargeSynonymSets(synonymsSetSize + 1) == false) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "Cannot write more than "
+                                    + PRE_LARGE_SETS_LIMIT
+                                    + " synonym rules until all nodes in the cluster have been upgraded"
+                            )
+                        );
+                    } else {
+                        indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
+                    }
                 }));
         }));
     }
@@ -699,6 +695,20 @@ public class SynonymsManagementAPIService {
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
+    }
+
+    /**
+     * Returns {@code true} if the cluster supports a synonym set of {@code resultingCount} rules.
+     * Writes that would result in more than {@link #PRE_LARGE_SETS_LIMIT} rules are gated behind
+     * {@link #SYNONYMS_LARGE_SETS} to prevent silent truncation on older nodes during rolling upgrades.
+     *
+     * @param resultingCount the total number of rules that will exist after the write completes
+     */
+    private boolean clusterSupportsLargeSynonymSets(long resultingCount) {
+        if (resultingCount <= PRE_LARGE_SETS_LIMIT) {
+            return true;
+        }
+        return clusterService == null || clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS);
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {

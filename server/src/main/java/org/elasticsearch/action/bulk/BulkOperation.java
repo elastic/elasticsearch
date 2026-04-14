@@ -423,8 +423,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                    && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
                 executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
         }

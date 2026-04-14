@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -720,11 +721,19 @@ public record TestConfiguration(
                 Path destFile = dest.resolve(id.getName());
                 dataFiles.add(destFile);
                 if (!Files.exists(destFile)) {
-                    KnnIndexTester.logger.info("Downloading {} to {}...", gsFile, destFile);
+                    long totalBytes = blob.getSize();
+                    KnnIndexTester.logger.info(
+                        "Downloading {} to {} ({} MB)...",
+                        gsFile,
+                        destFile,
+                        String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                    );
 
                     // may need to create a subdirectory
                     Files.createDirectories(destFile.getParent());
-                    blob.downloadTo(destFile);
+                    try (OutputStream out = new ProgressOutputStream(Files.newOutputStream(destFile), totalBytes)) {
+                        blob.downloadTo(out);
+                    }
                 } else {
                     KnnIndexTester.logger.info("Checking CRC32C for {}...", destFile.getFileName());
                     // check CRC32
@@ -1012,6 +1021,57 @@ public record TestConfiguration(
                 result = temp;
             }
             return result;
+        }
+    }
+
+    /** An OutputStream wrapper that logs download progress at every 10% increment. */
+    private static class ProgressOutputStream extends OutputStream {
+        private final OutputStream delegate;
+        private final long totalBytes;
+        private long bytesWritten;
+        private int lastReportedPct = -1;
+
+        ProgressOutputStream(OutputStream delegate, long totalBytes) {
+            this.delegate = delegate;
+            this.totalBytes = totalBytes;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            delegate.write(b);
+            bytesWritten++;
+            reportProgress();
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            delegate.write(b, off, len);
+            bytesWritten += len;
+            reportProgress();
+        }
+
+        private void reportProgress() {
+            if (totalBytes <= 0) return;
+            int pct = (int) (bytesWritten * 100 / totalBytes);
+            if (pct / 10 > lastReportedPct / 10) {
+                lastReportedPct = pct;
+                KnnIndexTester.logger.info(
+                    "  {}% ({} / {} MB)",
+                    pct,
+                    String.format(Locale.ROOT, "%.1f", bytesWritten / (1024.0 * 1024.0)),
+                    String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                );
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

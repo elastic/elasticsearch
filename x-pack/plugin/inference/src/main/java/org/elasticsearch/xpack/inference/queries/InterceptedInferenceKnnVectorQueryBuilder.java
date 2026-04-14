@@ -70,17 +70,17 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     private InterceptedInferenceKnnVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
+        InterceptedInferenceKnnVectorQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other.queryVectorSupplier;
     }
 
     private InterceptedInferenceKnnVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
+        InterceptedInferenceKnnVectorQueryBuilder other,
         KnnVectorQueryBuilder originalQuery,
         SetOnce<float[]> queryVectorSupplier
     ) {
@@ -140,6 +140,18 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
         // If present, rewrite a complete & valid query vector builder to generate the query vector
         rewritten = rewriteQueryVectorBuilder(rewritten, queryRewriteContext);
+
+        return rewritten;
+    }
+
+    @Override
+    protected QueryBuilder rewriteToOriginalQuery() {
+        QueryBuilder rewritten = originalQuery;
+        if (queryVectorSupplier != null) {
+            // We are in the process of generating a query vector for the original query. Return the current query builder to allow this to
+            // complete before we rewrite to the original query.
+            rewritten = this;
+        }
 
         return rewritten;
     }

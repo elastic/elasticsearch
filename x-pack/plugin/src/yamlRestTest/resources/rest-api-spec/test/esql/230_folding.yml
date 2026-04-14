@@ -215,7 +215,7 @@ MATCH function with non-foldable query:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
     #We only check that the problematic string is there, because the error message is slightly different in old versions
-    #"Query must be a valid string in [MATCH(salary, salary + 10000 )], found [salary + 10000]"
+    #"Query must be a constant string in [MATCH(salary, salary + 10000 )], found [salary + 10000]"
     #second argument of [MATCH(salary, salary + 10000 )] must be a constant, received [salary + 10000]
   - contains: { error.reason: "[MATCH(salary, salary + 10000 )]" }
 
@@ -273,7 +273,7 @@ Foldable query using MATCH_PHRASE on name but with non-foldable expression:
   - match: { error.type: "verification_exception" }
     # We only check that the problematic string is there, because the error message is slightly different in old versions
     #second argument of [MATCH_PHRASE(name, CONCAT("Bob ", name))] must be a constant, received [CONCAT("Bob ", name)]"
-    #Query must be a valid string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]
+    #Query must be a constant string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]
   - contains: { error.reason: "[MATCH_PHRASE(name, CONCAT(\"Bob \", name))]" }
 
 ---
@@ -299,7 +299,7 @@ Foldable query using MATCH_PHRASE on name but with non constant query:
   - match: { error.type: "verification_exception" }
     # We only check that the problematic string is there, because the error message is slightly different in old versions
     # second argument of [MATCH_PHRASE(name, name)] must be a constant, received [name]
-    # Query must be a valid string in [MATCH_PHRASE(name, name)], found [name
+    # Query must be a constant string in [MATCH_PHRASE(name, name)], found [name
   - contains: { error.reason: "[MATCH_PHRASE(name, name)]" }
 
 ---
@@ -340,7 +340,7 @@ Foldable query using QSTR on name but with non-foldable expression:
   - match: { error.type: "verification_exception" }
     # We only check that the problematic string is there, because the error message is slightly different in old versions
     #first argument of [QSTR(CONCAT(name, "Bob"))] must be a constant, received [CONCAT(name, "Bob")]"
-    #Query must be a valid string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]
+    #Query must be a constant string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]
   - contains: { error.reason: "[QSTR(CONCAT(name, \"Bob\"))]" }
 
 ---
@@ -357,7 +357,7 @@ Foldable query using KQL on name but with non-foldable expression:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
     # We only check that the problematic string is there, because the error message is slightly different in old versions
-    #Query must be a valid string in [KQL(name)], found [name
+    #Query must be a constant string in [KQL(name)], found [name
     #argument of [KQL(name)] must be a constant, received [name]
   - contains: { error.reason: "[KQL(name)]" }
 
@@ -457,7 +457,7 @@ KNN on non constant query:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
     #We only check that the problematic string is there, because the error message is slightly different in old versions
-    #Query must be a valid string in [KNN(image_vector, image_vector, 1)], found [image_vector
+    #Query must be a constant string in [KNN(image_vector, image_vector, 1)], found [image_vector
     #second argument of [KNN(image_vector, image_vector, 1)] must be a constant, received [image_vector]
   - contains: { error.reason: "[KNN(image_vector, image_vector, 1)]" }
 

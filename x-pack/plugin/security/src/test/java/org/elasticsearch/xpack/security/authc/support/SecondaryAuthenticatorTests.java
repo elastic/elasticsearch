@@ -41,7 +41,9 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
@@ -77,6 +79,7 @@ import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME;
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_X_CLIENT_AUTH_HEADER_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -415,6 +418,47 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         assertThat(future.result(), notNullValue());
         return capturedHeader.get();
+    }
+
+    public void testOnlyAuthenticationTokenTransientsAreCaptured() throws Exception {
+        final String tokenKey = "_secondary_auth_credential";
+        final AuthenticationToken tokenValue = mock(AuthenticationToken.class);
+        when(tokenValue.principal()).thenReturn("test-principal");
+        final String nonTokenKey = "_some_non_token_transient";
+        final String nonTokenValue = "should-not-be-captured";
+
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(6, 12)))
+            .realmRef(new RealmRef("test_realm", "dummy", "node1"))
+            .build(false);
+
+        final AuthenticationService mockAuthService = mock(AuthenticationService.class);
+        doAnswer(invocation -> {
+            threadPool.getThreadContext().putTransient(tokenKey, tokenValue);
+            threadPool.getThreadContext().putTransient(nonTokenKey, nonTokenValue);
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> listener = (ActionListener<Authentication>) invocation.getArguments()[3];
+            listener.onResponse(authentication);
+            return null;
+        }).when(mockAuthService).authenticate(any(String.class), any(TransportRequest.class), any(Boolean.class), anyActionListener());
+
+        final SecondaryAuthenticator mockAuthenticator = new SecondaryAuthenticator(
+            securityContext,
+            mockAuthService,
+            new AuditTrailService(null, null)
+        );
+
+        threadPool.getThreadContext()
+            .putHeader(SECONDARY_AUTH_HEADER_NAME, basicAuthHeaderValue(randomAlphanumericOfLength(5), randomSecureStringOfLength(5)));
+
+        final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
+        mockAuthenticator.authenticate(AuthenticateAction.NAME, AuthenticateRequest.INSTANCE, future);
+
+        final SecondaryAuthentication secondaryAuthentication = future.result();
+        assertThat(secondaryAuthentication, notNullValue());
+        assertThat(secondaryAuthentication.getTransientHeaders().get(tokenKey), equalTo(tokenValue));
+        assertThat(secondaryAuthentication.getTransientHeaders().containsKey(nonTokenKey), is(false));
+        assertThat(secondaryAuthentication.getTransientHeaders().containsKey(AuthenticationField.AUTHENTICATION_KEY), is(false));
     }
 
 }

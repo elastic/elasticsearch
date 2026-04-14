@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContextTransient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -27,34 +29,49 @@ import java.util.function.Function;
 public class SecondaryAuthentication {
 
     public static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
+    private static final AuthenticationContextSerializer serializer = new AuthenticationContextSerializer(THREAD_CTX_KEY);
+
+    static final ThreadContextTransient<CapturedTransientHeaders> CAPTURED_TRANSIENT_HEADERS = ThreadContextTransient.transientValue(
+        "_security_secondary_authc_captured_transient_headers",
+        CapturedTransientHeaders.class
+    );
 
     private final SecurityContext securityContext;
     private final Authentication authentication;
+    private final Map<String, Object> transientHeaders;
 
-    public SecondaryAuthentication(SecurityContext securityContext, Authentication authentication) {
+    public SecondaryAuthentication(SecurityContext securityContext, Authentication authentication, Map<String, Object> transientHeaders) {
         this.securityContext = Objects.requireNonNull(securityContext);
         this.authentication = Objects.requireNonNull(authentication);
+        this.transientHeaders = Map.copyOf(Objects.requireNonNull(transientHeaders));
     }
 
     @Nullable
     public static SecondaryAuthentication readFromContext(SecurityContext securityContext) throws IOException {
-        final Authentication authentication = serializer().readFromContext(securityContext.getThreadContext());
+        final Authentication authentication = serializer.readFromContext(securityContext.getThreadContext());
         if (authentication == null) {
+            assert CAPTURED_TRANSIENT_HEADERS.get(securityContext.getThreadContext()) == null
+                : "captured transient headers present without secondary authentication";
             return null;
         }
-        return new SecondaryAuthentication(securityContext, authentication);
+        final CapturedTransientHeaders holder = CAPTURED_TRANSIENT_HEADERS.get(securityContext.getThreadContext());
+        final Map<String, Object> captured = holder != null ? holder.headers() : Map.of();
+        return new SecondaryAuthentication(securityContext, authentication, captured);
     }
 
     public void writeToContext(ThreadContext threadContext) throws IOException {
-        serializer().writeToContext(this.authentication, threadContext);
-    }
-
-    private static AuthenticationContextSerializer serializer() {
-        return new AuthenticationContextSerializer(THREAD_CTX_KEY);
+        serializer.writeToContext(this.authentication, threadContext);
+        if (!transientHeaders.isEmpty()) {
+            CAPTURED_TRANSIENT_HEADERS.set(threadContext, new CapturedTransientHeaders(transientHeaders));
+        }
     }
 
     public Authentication getAuthentication() {
         return authentication;
+    }
+
+    public Map<String, Object> getTransientHeaders() {
+        return transientHeaders;
     }
 
     public User getUser() {
@@ -62,7 +79,7 @@ public class SecondaryAuthentication {
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {
-        return this.securityContext.executeWithAuthentication(this.authentication, body);
+        return this.securityContext.executeWithSecondaryAuthentication(this, body);
     }
 
     public Runnable wrap(Runnable runnable) {
@@ -74,7 +91,7 @@ public class SecondaryAuthentication {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + authentication + "}";
+        return getClass().getSimpleName() + "{" + authentication + ", transientHeaders=" + transientHeaders.keySet() + "}";
     }
 
     @Override
@@ -82,11 +99,13 @@ public class SecondaryAuthentication {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SecondaryAuthentication that = (SecondaryAuthentication) o;
-        return authentication.equals(that.authentication);
+        return authentication.equals(that.authentication) && transientHeaders.equals(that.transientHeaders);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(authentication);
+        return Objects.hash(authentication, transientHeaders);
     }
+
+    private record CapturedTransientHeaders(Map<String, Object> headers) {}
 }

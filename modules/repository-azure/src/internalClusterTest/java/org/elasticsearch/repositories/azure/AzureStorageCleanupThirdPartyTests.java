@@ -48,6 +48,7 @@ import java.io.BufferedOutputStream;
 import java.net.HttpURLConnection;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -284,6 +285,16 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
+        assertThrows(
+            NoSuchFileException.class,
+            () -> destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            )
+        );
         destinationBlobContainer.delete(randomPurpose());
     }
 }

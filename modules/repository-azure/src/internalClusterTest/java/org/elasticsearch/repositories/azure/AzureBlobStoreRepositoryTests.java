@@ -434,6 +434,16 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
+        assertThrows(
+            NoSuchFileException.class,
+            () -> destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            )
+        );
         destinationBlobContainer.delete(randomPurpose());
     }
 

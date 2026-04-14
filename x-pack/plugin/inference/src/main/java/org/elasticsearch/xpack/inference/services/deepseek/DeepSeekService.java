@@ -147,7 +147,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
 
     @Override
     public void parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
@@ -155,30 +155,26 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
         ActionListener.completeWith(parsedModelListener, () -> {
             var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             try {
-                return createModel(modelId, taskType, serviceSettingsMap, null, ConfigurationParseContext.REQUEST);
+                return retrieveModelCreatorFromMapOrThrow(
+                    MODEL_CREATORS,
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    ConfigurationParseContext.REQUEST
+                ).createFromMaps(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    serviceSettingsMap,
+                    null,
+                    null,
+                    null,
+                    ConfigurationParseContext.REQUEST
+                );
             } finally {
                 throwIfNotEmptyMap(serviceSettingsMap, NAME);
             }
         });
-    }
-
-    private static DeepSeekChatCompletionModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettingsMap,
-        Map<String, Object> secretSettingsMap,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettingsMap,
-            null,
-            null,
-            secretSettingsMap,
-            context
-        );
     }
 
     @Override
@@ -188,7 +184,7 @@ public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> 
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

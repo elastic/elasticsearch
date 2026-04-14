@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Random;
@@ -28,17 +29,20 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     private final int dims;
     private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
+    private final ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
         byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
         VectorSimilarityFunction similarityFunction
     ) {
         this.dims = dims;
         this.bits = bits;
         this.directoryType = directoryType;
+        this.int4Encoding = int4Encoding;
         this.similarityFunction = similarityFunction;
     }
 
@@ -49,12 +53,19 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
+                scalar.int4Encoding = int4Encoding;
                 scalar.similarityFunction = similarityFunction;
                 scalar.setup(data);
 
@@ -64,6 +75,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
+                vectorized.int4Encoding = int4Encoding;
                 vectorized.similarityFunction = similarityFunction;
                 vectorized.setup(data);
 
@@ -86,12 +98,19 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
+                scalar.int4Encoding = int4Encoding;
                 scalar.similarityFunction = similarityFunction;
                 scalar.setup(data);
 
@@ -101,6 +120,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
+                vectorized.int4Encoding = int4Encoding;
                 vectorized.similarityFunction = similarityFunction;
                 vectorized.setup(data);
 
@@ -122,6 +142,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             VectorScorerOSQBenchmark.class.getField("dims"),
             VectorScorerOSQBenchmark.class.getField("bits"),
             VectorScorerOSQBenchmark.class.getField("directoryType"),
+            VectorScorerOSQBenchmark.class.getField("int4Encoding"),
             VectorScorerOSQBenchmark.class.getField("similarityFunction")
         );
     }

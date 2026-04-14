@@ -103,9 +103,9 @@ EXPORT int64_t vec_dotd1q4(
     return dotd1q4_inner(a_ptr, query_ptr, length);
 }
 
-template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
 static inline void dotd1q4_inner_bulk(
-    const int8_t* a,
+    const TData* a,
     const int8_t* query,
     const int32_t length,
     const int32_t pitch,
@@ -119,24 +119,29 @@ static inline void dotd1q4_inner_bulk(
     int c = 0;
 
     const int8_t* current_vecs[batches];
-    init_pointers<batches, int8_t, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + batches < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)dotd1q4_inner(current_vecs[I], query, length);
         });
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -152,7 +157,7 @@ EXPORT void vec_dotd1q4_bulk(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd1q4_bulk_offsets(
@@ -163,7 +168,16 @@ EXPORT void vec_dotd1q4_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<int8_t, offsets_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+EXPORT void vec_dotd1q4_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd1q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
 EXPORT int64_t vec_dotd2q4(
@@ -176,9 +190,9 @@ EXPORT int64_t vec_dotd2q4(
     return lower + (upper << 1);
 }
 
-template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
 static inline void dotd2q4_inner_bulk(
-    const int8_t* a,
+    const TData* a,
     const int8_t* query,
     const int32_t length,
     const int32_t pitch,
@@ -193,17 +207,20 @@ static inline void dotd2q4_inner_bulk(
     int c = 0;
 
     const int8_t* current_vecs[batches];
-    init_pointers<batches, int8_t, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
     // Process 2 vectors at a time, after instructing the CPU to
     // prefetch the next vectors (both stripes).
-    for (; c + batches < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
-            prefetch(next_vecs[I] + bit_length, lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+                prefetch(next_vecs[I] + bit_length, lines_to_fetch);
+            });
+        }
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)(
@@ -211,7 +228,9 @@ static inline void dotd2q4_inner_bulk(
                 + (dotd1q4_inner(current_vecs[I] + bit_length, query, bit_length) << 1));
         });
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -229,7 +248,7 @@ EXPORT void vec_dotd2q4_bulk(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
+    dotd2q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_offsets(
@@ -240,7 +259,16 @@ EXPORT void vec_dotd2q4_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd2q4_inner_bulk<int8_t, offsets_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+EXPORT void vec_dotd2q4_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
 EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t length) {
@@ -252,9 +280,9 @@ EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t l
     return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
 }
 
-template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
 static inline void dotd4q4_inner_bulk(
-    const int8_t* a,
+    const TData* a,
     const int8_t* query,
     const int32_t length,
     const int32_t pitch,
@@ -311,7 +339,7 @@ EXPORT void vec_dotd4q4_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
+    dotd4q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd4q4_bulk_offsets(
@@ -323,5 +351,15 @@ EXPORT void vec_dotd4q4_bulk_offsets(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd4q4_inner_bulk<int8_t, offsets_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+EXPORT void vec_dotd4q4_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    dotd4q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }

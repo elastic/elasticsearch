@@ -1,0 +1,5 @@
+area: Infra/Plugins
+issues: []
+pr: 145824
+summary: "[Fleet] Add metadata mappings for OpAMP"
+type: enhancement

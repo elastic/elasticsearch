@@ -50,16 +50,17 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
-    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+    public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
         return ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {

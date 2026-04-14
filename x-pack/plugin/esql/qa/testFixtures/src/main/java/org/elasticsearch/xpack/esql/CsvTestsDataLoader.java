@@ -218,7 +218,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        )
+        ),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -246,6 +247,7 @@ public class CsvTestsDataLoader {
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
         new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
         new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
+        new InferenceConfig("test_embedding_inference", TaskType.EMBEDDING),
         new InferenceConfig("test_reranker", TaskType.RERANK),
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
@@ -256,7 +258,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

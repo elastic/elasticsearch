@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Median extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Median", Median::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Median.class).unary(Median::new).name("median");
 
     // TODO: Add the compression parameter
     @FunctionInfo(
@@ -53,7 +55,13 @@ public class Median extends AggregateFunction implements SurrogateExpression {
                     + "maximum value per row, and use the result with the `MEDIAN` function",
                 file = "stats_percentile",
                 tag = "docsStatsMedianNestedExpression"
-            ), }
+            ),
+            @Example(
+                description = "`MEDIAN` can also operate on `exponential_histogram` fields, "
+                    + "approximating the median of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "medianExpHistoForDocs"
+            ) }
     )
     public Median(
         Source source,

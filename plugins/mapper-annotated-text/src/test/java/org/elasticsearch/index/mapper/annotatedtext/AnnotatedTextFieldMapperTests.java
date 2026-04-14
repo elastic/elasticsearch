@@ -93,7 +93,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
         checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
-            b.field("search_analyzer", "keyword");
+            b.field("search_analyzer", "default");
             b.field("search_quote_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 

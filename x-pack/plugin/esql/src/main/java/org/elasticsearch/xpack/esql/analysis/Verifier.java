@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -98,22 +98,16 @@ public class Verifier {
     }
 
     /**
-     * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
-     */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
-        return verify(plan, partialMetrics, null);
-    }
-
-    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param unmappedResolution How unmapped fields are resolved for this query.
+     * @return A collection of verification failures; empty if and only if the plan is valid
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
+
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);

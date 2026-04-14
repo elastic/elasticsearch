@@ -441,7 +441,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
             if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
                 throw new ElasticsearchException(
-                    "DLM failed to mount snapshot [{}] " + "because there were failed shards or no successful shards. Restore info: [{}]",
+                    "DLM failed to mount snapshot [{}] because there were failed shards or no successful shards. Restore info: [{}]",
                     snapshotName,
                     restoreInfo
                 );

@@ -19,6 +19,11 @@ base {
   archivesName = 'esql-datasource-azure'
 }
 
+// Aligned with modules/repository-azure
+versions << [
+  'azureReactorNetty': '1.0.45',
+]
+
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
@@ -32,8 +37,8 @@ dependencies {
   implementation 'com.azure:azure-core:1.51.0'
   implementation 'com.azure:azure-identity:1.13.2'
   implementation 'com.azure:azure-core-http-netty:1.15.3'
-  implementation "io.projectreactor.netty:reactor-netty-core:1.0.45"
-  implementation "io.projectreactor.netty:reactor-netty-http:1.0.45"
+  implementation "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
+  implementation "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
   implementation "io.projectreactor:reactor-core:3.4.38"
   // Netty - must be bundled as plugin classloader is isolated from server
   implementation "io.netty:netty-buffer:${versions.netty}"

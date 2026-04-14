@@ -41,9 +41,9 @@ public final class S3StorageObject implements StorageObject {
     private final String key;
     private final StoragePath path;
 
-    private Long cachedLength;
-    private Instant cachedLastModified;
-    private Boolean cachedExists;
+    private volatile Long cachedLength;
+    private volatile Instant cachedLastModified;
+    private volatile Boolean cachedExists;
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);

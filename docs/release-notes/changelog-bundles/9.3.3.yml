@@ -1,6 +1,6 @@
 version: 9.3.3
-released: false
-generated: 2026-04-03T00:15:19.170920781Z
+released: true
+generated: 2026-04-08T15:14:41.098124240Z
 changelogs:
   - pr: 140660
     summary: "ESQL: Fix null comparison type checking"

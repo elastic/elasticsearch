@@ -88,6 +88,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
     public static final TransportVersion CHUNKED_FETCH_PHASE = TransportVersion.fromName("chunked_fetch_phase");
 
+    public static final TransportVersion CHUNKED_FETCH_DOC_ID_ORDER = TransportVersion.fromName("chunked_fetch_doc_id_order");
+
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;
     private final CircuitBreakerService circuitBreakerService;
@@ -201,7 +203,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(ActionListener.wrap(dataNodeResult -> {
             BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
             int hitCount = dataNodeResult.getLastChunkHitCount();
-            long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
 
             // Process the embedded last chunk if present
             if (lastChunkBytes != null && hitCount > 0) {
@@ -220,11 +221,9 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                     for (int i = 0; i < hitCount; i++) {
+                        int position = in.readVInt();
                         SearchHit hit = SearchHit.readFrom(in, false);
-
-                        // Add with explicit sequence number
-                        long hitSequence = lastChunkSequenceStart + i;
-                        responseStream.addHitWithSequence(hit, hitSequence);
+                        responseStream.addHitWithSequence(hit, position);
                     }
                 }
             }

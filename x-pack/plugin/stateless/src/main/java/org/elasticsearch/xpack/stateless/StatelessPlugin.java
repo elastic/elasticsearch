@@ -1733,7 +1733,7 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
-        registrator.accept("serverless", metricHolder);
+        registrator.accept(StatelessPlugin.NAME, metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {

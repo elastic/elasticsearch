@@ -45,11 +45,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
     }
 
     @Override
-    public IpDataLookup createIpDataLookup(
-        String projectIdStr,
-        String databaseFile,
-        List<String> propertyNames
-    ) {
+    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, List<String> propertyNames) {
         ProjectId pid = ProjectId.fromId(projectIdStr);
         IpDatabase database = provider.getDatabase(pid, databaseFile);
         if (database == null) {

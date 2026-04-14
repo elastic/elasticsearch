@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;

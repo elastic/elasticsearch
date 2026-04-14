@@ -125,10 +125,7 @@ public class IpLocationServiceTests extends ESTestCase {
             List.of("city_name", "country_name")
         );
         assertThat(lookup, notNullValue());
-        assertThat(
-            new HashSet<>(lookup.getInfo().getFields().keySet()),
-            equalTo(Set.of("city_name", "country_name"))
-        );
+        assertThat(new HashSet<>(lookup.getInfo().getFields().keySet()), equalTo(Set.of("city_name", "country_name")));
     }
 
     public void testInvalidProperty() {
@@ -164,11 +161,7 @@ public class IpLocationServiceTests extends ESTestCase {
     public void testMissingDatabase() {
         cleanDatabases();
 
-        IpDataLookup lookup = databaseNodeService.createIpDataLookup(
-            projectId.id(),
-            randomFrom(DEFAULT_DATABASES),
-            null
-        );
+        IpDataLookup lookup = databaseNodeService.createIpDataLookup(projectId.id(), randomFrom(DEFAULT_DATABASES), null);
         assertThat(lookup, nullValue());
     }
 

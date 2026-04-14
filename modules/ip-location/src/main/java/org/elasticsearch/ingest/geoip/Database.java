@@ -168,10 +168,7 @@ enum Database {
         Set.of(IP, CONTINENT_CODE, CONTINENT_NAME, COUNTRY_NAME, COUNTRY_ISO_CODE),
         Set.of(CONTINENT_NAME, COUNTRY_NAME, COUNTRY_ISO_CODE)
     ),
-    PrivacyDetection(
-        Set.of(IP, HOSTING, PROXY, RELAY, TOR, VPN, SERVICE),
-        Set.of(HOSTING, PROXY, RELAY, TOR, VPN, SERVICE)
-    );
+    PrivacyDetection(Set.of(IP, HOSTING, PROXY, RELAY, TOR, VPN, SERVICE), Set.of(HOSTING, PROXY, RELAY, TOR, VPN, SERVICE));
 
     private final Set<DatabaseProperty> properties;
     private final Set<DatabaseProperty> defaultProperties;

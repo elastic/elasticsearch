@@ -30,8 +30,13 @@ public class DatabasePropertyTests extends ESTestCase {
         for (DatabaseProperty property : DatabaseProperty.values()) {
             String expectedMethod = snakeToCamel(property.fieldName());
             assertTrue(
-                "DatabaseProperty." + property.name() + " (field name '" + property.fieldName()
-                    + "') has no corresponding method '" + expectedMethod + "' on IpLocationInfoCollector",
+                "DatabaseProperty."
+                    + property.name()
+                    + " (field name '"
+                    + property.fieldName()
+                    + "') has no corresponding method '"
+                    + expectedMethod
+                    + "' on IpLocationInfoCollector",
                 collectorMethodNames.contains(expectedMethod)
             );
         }
@@ -49,8 +54,11 @@ public class DatabasePropertyTests extends ESTestCase {
         for (Method method : IpLocationInfoCollector.class.getDeclaredMethods()) {
             String fieldName = camelToSnake(method.getName());
             assertTrue(
-                "IpLocationInfoCollector method '" + method.getName()
-                    + "' has no corresponding DatabaseProperty with field name '" + fieldName + "'",
+                "IpLocationInfoCollector method '"
+                    + method.getName()
+                    + "' has no corresponding DatabaseProperty with field name '"
+                    + fieldName
+                    + "'",
                 propertyFieldNames.contains(fieldName)
             );
         }

@@ -1299,8 +1299,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             scrollId(),
             null
         );
-        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(
-            new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable =
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1308,8 +1308,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
                 @Override
                 public void done(TimeValue extraKeepAlive) {}
-            }
-        );
+            });
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         action.setScroll(scrollId());
         action.setCurrentScrollResponseForTests(consumable);

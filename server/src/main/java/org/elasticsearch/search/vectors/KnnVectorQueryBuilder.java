@@ -98,7 +98,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             (Integer) args[3],
             (Float) args[4],
             (RescoreVectorBuilder) args[7],
-            (Float) args[5]
+            (Float) args[5],
+            null
         )
     );
 
@@ -159,6 +160,12 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     private final RescoreVectorBuilder rescoreVectorBuilder;
 
     /**
+     * Inference ID extracted from the query vector builder during rewrite, carried forward
+     * to {@link #doToQuery} where it can be persisted to the field mapping.
+     */
+    private String inferenceIdForMapping;
+
+    /**
      * True if auto pre-filtering should be applied.
      */
     private boolean isAutoPrefilteringEnabled = false;
@@ -181,7 +188,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            null
         );
     }
 
@@ -193,7 +201,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         Float visitPercentage,
         Float vectorSimilarity
     ) {
-        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity, null);
     }
 
     public KnnVectorQueryBuilder(
@@ -214,7 +222,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            null
         );
     }
 
@@ -227,7 +236,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity, null);
     }
 
     private KnnVectorQueryBuilder(
@@ -239,7 +248,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        String inferenceIdForMapping
     ) {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -281,6 +291,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         this.queryVectorBuilder = queryVectorBuilder;
         this.queryVectorSupplier = queryVectorSupplier;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.inferenceIdForMapping = inferenceIdForMapping;
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -303,6 +314,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         }
 
         this.queryVectorSupplier = null;
+        this.inferenceIdForMapping = null;
     }
 
     public String getFieldName() {
@@ -365,6 +377,10 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
 
     public boolean isAutoPrefilteringEnabled() {
         return isAutoPrefilteringEnabled;
+    }
+
+    void setInferenceIdForMapping(String inferenceIdForMapping) {
+        this.inferenceIdForMapping = inferenceIdForMapping;
     }
 
     @Override
@@ -440,16 +456,18 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             if (queryVectorSupplier.get() == null) {
                 return this;
             }
-            float[] resolvedVector = queryVectorSupplier.get();
-            maybeUpdateInferenceIdMapping(ctx, resolvedVector);
+            String resolvedInferenceId = queryVectorBuilder != null ? queryVectorBuilder.getInferenceId() : null;
             return new KnnVectorQueryBuilder(
                 fieldName,
-                resolvedVector,
+                VectorData.fromFloats(queryVectorSupplier.get()),
+                null,
+                null,
                 k,
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                resolvedInferenceId
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (queryVectorBuilder != null) {
@@ -464,7 +482,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                null
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
@@ -489,7 +508,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                inferenceIdForMapping
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
@@ -512,87 +532,66 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     }
 
     /**
-     * If the target dense_vector field has no inference_id set, and the query vector builder provides one,
-     * and the resolved vector's dimensions match the field's configured dimensions, fires a best-effort
-     * async mapping update to persist the inference_id. Failures are logged and swallowed — the search
-     * is never affected.
+     * If the target dense_vector field has no inference_id set, and the resolved inference ID is available,
+     * and the vector's dimensions match, fires a best-effort mapping update to persist the inference_id.
+     * Failures are logged and swallowed — the search is never affected.
      */
-    private void maybeUpdateInferenceIdMapping(QueryRewriteContext ctx, float[] resolvedVector) {
-        if (queryVectorBuilder == null) {
+    private void maybeUpdateInferenceIdMapping(SearchExecutionContext context, DenseVectorFieldType vectorFieldType) {
+        if (inferenceIdForMapping == null) {
             return;
         }
-        String inferenceId = queryVectorBuilder.getInferenceId();
-        if (inferenceId == null) {
+        if (vectorFieldType.getInferenceId() != null) {
             return;
         }
-        Index index = ctx.getFullyQualifiedIndex();
-        if (index == null) {
+        if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
             return;
         }
-        if (ctx.getIndexSettings() == null
-            || ctx.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
+        if (queryVector != null && vectorFieldType.getDims() != null && vectorFieldType.getDims() != queryVector.asFloatVector().length) {
             return;
         }
-        MappedFieldType mappedFieldType;
+        Index index = context.getFullyQualifiedIndex();
         try {
-            mappedFieldType = ctx.getFieldType(fieldName);
-        } catch (Exception e) {
-            return;
-        }
-        if (mappedFieldType instanceof DenseVectorFieldType == false) {
-            return;
-        }
-        DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) mappedFieldType;
-        if (denseVectorFieldType.getInferenceId() != null) {
-            return;
-        }
-        if (denseVectorFieldType.getDims() != null && denseVectorFieldType.getDims() != resolvedVector.length) {
-            return;
-        }
-        ctx.registerAsyncAction((client, listener) -> {
-            try {
-                PutMappingRequest request = new PutMappingRequest();
-                request.setConcreteIndex(index);
-                XContentBuilder builder = JsonXContent.contentBuilder();
-                builder.startObject();
-                builder.startObject("properties");
-                builder.startObject(fieldName);
-                builder.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
-                builder.field("inference_id", inferenceId);
-                builder.endObject();
-                builder.endObject();
-                builder.endObject();
-                request.source(builder);
-                request.masterNodeTimeout(TimeValue.timeValueSeconds(30));
-                request.ackTimeout(TimeValue.ZERO);
-                client.execute(TransportAutoPutMappingAction.TYPE, request, ActionListener.wrap(response -> {
-                    logger.debug("Updated inference_id [{}] on dense_vector field [{}] in index [{}]", inferenceId, fieldName, index);
-                    listener.onResponse(null);
-                }, failure -> {
-                    logger.debug(
-                        () -> format(
-                            "Failed to update inference_id [%s] on dense_vector field [%s] in index [%s]",
-                            inferenceId,
-                            fieldName,
-                            index
-                        ),
-                        failure
-                    );
-                    listener.onResponse(null);
-                }));
-            } catch (Exception e) {
+            PutMappingRequest request = new PutMappingRequest();
+            request.setConcreteIndex(index);
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            builder.startObject("properties");
+            builder.startObject(fieldName);
+            builder.field("type", DenseVectorFieldMapper.CONTENT_TYPE);
+            if (vectorFieldType.getDims() != null) {
+                builder.field("dims", vectorFieldType.getDims());
+            }
+            builder.field("inference_id", inferenceIdForMapping);
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+            request.source(builder);
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(30));
+            request.ackTimeout(TimeValue.ZERO);
+            context.getClient().execute(TransportAutoPutMappingAction.TYPE, request, ActionListener.wrap(response -> {
+                logger.debug("Updated inference_id [{}] on dense_vector field [{}] in index [{}]", inferenceIdForMapping, fieldName, index);
+            }, failure -> {
                 logger.debug(
                     () -> format(
-                        "Failed to build mapping update for inference_id [%s] on field [%s] in index [%s]",
-                        inferenceId,
+                        "Failed to update inference_id [%s] on dense_vector field [%s] in index [%s]",
+                        inferenceIdForMapping,
                         fieldName,
                         index
                     ),
-                    e
+                    failure
                 );
-                listener.onResponse(null);
-            }
-        });
+            }));
+        } catch (Exception e) {
+            logger.debug(
+                () -> format(
+                    "Failed to build mapping update for inference_id [%s] on field [%s] in index [%s]",
+                    inferenceIdForMapping,
+                    fieldName,
+                    index
+                ),
+                e
+            );
+        }
     }
 
     @Override
@@ -618,6 +617,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             );
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
+
+        maybeUpdateInferenceIdMapping(context, vectorFieldType);
 
         List<Query> filtersInitial = doFiltersToQuery(context);
 

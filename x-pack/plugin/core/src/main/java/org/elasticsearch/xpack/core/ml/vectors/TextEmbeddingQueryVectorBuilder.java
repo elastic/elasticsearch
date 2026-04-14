@@ -140,6 +140,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         }, listener::onFailure));
     }
 
+    @Override
+    public String getInferenceId() {
+        return modelId;
+    }
+
     public String getModelText() {
         return modelText;
     }

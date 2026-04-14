@@ -71,7 +71,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     public Dataset(String name, String dataSource, String resource, String description, Map<String, Object> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
-        this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
+        this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");
         this.description = description;
         this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();

@@ -591,7 +591,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Validates that datasource plugins export ReferenceAttribute only.
+     * Validates that data source plugins export ReferenceAttribute only.
      * Called when receiving schema from any plugin (FormatReader, TableCatalog, Connector).
      */
     private static void validateSchemaUsesOnlyReferenceAttributes(List<Attribute> schema) {

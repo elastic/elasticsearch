@@ -55,6 +55,8 @@ public class WaitForHttpResource {
     private String trustStorePassword;
     private String username;
     private String password;
+    private int connectTimeoutMs = 0;
+    private int readTimeoutMs = 0;
 
     public WaitForHttpResource(String protocol, String host, int numberOfNodes) throws MalformedURLException {
         this(
@@ -104,6 +106,23 @@ public class WaitForHttpResource {
         this.password = password;
     }
 
+    public void setConnectTimeout(int connectTimeoutMs) {
+        this.connectTimeoutMs = connectTimeoutMs;
+    }
+
+    public void setReadTimeout(int readTimeoutMs) {
+        this.readTimeoutMs = readTimeoutMs;
+    }
+
+    /**
+     * Performs a single health check attempt. Throws on failure.
+     */
+    public void check() throws GeneralSecurityException, IOException {
+        final KeyStore trustStore = buildTrustStore();
+        final SSLContext ssl = trustStore != null ? createSslContext(trustStore) : null;
+        checkResource(ssl);
+    }
+
     public boolean waitFor(long durationInMs) throws GeneralSecurityException, InterruptedException, IOException {
         final long waitUntil = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationInMs);
         final long sleep = Long.max(durationInMs / 10, 100);
@@ -149,6 +168,12 @@ public class WaitForHttpResource {
         configureSslContext(connection, ssl);
         configureBasicAuth(connection);
         connection.setRequestMethod("GET");
+        if (connectTimeoutMs > 0) {
+            connection.setConnectTimeout(connectTimeoutMs);
+        }
+        if (readTimeoutMs > 0) {
+            connection.setReadTimeout(readTimeoutMs);
+        }
         return connection;
     }
 

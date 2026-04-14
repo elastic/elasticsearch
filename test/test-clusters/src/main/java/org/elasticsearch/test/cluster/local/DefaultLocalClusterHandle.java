@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -42,6 +43,8 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
+    private static final int HEALTH_CHECK_CONNECT_TIMEOUT_MS = 5000;
+    private static final int HEALTH_CHECK_READ_TIMEOUT_MS = 5000;
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),
@@ -118,6 +121,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getHttpAddresses() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
         } else {
@@ -132,6 +136,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getTransportEndpoints() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
         } else {
@@ -160,6 +165,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getRemoteClusterServerEndpoints() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
         } else {
@@ -228,6 +234,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }
 
+    @Override
+    public boolean areAllNodesAlive() {
+        return started.get() && nodes.stream().allMatch(Node::isAlive);
+    }
+
     protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {
@@ -240,21 +251,40 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     private WaitForHttpResource configureWaitForReady() throws MalformedURLException {
         Node node = nodes.get(0);
+        String scheme = resolveScheme(node);
+        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
+        configureAuthentication(wait, node);
+        return wait;
+    }
+
+    private WaitForHttpResource configureHealthCheck() throws MalformedURLException {
+        Node node = nodes.get(0);
+        String scheme = resolveScheme(node);
+        WaitForHttpResource check = new WaitForHttpResource(new URL(scheme + "://" + node.getHttpAddress() + "/_cluster/health"));
+        configureAuthentication(check, node);
+        check.setConnectTimeout(HEALTH_CHECK_CONNECT_TIMEOUT_MS);
+        check.setReadTimeout(HEALTH_CHECK_READ_TIMEOUT_MS);
+        return check;
+    }
+
+    private String resolveScheme(Node node) {
         boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
         boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
         boolean securityAutoConfigured = isSecurityAutoConfigured(node);
-        String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
-        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
-        User credentials = node.getSpec().getUsers().get(0);
-        wait.setUsername(credentials.getUsername());
-        wait.setPassword(credentials.getPassword());
-        if (sslEnabled) {
-            configureWaitSecurity(wait, node);
-        } else if (securityAutoConfigured) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
-        }
+        return securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
+    }
 
-        return wait;
+    private void configureAuthentication(WaitForHttpResource resource, Node node) {
+        boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
+        boolean securityAutoConfigured = isSecurityAutoConfigured(node);
+        User credentials = node.getSpec().getUsers().get(0);
+        resource.setUsername(credentials.getUsername());
+        resource.setPassword(credentials.getPassword());
+        if (sslEnabled) {
+            configureWaitSecurity(resource, node);
+        } else if (securityAutoConfigured) {
+            resource.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
+        }
     }
 
     private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
@@ -303,6 +333,26 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }
         }));
+    }
+
+    private void checkNodesAlive() {
+        if (started.get() == false) {
+            return;
+        }
+        if (areAllNodesAlive() == false) {
+            throw new IllegalStateException(
+                "Elasticsearch cluster [" + name + "] node process(es) have died. Cluster is no longer available."
+            );
+        }
+        try {
+            WaitForHttpResource healthCheck = configureHealthCheck();
+            healthCheck.check();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                "Elasticsearch cluster [" + name + "] is not responding to health checks. Cluster may be in a bad state.",
+                e
+            );
+        }
     }
 
     private <T> T execute(Callable<T> task) {

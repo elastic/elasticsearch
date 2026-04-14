@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -307,6 +308,24 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 followIMD.getSettings(),
                 "index2"
             );
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
+        }
+        {
+            // should succeed when leader has indexing_complete=true but follower does not (race during auto-follow restore)
+            IndexMetadata leaderIMD = createIMD(
+                "index1",
+                5,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build(),
+                null
+            );
+            IndexMetadata followIMD = createIMD(
+                "index2",
+                5,
+                Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(),
+                customMetadata
+            );
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }

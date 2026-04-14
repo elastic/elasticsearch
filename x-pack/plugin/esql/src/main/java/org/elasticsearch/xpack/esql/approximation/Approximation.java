@@ -66,7 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -151,8 +151,8 @@ public class Approximation {
         Grok.class,
         InlineJoin.class,
         Insist.class,
-        Join.class,
         LocalRelation.class,
+        LookupJoin.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
@@ -499,7 +499,7 @@ public class Approximation {
         while (plan instanceof LeafPlan == false) {
             plan = switch (plan) {
                 case UnaryPlan unaryPlan -> unaryPlan.child();
-                case Join join -> join.left();
+                case LookupJoin join -> join.left();
                 default -> throw new IllegalStateException("unsupported plan type: " + plan.getClass());
             };
         }

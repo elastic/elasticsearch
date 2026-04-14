@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -170,7 +170,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Drop.class,
         Keep.class,
         InlineStats.class,
-        LookupJoin.class,
+        Join.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,

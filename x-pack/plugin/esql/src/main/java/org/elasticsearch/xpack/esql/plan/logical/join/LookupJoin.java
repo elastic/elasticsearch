@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 
 import java.util.List;
 
@@ -28,7 +27,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
  * This is only used during parsing and substituted to a regular {@link Join} during analysis.
  */
-public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
+public class LookupJoin extends Join implements TelemetryAware, PostAnalysisVerificationAware {
 
     public LookupJoin(
         Source source,
@@ -59,15 +58,6 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
         super(source, left, right, joinConfig, isRemote);
-    }
-
-    /**
-     * Translate the expression into a regular join with a Projection on top, to deal with serialization &amp; co.
-     */
-    @Override
-    public LogicalPlan surrogate() {
-        // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config(), isRemote());
     }
 
     @Override

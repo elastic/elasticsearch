@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,6 +49,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -134,8 +139,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeMarkIndexReadOnly();
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
-            maybeTakeSnapshot(forceMergeIndex);
-            maybeMountSearchableSnapshot(forceMergeIndex);
+            String snapshotName = maybeTakeSnapshot(forceMergeIndex);
+            String frozenIndexName = maybeMountSearchableSnapshot(forceMergeIndex);
+            maybeCleanup(forceMergeIndex, frozenIndexName);
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
                 // if the original index was not found, then we can assume
@@ -367,7 +373,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * the repository. If a valid completed snapshot exists, skips re-taking the snapshot. If an invalid completed snapshot
      * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
      */
-    void maybeTakeSnapshot(String forceMergeIndex) throws InterruptedException {
+    String maybeTakeSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
         checkIndexExists(forceMergeIndex);
@@ -387,6 +393,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         } else {
             checkForOrphanedSnapshotAndStart(forceMergeIndex, repositoryName, snapshotName);
         }
+        return snapshotName;
     }
 
     public void maybeMountSearchableSnapshot(String forceMergeIndex) throws InterruptedException {
@@ -457,6 +464,32 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     }
 
+    void maybeCleanup(String forceMergeIndex, String frozenIndexName) throws InterruptedException {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
+
+        if (dataStreamName == null) {
+            // The old backing index is not part of a data stream. Check if the frozen index is already in a data stream,
+            // which indicates the swap completed but the old index was not deleted (e.g. due to a process/node restart).
+            String frozenDataStreamName = resolveDataStreamName(frozenIndexName, projectMetadata);
+            if (frozenDataStreamName != null) {
+                logger.info(
+                    "Index [{}] is no longer part of a data stream but frozen index [{}] is already in data stream [{}]. "
+                        + "Skipping swap and proceeding to delete the old backing index.",
+                    indexName,
+                    frozenIndexName,
+                    frozenDataStreamName
+                );
+                maybeDeleteIndices(indexName);
+            } else {
+                logger.warn("Index [{}] is not part of a data stream, skipping DLM Cleanup Step", indexName);
+            }
+            return;
+        }
+
+        maybeSwapBackingIndexInDataStream(dataStreamName, indexName, frozenIndexName, stepContext);
+    }
+
     private boolean isIndexReadOnly() {
         return getProjectState().blocks().hasIndexBlock(projectId, indexName, WRITE.getBlock());
     }
@@ -498,6 +531,20 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
         }
+    }
+
+    /**
+     * The cleanup is complete when neither the old index nor its clone exist and the frozen index is part of a data stream.
+     */
+    private boolean isCleanUpComplete(String forceMergeIndex, String frozenIndexName) {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        if (projectMetadata.indices().containsKey(indexName)) {
+            return false;
+        }
+        if (projectMetadata.indices().containsKey(forceMergeIndex)) {
+            return false;
+        }
+        return resolveDataStreamName(frozenIndexName, projectMetadata) != null;
     }
 
     /**
@@ -1003,5 +1050,70 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectMetadata projectMetadata = getProjectState().metadata();
         return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
+
+    /**
+     * Resolves the parent data stream name for the given index.
+     *
+     * @param indexName       the index name to look up
+     * @param projectMetadata the project metadata containing the indices lookup
+     * @return the data stream name, or {@code null} if the index is not part of a data stream
+     */
+    static String resolveDataStreamName(String indexName, ProjectMetadata projectMetadata) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(indexName);
+        if (indexAbstraction == null) {
+            return null;
+        }
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        return parentDataStream != null ? parentDataStream.getName() : null;
+    }
+
+    /**
+     * Swaps a backing index in a data stream by issuing a {@link ModifyDataStreamsAction} request
+     * with a remove action for the old index and an add action for the new frozen index. This is
+     * collapsed into a single cluster state update, making the operation atomic. On success, proceeds
+     * to delete the old backing index and its clone.
+     * @param dataStreamName the name of the data stream
+     * @param oldIndex       the old backing index to remove
+     * @param newIndex       the new frozen index to add
+     */
+    void maybeSwapBackingIndexInDataStream(String dataStreamName, String oldIndex, String newIndex) {
+       ProjectState projectState = getProjectState();
+
+       ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
+            TimeValue.MAX_VALUE,
+            TimeValue.MAX_VALUE,
+            List.of(
+                DataStreamAction.removeBackingIndex(dataStreamName, oldIndex),
+                DataStreamAction.addBackingIndex(dataStreamName, newIndex)
+            )
+        );
+
+        client.projectClient(projectState.projectId())
+            .execute(ModifyDataStreamsAction.INSTANCE, request, ActionListener.wrap(resp -> {
+                if (resp.isAcknowledged()) {
+                    logger.info(
+                        "DLM successfully swapped backing index [{}] with [{}] in data stream [{}]",
+                        oldIndex,
+                        newIndex,
+                        dataStreamName
+                    );
+                    // Delete the old backing index and any clone index now that the swap is complete
+                    maybeDeleteIndices(oldIndex, stepContext);
+                    reqListener.onResponse(null);
+                } else {
+                    reqListener.onFailure(
+                        new ElasticsearchException(
+                            Strings.format(
+                                "DLM failed to acknowledge swap of backing index [%s] with [%s] in data stream [%s]",
+                                oldIndex,
+                                newIndex,
+                                dataStreamName
+                            )
+                        )
+                    );
+                }
+            }, reqListener::onFailure));
+    }
+
 
 }

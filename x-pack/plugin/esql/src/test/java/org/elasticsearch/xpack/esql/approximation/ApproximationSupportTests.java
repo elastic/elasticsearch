@@ -22,9 +22,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSer
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -49,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
@@ -61,7 +66,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -84,7 +89,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -132,7 +136,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // TODO: investigate whether these plans are supported or explain why not
         Fuse.class,
         FuseScoreEval.class,
-        LimitBy.class,
         Lookup.class,
         MMR.class,
         Subquery.class,
@@ -159,7 +162,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,
-        LocalRelation.class,
         MetricsInfo.class,
         ExternalRelation.class,
         TsInfo.class,
@@ -180,6 +182,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Keep.class,
         Rename.class,
         ResolvingProject.class,
+        SparklineGenerateEmptyBuckets.class,
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,
@@ -218,11 +221,14 @@ public class ApproximationSupportTests extends ESTestCase {
         FirstDocId.class,
         First.class,
         Last.class,
+        Earliest.class,
+        Latest.class,
         Max.class,
         Min.class,
         Absent.class,
         Present.class,
         Top.class,
+        Sparkline.class,
 
         // Spatial aggs are not supported for approximation.
         SpatialExtent.class,
@@ -241,6 +247,8 @@ public class ApproximationSupportTests extends ESTestCase {
         // These aggs don't occur in a correct query.
         SumSerializationTests.OldSum.class,
         AvgSerializationTests.OldAvg.class,
+        ToPartial.class,
+        FromPartial.class,
 
         // Time series aggregates are not supported yet.
         AbsentOverTime.class,

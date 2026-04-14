@@ -401,6 +401,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
+            | LIMIT 100
             | FUSE
             """, STAGES);
     }
@@ -410,6 +411,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
+            | LIMIT 100
             | FUSE RRF
             """, STAGES);
     }
@@ -419,6 +421,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
                    (WHERE emp_no > 0 | EVAL y = 2)
+            | LIMIT 100
             | FUSE LINEAR
             """, STAGES);
     }
@@ -648,6 +651,30 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
+            """);
+    }
+
+    public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL event_duration = event_duration::long
+            | KEEP event_duration
+            """);
+    }
+
+    public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data_ts_long, sample_data, no_mapping_sample_data
+            | EVAL ts = @timestamp::date
+            | KEEP ts
+            """);
+    }
+
+    public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | WHERE message::keyword LIKE "Connected*"
+            | KEEP message
             """);
     }
 

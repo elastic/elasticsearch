@@ -64,9 +64,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens, dims != null);
     }
@@ -86,9 +84,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             dimensionsSetByUser = Boolean.FALSE;
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(
             commonServiceSettings,

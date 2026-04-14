@@ -108,6 +108,31 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertQueryMemoryReleasedAfterSearch(new RangeQueryBuilder(KEYWORD_FIELD).gte("key0").lte("key999"));
     }
 
+    public void testCaseInsensitiveWildcardQueryMemoryReleased() throws Exception {
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*test*pattern*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryMemoryReleasedAfterSearch(wildcardQuery);
+    }
+
+    public void testSingleHugeWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        assertQueryTripsBreaker(new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*"));
+    }
+
+    public void testSingleHugeRegexpTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        RegexpQueryBuilder regexpQuery = new RegexpQueryBuilder(TEXT_FIELD, ".*a.*b.*c.*d.*e.*f.*g.*h.*i.*j.*k.*l.*m.*n.*");
+        regexpQuery.maxDeterminizedStates(Integer.MAX_VALUE);
+        assertQueryTripsBreaker(regexpQuery);
+    }
+
+    public void testSingleHugeCaseInsensitiveWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryTripsBreaker(wildcardQuery);
+    }
+
     private void assertBoolQueryTripsBreaker(int count, IntFunction<QueryBuilder> queryFactory) {
         createAndPopulateIndex();
 
@@ -191,7 +216,9 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
         long baseline = getRequestBreakerEstimated();
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        long estimated = getRequestBreakerEstimated();
-        assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
+        assertBusy(() -> {
+            long estimated = getRequestBreakerEstimated();
+            assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
+        });
     }
 }

@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -32,9 +34,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final StorageObject storageObject;
     private final long length;
     private final FooterCacheKey footerCacheKey;
+    private final int windowSize;
 
-    /** Default window size (4MB) for the sliding range cache. Capped so total budget stays ≤16MB per reader. */
+    /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
+
+    /** Maximum window size (16MB). Caps adaptive window hints to prevent unbounded memory allocation. */
+    static final int MAX_WINDOW_SIZE = 16 * 1024 * 1024;
 
     /** Footer cache budget across the JVM (8MB). */
     static final int FOOTER_CACHE_MAX_BYTES = 8 * 1024 * 1024;
@@ -45,19 +51,34 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private static final FooterCache FOOTER_CACHE = new FooterCache(FOOTER_CACHE_MAX_BYTES, FOOTER_CACHE_MAX_ENTRY_BYTES);
 
     /**
-     * Creates an adapter for the given StorageObject.
-     *
-     * @param storageObject the storage object to adapt
+     * Creates an adapter with the default 4MB sliding window.
      */
     public ParquetStorageObjectAdapter(StorageObject storageObject) {
+        this(storageObject, DEFAULT_WINDOW_SIZE);
+    }
+
+    /**
+     * Creates an adapter with an adaptive window sized to cover the given byte range.
+     * This allows all column chunks within a small row-group split to be fetched in a single I/O
+     * instead of incurring multiple range GETs with the default 4 MiB window.
+     *
+     * @param rangeBytes byte span of the range being read; clamped to [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}]
+     */
+    public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes) {
+        int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
+        return new ParquetStorageObjectAdapter(storageObject, windowSize);
+    }
+
+    private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize) {
         if (storageObject == null) {
-            throw new IllegalArgumentException("storageObject cannot be null");
+            throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
+        this.windowSize = windowSize;
         try {
             this.length = storageObject.length();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
         this.footerCacheKey = buildFooterCacheKey(storageObject, this.length);
     }
@@ -69,7 +90,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, DEFAULT_WINDOW_SIZE);
+        return new RangeFirstSeekableInputStream(storageObject, footerCacheKey, length, windowSize);
     }
 
     static void clearFooterCacheForTests() {

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -805,6 +806,38 @@ public class BasicBlockTests extends ESTestCase {
             false,
             wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
         );
+    }
+
+    public void testAppendPagedBytesCursorVector() {
+        byte[] data = randomByteArrayOfLength(between(1, 100));
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(data, 0, data.length);
+        try (
+            BytesRefVector.Builder cursorBuilder = blockFactory.newBytesRefVectorBuilder(1);
+            BytesRefVector.Builder bytesRefBuilder = blockFactory.newBytesRefVectorBuilder(1)
+        ) {
+            cursorBuilder.append(cursor);
+            bytesRefBuilder.appendBytesRef(new BytesRef(data));
+            try (BytesRefVector v1 = cursorBuilder.build(); BytesRefVector v2 = bytesRefBuilder.build()) {
+                assertThat(BytesRefVector.equals(v1, v2), is(true));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesCursorBlock() {
+        byte[] data = randomByteArrayOfLength(between(1, 100));
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(data, 0, data.length);
+        try (
+            BytesRefBlock.Builder cursorBuilder = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder bytesRefBuilder = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            cursorBuilder.append(cursor);
+            bytesRefBuilder.appendBytesRef(new BytesRef(data));
+            try (BytesRefBlock b1 = cursorBuilder.build(); BytesRefBlock b2 = bytesRefBuilder.build()) {
+                assertThat(BytesRefBlock.equals(b1, b2), is(true));
+            }
+        }
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
@@ -2198,6 +2231,141 @@ public class BasicBlockTests extends ESTestCase {
     private static void assertSliceFullRange(Vector vector) {
         try (var sliced = vector.slice(0, vector.getPositionCount())) {
             assertThat(sliced, sameInstance(vector));
+        }
+    }
+
+    public void testCopyToLong() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendLong(randomLong());
+            }
+            try (LongVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                long sentinel = randomLong();
+                long[] dst = new long[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getLong(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
+        }
+    }
+
+    public void testCopyToInt() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendInt(randomInt());
+            }
+            try (IntVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                int sentinel = randomInt();
+                int[] dst = new int[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getInt(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
+        }
+    }
+
+    public void testCopyToDouble() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (DoubleVector.Builder builder = blockFactory.newDoubleVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendDouble(randomDouble());
+            }
+            try (DoubleVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                double sentinel = randomDouble();
+                double[] dst = new double[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getDouble(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
+        }
+    }
+
+    public void testCopyToFloat() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (FloatVector.Builder builder = blockFactory.newFloatVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendFloat(randomFloat());
+            }
+            try (FloatVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                float sentinel = randomFloat();
+                float[] dst = new float[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getFloat(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
+        }
+    }
+
+    public void testCopyToBoolean() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendBoolean(randomBoolean());
+            }
+            try (BooleanVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                boolean sentinel = randomBoolean();
+                boolean[] dst = new boolean[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getBoolean(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
         }
     }
 

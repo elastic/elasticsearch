@@ -29,6 +29,7 @@ import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
@@ -90,6 +92,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
 
+    // SearchHits from top_hits aggs to release when this response is released.
+    private final List<SearchHits> topHitsToRelease;
+
+    /**
+     * Completion suggestion option hits to release when this response is released (1 ref per hit).
+     * Never null; empty when there are no such hits to release.
+     */
+    private final List<SearchHit> completionOptionHitsToRelease;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
@@ -100,10 +111,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.aggregations = InternalAggregations.readFrom(
                 DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
             );
+            this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations, false);
         } else {
             this.aggregations = null;
+            this.topHitsToRelease = List.of();
         }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.completionOptionHitsToRelease = this.suggest != null
+            ? Objects.requireNonNullElse(this.suggest.collectCompletionOptionHits(false), List.of())
+            : List.of();
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
         this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
@@ -157,6 +173,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
+            null,
+            null,
             null
         );
     }
@@ -187,7 +205,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
-            pointInTimeId
+            pointInTimeId,
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
@@ -207,12 +227,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        BytesReference pointInTimeId
+        BytesReference pointInTimeId,
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
         this.hits = hits;
         hits.incRef();
         this.aggregations = aggregations;
+        if (topHitsToRelease != null) {
+            this.topHitsToRelease = topHitsToRelease;
+        } else if (aggregations != null) {
+            this.topHitsToRelease = collectTopHitsFromAggregations(aggregations, true);
+        } else {
+            this.topHitsToRelease = List.of();
+        }
         this.suggest = suggest;
+        this.completionOptionHitsToRelease = Objects.requireNonNullElse(
+            completionOptionHitsToRelease != null
+                ? completionOptionHitsToRelease
+                : (suggest != null ? suggest.collectCompletionOptionHits(true) : null),
+            List.of()
+        );
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -230,6 +265,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
+    private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs, boolean incRef) {
+        if (aggs == null) {
+            return Collections.emptyList();
+        }
+        List<SearchHits> out = new ArrayList<>();
+        InternalAggregations.addTopHitsToReleaseList(aggs, out, incRef);
+        return out;
+    }
+
     @Override
     public void incRef() {
         refCounted.incRef();
@@ -243,6 +287,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public boolean decRef() {
         if (refCounted.decRef()) {
+            for (SearchHits h : topHitsToRelease) {
+                h.decRef();
+            }
+            for (SearchHit hit : completionOptionHitsToRelease) {
+                hit.decRef();
+            }
             hits.decRef();
             return true;
         }
@@ -1227,6 +1277,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
+            null,
+            null,
             null
         );
     }

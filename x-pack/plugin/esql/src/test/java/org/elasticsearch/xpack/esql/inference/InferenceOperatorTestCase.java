@@ -36,11 +36,13 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -138,12 +140,25 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 ActionListener<Response> listener
             ) {
                 runWithRandomDelay(() -> {
+                    if (shouldFail.get()) {
+                        listener.onFailure(failureException);
+                        return;
+                    }
                     if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
-                        if (shouldFail.get()) {
-                            listener.onFailure(failureException);
-                            return;
-                        }
                         listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
+                        return;
+                    }
+                    if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
+                        List<String> inputs = embeddingRequest.getEmbeddingRequest()
+                            .inputs()
+                            .stream()
+                            .map(group -> group.value().value())
+                            .toList();
+                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                            embeddingRequest.getInferenceEntityId(),
+                            embeddingRequest.getTaskType()
+                        ).setInput(inputs).build();
+                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
                         return;
                     }
 

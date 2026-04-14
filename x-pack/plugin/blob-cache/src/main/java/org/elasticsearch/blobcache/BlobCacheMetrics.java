@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -36,6 +37,8 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
+    public static final String WITHIN_BOOST_WINDOW_ATTRIBUTE_KEY = "within_boost_window";
+    public static final String WITHIN_BOOST_WINDOW_UNKNOWN = "unknown";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -200,13 +203,17 @@ public class BlobCacheMetrics {
      * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
+     * @param withinBoostWindow Whether the commit's timestamp falls within the boost window,
+     *                          or {@code null} if unknown (e.g. no {@code @timestamp} field,
+     *                          or a non-search-tier read)
      */
     public void recordCachePopulationMetrics(
         String fileName,
         int bytesCopied,
         long copyTimeNanos,
         CachePopulationReason cachePopulationReason,
-        CachePopulationSource cachePopulationSource
+        CachePopulationSource cachePopulationSource,
+        @Nullable Boolean withinBoostWindow
     ) {
         LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(fileName);
         String luceneFileExt = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
@@ -219,7 +226,9 @@ public class BlobCacheMetrics {
             LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
             luceneFileExt,
             ES_EXECUTOR_ATTRIBUTE_KEY,
-            executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
+            executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD,
+            WITHIN_BOOST_WINDOW_ATTRIBUTE_KEY,
+            withinBoostWindow == null ? WITHIN_BOOST_WINDOW_UNKNOWN : Boolean.toString(withinBoostWindow)
         );
         assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);

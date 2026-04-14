@@ -757,7 +757,12 @@ public class AzureBlobStore implements BlobStore {
                 throw new IOException("Copy from " + sourceBlobName + " to " + blobName + " failed: " + response.getStatus());
             }
         } catch (BlobStorageException e) {
-            if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus() && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
+            boolean blobNotFound = BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode());
+            boolean blobNotFoundWithSasToken = Strings.hasText(sasToken)
+                && BlobErrorCode.CANNOT_VERIFY_COPY_SOURCE.equals(e.getErrorCode())
+                && e.getServiceMessage() != null
+                && e.getServiceMessage().contains("<CopySourceErrorCode>BlobNotFound</CopySourceErrorCode>");
+            if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus() && (blobNotFound || blobNotFoundWithSasToken)) {
                 throw new NoSuchFileException("Copy source [" + sourceBlobName + "] not found: " + e.getMessage());
             }
             throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobName + "]", e);

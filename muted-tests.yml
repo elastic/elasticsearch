@@ -337,6 +337,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/146263
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testMaxQueueLatencyMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/146283
 
 # Examples:
 #

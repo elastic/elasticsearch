@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 
@@ -116,6 +117,65 @@ public abstract class SenderService<M extends Model> implements InferenceService
         }).addListener(listener);
     }
 
+    @Override
+    public void parseRequestConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ActionListener<Model> parsedModelListener
+    ) {
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+
+            ChunkingSettings chunkingSettings = null;
+            if (CHUNKING_TASK_TYPES.contains(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
+
+            migrateBetweenTaskAndServiceSettings(serviceSettingsMap, taskSettingsMap);
+
+            var model = retrieveModelCreatorFromMapOrThrow(
+                modelCreators,
+                inferenceEntityId,
+                taskType,
+                name(),
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                name(),
+                serviceSettingsMap,
+                taskSettingsMap,
+                chunkingSettings,
+                serviceSettingsMap,
+                ConfigurationParseContext.REQUEST
+            );
+
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForTaskSettings() == false) {
+                throwIfNotEmptyMap(taskSettingsMap, name());
+            }
+
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
+     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
+     * task settings map is empty, these services will throw an exception from the parser.
+     * @return whether this service implements a parser for task settings
+     */
+    public boolean usesParserForTaskSettings() {
+        return false;
+    }
+
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
         var config = unparsedModel.settings();
         var secrets = unparsedModel.secrets();
@@ -146,8 +206,20 @@ public abstract class SenderService<M extends Model> implements InferenceService
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            unparsedModel.endpointMetadata()
         );
+    }
+
+    @Override
+    public M buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            modelCreators,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.REQUEST
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     /**

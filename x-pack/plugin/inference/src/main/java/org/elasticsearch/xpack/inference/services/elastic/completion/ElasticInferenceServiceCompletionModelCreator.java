@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -33,10 +32,13 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
     public ElasticInferenceServiceCompletionModel createFromMaps(
         String inferenceId,
         TaskType taskType,
+        String service,
         Map<String, Object> serviceSettings,
-        @Nullable ChunkingSettings chunkingSettings,
+        Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
+        Map<String, Object> secretSettings,
         ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
+        EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,

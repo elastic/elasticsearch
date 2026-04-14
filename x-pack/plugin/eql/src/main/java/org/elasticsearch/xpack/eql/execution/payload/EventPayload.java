@@ -25,8 +25,8 @@ public class EventPayload extends AbstractPayload {
         SearchHits hits = response.getHits();
         values = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            // Event borrows hit.getSourceRef() by reference; safe because the response is released
-            // only after the entire synchronous listener chain (including serialisation) completes.
+            // Event takes refcount ownership of _source via Event(SearchHit) (retain on pooled bytes, wrap otherwise).
+            // SearchResponse is still valid here; later EqlSearchResponse / Event release paths drop refs after use.
             values.add(new Event(hit));
         }
     }

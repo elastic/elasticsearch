@@ -21,7 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 /**
- * {@link EqlSearchResponse.Event#Event(SearchHit)} retains {@link SearchHit#getSourceRef()} so the event outlives {@link SearchHit#decRef()}.
+ * {@link EqlSearchResponse.Event#Event(SearchHit)} retains {@link SearchHit#getSourceRef()} so the event outlives
+ * {@link SearchHit#decRef()}.
  */
 public class EqlSearchResponseEventSourceLifetimeTests extends ESTestCase {
 

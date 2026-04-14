@@ -255,17 +255,9 @@ rules:
   #   # Per-product overrides:
     products:
       'elasticsearch':
-        match_products: any
-        # Include changelog if it matches any of these products
-        include_products:
-          - elasticsearch
         exclude_types:
           - docs
       'cloud-serverless':
-        match_products: any
-        # Include changelog if it matches any of these products
-        include_products:
-          - cloud-serverless
         exclude_types:
           - docs
         match_areas: all

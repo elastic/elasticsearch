@@ -1,0 +1,2 @@
+SET approximation={"rows":10000};
+FROM many_numbers | STATS COUNT(), AVG(sv)

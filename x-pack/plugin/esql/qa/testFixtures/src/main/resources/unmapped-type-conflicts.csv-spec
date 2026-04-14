@@ -1054,6 +1054,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 
 typeConflictDateNanosDateUnmappedNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data METADATA _index

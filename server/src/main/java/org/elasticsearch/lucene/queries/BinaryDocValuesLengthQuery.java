@@ -57,11 +57,26 @@ final class BinaryDocValuesLengthQuery extends Query {
 
                 String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+
+                // When counts is null (multi_value=no) or all documents in the segment have exactly one value the binary blob stores raw
+                // bytes with no length prefix. Both cases are equivalent for length queries.
+                final boolean singleValued;
+                if (counts == null) {
+                    singleValued = true;
+                } else {
+                    DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                    assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+                    singleValued = countsSkipper.maxValue() == 1;
+                }
+
                 final DocIdSetIterator iterator;
-                if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
+                if (singleValued && values instanceof BlockLoader.OptionalLengthReader direct) {
+                    // TSDB codec: check lengths directly from compressed encoding without decoding BytesRefs
                     iterator = direct.tryLengthIterator(length);
+                } else if (singleValued) {
+                    // Non-TSDB codec: OptionalLengthReader not available, fall back to iterating and checking
+                    Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
+                    iterator = AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost());
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                     iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost());

@@ -283,15 +283,9 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
         BytesRef value = new BytesRef("potato");
 
-        // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            doc,
-            "field",
-            value,
-            ValueOrdering.SORTED_UNIQUE,
-            MultiValue.NO,
-            IndexVersion.current()
-        );
+        // when — use DocValuesFieldFactory which handles multi_value=no branching
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
+        factory.addBinaryField(doc, "field", value, ValueOrdering.SORTED_UNIQUE);
 
         // then — field is stored as a plain BinaryDocValuesField with the raw value
         IndexableField storedField = doc.getField("field");
@@ -304,15 +298,9 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         // given
         LuceneDocument doc = new LuceneDocument();
 
-        // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            doc,
-            "field",
-            new BytesRef("potato"),
-            ValueOrdering.SORTED_UNIQUE,
-            MultiValue.NO,
-            IndexVersion.current()
-        );
+        // when — use DocValuesFieldFactory which handles multi_value=no branching
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
+        factory.addBinaryField(doc, "field", new BytesRef("potato"), ValueOrdering.SORTED_UNIQUE);
 
         // then — field is NOT registered in keyedFields; only in the Lucene fields list.
         // Single-value enforcement is handled by Lucene: BinaryDocValuesField rejects a second add for the same field.

@@ -1628,6 +1628,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final boolean index;
     private final boolean store;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final boolean norms;
     private final String termVectors;
@@ -1672,6 +1673,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexCreatedVersion);
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1725,20 +1727,18 @@ public final class TextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(value);
             if (fieldType().usesBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                dvFactory.addBinaryField(
                     context.doc(),
                     fieldType().name(),
                     binaryValue,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-                    docValuesParameters.multiValue(),
-                    indexCreatedVersion
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
             } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
                 // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
                 // in such cases, store the value in binary doc values instead, which don't have these length limitations
                 storeValueInFallbackField(fieldType().syntheticSourceFallbackFieldName(), binaryValue, context);
             } else {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                dvFactory.addSortedField(context.doc(), fieldType().name(), binaryValue);
             }
         }
 
@@ -1776,14 +1776,7 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            context.doc(),
-            fallbackFieldName,
-            bytesRef,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
-            docValuesParameters.multiValue(),
-            indexCreatedVersion
-        );
+        dvFactory.addBinaryField(context.doc(), fallbackFieldName, bytesRef, MultiValuedBinaryDocValuesField.ValueOrdering.SORTED);
     }
 
     /**

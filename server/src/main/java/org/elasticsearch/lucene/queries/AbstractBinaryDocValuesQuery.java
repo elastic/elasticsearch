@@ -50,13 +50,19 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
 
                 if (values == null) {
                     return null;
                 }
 
-                final var iterator = multiValuedIterator(values, counts, matcher, matchCost());
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                final DocIdSetIterator iterator;
+                if (counts == null) {
+                    // Single-valued binary doc values (multi_value=no): no .counts companion field
+                    iterator = singleValuedIterator(values, matcher, matchCost());
+                } else {
+                    iterator = multiValuedIterator(values, counts, matcher, matchCost());
+                }
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -74,6 +80,20 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    static DocIdSetIterator singleValuedIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            @Override
+            public boolean matches() throws IOException {
+                return predicate.test(values.binaryValue());
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
     }
 
     static DocIdSetIterator multiValuedIterator(

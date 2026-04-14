@@ -469,6 +469,27 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                final float f = value.floatValue();
+                if (indexType.hasPoints()) {
+                    document.add(new HalfFloatPoint(name, f));
+                }
+                if (indexType.hasDocValues()) {
+                    dvFactory.addNumericField(document, name, HalfFloatPoint.halfFloatToSortableShort(f));
+                }
+                if (stored) {
+                    document.add(new StoredField(name, f));
+                }
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return HalfFloatPoint.halfFloatToSortableShort(value.floatValue());
             }
@@ -678,6 +699,32 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                final float f = value.floatValue();
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    if (dvFactory.isSingleValued()) {
+                        document.add(new SingleValuedFloatField(name, f));
+                    } else {
+                        document.add(new FloatField(name, f, Field.Store.NO));
+                    }
+                } else if (indexType.hasDocValues()) {
+                    dvFactory.addNumericField(document, name, toSortableLong(value));
+                } else if (indexType.hasPoints()) {
+                    document.add(new FloatPoint(name, f));
+                }
+                if (stored) {
+                    document.add(new StoredField(name, f));
+                }
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return NumericUtils.floatToSortableInt(value.floatValue());
             }
@@ -853,6 +900,32 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                final double d = value.doubleValue();
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    if (dvFactory.isSingleValued()) {
+                        document.add(new SingleValuedDoubleField(name, d));
+                    } else {
+                        document.add(new DoubleField(name, d, Field.Store.NO));
+                    }
+                } else if (indexType.hasDocValues()) {
+                    dvFactory.addNumericField(document, name, toSortableLong(value));
+                } else if (indexType.hasPoints()) {
+                    document.add(new DoublePoint(name, d));
+                }
+                if (stored) {
+                    document.add(new StoredField(name, d));
+                }
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return NumericUtils.doubleToSortableLong(value.doubleValue());
             }
@@ -992,6 +1065,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                INTEGER.addFields(document, name, value, indexType, stored, dvFactory);
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return INTEGER.toSortableLong(value);
             }
@@ -1127,6 +1212,18 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, IndexType indexType, boolean stored) {
                 INTEGER.addFields(document, name, value, indexType, stored);
+            }
+
+            @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                INTEGER.addFields(document, name, value, indexType, stored, dvFactory);
             }
 
             @Override
@@ -1352,6 +1449,32 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                final int i = value.intValue();
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    if (dvFactory.isSingleValued()) {
+                        document.add(new SingleValuedIntField(name, i));
+                    } else {
+                        document.add(new IntField(name, i, Field.Store.NO));
+                    }
+                } else if (indexType.hasDocValues()) {
+                    dvFactory.addNumericField(document, name, i);
+                } else if (indexType.hasPoints()) {
+                    document.add(new IntPoint(name, i));
+                }
+                if (stored) {
+                    document.add(new StoredField(name, i));
+                }
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return value.intValue();
             }
@@ -1530,6 +1653,32 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public void addFields(
+                LuceneDocument document,
+                String name,
+                Number value,
+                IndexType indexType,
+                boolean stored,
+                DocValuesFieldFactory dvFactory
+            ) {
+                final long l = value.longValue();
+                if (indexType.hasPoints() && indexType.hasDocValues()) {
+                    if (dvFactory.isSingleValued()) {
+                        document.add(new SingleValuedLongField(name, l));
+                    } else {
+                        document.add(new LongField(name, l, Field.Store.NO));
+                    }
+                } else if (indexType.hasDocValues()) {
+                    dvFactory.addNumericField(document, name, l);
+                } else if (indexType.hasPoints()) {
+                    document.add(new LongPoint(name, l));
+                }
+                if (stored) {
+                    document.add(new StoredField(name, l));
+                }
+            }
+
+            @Override
             public long toSortableLong(Number value) {
                 return value.longValue();
             }
@@ -1682,6 +1831,20 @@ public class NumberFieldMapper extends FieldMapper {
          * @param stored whether or not the field is stored
          */
         public abstract void addFields(LuceneDocument document, String name, Number value, IndexType indexType, boolean stored);
+
+        /**
+         * Variant of {@link #addFields} that uses the given factory for doc values creation. Each type overrides this to use its
+         * single-valued counterpart (e.g. {@link SingleValuedFloatField}) when the factory is single-valued, or the standard Lucene
+         * convenience class (e.g. {@link FloatField}) when multi-valued.
+         */
+        public abstract void addFields(
+            LuceneDocument document,
+            String name,
+            Number value,
+            IndexType indexType,
+            boolean stored,
+            DocValuesFieldFactory dvFactory
+        );
 
         /**
          * For a given {@code Number}, returns the sortable long representation that will be stored in the doc values.
@@ -2306,6 +2469,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final NumberType type;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
@@ -2335,6 +2499,11 @@ public class NumberFieldMapper extends FieldMapper {
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            ((NumberFieldType) mappedFieldType).indexType().hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
@@ -2471,7 +2640,7 @@ public class NumberFieldMapper extends FieldMapper {
         switch (type) {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
             case LONG -> addLongFields(doc, name, numericValue.longValue());
-            default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored);
+            case HALF_FLOAT, FLOAT, DOUBLE -> type.addFields(doc, name, numericValue, fieldType.indexType, stored, dvFactory);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {
@@ -2482,13 +2651,13 @@ public class NumberFieldMapper extends FieldMapper {
     private void addIntFields(LuceneDocument document, String name, int i) {
         final var indexType = fieldType.indexType();
         if (indexType.hasPoints() && indexType.hasDocValues()) {
-            document.add(new IntField(name, i, Field.Store.NO));
-        } else if (indexType.hasDocValues()) {
-            if (indexType.hasDocValuesSkipper()) {
-                document.add(SortedNumericDocValuesField.indexedField(name, i));
+            if (dvFactory.isSingleValued()) {
+                document.add(new SingleValuedIntField(name, i));
             } else {
-                document.add(new SortedNumericDocValuesField(name, i));
+                document.add(new IntField(name, i, Field.Store.NO));
             }
+        } else if (indexType.hasDocValues()) {
+            dvFactory.addNumericField(document, name, i);
         } else if (indexType.hasPoints()) {
             document.add(new IntPoint(name, i));
         }
@@ -2500,13 +2669,13 @@ public class NumberFieldMapper extends FieldMapper {
     private void addLongFields(LuceneDocument document, String name, long l) {
         final var indexType = fieldType.indexType();
         if (indexType.hasPoints() && indexType.hasDocValues()) {
-            document.add(new LongField(name, l, Field.Store.NO));
-        } else if (indexType.hasDocValues()) {
-            if (indexType.hasDocValuesSkipper()) {
-                document.add(SortedNumericDocValuesField.indexedField(name, l));
+            if (dvFactory.isSingleValued()) {
+                document.add(new SingleValuedLongField(name, l));
             } else {
-                document.add(new SortedNumericDocValuesField(name, l));
+                document.add(new LongField(name, l, Field.Store.NO));
             }
+        } else if (indexType.hasDocValues()) {
+            dvFactory.addNumericField(document, name, l);
         } else if (indexType.hasPoints()) {
             document.add(new LongPoint(name, l));
         }

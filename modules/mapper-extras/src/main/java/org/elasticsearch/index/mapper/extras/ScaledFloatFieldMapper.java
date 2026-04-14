@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -593,6 +594,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final boolean indexed;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Double nullValue;
     private final double scalingFactor;
@@ -614,6 +616,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, builder.indexSettings.getIndexVersionCreated());
         this.stored = builder.stored.getValue();
         this.scalingFactor = builder.scalingFactor.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -722,7 +725,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             fieldType().name(),
             scaledValue,
             IndexType.points(indexed, docValuesParameters.enabled()),
-            stored
+            stored,
+            dvFactory
         );
 
         if (shouldStoreOffsets) {

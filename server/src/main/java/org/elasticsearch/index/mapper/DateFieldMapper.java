@@ -11,11 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -1075,6 +1073,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final Locale locale;
     private final String format;
     private final boolean ignoreMalformed;
@@ -1103,6 +1102,11 @@ public final class DateFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -1232,18 +1236,7 @@ public final class DateFieldMapper extends FieldMapper {
             DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
-        if (fieldType().hasDocValuesSkipper()) {
-            context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
-        } else if (indexed && docValuesParameters.enabled()) {
-            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
-        } else if (docValuesParameters.enabled()) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-        }
-        if (store) {
-            context.doc().add(new StoredField(fieldType().name(), timestamp));
-        }
+        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), timestamp, fieldType().indexType, store, dvFactory);
         if (docValuesParameters.enabled() == false && (indexed || store)) {
             // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
             context.addToFieldNames(fieldType().name());

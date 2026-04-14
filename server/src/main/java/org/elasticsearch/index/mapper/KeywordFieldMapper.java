@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -508,7 +509,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
             if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
-                fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
+                DocValuesType dvType = docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO
+                    ? DocValuesType.SORTED
+                    : DocValuesType.SORTED_SET;
+                fieldtype.setDocValuesType(dvType);
             } else {
                 fieldtype.setDocValuesType(DocValuesType.NONE);
                 fieldtype.setDocValuesSkipIndexType(DocValuesSkipIndexType.NONE);
@@ -689,6 +693,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return docValuesParams;
         }
 
+        private boolean usesSingleValuedDocValues() {
+            return docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+        }
+
         @Override
         public boolean isSearchable() {
             return indexType.hasTerms() || hasDocValues();
@@ -701,6 +709,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termQuery(value, context);
             } else if (usesBinaryDocValues) {
                 return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+            } else if (usesSingleValuedDocValues()) {
+                return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -714,6 +724,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+            } else if (usesSingleValuedDocValues()) {
+                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+                return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
@@ -738,6 +751,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
+                    includeLower,
+                    includeUpper
+                );
+            } else if (usesSingleValuedDocValues()) {
+                return SortedDocValuesField.newSlowRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
                     includeUpper
                 );
@@ -1285,6 +1306,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
     private final String normalizerName;
@@ -1314,6 +1336,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexCreatedVersion
+        );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
@@ -1409,15 +1436,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    dvFactory.addBinaryField(
                         context.doc(),
                         fieldName,
                         bytesRef,
                         keepDuplicatesInBinaryDocValues()
                             ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
-                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-                        docValuesParameters.multiValue(),
-                        indexCreatedVersion
+                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
@@ -1461,13 +1486,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().usesBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            dvFactory.addBinaryField(
                 context.doc(),
                 fieldType().name(),
                 binaryValue,
-                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-                docValuesParameters.multiValue(),
-                indexCreatedVersion
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
             );
         }
 

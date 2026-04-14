@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -111,22 +110,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             SeparateCount.addToDoc(doc, fieldName, value, ordering);
         } else {
             IntegratedCount.addToDoc(doc, fieldName, value, ordering);
-        }
-    }
-
-    public static void addToBinaryFieldInDoc(
-        LuceneDocument doc,
-        String fieldName,
-        BytesRef value,
-        ValueOrdering ordering,
-        FieldMapper.DocValuesParameter.Values.MultiValue multiValue,
-        IndexVersion indexVersion
-    ) {
-        if (multiValue == FieldMapper.DocValuesParameter.Values.MultiValue.NO) {
-            // If single values are enforced, use a basic Lucene binary doc values field instead
-            doc.add(new BinaryDocValuesField(fieldName, value));
-        } else {
-            addToBinaryFieldInDoc(doc, fieldName, value, ordering, indexVersion);
         }
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -686,6 +687,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final boolean isSourceSynthetic;
     private final boolean indexed;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
     private final String nullValue;
@@ -707,6 +709,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType().hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -788,7 +795,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (numericValue != null) {
             List<Field> fields = new ArrayList<>();
-            if (indexed && docValuesParameters.enabled()) {
+            if (docValuesParameters.multiValue() == FieldMapper.DocValuesParameter.Values.MultiValue.NO) {
+                if (indexed) {
+                    fields.add(new LongPoint(fieldType().name(), numericValue));
+                }
+                if (docValuesParameters.enabled()) {
+                    dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);
+                }
+            } else if (indexed && docValuesParameters.enabled()) {
                 fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (docValuesParameters.enabled()) {
                 if (fieldType().indexType().hasDocValuesSkipper()) {

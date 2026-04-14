@@ -12,8 +12,10 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -148,6 +150,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     private final boolean index;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean store;
     private final NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
@@ -160,6 +163,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.index = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
         this.store = builder.store.getValue();
     }
 
@@ -183,7 +187,8 @@ public class TokenCountFieldMapper extends FieldMapper {
             fieldType().name(),
             tokenCount,
             IndexType.points(index, docValuesParameters.enabled()),
-            store
+            store,
+            dvFactory
         );
     }
 

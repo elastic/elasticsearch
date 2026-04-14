@@ -19,7 +19,7 @@ public class IndexFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of();
+        return Set.of(TIME_SERIES_SYNTHETIC_ID);
     }
 
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
@@ -51,7 +51,6 @@ public class IndexFeatures implements FeatureSpecification {
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
-            TIME_SERIES_SYNTHETIC_ID,
             TIME_SERIES_SYNTHETIC_ID_DEFAULT,
             TIME_SERIES_NO_SEQNO,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,

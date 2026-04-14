@@ -339,6 +339,8 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsMappingsMerging
   issue: https://github.com/elastic/elasticsearch/issues/146198
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/146177
 
 # Examples:
 #

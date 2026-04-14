@@ -3273,6 +3273,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationGroup;
     }
 
+    public boolean hasPeerReplicationTargets() {
+        final ShardRouting primaryRouting = routingEntry();
+        for (final ShardRouting shard : getReplicationGroup().getReplicationTargets()) {
+            if (shard.isSameAllocation(primaryRouting) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns the pending replication actions for the shard.
      *

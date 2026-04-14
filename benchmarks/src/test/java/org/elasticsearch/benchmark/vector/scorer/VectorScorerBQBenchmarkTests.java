@@ -12,7 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.benchmark.Utils;
 
 import java.util.Random;
 

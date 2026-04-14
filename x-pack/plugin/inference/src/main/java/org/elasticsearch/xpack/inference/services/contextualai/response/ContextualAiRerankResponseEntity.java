@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-
 /**
  * Parses the Contextual AI rerank response. Contextual AI rerank response looks like:
  * <pre><code>
@@ -51,14 +49,12 @@ public class ContextualAiRerankResponseEntity {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
             return new RankedDocsResults(doParse(jsonParser));
         }
     }
 
     private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) {
-        var responseParser = ResponseParser.PARSER;
-        var responseObject = responseParser.apply(parser, null);
+        var responseObject = ResponseObject.PARSER.apply(parser, null);
         return responseObject.results.stream()
             .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, null))
             .toList();
@@ -96,9 +92,5 @@ public class ContextualAiRerankResponseEntity {
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), INDEX);
             PARSER.declareFloat(ConstructingObjectParser.constructorArg(), RELEVANCE_SCORE);
         }
-    }
-
-    private static class ResponseParser {
-        private static final ConstructingObjectParser<ResponseObject, Void> PARSER = ResponseObject.PARSER;
     }
 }

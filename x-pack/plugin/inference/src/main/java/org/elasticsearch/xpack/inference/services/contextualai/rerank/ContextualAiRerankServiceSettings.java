@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
 public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettings {
 
@@ -70,7 +70,7 @@ public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettin
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
             out.writeString(ContextualAiRerankModel.DEFAULT_RERANK_URI.toString());
         }
         super.writeTo(out);
@@ -83,6 +83,6 @@ public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettin
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+        return INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

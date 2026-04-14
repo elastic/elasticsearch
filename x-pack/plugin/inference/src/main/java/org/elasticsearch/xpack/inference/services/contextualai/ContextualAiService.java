@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
 
 /**
  * Contextual AI inference service for reranking tasks.
@@ -209,7 +209,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+        return INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 
     public static class Configuration {

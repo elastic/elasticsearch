@@ -49,7 +49,7 @@ public class ContextualAiRerankModelTests extends ESTestCase {
         assertThat(model, is(buildModel(TEST_RETURN_DOCUMENTS, TEST_TOP_N, TEST_INSTRUCTION)));
     }
 
-    public void testOf_EmptyMap_RequestOverridesAllValues_AllValuesUpdated() {
+    public void testOf_RequestOverridesAllValuesInEmptyMap_AllValuesUpdated() {
         var originalModel = buildModel(null, null, null);
 
         var mergedModel = ContextualAiRerankModel.of(

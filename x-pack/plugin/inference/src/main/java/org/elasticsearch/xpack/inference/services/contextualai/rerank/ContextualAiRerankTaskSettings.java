@@ -24,7 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
 
 public class ContextualAiRerankTaskSettings implements TopNProvider, TaskSettings {
 
@@ -161,6 +161,6 @@ public class ContextualAiRerankTaskSettings implements TopNProvider, TaskSetting
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+        return INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

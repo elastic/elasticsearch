@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
 /**
  * Base class for ServiceSettings of Contextual AI inference services.
@@ -99,7 +99,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
          * @throws IOException if there is an error reading from the input stream
          */
         private static String readModelId(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
+            if (in.getTransportVersion().supports(INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
                 in.readString();
             }
             return in.readString();

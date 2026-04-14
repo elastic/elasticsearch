@@ -14,8 +14,8 @@ import org.elasticsearch.TransportVersion;
  */
 public final class ContextualAiUtils {
 
-    public static final TransportVersion ML_INFERENCE_CONTEXTUAL_AI_ADDED = TransportVersion.fromName("contextual_ai_service");
-    public static final TransportVersion ML_INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED = TransportVersion.fromName(
+    public static final TransportVersion INFERENCE_CONTEXTUAL_AI_ADDED = TransportVersion.fromName("contextual_ai_service");
+    public static final TransportVersion INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED = TransportVersion.fromName(
         "contextual_ai_url_service_setting_removed"
     );
 

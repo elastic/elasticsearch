@@ -57,7 +57,7 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return List.<Object[]>of(new Object[] { false });
     }
 
     @Before
@@ -128,6 +128,15 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
                 containsString(Strings.format("current license is non-compliant for [%s]", XPackField.INFERENCE))
             );
         }
+    }
+
+    public void testLegacyFormatIndexCreationFails() {
+        Settings legacySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+            .build();
+
+        expectThrows(Exception.class, () -> prepareCreate("test-legacy-format-index").setSettings(legacySettings).get());
     }
 
     public void testNullSourceSucceeds() {

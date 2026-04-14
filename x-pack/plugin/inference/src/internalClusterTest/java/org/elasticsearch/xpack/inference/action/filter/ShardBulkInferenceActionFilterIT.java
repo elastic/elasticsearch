@@ -72,12 +72,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(
-            new Object[] { true, false },
-            new Object[] { true, true },
-            new Object[] { false, false },
-            new Object[] { false, true }
-        );
+        return List.of(new Object[] { false, false }, new Object[] { false, true });
     }
 
     @Before
@@ -281,6 +276,15 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             assertFalse(bulkResponse.hasFailures());
         }
         assertThat(numHits(indexName), equalTo(numHits + ids.size()));
+    }
+
+    public void testLegacyFormatIndexCreationFails() {
+        Settings legacySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+            .build();
+
+        expectThrows(Exception.class, () -> prepareCreate("test-legacy-format-index").setSettings(legacySettings).get());
     }
 
     private int numHits(String indexName) throws Exception {

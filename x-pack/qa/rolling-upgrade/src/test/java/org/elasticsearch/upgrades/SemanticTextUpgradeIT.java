@@ -84,6 +84,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testSemanticTextOperations() throws Exception {
+        assumeFalse(
+            "Legacy format index creation is not supported when the old cluster is running the current version",
+            useLegacyFormat && isOriginalClusterCurrent()
+        );
         switch (CLUSTER_TYPE) {
             case OLD -> createAndPopulateIndex();
             case MIXED, UPGRADED -> performIndexQueryHighlightOps();

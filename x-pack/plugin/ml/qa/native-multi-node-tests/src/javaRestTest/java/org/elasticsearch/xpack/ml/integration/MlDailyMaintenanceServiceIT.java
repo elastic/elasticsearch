@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase {
 
@@ -130,7 +132,9 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         assertThat(getJobState(idleJobId), equalTo(JobState.OPENED));
         assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
 
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
 
         ThreadPool realThreadPool = new TestThreadPool("idle-job-test");
         try {

@@ -15,4 +15,16 @@ package org.elasticsearch.xpack.esql.datasource.parquet.datafusion;
  * the handle remains valid across multiple files. The caller must free the handle via
  * {@link DataFusionBridge#freeExpr} when the reader is closed.
  */
-record DataFusionPushedFilter(long exprHandle) {}
+record DataFusionPushedFilter(long exprHandle) {
+    private static String describe(long handle) {
+        if (handle == 0) {
+            return "none";
+        }
+        return DataFusionBridge.describeExpr(handle);
+    }
+
+    @Override
+    public String toString() {
+        return describe(exprHandle);
+    }
+}

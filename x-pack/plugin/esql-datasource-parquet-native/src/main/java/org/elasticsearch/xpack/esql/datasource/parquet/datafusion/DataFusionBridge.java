@@ -116,4 +116,7 @@ final class DataFusionBridge {
     static native long createNotLike(long colHandle, String pattern);
 
     static native void freeExpr(long handle);
+
+    /** Returns a human-readable string representation of a DataFusion Expr. */
+    static native String describeExpr(long handle);
 }

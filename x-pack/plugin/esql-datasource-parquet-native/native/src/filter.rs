@@ -327,3 +327,16 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_data
     })
     .resolve::<ThrowRuntimeExAndDefault>();
 }
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_datafusion_DataFusionBridge_describeExpr(
+    mut env: EnvUnowned, _class: JClass, handle: jlong,
+) -> jni::sys::jobject {
+    env.with_env(|env| -> JniResult<jni::sys::jobject> {
+        let expr = unsafe { &*(handle as *const Expr) };
+        let desc = format!("{expr}");
+        let jstr = env.new_string(&desc)?;
+        Ok(jstr.into_raw())
+    })
+    .resolve::<ThrowRuntimeExAndDefault>()
+}

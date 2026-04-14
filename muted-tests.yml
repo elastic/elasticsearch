@@ -358,6 +358,8 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettingsLookBackTime
   issue: https://github.com/elastic/elasticsearch/issues/146307
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  issue: https://github.com/elastic/elasticsearch/issues/146126
 
 # Examples:
 #

@@ -37,6 +37,7 @@ public class PushDownFiltersIntoFork extends OptimizerRules.OptimizerRule<Filter
             return filter;
         }
 
+        // we are pushing the filter to all FORK branches - this should be safe as the filter is not a pipeline breaker
         List<LogicalPlan> newForkChildren = new ArrayList<>();
         for (LogicalPlan forkChild : fork.children()) {
             LogicalPlan newForkChild = pushDownFilterIntoForkBranch(fork, forkChild, filter);

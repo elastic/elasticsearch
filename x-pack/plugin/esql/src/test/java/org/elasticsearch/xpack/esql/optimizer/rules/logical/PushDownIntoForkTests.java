@@ -629,6 +629,69 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(filter.child(), instanceOf(EsRelation.class));
     }
 
+    /**
+     * {@snippet lang="text":
+     * TopN[[Order[emp_no{r}#33,ASC,LAST]],10[INTEGER],false]
+     * \_Fork[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38, l
+     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, _fork{r}#43]]
+     *   |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, l
+     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, _fork{r}#6]]
+     *   | \_TopN[[Order[emp_no{f}#10,ASC,LAST]],10[INTEGER],false]
+     *   |   \_Eval[[fork1[KEYWORD] AS _fork#6]]
+     *   |     \_Filter[emp_no{f}#10 > 100[INTEGER] AND salary{f}#15 > 10[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *   \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, l
+     * anguages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26, _fork{r}#7]]
+     *     \_Eval[[fork2[KEYWORD] AS _fork#7]]
+     *       \_Filter[salary{f}#26 > 10[INTEGER]]
+     *         \_TopN[[Order[emp_no{f}#21,ASC,LAST]],100[INTEGER],false]
+     *           \_Filter[emp_no{f}#21 < 10[INTEGER]]
+     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     * }
+     */
+    public void testFilterPushDownMixOfBoundedAndUnboundedForkBranches() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100)
+                    (where emp_no < 10 | SORT emp_no | LIMIT 100)
+             | where salary > 10
+             | sort emp_no
+             | limit 10
+            """;
+
+        var plan = plan(query);
+        var topN = as(plan, TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(10));
+        assertOrders(List.of("emp_no", "ASC"), topN);
+        var fork = as(topN.child(), Fork.class);
+
+        assertEquals(2, fork.children().size());
+
+        // first branch
+        var project = as(fork.children().getFirst(), Project.class);
+        topN = as(project.child(), TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(10));
+        assertOrders(List.of("emp_no", "ASC"), topN);
+        var eval = as(topN.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        var filterCondition = filter.condition();
+        assertThat(filterCondition, instanceOf(And.class));
+        assertThat(Expressions.name(((And) filterCondition).right()), is("salary > 10"));
+        assertThat(Expressions.name(((And) filterCondition).left()), is("emp_no > 100"));
+        assertThat(filter.child(), instanceOf(EsRelation.class));
+
+        // second branch
+        project = as(fork.children().getLast(), Project.class);
+        eval = as(project.child(), Eval.class);
+        filter = as(eval.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("salary > 10"));
+        topN = as(filter.child(), TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(100));
+        assertOrders(List.of("emp_no", "ASC"), topN);
+        filter = as(topN.child(), Filter.class);
+        assertThat(filter.child(), instanceOf(EsRelation.class));
+    }
+
     private void assertOrders(List<String> expectedOrders, TopN topN) {
         assertEquals(expectedOrders.size(), topN.order().size() * 2);
 

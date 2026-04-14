@@ -33,10 +33,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
-import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeShutdownTestUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,7 +47,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -201,7 +198,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      *     </li>
      * </ol>
      */
-    @TestLogging(reason = "improved visibility", value = "org.elasticsearch.cluster.service.MasterService:TRACE")
     public void testReindexFailsWhenPitRelocationFails() throws Exception {
         assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
@@ -216,9 +212,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         ensureStableCluster(3);
-
-        // Manually create the .tasks index with appropriate settings
-//        createTasksIndex();
 
         prepareCreate(SOURCE).setSettings(
             Settings.builder()
@@ -505,25 +498,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             }
         }
         return false;
-    }
-
-    /**
-     * Manually creates {@link TaskResultsService#TASK_INDEX}.
-     * {@link UnassignedInfo#INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING} is set to 0 so if a primary shard of the
-     * {@link TaskResultsService#TASK_INDEX} exists on the data node shutting down then we do not need to wait 60 seconds for allocation
-     */
-    private void createTasksIndex() {
-        assertFalse("test assumes .tasks does not exist yet", indexExists(TaskResultsService.TASK_INDEX));
-        assertAcked(
-            indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX)
-                .setSettings(
-                    indexSettings(2, 1)
-                        // The only way to set this setting is to manually create the .tasks index ourselves
-                        // This stops the code waiting 60 seconds after the node is shut down before allocating
-                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
-                )
-        );
-        ensureGreen(TaskResultsService.TASK_INDEX);
     }
 
     /**

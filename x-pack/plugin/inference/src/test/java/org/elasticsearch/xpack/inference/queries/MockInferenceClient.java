@@ -20,7 +20,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -63,17 +62,16 @@ public class MockInferenceClient extends NoOpClient {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
 
-            try (var parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY, proxyRequest.getContent(), proxyRequest.getContentType())) {
-                InferenceAction.Request.Builder builder = InferenceAction.Request.parseRequest(
-                    proxyRequest.getInferenceEntityId(),
-                    proxyRequest.getTaskType(),
-                    proxyRequest.getContext(),
-                    parser
-                );
-                builder.setInferenceTimeout(proxyRequest.getTimeout());
-                InferenceAction.Request inferenceRequest = builder.build();
-                executeInferenceAction(inferenceRequest.getInferenceEntityId(), inferenceRequest.getInput().getFirst(), inferenceListener);
+            try {
+                // Cannot use InferenceAction.Request.parseRequest() here: it calls InputType.fromRestString()
+                // which rejects INTERNAL_SEARCH / INTERNAL_INGEST — the types InferenceQueryUtils sends.
+                // Parse only the fields the mock needs: inferenceEntityId (from proxyRequest) and input.
+                @SuppressWarnings("unchecked")
+                List<String> inputs = (List<String>) XContentHelper
+                    .convertToMap(proxyRequest.getContent(), false, proxyRequest.getContentType())
+                    .v2()
+                    .get("input");
+                executeInferenceAction(proxyRequest.getInferenceEntityId(), inputs.getFirst(), inferenceListener);
             } catch (Exception e) {
                 inferenceListener.onFailure(e);
             }

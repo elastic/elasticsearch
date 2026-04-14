@@ -4,7 +4,7 @@ stack: preview 9.4.0
 ```
 
 The `TS_INFO` [processing command](/reference/query-languages/esql/commands/processing-commands.md) retrieves
-information about the metrics and individual time series available in
+information about individual time series available in
 [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md),
 along with the dimension values that identify each series.
 

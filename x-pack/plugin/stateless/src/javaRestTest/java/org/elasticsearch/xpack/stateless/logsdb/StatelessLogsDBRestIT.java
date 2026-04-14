@@ -42,7 +42,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ServerlessLogsDBRestIT extends ESRestTestCase {
+public class StatelessLogsDBRestIT extends ESRestTestCase {
 
     private static final String TEST_OPERATOR_USER = "elastic-operator-user";
     private static final String TEST_REGULAR_USER = "elastic-regular-user";

@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 /**
  * A dummy version of xpack info for voting only.
  *
- * Serverless does not contain voting only node code. This class temporarily bridges
+ * Stateless does not contain voting only node code. This class temporarily bridges
  * the expectation of the xpack info infrastructure which expects all xpack feature infos
  * to be available.
  */

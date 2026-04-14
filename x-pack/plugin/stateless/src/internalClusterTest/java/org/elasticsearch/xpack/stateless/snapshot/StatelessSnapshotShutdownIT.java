@@ -30,7 +30,7 @@ import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSH
 import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
 import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 
-public class ServerlessSnapshotShutdownIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessSnapshotShutdownIT extends AbstractStatelessPluginIntegTestCase {
 
     private MockLog mockLog;
 
@@ -50,7 +50,7 @@ public class ServerlessSnapshotShutdownIT extends AbstractStatelessPluginIntegTe
     }
 
     /**
-     * Tests that on serverless search nodes we do not log snapshot shutdown progress
+     * Tests that on stateless search nodes we do not log snapshot shutdown progress
      */
     public void testStatelessSearchNodesDoNotLogSnapshotShuttingDownProgress() throws InterruptedException {
         String searchNodeName = startSearchNode(
@@ -80,7 +80,7 @@ public class ServerlessSnapshotShutdownIT extends AbstractStatelessPluginIntegTe
     }
 
     /**
-     * Tests that on serverless index nodes we log snapshot shutdown progress
+     * Tests that on stateless index nodes we log snapshot shutdown progress
      */
     public void testStatelessIndexNodesDoLogSnapshotShuttingDownProgress() {
         String indexNodeName = startIndexNode(

@@ -554,7 +554,7 @@ public class Approximation {
                         );
                     }
                 }
-            } else {
+            } else if (plan instanceof LeafPlan == false) {
                 // Strip everything after the STATS command.
                 plan = plan.children().getFirst();
             }

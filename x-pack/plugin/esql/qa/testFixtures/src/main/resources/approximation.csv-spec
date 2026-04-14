@@ -652,6 +652,31 @@ count:long   | language_code:integer | language_name:keyword | _approximation_co
 ;
 
 
+Lookup join before and after stats by
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | EVAL language_code = sv % 4 + 1
+    | LOOKUP JOIN languages_lookup ON language_code
+    | DROP language_code
+    | STATS avg=AVG(sv) BY language_name
+    | RENAME language_name AS original_language_name
+    | EVAL language_code = LENGTH(original_language_name) % 4 + 1
+    | LOOKUP JOIN languages_lookup ON language_code
+    | SORT original_language_name
+    | DROP language_code
+;
+
+avg:double | original_language_name:keyword | language_name:keyword | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
+440..490   | English                        | German                | [440..490,440..490]                            | {any}
+440..490   | French                         | Spanish               | [440..490,440..490]                            | {any}
+440..490   | German                         | Spanish               | [440..490,440..490]                            | {any}
+440..490   | Spanish                        | German                | [440..490,440..490]                            | {any}
+;
+
+
 Inline stats
 required_capability: approximation_v7
 request_stored: skip
@@ -711,6 +736,27 @@ COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_in
 100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
 100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
 100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+;
+
+
+Inline stats by and lookup join
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| WHERE sv < 700
+| INLINE STATS SUM(sv) BY sv
+| EVAL language_code = sv % 4 + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT sv DESC
+| LIMIT 2
+;
+
+SUM(sv):long   | sv:integer | language_code:integer | language_name:keyword | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
+70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
+70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
 ;
 
 

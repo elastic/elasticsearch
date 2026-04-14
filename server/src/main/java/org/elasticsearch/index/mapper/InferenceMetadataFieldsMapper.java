@@ -48,7 +48,8 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
                 if (value) {
                     var indexVersion = (IndexVersion) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
+                    if (indexVersion.equals(IndexVersions.ZERO) == false
+                        && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
                         throw new IllegalArgumentException(
                             "The setting [index.mapping.semantic_text.use_legacy_format] cannot be set to [true] "
                                 + "for indices created on or after version ["

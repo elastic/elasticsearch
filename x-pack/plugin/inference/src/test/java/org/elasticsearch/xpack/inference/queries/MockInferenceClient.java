@@ -12,13 +12,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -67,10 +67,11 @@ public class MockInferenceClient extends NoOpClient {
                 // which rejects INTERNAL_SEARCH / INTERNAL_INGEST — the types InferenceQueryUtils sends.
                 // Parse only the fields the mock needs: inferenceEntityId (from proxyRequest) and input.
                 @SuppressWarnings("unchecked")
-                List<String> inputs = (List<String>) XContentHelper
-                    .convertToMap(proxyRequest.getContent(), false, proxyRequest.getContentType())
-                    .v2()
-                    .get("input");
+                List<String> inputs = (List<String>) XContentHelper.convertToMap(
+                    proxyRequest.getContent(),
+                    false,
+                    proxyRequest.getContentType()
+                ).v2().get("input");
                 executeInferenceAction(proxyRequest.getInferenceEntityId(), inputs.getFirst(), inferenceListener);
             } catch (Exception e) {
                 inferenceListener.onFailure(e);

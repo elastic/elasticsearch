@@ -418,12 +418,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
         final String customEndpoint = "my-custom-elser-endpoint";
 
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), customEndpoint)
             .build();
-        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
+        MapperService mapperService = createMapperService(indexVersion, settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, customEndpoint, customEndpoint);
     }
 
@@ -434,27 +435,26 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitEndpoint)
         );
 
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), "my-custom-endpoint")
             .build();
-        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
+        MapperService mapperService = createMapperService(indexVersion, settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);
     }
 
     public void testEmptyDefaultInferenceIdSettingThrows() throws Exception {
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
         for (String blank : new String[] { null, "", " ", "   " }) {
             var settings = Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
                 .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
                 .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), blank)
                 .build();
-            Exception e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
-            );
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(indexVersion, settings, fieldMapping));
             assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be blank"));
         }
     }

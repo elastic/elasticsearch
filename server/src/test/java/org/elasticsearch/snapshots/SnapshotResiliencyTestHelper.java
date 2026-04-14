@@ -148,7 +148,11 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.client.NoOpClient;
@@ -158,6 +162,7 @@ import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
 
@@ -692,6 +697,8 @@ public class SnapshotResiliencyTestHelper {
                 );
 
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
+                new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
                 // Inject initialization from subclass which may be needed by initializations after this point.
@@ -758,6 +765,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
+                searchTransportService.setSearchService(searchService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -833,6 +841,7 @@ public class SnapshotResiliencyTestHelper {
                             Collections.emptyList(),
                             client,
                             null,
+                            UserAgentParserRegistry.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {
@@ -944,7 +953,18 @@ public class SnapshotResiliencyTestHelper {
                         client,
                         usageService,
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
-                        ActivityLogWriterProvider.NOOP
+                        ActivityLogWriterProvider.NOOP,
+                        CrossProjectModeDecider.NOOP
+                    )
+                );
+                actions.put(
+                    TransportFetchPhaseCoordinationAction.TYPE,
+                    new TransportFetchPhaseCoordinationAction(
+                        transportService,
+                        actionFilters,
+                        activeFetchPhaseTasks,
+                        new NoneCircuitBreakerService(),
+                        namedWriteableRegistry
                     )
                 );
                 actions.put(

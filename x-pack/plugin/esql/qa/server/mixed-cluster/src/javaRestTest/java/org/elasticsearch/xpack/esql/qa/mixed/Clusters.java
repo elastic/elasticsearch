@@ -10,9 +10,17 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
+
+import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
+        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory());
+    }
+
+    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
@@ -24,8 +32,8 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            // Remove after https://github.com/elastic/elasticsearch/issues/143884 (only the current version will log the stack trace)
-            .setting("logger.org.elasticsearch.index.mapper.FieldMapper", "DEBUG");
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"));
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

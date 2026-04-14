@@ -31,13 +31,13 @@ public final class AllFirstBytesRefByIntAggregatorFunctionSupplier implements Ag
   @Override
   public AllFirstBytesRefByIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllFirstBytesRefByIntAggregatorFunction.create(driverContext, channels);
+    return new AllFirstBytesRefByIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllFirstBytesRefByIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllFirstBytesRefByIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllFirstBytesRefByIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

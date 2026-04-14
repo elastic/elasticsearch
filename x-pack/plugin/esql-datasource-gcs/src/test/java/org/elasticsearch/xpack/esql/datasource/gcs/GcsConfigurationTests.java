@@ -7,12 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,15 +18,17 @@ import java.util.Map;
  */
 public class GcsConfigurationTests extends ESTestCase {
 
-    private static final Source SOURCE = Source.EMPTY;
-
-    public void testFromParamsWithAllFields() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("credentials", literal("{\"type\":\"service_account\",\"project_id\":\"test\"}"));
-        params.put("project_id", literal("my-project"));
-        params.put("endpoint", literal("http://localhost:4443"));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
+    public void testFromMapWithAllFields() {
+        GcsConfiguration config = GcsConfiguration.fromMap(
+            Map.of(
+                "credentials",
+                "{\"type\":\"service_account\",\"project_id\":\"test\"}",
+                "project_id",
+                "my-project",
+                "endpoint",
+                "http://localhost:4443"
+            )
+        );
 
         assertNotNull(config);
         assertEquals("{\"type\":\"service_account\",\"project_id\":\"test\"}", config.serviceAccountCredentials());
@@ -40,11 +37,8 @@ public class GcsConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithCredentialsOnly() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("credentials", literal("{\"type\":\"service_account\"}"));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
+    public void testFromMapWithCredentialsOnly() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "{\"type\":\"service_account\"}"));
 
         assertNotNull(config);
         assertEquals("{\"type\":\"service_account\"}", config.serviceAccountCredentials());
@@ -53,11 +47,8 @@ public class GcsConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithProjectIdOnly() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("project_id", literal("my-project"));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
+    public void testFromMapWithProjectIdOnly() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("project_id", "my-project"));
 
         assertNotNull(config);
         assertNull(config.serviceAccountCredentials());
@@ -66,11 +57,8 @@ public class GcsConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
-    public void testFromParamsWithEndpointOnly() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("endpoint", literal("http://localhost:4443"));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
+    public void testFromMapWithEndpointOnly() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("endpoint", "http://localhost:4443"));
 
         assertNotNull(config);
         assertNull(config.serviceAccountCredentials());
@@ -79,32 +67,22 @@ public class GcsConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
-    public void testFromParamsWithNullMapReturnsNull() {
-        GcsConfiguration config = GcsConfiguration.fromParams(null);
-        assertNull(config);
+    public void testFromMapWithNullMapReturnsNull() {
+        assertNull(GcsConfiguration.fromMap(null));
     }
 
-    public void testFromParamsWithEmptyMapReturnsNull() {
-        GcsConfiguration config = GcsConfiguration.fromParams(new HashMap<>());
-        assertNull(config);
+    public void testFromMapWithEmptyMapReturnsNull() {
+        assertNull(GcsConfiguration.fromMap(new HashMap<>()));
     }
 
-    public void testFromParamsWithNoGcsParamsReturnsNull() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("other_param", literal("value"));
-        params.put("another_param", literal(123));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
-
-        assertNull(config);
+    public void testFromMapWithUnknownParamsThrows() {
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
-    public void testFromParamsWithBytesRefValue() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("credentials", new Literal(SOURCE, new BytesRef("{\"type\":\"service_account\"}"), DataType.KEYWORD));
-        params.put("project_id", new Literal(SOURCE, new BytesRef("my-project"), DataType.KEYWORD));
-
-        GcsConfiguration config = GcsConfiguration.fromParams(params);
+    public void testFromMapWithStringValues() {
+        GcsConfiguration config = GcsConfiguration.fromMap(
+            Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "my-project")
+        );
 
         assertNotNull(config);
         assertEquals("{\"type\":\"service_account\"}", config.serviceAccountCredentials());
@@ -131,8 +109,7 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testFromFieldsWithAllNullReturnsNull() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, null, null);
-        assertNull(config);
+        assertNull(GcsConfiguration.fromFields(null, null, null));
     }
 
     public void testHasCredentialsWithCredentials() {
@@ -197,23 +174,36 @@ public class GcsConfigurationTests extends ESTestCase {
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
-    private Literal literal(Object value) {
-        DataType dataType;
-        Object literalValue = value;
-        if (value instanceof String s) {
-            dataType = DataType.KEYWORD;
-            literalValue = new BytesRef(s);
-        } else if (value instanceof Integer) {
-            dataType = DataType.INTEGER;
-        } else if (value instanceof Long) {
-            dataType = DataType.LONG;
-        } else if (value instanceof Double) {
-            dataType = DataType.DOUBLE;
-        } else if (value instanceof Boolean) {
-            dataType = DataType.BOOLEAN;
-        } else {
-            dataType = DataType.KEYWORD;
-        }
-        return new Literal(SOURCE, literalValue, dataType);
+    public void testAuthNone() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "none");
+        assertNotNull(config);
+        assertTrue(config.isAnonymous());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testAuthNoneCaseInsensitive() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "NONE");
+        assertTrue(config.isAnonymous());
+        assertEquals("none", config.auth());
+    }
+
+    public void testAuthNoneConflictsWithCredentials() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "none")
+        );
+    }
+
+    public void testAuthNoneAllowsProjectIdAndEndpoint() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "none");
+        assertTrue(config.isAnonymous());
+        assertEquals("my-project", config.projectId());
+    }
+
+    public void testUnsupportedAuthValueThrows() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported")
+        );
     }
 }

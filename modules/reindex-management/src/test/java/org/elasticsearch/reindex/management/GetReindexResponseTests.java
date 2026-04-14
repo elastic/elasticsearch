@@ -209,4 +209,31 @@ public class GetReindexResponseTests extends ESTestCase {
             equalTo(Optional.of("reindex from [host=example.com port=9200][source] to [dest]"))
         );
     }
+
+    public void testSanitizeDescriptionWithOnlyHostPort() {
+        assertThat(
+            sanitizeDescription("reindex from [host=example.com port=9200][source] to [dest]"),
+            equalTo(Optional.of("reindex from [host=example.com port=9200][source] to [dest]"))
+        );
+    }
+
+    public void testSanitizeDescriptionWithSchemeHostPortPathPrefix() {
+        assertThat(
+            sanitizeDescription("reindex from [scheme=https host=example.com port=9200 pathPrefix=/es][source] to [dest]"),
+            equalTo(Optional.of("reindex from [scheme=https host=example.com port=9200 pathPrefix=/es][source] to [dest]"))
+        );
+    }
+
+    public void testSanitizeDescriptionWithHostPortScript() {
+        assertThat(
+            sanitizeDescription(
+                "reindex from [host=example.com port=9200][source]"
+                    + " updated with Script{type=inline, lang='painless',"
+                    + " idOrCode='ctx._source.tag = 'host=localhost port=9200 username=admin password=secret'',"
+                    + " options={}, params={}}"
+                    + " to [dest]"
+            ),
+            equalTo(Optional.of("reindex from [host=example.com port=9200][source] to [dest]"))
+        );
+    }
 }

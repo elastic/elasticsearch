@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -62,8 +60,8 @@ public class Metrics {
      * Settings metrics are filtered based on the current build type (snapshot vs release)
      * and deployment mode (serverless vs stateful).
      */
-    public Metrics(EsqlFunctionRegistry functionRegistry, Settings settings) {
-        this(functionRegistry, Build.current().isSnapshot(), new CrossProjectModeDecider(settings).crossProjectEnabled());
+    public Metrics(EsqlFunctionRegistry functionRegistry, boolean isServerless) {
+        this(functionRegistry, Build.current().isSnapshot(), isServerless);
     }
 
     /**

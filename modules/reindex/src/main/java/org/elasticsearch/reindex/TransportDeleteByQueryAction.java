@@ -14,16 +14,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,7 +38,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
-    private final BulkByScrollOCCResolver occResolver;
+    private final TimeValue taskShutdownGracePeriod;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -48,8 +48,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -58,14 +56,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
-        this.occResolver = new BulkByScrollOCCResolver(clusterService, indexNameExpressionResolver, projectResolver);
+        // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
+        // without this safe default, adding relocations to delete-by-query without updating this might open it up to race conditions.
+        this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
     }
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        boolean useOptimisticConcurrencyControl = occResolver.resolveUseOptimisticConcurrencyControl(request);
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -86,13 +85,13 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     threadPool,
                     request,
                     scriptService,
-                    useOptimisticConcurrencyControl,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (deleteByQueryMetrics != null) {
                             deleteByQueryMetrics.recordTookTime(elapsedTime);
                         }
-                    })
+                    }),
+                    taskShutdownGracePeriod
                 ).start();
             }
         );

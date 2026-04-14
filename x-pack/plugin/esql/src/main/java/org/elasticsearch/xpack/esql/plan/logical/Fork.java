@@ -30,7 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
@@ -105,13 +105,11 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     public Fork refreshOutput() {
-        // We don't want to keep the same attributes that are outputted by the FORK branches.
-        // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
         return new Fork(source(), children(), refreshedOutput());
     }
 
     protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributes(outputUnion(children()));
+        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
     }
 
     @Override

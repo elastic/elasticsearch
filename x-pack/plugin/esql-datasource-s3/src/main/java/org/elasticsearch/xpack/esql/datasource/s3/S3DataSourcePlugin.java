@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -40,15 +42,16 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                S3Configuration s3Config = S3Configuration.fromFields(
-                    (String) config.get("access_key"),
-                    (String) config.get("secret_key"),
-                    (String) config.get("endpoint"),
-                    (String) config.get("region")
-                );
+                S3Configuration s3Config = S3Configuration.fromMap(config);
                 return new S3StorageProvider(s3Config);
             }
         };
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
+        return Map.of(v.type(), v);
     }
 }

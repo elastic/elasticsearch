@@ -251,6 +251,43 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertRegisteredIndexingPressureReleased("indexing pressure should be released when execution short-circuits");
     }
 
+    public void testStalenessMarkerIsDropped() {
+        double stalenessMarker = Double.longBitsToDouble(0x7ff0000000000002L);
+        executeRequest(createWriteRequest("stale_metric", stalenessMarker, System.currentTimeMillis()));
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testNaNSamplesAreDropped() {
+        executeRequest(createWriteRequest("nan_metric", Double.NaN, System.currentTimeMillis()));
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testPositiveInfinitySamplesAreDropped() {
+        executeRequest(createWriteRequest("inf_metric", Double.POSITIVE_INFINITY, System.currentTimeMillis()));
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testNegativeInfinitySamplesAreDropped() {
+        executeRequest(createWriteRequest("neg_inf_metric", Double.NEGATIVE_INFINITY, System.currentTimeMillis()));
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    public void testMixedFiniteAndNonFiniteSamples() {
+        long now = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("mixed_metric").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(Double.NaN).setTimestamp(now - 2000).build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(42.0).setTimestamp(now - 1000).build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(Double.POSITIVE_INFINITY).setTimestamp(now).build())
+                    .build()
+            )
+            .build();
+
+        executeRequest(createWriteRequest(writeRequest, "generic", "default"));
+    }
+
     public void testCustomDatasetAndNamespace() {
         executeRequest(createWriteRequest("test_metric", 42.0, System.currentTimeMillis(), "myapp", "production"));
     }

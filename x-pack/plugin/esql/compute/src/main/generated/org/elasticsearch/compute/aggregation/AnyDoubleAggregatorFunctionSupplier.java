@@ -31,13 +31,13 @@ public final class AnyDoubleAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public AnyDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyDoubleAggregatorFunction.create(driverContext, channels);
+    return new AnyDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AnyDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new AnyDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

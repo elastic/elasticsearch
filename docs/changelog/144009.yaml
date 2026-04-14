@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 144009
+summary: Add indexing pressure tracking to OTLP endpoints
+type: enhancement

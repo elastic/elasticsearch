@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -69,7 +69,7 @@ public class PackDimension extends UnaryScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ElementType elementType = PlannerUtils.toElementType(field.dataType());
         return switch (elementType) {
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case BYTES_REF -> ctx -> new PackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.packBytesValues(ctx, (BytesRefBlock) block)

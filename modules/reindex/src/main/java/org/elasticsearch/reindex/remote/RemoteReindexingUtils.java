@@ -17,15 +17,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.rest.RestStatus;
@@ -41,6 +44,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
+import static org.elasticsearch.reindex.remote.RemoteResponseParsers.OPEN_PIT_PARSER;
 
 /**
  * Utility methods for reindexing from remote Elasticsearch clusters.
@@ -60,6 +64,53 @@ public class RemoteReindexingUtils {
     }
 
     /**
+     * Opens a point-in-time on the remote cluster. Requires remote version 7.10.0 or later.
+     *
+     * @param indices   indices to open PIT on
+     * @param keepAlive PIT keep alive duration
+     * @param listener  receives the PIT id on success, or failure/rejection on error
+     * @param threadPool thread pool for preserving thread context
+     * @param client   REST client for the remote cluster
+     */
+    public static void openPit(
+        SearchRequest request,
+        String[] indices,
+        TimeValue keepAlive,
+        RejectAwareActionListener<BytesReference> listener,
+        ThreadPool threadPool,
+        RestClient client
+    ) {
+        // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
+        // so for parity we assert here in case that changes
+        assert request.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        assert request.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
+        assert request.allowPartialSearchResults() == null || request.allowPartialSearchResults() == false
+            : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
+        execute(RemoteRequestBuilders.openPit(indices, keepAlive, request), OPEN_PIT_PARSER, listener, threadPool, client);
+    }
+
+    /**
+     * Closes a point-in-time on the remote cluster.
+     *
+     * @param pitId    the PIT id to close
+     * @param listener receives on success, or failure on error
+     * @param threadPool thread pool for preserving thread context
+     * @param client   REST client for the remote cluster
+     */
+    public static void closePit(BytesReference pitId, RejectAwareActionListener<Void> listener, ThreadPool threadPool, RestClient client) {
+        execute(RemoteRequestBuilders.closePit(pitId), (p, xContentType) -> {
+            try {
+                if (p.nextToken() != null) {
+                    p.skipChildren();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return null;
+        }, RejectAwareActionListener.withResponseHandler(listener, v -> listener.onResponse(null)), threadPool, client);
+    }
+
+    /**
      * Looks up the remote cluster version with retries on rejection (e.g. 429 Too Many Requests).
      * Matches the retry behavior used by {@link RemoteScrollablePaginatedHitSource} when it looks up the version.
      *
@@ -76,9 +127,13 @@ public class RemoteReindexingUtils {
         RestClient client,
         RejectAwareActionListener<Version> delegate
     ) {
-        RetryListener<Version> retryListener = new RetryListener<>(logger, threadPool, backoffPolicy, listener -> {
-            lookupRemoteVersion(listener, threadPool, client);
-        }, delegate);
+        RetryListener<Version> retryListener = new RetryListener<>(
+            logger,
+            threadPool,
+            backoffPolicy,
+            listener -> lookupRemoteVersion(listener, threadPool, client),
+            delegate
+        );
         lookupRemoteVersion(retryListener, threadPool, client);
     }
 

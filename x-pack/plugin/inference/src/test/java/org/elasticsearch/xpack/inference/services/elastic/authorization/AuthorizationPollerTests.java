@@ -62,7 +62,6 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -137,14 +136,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
 
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
-            eq(persistentTaskId),
-            eq(allocationId),
-            isNull(),
-            isNull(),
-            any(),
-            any()
-        );
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
@@ -189,14 +181,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
 
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
-            eq(persistentTaskId),
-            eq(allocationId),
-            isNull(),
-            isNull(),
-            any(),
-            any()
-        );
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
@@ -403,7 +388,21 @@ public class AuthorizationPollerTests extends ESTestCase {
         // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
         // one and not attempt to store it.
         when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel.id()), false)).thenReturn(
-            Map.of(sparseModel.id(), new MinimalServiceSettings("eis", TaskType.SPARSE_EMBEDDING, null, null, null))
+            Map.of(
+                sparseModel.id(),
+                new MinimalServiceSettings(
+                    "eis",
+                    TaskType.SPARSE_EMBEDDING,
+                    null,
+                    null,
+                    null,
+                    new EndpointMetadata(
+                        EndpointMetadata.Heuristics.EMPTY_INSTANCE,
+                        new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                        EndpointMetadata.Display.EMPTY_INSTANCE
+                    )
+                )
+            )
         );
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
@@ -472,7 +471,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         assertThat(callbackCount.get(), is(1));
         assertTrue(poller.isShutdown());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+        verify(mockPersistentTasksService).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             eq(exception),
@@ -491,6 +490,52 @@ public class AuthorizationPollerTests extends ESTestCase {
             any(),
             any()
         );
+    }
+
+    public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
+        Set<String> endpointsToDelete = Set.of("id-1", "id-2");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2", "id-3"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldIgnoreRemovedEndpointsNotInRegistry() {
+        Set<String> endpointsToDelete = Set.of("id-1", "id-3");
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(endpointsToDelete);
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry, never()).deleteModels(any(), any());
     }
 
     private AuthorizationPoller createPoller() {
@@ -514,10 +559,17 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     private void givenAuthHandlerReturnsEndpointsForUrl(String url, List<AuthorizedEndpoint> endpoints) {
+        givenAuthHandlerRespondsForUrl(url, endpoints, Set.of());
+    }
+
+    private void givenAuthHandlerRespondsForUrl(String url, List<AuthorizedEndpoint> endpoints, Set<String> removedEndpoints) {
         doAnswer(invocation -> {
             ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntity(endpoints), url)
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(endpoints, removedEndpoints),
+                    url
+                )
             );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
@@ -554,7 +606,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                             endpoint.endOfLifeDate()
                         ),
                         new EndpointMetadata.Internal(endpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION),
-                        endpoint.displayName() != null ? new EndpointMetadata.Display(endpoint.displayName()) : null
+                        endpoint.display()
                     )
                 )
             )

@@ -71,12 +71,7 @@ public class FeatureFlag {
         final String propertyName = "es." + name + "_feature_flag_" + suffix;
         if (build.isSnapshot()) {
             enabled = parseSystemProperty(getSystemProperty, propertyName, true);
-            if (enabled == false) {
-                throw new IllegalArgumentException(
-                    "Feature flag " + name + " (via system property '" + propertyName + "') cannot be disabled in snapshot builds"
-                );
-            }
-            logger.info("The current build is a snapshot, feature flag [{}] is enabled", name);
+            logger.info("The current build is a snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");
         } else {
             enabled = parseSystemProperty(getSystemProperty, propertyName, false);
             logger.debug("The current build is a not snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");

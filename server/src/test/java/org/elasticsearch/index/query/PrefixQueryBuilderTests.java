@@ -224,10 +224,8 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             IntStream.range(0, 100).forEach(i -> {
-                PrefixQueryBuilder prefixQuery = new PrefixQueryBuilder(TEXT_FIELD_NAME, "prefix" + i);
-                if (randomBoolean()) {
-                    prefixQuery.caseInsensitive(true);
-                }
+                String longPrefix = "prefixpattern" + i + "_repeatsegment_repeatsegment_repeatsegment_repeatsegment_repeatsegment";
+                PrefixQueryBuilder prefixQuery = new PrefixQueryBuilder(TEXT_FIELD_NAME, longPrefix).caseInsensitive(true);
                 boolQuery.should(prefixQuery);
             });
             return boolQuery;

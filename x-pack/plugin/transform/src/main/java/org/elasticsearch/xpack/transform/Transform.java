@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -39,7 +40,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.crossproject.LinkedProjectsProvider;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -70,6 +71,8 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
@@ -117,6 +120,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -221,16 +225,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-
+        var transformParsingContext = new TransformParsingContext(
+            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
         return Arrays.asList(
-            new RestPutTransformAction(),
+            new RestPutTransformAction(transformParsingContext),
             new RestStartTransformAction(),
             new RestStopTransformAction(),
             new RestDeleteTransformAction(),
             new RestGetTransformAction(),
             new RestGetTransformStatsAction(),
-            new RestPreviewTransformAction(),
-            new RestUpdateTransformAction(),
+            new RestPreviewTransformAction(transformParsingContext),
+            new RestUpdateTransformAction(transformParsingContext),
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
@@ -275,11 +281,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
 
+        var crossProjectModeDecider = services.crossProjectModeDecider();
+        var transformParsingContext = new TransformParsingContext(
+            crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
+
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
             services.indexNameExpressionResolver(),
             client,
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            transformParsingContext
         );
         TransformAuditor auditor = new TransformAuditor(
             client,
@@ -306,6 +318,16 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         scheduler.start();
         var clusterStateListener = new TransformClusterStateListener(clusterService, client);
         var transformNode = new TransformNode(clusterStateListener);
+        Function<ProjectId, Boolean> hasLinkedProjects;
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            var linkedProjectsProvider = LinkedProjectsProvider.Factory.create(
+                services.projectResolver(),
+                services.linkedProjectConfigService()
+            );
+            hasLinkedProjects = projectId -> linkedProjectsProvider.getLinkedProjects(projectId).isEmpty() == false;
+        } else {
+            hasLinkedProjects = projectId -> false;
+        }
 
         transformServices.set(
             new TransformServices(
@@ -314,7 +336,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 auditor,
                 scheduler,
                 transformNode,
-                new CrossProjectModeDecider(settings)
+                crossProjectModeDecider,
+                hasLinkedProjects
             )
         );
 

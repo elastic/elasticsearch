@@ -282,7 +282,7 @@ public record UnifiedCompletionRequest(
     }
 
     public boolean containsMultimodalContent() {
-        return messages().stream().anyMatch(m -> m.content().containsMultimodalContent());
+        return messages().stream().anyMatch(m -> m.content() != null && m.content().containsMultimodalContent());
     }
 
     public boolean containsChatCompletionReasoning() {

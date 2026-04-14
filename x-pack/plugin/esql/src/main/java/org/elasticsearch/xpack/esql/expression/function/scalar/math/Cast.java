@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,7 +27,7 @@ public class Cast {
             return in;
         }
         if (current == DataType.NULL || required == DataType.NULL) {
-            return ConstantExpressions.CONSTANT_NULL_FACTORY;
+            return ConstantEvaluators.CONSTANT_NULL_FACTORY;
         }
         if (required == DataType.DOUBLE) {
             if (current == DataType.LONG) {

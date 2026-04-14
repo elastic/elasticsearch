@@ -165,7 +165,7 @@ public class AggregatorFunctionSupplierImplementer {
         }
 
         builder.addStatement(
-            "return $T.create($L)",
+            "return new $T($L)",
             aggregatorImplementer.implementation(),
             Stream.concat(
                 Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
@@ -188,7 +188,7 @@ public class AggregatorFunctionSupplierImplementer {
         }
 
         builder.addStatement(
-            "return $T.create($L)",
+            "return new $T($L)",
             groupingAggregatorImplementer.implementation(),
             Stream.concat(
                 Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("channels, driverContext")),

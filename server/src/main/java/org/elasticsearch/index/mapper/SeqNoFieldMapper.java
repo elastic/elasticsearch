@@ -298,6 +298,16 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * Create a query that matches the document whose seq_no is exactly {@code value}.
+     */
+    public static Query exactQueryForSeqNo(SeqNoIndexOptions seqNoIndexOptions, long value) {
+        return switch (seqNoIndexOptions) {
+            case POINTS_AND_DOC_VALUES -> LongPoint.newExactQuery(NAME, value);
+            case DOC_VALUES_ONLY -> NumericDocValuesField.newSlowExactQuery(NAME, value);
+        };
+    }
+
+    /**
      * Create a range query that matches all documents whose seq_no is between {@code lowerValue} and {@code upperValue} included.
      */
     public static Query rangeQueryForSeqNo(SeqNoIndexOptions seqNoIndexOptions, long lowerValue, long upperValue) {

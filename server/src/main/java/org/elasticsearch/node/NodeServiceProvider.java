@@ -39,6 +39,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -139,6 +140,7 @@ class NodeServiceProvider {
         TelemetryProvider telemetryProvider,
         String nodeId,
         LinkedProjectConfigService linkedProjectConfigService,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         return new TransportService(
@@ -152,6 +154,7 @@ class NodeServiceProvider {
             taskManager,
             linkedProjectConfigService,
             telemetryProvider,
+            crossProjectModeDecider,
             projectResolver
         );
     }

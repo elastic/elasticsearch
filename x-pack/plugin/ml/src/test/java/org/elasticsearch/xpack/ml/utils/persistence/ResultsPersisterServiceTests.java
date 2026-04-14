@@ -16,8 +16,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -100,10 +102,18 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             true
         )
     );
+    /**
+     * Recoverable bulk failure (SearchPhaseExecutionException) used by tests that expect retry.
+     * Plain Exception would be irrecoverable per MlRecoverableErrorClassifier.
+     */
     private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE = BulkItemResponse.failure(
         2,
         DocWriteRequest.OpType.INDEX,
-        new BulkItemResponse.Failure("my-index", "fail", new Exception("boom"))
+        new BulkItemResponse.Failure(
+            "my-index",
+            "fail",
+            new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)
+        )
     );
 
     private Client client;
@@ -225,6 +235,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("bad search request"));
 
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+    }
+
+    public void testSearchWithRetries_TaskCancelledException_isIrrecoverable() {
+        // TaskCancelledException should not be retried (classified irrecoverable by MlRecoverableErrorClassifier)
+        resultsPersisterService.setMaxFailureRetries(5);
+
+        doAnswer(withFailure(new org.elasticsearch.tasks.TaskCancelledException("task was cancelled"))).when(client)
+            .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {})
+        );
+        assertThat(e.getMessage(), containsString("task was cancelled"));
+
+        // No retry: only one call to client.execute
         verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 

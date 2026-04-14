@@ -178,6 +178,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
         pluginSettings.add(LOOK_BACK_TIME);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
@@ -284,7 +286,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory()));
+        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
     }
 
     @Override

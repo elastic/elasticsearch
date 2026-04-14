@@ -253,9 +253,7 @@ public class RemoteFailure {
         if (type == null) {
             throw new IOException("expected [type] but didn't see it");
         }
-        if (remoteTrace == null) {
-            throw new IOException("expected [stack_trace] cannot but didn't see it");
-        }
+        // stack_trace is optional — authentication and other early-rejection errors may omit it
         return new RemoteFailure(type, reason, remoteTrace, headers, metadata, cause);
     }
 

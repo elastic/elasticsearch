@@ -308,8 +308,9 @@ bundle:
   # PR/issue link allowlist: when set (including []), only links to these owner/repo pairs are kept
   # in bundle output; others are rewritten to '# PRIVATE:' sentinels (requires resolve: true).
   link_allow_repos:
-    - elastic/kibana
     - elastic/elasticsearch
+    - elastic/fleet-server
+    - elastic/kibana
     - elastic/roadmap
   # Optional: default description text for bundles. Supports {version}, {lifecycle}, {owner}, and {repo} placeholders.
   # Use YAML literal block scalar (|) for multiline descriptions. See docs/contribute/changelog.md for examples.

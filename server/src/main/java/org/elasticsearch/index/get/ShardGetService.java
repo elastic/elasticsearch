@@ -60,7 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -180,7 +180,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
-        Function<Engine.Get, Engine.GetResult> engineGetOperator
+        BiFunction<Engine.Get, SplitShardCountSummary, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
         final long now = System.nanoTime();
@@ -191,7 +191,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 .setIfPrimaryTerm(ifPrimaryTerm);
 
             final GetResult getResult;
-            try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
+            try (Engine.GetResult get = engineGetOperator.apply(engineGet, splitShardCountSummary)) {
                 if (get == null) {
                     getResult = null;
                 } else if (get.exists() == false) {

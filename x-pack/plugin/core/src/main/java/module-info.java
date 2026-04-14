@@ -28,6 +28,7 @@ module org.elasticsearch.xcore {
     requires org.slf4j;
     requires com.ibm.icu;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

@@ -65,7 +65,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
             assertThat(requestItem1.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
             assertThat(requestItem1.inferenceRequest().getTaskType(), equalTo(TaskType.COMPLETION));
-            assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("prompt1"));
+            assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 1, 0, 0 }));
 
             // Second request: prompt2 with trailing prompt3 (not batched as we hit non-null)
@@ -74,7 +74,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             BulkInferenceRequestItem requestItem2 = requestIterator.next();
             assertThat(requestItem2.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
             assertThat(requestItem2.inferenceRequest().getTaskType(), equalTo(TaskType.COMPLETION));
-            assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("prompt2"));
+            assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("prompt2"));
             assertThat(requestItem2.positionValueCounts(), equalTo(new int[] { 1 }));
 
             // Third request: prompt3
@@ -83,7 +83,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             BulkInferenceRequestItem requestItem3 = requestIterator.next();
             assertThat(requestItem3.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
             assertThat(requestItem3.inferenceRequest().getTaskType(), equalTo(TaskType.COMPLETION));
-            assertThat(requestItem3.inferenceRequest().getInput().getFirst(), equalTo("prompt3"));
+            assertThat(((InferenceAction.Request) requestItem3.inferenceRequest()).getInput().getFirst(), equalTo("prompt3"));
             assertThat(requestItem3.positionValueCounts(), equalTo(new int[] { 1 }));
 
             assertFalse(requestIterator.hasNext());
@@ -111,13 +111,13 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
             assertThat(requestItem1.inferenceRequest().getInferenceEntityId(), equalTo(inferenceId));
-            assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("prompt1"));
+            assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 0, 0, 1 }));
 
             // Second request: prompt2
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem2 = requestIterator.next();
-            assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("prompt2"));
+            assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("prompt2"));
             assertThat(requestItem2.positionValueCounts(), equalTo(new int[] { 1 }));
 
             assertFalse(requestIterator.hasNext());
@@ -143,13 +143,13 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             // First request: prompt1
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
-            assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("prompt1"));
+            assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 1 }));
 
             // Second request: prompt2 with trailing nulls batched
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem2 = requestIterator.next();
-            assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("prompt2"));
+            assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("prompt2"));
             assertThat(requestItem2.positionValueCounts(), equalTo(new int[] { 1, 0, 0 }));
 
             assertFalse(requestIterator.hasNext());
@@ -204,19 +204,19 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
             // First request: leading null + prompt1 + trailing null
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem1 = requestIterator.next();
-            assertThat(requestItem1.inferenceRequest().getInput().getFirst(), equalTo("prompt1"));
+            assertThat(((InferenceAction.Request) requestItem1.inferenceRequest()).getInput().getFirst(), equalTo("prompt1"));
             assertThat(requestItem1.positionValueCounts(), equalTo(new int[] { 0, 1, 0 }));
 
             // Second request: prompt2 + trailing nulls
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem2 = requestIterator.next();
-            assertThat(requestItem2.inferenceRequest().getInput().getFirst(), equalTo("prompt2"));
+            assertThat(((InferenceAction.Request) requestItem2.inferenceRequest()).getInput().getFirst(), equalTo("prompt2"));
             assertThat(requestItem2.positionValueCounts(), equalTo(new int[] { 1, 0, 0 }));
 
             // Third request: prompt3
             assertTrue(requestIterator.hasNext());
             BulkInferenceRequestItem requestItem3 = requestIterator.next();
-            assertThat(requestItem3.inferenceRequest().getInput().getFirst(), equalTo("prompt3"));
+            assertThat(((InferenceAction.Request) requestItem3.inferenceRequest()).getInput().getFirst(), equalTo("prompt3"));
             assertThat(requestItem3.positionValueCounts(), equalTo(new int[] { 1 }));
 
             assertFalse(requestIterator.hasNext());
@@ -247,7 +247,7 @@ public class CompletionRequestIteratorTests extends ComputeTestCase {
 
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                InferenceAction.Request request = requestItem.inferenceRequest();
+                InferenceAction.Request request = (InferenceAction.Request) requestItem.inferenceRequest();
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.COMPLETION));

@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
@@ -59,6 +61,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -357,6 +360,46 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
                 + "dimension; assuming default temporality for all values"
         );
+    }
+
+    /**
+     * Verifies that when {@code index.mapping.exclude_source_vectors} is enabled,
+     * the source filter retains the original field includes from the ES|QL projection
+     * instead of replacing them with an include-all filter.
+     */
+    public void testSourceFilterPreservesIncludesWhenVectorFieldsExcluded() throws IOException {
+        var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
+        var mapperService = createMapperService(
+            indexSettings,
+            mapping(b -> {
+                b.startObject("text_field").field("type", "text").endObject();
+                b.startObject("keyword_field").field("type", "keyword").endObject();
+                b.startObject("other_field").field("type", "keyword").endObject();
+                b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
+            })
+        );
+        var searchExecutionContext = createSearchExecutionContext(mapperService, null);
+
+        SourceFilter filter = EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(
+            Set.of("text_field", "keyword_field"),
+            searchExecutionContext.getMappingLookup(),
+            searchExecutionContext.getIndexSettings()
+        );
+
+        assertNotNull("filter must not be null", filter);
+
+        var docSource = org.elasticsearch.search.lookup.Source.fromMap(
+            Map.of("text_field", "hello", "keyword_field", "world", "other_field", "extra", "embedding", List.of(1, 2, 3)),
+            XContentType.JSON
+        );
+        var filtered = filter.filterMap(docSource);
+        var result = filtered.source();
+
+        assertThat("text_field must be present", result.containsKey("text_field"), equalTo(true));
+        assertThat("keyword_field must be present", result.containsKey("keyword_field"), equalTo(true));
+        assertThat("other_field must be excluded", result.containsKey("other_field"), equalTo(false));
+        assertThat("embedding must be excluded", result.containsKey("embedding"), equalTo(false));
+        assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {

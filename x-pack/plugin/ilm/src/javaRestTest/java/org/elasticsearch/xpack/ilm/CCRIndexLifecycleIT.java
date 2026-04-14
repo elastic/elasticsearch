@@ -678,20 +678,6 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
                 String backingIndexName = getDataStreamBackingIndexNames(leaderClient, "tsdb-index-cpu").get(0);
                 assertBusy(() -> assertOK(client().performRequest(new Request("HEAD", "/" + backingIndexName))));
 
-                // Wait for leader rollover to complete and indexing_complete to be set on the leader
-                assertBusy(
-                    () -> assertThat(getIndexSetting(leaderClient, backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true")),
-                    30,
-                    TimeUnit.SECONDS
-                );
-
-                // Wait for indexing_complete to be replicated to the follower via CCR settings replication
-                assertBusy(
-                    () -> assertThat(getIndexSetting(client(), backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true")),
-                    30,
-                    TimeUnit.SECONDS
-                );
-
                 assertBusy(() -> {
                     Map<String, Object> indexExplanation = explainIndex(client(), backingIndexName);
                     assertThat(

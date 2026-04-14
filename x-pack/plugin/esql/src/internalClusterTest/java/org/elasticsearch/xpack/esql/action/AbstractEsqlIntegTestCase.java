@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -48,6 +47,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+
+    protected static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(30L);
+
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
@@ -166,7 +168,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()));
+        return run(esqlCommands, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    protected final EsqlQueryResponse run(String esqlCommands, TimeValue timeout) {
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()), timeout);
     }
 
     /** A hook for overriding. */
@@ -175,8 +181,12 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     public EsqlQueryResponse run(EsqlQueryRequest request) {
+        return run(request, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }

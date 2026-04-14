@@ -44,7 +44,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
@@ -52,8 +54,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
@@ -369,15 +369,12 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
      */
     public void testSourceFilterPreservesIncludesWhenVectorFieldsExcluded() throws IOException {
         var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
-        var mapperService = createMapperService(
-            indexSettings,
-            mapping(b -> {
-                b.startObject("text_field").field("type", "text").endObject();
-                b.startObject("keyword_field").field("type", "keyword").endObject();
-                b.startObject("other_field").field("type", "keyword").endObject();
-                b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
-            })
-        );
+        var mapperService = createMapperService(indexSettings, mapping(b -> {
+            b.startObject("text_field").field("type", "text").endObject();
+            b.startObject("keyword_field").field("type", "keyword").endObject();
+            b.startObject("other_field").field("type", "keyword").endObject();
+            b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
+        }));
         var searchExecutionContext = createSearchExecutionContext(mapperService, null);
 
         SourceFilter filter = EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(

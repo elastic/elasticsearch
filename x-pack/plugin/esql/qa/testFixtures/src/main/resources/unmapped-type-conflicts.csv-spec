@@ -1193,6 +1193,7 @@ sample_data_ts_nanos   | 2023-10-23T13:55:01.543123456Z
 
 typeConflictLongDateNonExistentNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -1729,6 +1730,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 
 typeConflictDateNanosDateUnmappedNonExistentNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_nanos, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -2396,6 +2398,7 @@ addresses_no_continent  | Tokyo             | Milky Way
 // Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index

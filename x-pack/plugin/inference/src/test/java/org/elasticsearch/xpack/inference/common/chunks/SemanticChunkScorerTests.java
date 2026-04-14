@@ -187,9 +187,7 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
         var mappings = Streams.readFully(SemanticChunkScorerTests.class.getResourceAsStream("mappings.json"));
         if (useLegacyFormat) {
             IndexVersion legacyVersion = getRandomCompatibleIndexVersion(true);
-            var settings = Settings.builder()
-                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-                .build();
+            var settings = Settings.builder().put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true).build();
             MapperService mapperService = createMapperService(legacyVersion, settings, mapping(b -> {}));
             merge(mapperService, mappings.utf8ToString());
             return mapperService;

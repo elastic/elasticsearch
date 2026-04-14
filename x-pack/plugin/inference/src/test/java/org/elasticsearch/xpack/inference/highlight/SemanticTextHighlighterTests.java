@@ -324,9 +324,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     private MapperService createDefaultMapperService(boolean useLegacyFormat) throws IOException {
         var mappings = Streams.readFully(SemanticTextHighlighterTests.class.getResourceAsStream("mappings.json"));
         if (useLegacyFormat) {
-            var settings = Settings.builder()
-                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
-                .build();
+            var settings = Settings.builder().put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true).build();
             MapperService mapperService = createMapperService(
                 SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true),
                 settings,

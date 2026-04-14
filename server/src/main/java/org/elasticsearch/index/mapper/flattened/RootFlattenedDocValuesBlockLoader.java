@@ -39,25 +39,34 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     private final BlockFlattenedDocValuesSyntheticFieldLoader fieldLoader;
     private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders;
 
-    RootFlattenedDocValuesBlockLoader(String name, Mapper.IgnoreAbove ignoreAbove, boolean usesBinaryDocValues) {
+    RootFlattenedDocValuesBlockLoader(
+        String name,
+        Mapper.IgnoreAbove ignoreAbove,
+        boolean usesBinaryDocValues,
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
+        boolean storeIgnoredFieldsInBinaryDocValues,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
+    ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
             name,
             name + KEYED_FIELD_SUFFIX,
             ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
-            usesBinaryDocValues
+            usesBinaryDocValues,
+            mappedSubFieldLoaders,
+            storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        if (ignoreAbove.valuesPotentiallyIgnored()) {
-            return new StoredFieldsSpec(false, false, fieldLoader.storedFieldLoaders().map(Map.Entry::getKey).collect(Collectors.toSet()));
-        } else {
+        if (storedFieldLoaders.isEmpty()) {
             return StoredFieldsSpec.NO_REQUIREMENTS;
         }
+        return new StoredFieldsSpec(false, false, storedFieldLoaders.stream().map(Map.Entry::getKey).collect(Collectors.toSet()));
     }
 
     @Override
@@ -70,11 +79,11 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         return null;
     }
 
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    FlattenedReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         var reader = fieldLoader.docValuesLoader(context.reader(), null);
         var trackingReader = reader != null ? new TrackingLoader(reader) : null;
 
-        return new AllReader() {
+        return new FlattenedReader() {
             private final Thread creationThread = Thread.currentThread();
 
             @Override
@@ -132,7 +141,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     @Override
     public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         // stored fields aren't supported when reading column-at-a-time
-        if (ignoreAbove.valuesPotentiallyIgnored()) {
+        if (storedFieldLoaders.isEmpty() == false) {
             return null;
         }
 
@@ -143,6 +152,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         return reader(breaker, context);
     }
+
+    private interface FlattenedReader extends ColumnAtATimeReader, RowStrideReader {}
 
     /**
      * A DocValuesLoader that tracks the last advanced docId.
@@ -176,22 +187,39 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             String keyedFieldFullPath,
             String keyedIgnoredValuesFieldFullPath,
             String leafName,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
+            boolean storeIgnoredFieldsInBinaryDocValues,
+            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
         ) {
-            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues);
+            super(
+                fieldFullPath,
+                keyedFieldFullPath,
+                keyedIgnoredValuesFieldFullPath,
+                leafName,
+                usesBinaryDocValues,
+                mappedSubFieldLoaders,
+                storeIgnoredFieldsInBinaryDocValues,
+                preserveLeafArrays
+            );
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {
-            if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+            if (hasValue() == false) {
                 builder.appendNull();
                 return;
             }
 
-            var writer = getWriter();
-
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             jsonBuilder.startObject();
-            writer.write(jsonBuilder);
+            if (hasFlattenedValues()) {
+                getWriter().write(jsonBuilder);
+            }
+            for (SourceLoader.SyntheticFieldLoader loader : getMappedSubFieldLoaders()) {
+                if (loader.hasValue()) {
+                    loader.write(jsonBuilder);
+                }
+            }
             jsonBuilder.endObject();
 
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());

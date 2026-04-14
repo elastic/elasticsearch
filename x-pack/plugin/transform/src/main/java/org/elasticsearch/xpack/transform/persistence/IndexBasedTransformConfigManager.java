@@ -52,7 +52,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -115,17 +116,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final TransformParsingContext transformParsingContext;
 
     public IndexBasedTransformConfigManager(
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TransformParsingContext transformParsingContext
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
+        this.transformParsingContext = transformParsingContext;
     }
 
     @Override
@@ -562,7 +566,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 try (XContentParser parser = createParser(hit)) {
-                    TransformConfig config = TransformConfig.fromXContent(parser, null, true);
+                    TransformConfig config = TransformConfig.fromXContent(parser, null, true, transformParsingContext);
                     if (ids.add(config.getId())) {
                         configs.add(config);
                     }
@@ -867,7 +871,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         ActionListener<TransformConfig> transformListener
     ) {
         try (XContentParser parser = createParser(source)) {
-            transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true));
+            transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true, transformParsingContext));
         } catch (Exception e) {
             logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
             transformListener.onFailure(e);
@@ -1019,7 +1023,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
 
-        for (PaginatedHitSource.SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

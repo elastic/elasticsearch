@@ -17,10 +17,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -91,6 +93,25 @@ public class AdaptiveStrategyTests extends ESTestCase {
         ExternalDistributionPlan plan = strategy.planDistribution(context);
 
         assertFalse(plan.distributed());
+    }
+
+    public void testTopNWithMultipleSplitsDistributes() {
+        PhysicalPlan source = createExternalSourceExec();
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        Order order = new Order(Source.EMPTY, limitExpr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        PhysicalPlan planWithTopN = new TopNExec(Source.EMPTY, source, List.of(order), limitExpr, null);
+
+        ExternalDistributionContext context = new ExternalDistributionContext(
+            planWithTopN,
+            createSplits(4),
+            createNodes(2),
+            QueryPragmas.EMPTY
+        );
+
+        ExternalDistributionPlan plan = strategy.planDistribution(context);
+
+        assertTrue(plan.distributed());
+        assertEquals(2, plan.nodeAssignments().size());
     }
 
     public void testManySplitsNoAggregationDistributes() {

@@ -691,12 +691,13 @@ scalbWithHugeScaleFactor
 required_capability: fn_scalb
 
 from employees
+| sort emp_no
 | eval s = scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)
 | keep s
 | limit 3
 ;
-warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+warning: Line 3:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:12: java.lang.ArithmeticException: integer overflow
 
 s:double
 null
@@ -707,12 +708,13 @@ scalbWithHugeConstantScaleFactor
 required_capability: fn_scalb
 
 from employees
+| sort emp_no
 | eval s = scalb(abs(mv_min(salary_change)), 2147483648)
 | keep s
 | limit 3
 ;
-warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648)] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+warning: Line 3:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:12: java.lang.ArithmeticException: integer overflow
 
 s:double
 null
@@ -724,12 +726,13 @@ scalbWithHugeconstantFirstArgument
 required_capability: fn_scalb
 
 from employees
+| sort emp_no
 | eval s = scalb(2147483648, emp_no)
 | keep s
 | limit 3
 ;
-warning: Line 2:12: evaluation of [scalb(2147483648, emp_no)] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:12: java.lang.ArithmeticException: not a finite double number: Infinity
+warning: Line 3:12: evaluation of [scalb(2147483648, emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:12: java.lang.ArithmeticException: not a finite double number: Infinity
 
 s:double
 null

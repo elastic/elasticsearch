@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -388,13 +389,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     assertFalse(plan.containsKey("reduction_nanos"));
                 }
                 case "node_reduce" -> {
-                    if (Build.current().isSnapshot()) {
-                        // Node reduction depends on a pragma for now, so not available on non-snapshot builds - timing won't be available
-                        assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
-                    } else {
-                        // Remove the if and check reduction_nanos is there when the following fails
-                        assertNull(plan.get("reduction_nanos"));
-                    }
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
                     assertFalse(plan.containsKey("logical_optimization_nanos"));
                     assertFalse(plan.containsKey("physical_optimization_nanos"));
                 }
@@ -741,35 +736,82 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (Map<String, Object> p : profiles) {
             fixTypesOnProfile(p);
             assertMap(p, commonProfile());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
-            String operators = p.get("operators").toString();
-            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
-                .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", containsString("[esql_worker]")) // NB: this doesn't run in the test thread
-                .entry("wake_millis", greaterThan(0L));
+            Map<?, ?> sleeps = (Map<?, ?>) p.get("sleeps");
             String description = p.get("description").toString();
             switch (description) {
-                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-                case "node_reduce", "final" -> {
+                case "data" -> {
+                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
+                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                }
+                case "node_reduce" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
+                    // There *might* be exchange_full sleeps as well
+                    Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
+                    assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
+                    assertSleeps(
+                        sleeps,
+                        sleepMatcher(
+                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                        )
+                    );
+                }
+                case "final" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                    for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
-                    }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                    for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
-                    }
+                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
         }
     }
 
+    private MapMatcher sleepMatcher(Object reason) {
+        return matchesMap().entry("reason", reason)
+            .entry("sleep_millis", greaterThan(0L))
+            .entry("thread_name", containsString("[esql_worker]"))
+            .entry("wake_millis", greaterThan(0L));
+    }
+
+    private void assertSleeps(Map<?, ?> sleeps, MapMatcher sleepMatcher) {
+        List<?> first = (List<?>) sleeps.get("first");
+        for (Object s : first) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+        List<?> last = (List<?>) sleeps.get("last");
+        for (Object s : last) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+    }
+
     public void testSuggestedCast() throws IOException {
+        doTestSuggestedCast(
+            "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field",
+            "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    public void testSubquerySuggestedCast() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "union types conflict resolution",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+        );
+        doTestSuggestedCast(
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    /**
+     * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
+     * all type pairs using the given query format strings, and asserts the response contains the
+     * correct {@code original_types} and {@code suggested_cast} metadata.
+     *
+     * @param queryFormat       format string with 2 string args: type1, type2
+     * @param castedQueryFormat format string with 3 string args: type1, type2, castType
+     */
+    private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
             Map.entry(DataType.BOOLEAN, "\"true\""),
@@ -846,11 +888,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String fromClause = String.format(Locale.ROOT, queryFormat, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 String query = String.format(Locale.ROOT, """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                        "query": "%s"
                     }
-                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, fromClause);
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -876,17 +919,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     );
                 }
 
-                String castedQuery = String.format(
+                String castedFromClause = String.format(
                     Locale.ROOT,
-                    """
-                        {
-                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                        }
-                        """,
+                    castedQueryFormat,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
                 );
+                String castedQuery = String.format(Locale.ROOT, """
+                    {
+                        "query": "%s"
+                    }
+                    """, castedFromClause);
                 Request castedRequest = new Request("POST", "/_query");
                 castedRequest.setJsonEntity(castedQuery);
                 Response castedResponse = client().performRequest(castedRequest);
@@ -1059,26 +1103,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             matchesList().item(resultMatcher)
         );
 
-        Map<String, Object> reader = null;
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            String description = p.get("description").toString();
-            if (description.equals("data") == false) {
-                continue;
-            }
-            fixTypesOnProfile(p);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                String name = (String) o.get("operator");
-                if (name.startsWith("ValuesSourceReader")) {
-                    assertThat(reader, nullValue());
-                    reader = o;
-                }
-            }
-        }
-        assertNotNull(reader);
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
         MapMatcher readersBuiltMatcher = matchesMap();
         for (int f = 0; f < fieldCount; f++) {
             readersBuiltMatcher = readersBuiltMatcher.entry(
@@ -1136,26 +1161,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, finalResultMatcher);
 
-        Map<String, Object> reader = null;
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            String description = p.get("description").toString();
-            if (description.equals("node_reduce") == false) {
-                continue;
-            }
-            fixTypesOnProfile(p);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                String name = (String) o.get("operator");
-                if (name.startsWith("ValuesSourceReader")) {
-                    assertThat(reader, nullValue());
-                    reader = o;
-                }
-            }
-        }
-        assertNotNull(reader);
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
         MapMatcher readersBuiltMatcher = matchesMap();
         for (int f = 1; f < fieldCount; f++) { // <--- starts at 1 because we load 0 on the data node
             readersBuiltMatcher = readersBuiltMatcher.entry(
@@ -1223,6 +1229,150 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
             .entry("values_loaded", greaterThanOrEqualTo(0));
+    }
+
+    public void testProfileConditionalBlockLoader() throws IOException {
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        Request bulk = new Request("POST", testIndexName() + "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(String.format(Locale.ROOT, """
+            {"index": {}}
+            {"message": "words words words"}
+            {"index": {}}
+            {"message": "%s"}
+            """, "words ".repeat(256)));
+
+        Response response = client().performRequest(bulk);
+        assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | KEEP message | SORT message ASC | LIMIT 2");
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(
+            Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard").put(QueryPragmas.PAGE_SIZE.getKey(), 1000).build()
+        );
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        schemaMatcha = schemaMatcha.item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList();
+        rowsMatcher = rowsMatcher.item(List.of("words words words"));
+        rowsMatcher = rowsMatcher.item(Arrays.asList("words ".repeat(256)));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        readersBuiltMatcher = readersBuiltMatcher.entry("message:column_at_a_time:null", greaterThanOrEqualTo(1));
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "stored_fields[requires_source:true, fields:0, sequential: false]",
+            greaterThanOrEqualTo(1)
+        );
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "message:row_stride:[Delegating[to=message.keyword, impl=BytesRefsFromOrds.RowStride]/BlockSourceReader.Bytes]",
+            greaterThanOrEqualTo(1)
+        );
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testAutoPartitioning() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(
+                Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 1000_000).build()
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 20).build());
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+    }
+
+    private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
+        Map<String, Object> reader = null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            String description = p.get("description").toString();
+            if (description.equals(driverDescription) == false) {
+                continue;
+            }
+            fixTypesOnProfile(p);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = (String) o.get("operator");
+                if (name.startsWith("ValuesSourceReader")) {
+                    assertThat(reader, nullValue());
+                    reader = o;
+                }
+            }
+        }
+        assertNotNull(reader);
+        return reader;
     }
 
     /**
@@ -1320,6 +1470,105 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         for (var error : errorMessages) {
             assertThat(re.getMessage(), containsString(error));
+        }
+    }
+
+    public void testExplain() throws IOException {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+
+        String indexName = "test-explain-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Create an index with some data
+        createIndex(indexName);
+        Request doc = new Request("PUT", "/" + indexName + "/_doc/1");
+        doc.addParameter("refresh", "true");
+        doc.setJsonEntity("{\"value\": 42}");
+        client().performRequest(doc);
+
+        try {
+            // Run EXPLAIN query
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity(
+                "{\"query\": \"EXPLAIN (FROM " + indexName + " | WHERE value > 10 | STATS count = COUNT(*) | LIMIT 10)\"}"
+            );
+            Response response = client().performRequest(request);
+            Map<String, Object> result = entityAsMap(response);
+
+            // Verify columns
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            // Verify we have plan rows
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            boolean hasError = false;
+            String errorMessage = null;
+
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        either(containsString("EsQueryExec")).or(containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+                if ("data".equals(role) && "error".equals(type)) {
+                    hasError = true;
+                    errorMessage = plan;
+                }
+            }
+
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should not have error: " + errorMessage, hasError, is(false));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        } finally {
+            // Clean up
+            deleteIndex(indexName);
         }
     }
 }

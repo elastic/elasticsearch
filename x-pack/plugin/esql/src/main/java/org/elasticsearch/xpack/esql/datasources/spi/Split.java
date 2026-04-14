@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 /**
  * Represents a unit of work for a connector to execute.
- * Connectors that support parallel reads return multiple splits from
- * {@link Connector#discoverSplits}; simple connectors use {@link #SINGLE}.
+ * Simple connectors use {@link #SINGLE}; connectors that support parallel
+ * reads receive {@link ExternalSplit} instances instead.
  */
 public interface Split {
     Split SINGLE = new Split() {

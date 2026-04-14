@@ -19,6 +19,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,8 +37,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
                 {
                      "object": {
@@ -53,7 +54,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                      "value":"value"
                    }""".indent(1)), XContentType.JSON))
         );
-        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping for [object.array.object] tried to parse field [object] as object, but found a concrete value")
+        );
     }
 
     public void testEmptyArrayProperties() throws Exception {
@@ -534,7 +538,23 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
-    public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
+    public void testIgnoredSourceAlwaysLoadedRegardlessOfSourceFilter() throws IOException {
+        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").field("ignore_above", 1).endObject();
+            b.startObject("other").field("type", "keyword").field("ignore_above", 1).endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        String unfilteredSource = syntheticSource(mapper, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        assertEquals("{\"kwd\":\"toolong\",\"other\":\"alsotoolong\"}", unfilteredSource);
+
+        SourceFilter filterKwdOnly = new SourceFilter(new String[] { "kwd" }, null);
+        String filteredSource = syntheticSource(mapper, filterKwdOnly, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        assertEquals("{\"kwd\":\"toolong\"}", filteredSource);
+    }
+
+    public void testStoreArraySourceInSyntheticSourceMode() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
         })).documentMapper();

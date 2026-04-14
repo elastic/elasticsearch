@@ -17,7 +17,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -46,6 +48,9 @@ public class MvIntersection extends MvSetOperationFunction {
         "MvIntersection",
         MvIntersection::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersection.class)
+        .binary(MvIntersection::new)
+        .name("mv_intersection");
 
     @FunctionInfo(
         returnType = {
@@ -99,7 +104,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -122,7 +127,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field2
     ) {
         super(source, field1, field2);
@@ -197,14 +202,14 @@ public class MvIntersection extends MvSetOperationFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvIntersectionBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvIntersectionBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvIntersectionIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvIntersectionLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvIntersectionDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

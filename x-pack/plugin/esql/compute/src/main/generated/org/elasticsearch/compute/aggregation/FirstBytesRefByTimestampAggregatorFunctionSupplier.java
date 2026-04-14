@@ -31,13 +31,13 @@ public final class FirstBytesRefByTimestampAggregatorFunctionSupplier implements
   @Override
   public FirstBytesRefByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstBytesRefByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstBytesRefByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstBytesRefByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstBytesRefByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstBytesRefByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

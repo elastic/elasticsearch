@@ -126,12 +126,7 @@ public class InferenceEndpointRegistry {
                     )
                 );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                unparsedModel.inferenceEntityId(),
-                unparsedModel.taskType(),
-                unparsedModel.settings(),
-                unparsedModel.secrets()
-            );
+            var model = service.parsePersistedConfig(unparsedModel);
 
             if (cacheEnabled()) {
                 cache.put(idAndProject, model);

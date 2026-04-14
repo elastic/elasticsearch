@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -144,5 +145,22 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+    }
+
+    public void testRegexpQueryCircuitBreakerAccounting() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new RegexpQueryBuilder(TEXT_FIELD_NAME, ".*test.*pattern.*"));
+    }
+
+    public void testRegexpCircuitBreakerTripsWithLowLimit() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 50)
+                .forEach(
+                    i -> boolQuery.should(
+                        new RegexpQueryBuilder(TEXT_FIELD_NAME, "(pattern" + i + "|alternate" + i + "|option" + i + ").*")
+                    )
+                );
+            return boolQuery;
+        });
     }
 }

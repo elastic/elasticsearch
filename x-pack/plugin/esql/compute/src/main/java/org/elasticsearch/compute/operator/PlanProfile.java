@@ -16,24 +16,33 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record PlanProfile(String description, String clusterName, String nodeName, String planTree, PlanTimeProfile planTimeProfile)
-    implements
-        Writeable,
-        ToXContentObject {
+public record PlanProfile(
+    String description,
+    String clusterName,
+    String nodeName,
+    String planTree,
+    String logicalPlanTree,
+    PlanTimeProfile planTimeProfile
+) implements Writeable, ToXContentObject {
 
     private static final TransportVersion PLAN_PROFILE_VERSION = TransportVersion.fromName("plan_profile_version");
+    private static final TransportVersion LOGICAL_PLAN_VERSION = TransportVersion.fromName("esql_explain_only");
 
     public static PlanProfile readFrom(StreamInput in) throws IOException {
         String description = in.readString();
         String clusterName = in.readString();
         String nodeName = in.readString();
         String planTree = in.readString();
+        String logicalPlanTree = null;
+        if (in.getTransportVersion().supports(LOGICAL_PLAN_VERSION)) {
+            logicalPlanTree = in.readOptionalString();
+        }
         PlanTimeProfile profile = null;
         if (in.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
             profile = in.readOptionalWriteable(PlanTimeProfile::new);
         }
 
-        return new PlanProfile(description, clusterName, nodeName, planTree, profile);
+        return new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, profile);
     }
 
     @Override
@@ -42,6 +51,9 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         out.writeString(clusterName);
         out.writeString(nodeName);
         out.writeString(planTree);
+        if (out.getTransportVersion().supports(LOGICAL_PLAN_VERSION)) {
+            out.writeOptionalString(logicalPlanTree);
+        }
         if (out.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
             out.writeOptionalWriteable(planTimeProfile);
         }
@@ -54,6 +66,9 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         builder.field("cluster_name", clusterName);
         builder.field("node_name", nodeName);
         builder.field("plan", planTree);
+        if (logicalPlanTree != null) {
+            builder.field("logical_plan", logicalPlanTree);
+        }
         if (planTimeProfile != null) {
             planTimeProfile.toXContent(builder, params);
         }

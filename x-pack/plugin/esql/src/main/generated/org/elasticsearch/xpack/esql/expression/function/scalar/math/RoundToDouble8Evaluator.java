@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToDouble}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToDouble}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToDouble8Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToDouble8Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToDouble8Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final double p0;
 
@@ -49,8 +49,8 @@ public final class RoundToDouble8Evaluator implements EvalOperator.ExpressionEva
 
   private Warnings warnings;
 
-  public RoundToDouble8Evaluator(Source source, EvalOperator.ExpressionEvaluator field, double p0,
-      double p1, double p2, double p3, double p4, double p5, double p6, double p7,
+  public RoundToDouble8Evaluator(Source source, ExpressionEvaluator field, double p0, double p1,
+      double p2, double p3, double p4, double p5, double p6, double p7,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
@@ -131,10 +131,10 @@ public final class RoundToDouble8Evaluator implements EvalOperator.ExpressionEva
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final double p0;
 
@@ -152,8 +152,8 @@ public final class RoundToDouble8Evaluator implements EvalOperator.ExpressionEva
 
     private final double p7;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, double p0,
-        double p1, double p2, double p3, double p4, double p5, double p6, double p7) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, double p0, double p1,
+        double p2, double p3, double p4, double p5, double p6, double p7) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 142919
+pr: 143024
+summary: Finalize failed clone entries
+type: bug

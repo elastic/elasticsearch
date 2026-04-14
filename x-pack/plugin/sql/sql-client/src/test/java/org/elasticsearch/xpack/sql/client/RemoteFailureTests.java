@@ -64,6 +64,18 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\", charset=\"UTF-8\""), failure.headers());
     }
 
+    public void testParseMissingAuthMultipleSchemes() throws IOException {
+        RemoteFailure failure = parse("missing_auth_multiple_schemes.json");
+        assertEquals("security_exception", failure.type());
+        assertEquals(
+            "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
+            failure.reason()
+        );
+        assertThat(failure.remoteTrace(), containsString("AuthenticationService.authenticate"));
+        assertNull(failure.cause());
+        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\", charset=\"UTF-8\", ApiKey"), failure.headers());
+    }
+
     public void testNoError() {
         IOException e = expectThrows(IOException.class, () -> parse("no_error.json"));
         assertEquals(
@@ -80,15 +92,12 @@ public class RemoteFailureTests extends ESTestCase {
             { "error": ["bogus"] }""", e.getMessage());
     }
 
-    public void testNoStack() {
-        IOException e = expectThrows(IOException.class, () -> parse("no_stack.json"));
-        assertThat(
-            e.getMessage(),
-            startsWith(
-                "Can't parse error from Elasticsearch [expected [stack_trace] cannot but "
-                    + "didn't see it] at [line 5 col 3]. Response:\n{"
-            )
-        );
+    public void testNoStack() throws IOException {
+        // stack_trace is optional — authentication errors and other early rejections may omit it
+        RemoteFailure failure = parse("no_stack.json");
+        assertEquals("illegal_argument_exception", failure.type());
+        assertEquals("[sql/query] unknown field [test], parser not found", failure.reason());
+        assertNull(failure.remoteTrace());
     }
 
     public void testNoType() {
@@ -145,12 +154,14 @@ public class RemoteFailureTests extends ESTestCase {
     }
 
     public void testTooBig() {
+        // Build a response that is too large to replay, missing the required "type" field.
+        // This exercises the "Response too large" code path in parseErrorMessage.
         StringBuilder tooBig = new StringBuilder(RemoteFailure.MAX_RAW_RESPONSE);
         tooBig.append("""
             {
               "error" : {
-                "type" : "illegal_argument_exception",
                 "reason" : "something",
+                "stack_trace" : "trace",
                 "header" : {
             """);
         int i = 0;
@@ -169,11 +180,8 @@ public class RemoteFailureTests extends ESTestCase {
             IOException.class,
             () -> RemoteFailure.parseFromResponse(new BytesArray(tooBig.toString()).streamInput())
         );
-        assertEquals(
-            "Can't parse error from Elasticsearch [expected [stack_trace] cannot but didn't see it] "
-                + "at [line 8463 col 1]. Attempted to include response but failed because [Response too large].",
-            e.getMessage()
-        );
+        assertThat(e.getMessage(), startsWith("Can't parse error from Elasticsearch [expected [type] but didn't see it]"));
+        assertThat(e.getMessage(), containsString("Attempted to include response but failed because [Response too large]."));
     }
 
     public void testFailureWithMetadata() throws IOException {

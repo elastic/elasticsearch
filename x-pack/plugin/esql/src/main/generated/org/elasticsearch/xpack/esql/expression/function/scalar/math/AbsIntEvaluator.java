@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -12,29 +13,28 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
+ * {@link ExpressionEvaluator} implementation for {@link Abs}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AbsIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AbsIntEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator fieldVal;
+  private final ExpressionEvaluator fieldVal;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public AbsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
-      DriverContext driverContext) {
+  public AbsIntEvaluator(Source source, ExpressionEvaluator fieldVal, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
@@ -47,7 +47,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
       if (fieldValVector == null) {
         return eval(page.getPositionCount(), fieldValBlock);
       }
-      return eval(page.getPositionCount(), fieldValVector).asBlock();
+      return eval(page.getPositionCount(), fieldValVector);
     }
   }
 
@@ -73,17 +73,27 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
               continue position;
         }
         int fieldVal = fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p));
-        result.appendInt(Abs.process(fieldVal));
+        try {
+          result.appendInt(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldValVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, IntVector fieldValVector) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         int fieldVal = fieldValVector.getInt(p);
-        result.appendInt(p, Abs.process(fieldVal));
+        try {
+          result.appendInt(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
@@ -106,12 +116,12 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+    private final ExpressionEvaluator.Factory fieldVal;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+    public Factory(Source source, ExpressionEvaluator.Factory fieldVal) {
       this.source = source;
       this.fieldVal = fieldVal;
     }

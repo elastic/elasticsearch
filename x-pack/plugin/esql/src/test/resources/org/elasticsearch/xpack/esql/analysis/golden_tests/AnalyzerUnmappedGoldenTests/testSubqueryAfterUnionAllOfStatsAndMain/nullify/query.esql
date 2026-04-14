@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees,
+    (FROM employees | STATS c = count(*))
+| SORT does_not_exist

@@ -192,7 +192,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         String inferenceEntityId
     ) {
         try {
-            var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
+            var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId, threadPool);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiCompletionRequestManager(model, threadPool);
             var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI completion");

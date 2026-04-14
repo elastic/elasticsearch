@@ -184,7 +184,11 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     }
 
     public Optional<String> getNodeToRelocateTo() {
-        return Objects.requireNonNull(this.nodeToRelocateToSupplier.get(), "nodeToRelocateToSupplier not set for worker").get();
+        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+        if (supplier == null) {
+            throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
+        }
+        return supplier.get();
     }
 
     float getRequestsPerSecond() {

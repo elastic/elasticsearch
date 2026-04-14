@@ -16,35 +16,34 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Repeat}.
+ * {@link ExpressionEvaluator} implementation for {@link Repeat}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RepeatEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RepeatEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator number;
+  private final ExpressionEvaluator number;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RepeatEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator number,
-      DriverContext driverContext) {
+  public RepeatEvaluator(Source source, BreakingBytesRefBuilder scratch, ExpressionEvaluator str,
+      ExpressionEvaluator number, DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.str = str;
@@ -150,18 +149,17 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory number;
+    private final ExpressionEvaluator.Factory number;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory number) {
+        ExpressionEvaluator.Factory str, ExpressionEvaluator.Factory number) {
       this.source = source;
       this.scratch = scratch;
       this.str = str;

@@ -15,26 +15,26 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ChangeCase}.
+ * {@link ExpressionEvaluator} implementation for {@link ChangeCase}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChangeCaseEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final Locale locale;
 
   private final ChangeCase.Case caseType;
 
-  public ChangeCaseEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
+  public ChangeCaseEvaluator(Source source, ExpressionEvaluator val, Locale locale,
       ChangeCase.Case caseType, DriverContext driverContext) {
     super(driverContext, source);
     this.val = val;
@@ -43,7 +43,7 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return val;
   }
 
@@ -138,16 +138,16 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final Locale locale;
 
     private final ChangeCase.Case caseType;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, Locale locale,
+    public Factory(Source source, ExpressionEvaluator.Factory val, Locale locale,
         ChangeCase.Case caseType) {
       this.source = source;
       this.val = val;

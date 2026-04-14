@@ -88,6 +88,7 @@ public class ComputeListenerTests extends ESTestCase {
                     randomIdentifier(),
                     randomIdentifier(),
                     randomAlphaOfLengthBetween(1, 1024),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
                     randomPlanTimeProfile()
                 )
             )

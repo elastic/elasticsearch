@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,8 +75,12 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             this.previewAsIndexRequest = in.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST) ? in.readBoolean() : false;
         }
 
-        public static Request fromXContent(final XContentParser parser, TimeValue timeout, boolean previewAsIndexRequest)
-            throws IOException {
+        public static Request fromXContent(
+            final XContentParser parser,
+            TimeValue timeout,
+            boolean previewAsIndexRequest,
+            TransformParsingContext transformParsingContext
+        ) throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -97,7 +102,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                     XContentType.JSON
                 )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout, previewAsIndexRequest);
+                return new Request(
+                    TransformConfig.fromXContent(newParser, null, false, transformParsingContext),
+                    timeout,
+                    previewAsIndexRequest
+                );
             }
         }
 

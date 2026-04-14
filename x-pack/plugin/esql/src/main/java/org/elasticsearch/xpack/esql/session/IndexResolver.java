@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -68,12 +69,7 @@ public class IndexResolver {
     public static final IndicesOptions DEFAULT_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
@@ -113,6 +109,8 @@ public class IndexResolver {
             minimumVersion,
             false,
             false,
+            false,
+            false,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -147,6 +145,8 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -157,6 +157,8 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -182,6 +184,8 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         // Same as above
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -191,6 +195,8 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -206,6 +212,8 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -222,7 +230,8 @@ public class IndexResolver {
                 overallMinimumVersion,
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
-                useDenseVectorWhenNotSupported
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -234,7 +243,10 @@ public class IndexResolver {
             );
 
             l.onResponse(
-                new Versioned<>(mergedMappings(indexPattern, allowEmpty, info, originalIndexExtractor), info.minTransportVersion())
+                new Versioned<>(
+                    mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
+                    info.minTransportVersion()
+                )
             );
         }));
     }
@@ -274,13 +286,18 @@ public class IndexResolver {
      *                                       report that they support the type? This exists because some remotes <strong>do</strong>
      *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
      *                                       query itself to opt into reading these fields.
+     * @param hasTimeSeriesAggregation whether the query contains a time series aggregation (a {@code TS} source followed by
+     *                                {@code STATS}). When {@code false}, time series field type consistency checks
+     *                                (dimension vs metric conflicts across indices) are skipped, avoiding spurious
+     *                                {@link InvalidMappedField} errors for queries that don't aggregate time series data.
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
         @Nullable TransportVersion minTransportVersion,
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation
     ) {}
 
     // public for testing only
@@ -288,25 +305,34 @@ public class IndexResolver {
         String indexPattern,
         boolean allowEmpty,
         FieldsInfo fieldsInfo,
+        boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
-        int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
+        List<FieldCapabilitiesIndexResponse> indexResponses = fieldsInfo.caps.getIndexResponses();
+        int numberOfIndices = indexResponses.size();
         if (numberOfIndices == 0) {
             return allowEmpty ? IndexResolution.empty(indexPattern) : IndexResolution.notFound(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index
-        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps);
+        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices);
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
-        Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Set<String> partiallyUnmappedFields = new HashSet<>();
+        Map<String, Set<String>> fieldToUnmappedIndices;
+        Set<String> allIndexNames;
+        if (trackUnmappedFieldIndices) {
+            fieldToUnmappedIndices = new HashMap<>();
+            allIndexNames = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(Collectors.toSet());
+        } else {
+            fieldToUnmappedIndices = Map.of();
+            allIndexNames = null;
+        }
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -343,16 +369,19 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
-            var isPartiallyUnmapped = fcs.size() + indexMappingHashDuplicates.getOrDefault(fieldCap.indexMappingHash, 0) < numberOfIndices;
-            if (isPartiallyUnmapped) {
-                partiallyUnmappedFields.add(fullName);
+            if (trackUnmappedFieldIndices) {
+                Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
+                unmappedIndices.removeAll(collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of()));
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(fullName, unmappedIndices);
+                }
             }
         }
 
         boolean allEmpty = true;
-        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
+        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
+        for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
             indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
             var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
@@ -375,7 +404,7 @@ public class IndexResolver {
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
             concreteIndices,
-            partiallyUnmappedFields
+            fieldToUnmappedIndices
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
@@ -386,27 +415,33 @@ public class IndexResolver {
     private record CollectedFieldCaps(
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
         // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
-        Map<String, Integer> indexMappingHashDuplicates
+        Map<String, Integer> indexMappingHashDuplicates,
+        Map<String, Set<String>> fieldToMappedIndices
     ) {}
 
-    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
+    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse, boolean trackUnmappedFieldIndices) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
+        Map<String, Set<String>> fieldToMappedIndices = trackUnmappedFieldIndices ? new HashMap<>() : null;
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
-            if (indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) > 1) {
-                continue;
-            }
+            boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
+            String indexName = response.getIndexName();
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
                 }
-                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
-                    fc.name(),
-                    (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
-                ).fieldCapabilities;
-                all.add(fc);
+                if (isNew) {
+                    List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
+                        fc.name(),
+                        (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
+                    ).fieldCapabilities;
+                    all.add(fc);
+                }
+                if (trackUnmappedFieldIndices) {
+                    fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
+                }
             }
         }
 
@@ -420,7 +455,7 @@ public class IndexResolver {
             }
         }
 
-        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount);
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices);
     }
 
     private static EsField createField(
@@ -443,13 +478,17 @@ public class IndexResolver {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();
-        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
+        EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
+            ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
+            : EsField.TimeSeriesFieldType.NONE;
         if (rest.isEmpty() == false) {
-            for (IndexFieldCapabilities fc : rest) {
-                try {
-                    timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
-                } catch (IllegalArgumentException e) {
-                    return new InvalidMappedField(name, e.getMessage());
+            if (fieldsInfo.hasTimeSeriesAggregation()) {
+                for (IndexFieldCapabilities fc : rest) {
+                    try {
+                        timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
+                    } catch (IllegalArgumentException e) {
+                        return new InvalidMappedField(name, e.getMessage());
+                    }
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -501,17 +540,6 @@ public class IndexResolver {
             }
         }
         return new InvalidMappedField(name, typesToIndices);
-    }
-
-    private static EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
-        TreeSet<String> indices = new TreeSet<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null) {
-                indices.add(ir.getIndexName());
-            }
-        }
-        return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(

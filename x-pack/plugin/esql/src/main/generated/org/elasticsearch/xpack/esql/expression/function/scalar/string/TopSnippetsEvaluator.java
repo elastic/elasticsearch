@@ -11,8 +11,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -20,17 +20,17 @@ import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link TopSnippets}.
+ * {@link ExpressionEvaluator} implementation for {@link TopSnippets}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class TopSnippetsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TopSnippetsEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
-  private final EvalOperator.ExpressionEvaluator query;
+  private final ExpressionEvaluator query;
 
   private final ChunkingSettings chunkingSettings;
 
@@ -42,9 +42,9 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings;
 
-  public TopSnippetsEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      EvalOperator.ExpressionEvaluator query, ChunkingSettings chunkingSettings,
-      MemoryIndexChunkScorer scorer, int numSnippets, DriverContext driverContext) {
+  public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator query,
+      ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.query = query;
@@ -113,12 +113,12 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    private final EvalOperator.ExpressionEvaluator.Factory query;
+    private final ExpressionEvaluator.Factory query;
 
     private final ChunkingSettings chunkingSettings;
 
@@ -126,8 +126,8 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
 
     private final int numSnippets;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
+    public Factory(Source source, ExpressionEvaluator.Factory field,
+        ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
         MemoryIndexChunkScorer scorer, int numSnippets) {
       this.source = source;
       this.field = field;

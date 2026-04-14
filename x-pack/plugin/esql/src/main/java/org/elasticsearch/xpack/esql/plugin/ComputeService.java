@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -49,13 +50,16 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -65,8 +69,10 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -74,7 +80,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -90,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -155,6 +164,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final UserAgentParserRegistry userAgentParserRegistry;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -164,6 +174,7 @@ public class ComputeService {
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FilterPushdownRegistry filterPushdownRegistry;
+    private final FormatReaderRegistry formatReaderRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -174,7 +185,8 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FilterPushdownRegistry filterPushdownRegistry
+        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -186,6 +198,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -207,17 +220,46 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
+        this.formatReaderRegistry = formatReaderRegistry;
     }
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
 
+    FilterPushdownRegistry filterPushdownRegistry() {
+        return filterPushdownRegistry;
+    }
+
+    FormatReaderRegistry formatReaderRegistry() {
+        return formatReaderRegistry;
+    }
+
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
-        return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+        try {
+            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            return coalesceSplits(discovered);
+        } catch (Exception e) {
+            LOGGER.warn("split discovery failed for external source", e);
+            throw e;
+        }
+    }
+
+    static PhysicalPlan coalesceSplits(PhysicalPlan plan) {
+        return plan.transformUp(ExternalSourceExec.class, exec -> {
+            List<ExternalSplit> splits = exec.splits();
+            if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
+                return exec;
+            }
+            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+            if (coalesced == splits) {
+                return exec;
+            }
+            return exec.withSplits(coalesced);
+        });
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
@@ -226,6 +268,7 @@ public class ComputeService {
             case "", "adaptive" -> new AdaptiveStrategy();
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
                 yield new AdaptiveStrategy();
@@ -236,7 +279,7 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(plan, null);
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -255,30 +298,64 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan);
+            return new ExternalDistributionResult(plan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
     }
 
-    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan) {
+    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
             return distributionPlan != null && distributionPlan.distributed();
         }
     }
 
-    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        if (splits.isEmpty()) {
+            discoverSplitsFromFragments(plan, splits);
+            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                if (coalesced != splits) {
+                    splits.clear();
+                    splits.addAll(coalesced);
+                }
+            }
+        }
         return splits;
     }
 
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+        if (operatorFactoryRegistry == null) {
+            return;
+        }
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    splits.addAll(withSplits.splits());
+                }
+            });
+        });
+    }
+
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
-        return plan.transformUp(ExchangeExec.class, exchange -> {
+        PhysicalPlan collapsed = plan.transformUp(ExchangeExec.class, exchange -> {
             if (exchange.child() instanceof ExternalSourceExec) {
                 return exchange.child();
             }
+            if (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)) {
+                return exchange.child();
+            }
             return exchange;
+        });
+        return collapsed.transformUp(TopNExec.class, topN -> {
+            if (topN.inputOrdering() != InputOrdering.NOT_SORTED && topN.child() instanceof FragmentExec) {
+                return topN.withNonSortedInput();
+            }
+            return topN;
         });
     }
 
@@ -299,6 +376,8 @@ public class ComputeService {
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
         );
+        // Check if the plan contains subqueries (UnionAll) vs fork branches before breaking it apart.
+        // Batching is only applied to subqueries, not fork branches.
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
@@ -346,73 +425,178 @@ public class ComputeService {
         );
 
         exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
-        try (var ignored = mainExchangeSource.addEmptySink()) {
-            var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
-            var computeContext = new ComputeContext(
-                mainSessionId,
-                "main.final",
-                LOCAL_CLUSTER,
+        var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        var computeContext = new ComputeContext(
+            mainSessionId,
+            "main.final",
+            LOCAL_CLUSTER,
+            flags,
+            EmptyIndexedByShardId.instance(),
+            configuration,
+            foldContext,
+            mainExchangeSource::createExchangeSource,
+            null
+        );
+
+        Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+
+        try (
+            ComputeListener localListener = new ComputeListener(
+                transportService.getThreadPool(),
+                cancelQueryOnFailure,
+                finalListener.map(profiles -> {
+                    execInfo.markEndQuery();
+                    return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
+                })
+            )
+        ) {
+            runCompute(
+                rootTask,
+                computeContext,
+                mainPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                localListener.acquireCompute()
+            );
+            int branchParallelDegree = queryPragmas.branchParallelDegree();
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(
+                    "executing [{}] subplans in parallel degree of [{}] with initial cluster statuses [{}]",
+                    subplans.size(),
+                    branchParallelDegree,
+                    initialClusterStatuses
+                );
+            }
+            SubPlansExecutor subPlansExecutor = new SubPlansExecutor(
+                subplans,
+                localListener,
+                sessionId,
+                rootTask,
                 flags,
-                EmptyIndexedByShardId.instance(),
                 configuration,
                 foldContext,
-                mainExchangeSource::createExchangeSource,
-                null
+                execInfo,
+                queryPragmas,
+                mainExchangeSource,
+                initialClusterStatuses
             );
+            subPlansExecutor.execute(branchParallelDegree);
+        }
+    }
 
-            Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+    /**
+     * Executes subplans in parallel. The parallel degree is controlled by the {@code BRANCH_PARALLEL_DEGREE} pragma.
+     * The {@code emptySinkRef} keeps the main exchange source alive across batches and is released
+     * when the last subplan is dispatched.
+     */
+    private class SubPlansExecutor {
+        final List<PhysicalPlan> subplans;
+        final List<ActionListener<DriverCompletionInfo>> subPlanListeners;
+        final String sessionId;
+        final CancellableTask rootTask;
+        final EsqlFlags flags;
+        final Configuration configuration;
+        final FoldContext foldContext;
+        final EsqlExecutionInfo execInfo;
+        final QueryPragmas queryPragmas;
+        final ExchangeSourceHandler mainExchangeSource;
+        final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
+        final AtomicInteger nextId = new AtomicInteger();
+        final AtomicInteger completedSubPlanCount = new AtomicInteger();
+        final Releasable emptySinkRef;
 
-            try (
-                ComputeListener localListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    cancelQueryOnFailure,
-                    finalListener.map(profiles -> {
-                        execInfo.markEndQuery();
-                        return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
-                    })
-                )
-            ) {
-                runCompute(
-                    rootTask,
-                    computeContext,
-                    mainPlan,
-                    plannerSettings.get(),
-                    LocalPhysicalOptimization.ENABLED,
-                    planTimeProfile,
-                    localListener.acquireCompute()
-                );
+        SubPlansExecutor(
+            List<PhysicalPlan> subplans,
+            ComputeListener computeListener,
+            String sessionId,
+            CancellableTask rootTask,
+            EsqlFlags flags,
+            Configuration configuration,
+            FoldContext foldContext,
+            EsqlExecutionInfo execInfo,
+            QueryPragmas queryPragmas,
+            ExchangeSourceHandler mainExchangeSource,
+            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
+        ) {
+            this.subplans = subplans;
+            // Pre-acquire all subplan listeners upfront so that the ComputeListener's ref count
+            // accounts for all subplans before any execution begins. This prevents the ComputeListener
+            // from closing prematurely if early subplans finish with errors before later ones are started.
+            this.subPlanListeners = new ArrayList<>(subplans.size());
+            for (int i = 0; i < subplans.size(); i++) {
+                subPlanListeners.add(computeListener.acquireCompute());
+            }
+            this.sessionId = sessionId;
+            this.rootTask = rootTask;
+            this.flags = flags;
+            this.configuration = configuration;
+            this.foldContext = foldContext;
+            this.execInfo = execInfo;
+            this.queryPragmas = queryPragmas;
+            this.mainExchangeSource = mainExchangeSource;
+            this.initialClusterStatuses = initialClusterStatuses;
+            this.emptySinkRef = Releasables.releaseOnce(mainExchangeSource.addEmptySink());
+        }
 
-                for (int i = 0; i < subplans.size(); i++) {
-                    var subplan = subplans.get(i);
-                    var childSessionId = newChildSession(sessionId);
-                    ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
-                    // funnel sub plan pages into the main plan exchange source
-                    mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
-                    var subPlanListener = localListener.acquireCompute();
+        void execute(int branchParallelDegree) {
+            for (int i = 0; i < branchParallelDegree; i++) {
+                tryExecuteNextSubPlan();
+            }
+        }
 
-                    executePlan(
-                        childSessionId,
-                        rootTask,
-                        flags,
-                        subplan,
-                        configuration,
-                        foldContext,
-                        execInfo,
-                        "subplan-" + i,
-                        ActionListener.wrap(result -> {
-                            exchangeSink.addCompletionListener(
-                                ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
-                            );
-                            subPlanListener.onResponse(result.completionInfo());
-                        }, e -> {
-                            exchangeService.finishSinkHandler(childSessionId, e);
-                            subPlanListener.onFailure(e);
-                        }),
-                        () -> exchangeSink.createExchangeSink(() -> {}),
-                        initialClusterStatuses,
-                        configuration.profile() ? new PlanTimeProfile() : null
+        void tryExecuteNextSubPlan() {
+            int subPlanIndex = nextId.getAndIncrement();
+            if (subPlanIndex >= subplans.size()) {
+                return;
+            }
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("executing subplan [{}]", subPlanIndex);
+            }
+            var subplan = subplans.get(subPlanIndex);
+            var childSessionId = newChildSession(sessionId);
+            ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
+            mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+            var subPlanListener = subPlanListeners.get(subPlanIndex);
+            executePlan(
+                childSessionId,
+                rootTask,
+                flags,
+                subplan,
+                configuration,
+                foldContext,
+                execInfo,
+                "subplan-" + subPlanIndex,
+                ActionListener.wrap(result -> {
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.debug("subplan [{}] finished successfully", subPlanIndex);
+                    }
+                    exchangeSink.addCompletionListener(
+                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
                     );
-                }
+                    subPlanListener.onResponse(result.completionInfo());
+                    onSubPlanCompleted();
+                }, e -> {
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.debug("subplan [{}] finished with an error [{}]", subPlanIndex, e.getMessage());
+                    }
+                    exchangeService.finishSinkHandler(childSessionId, e);
+                    subPlanListener.onFailure(e);
+                    onSubPlanCompleted();
+                }),
+                () -> exchangeSink.createExchangeSink(() -> {}),
+                initialClusterStatuses,
+                configuration.profile() ? new PlanTimeProfile() : null
+            );
+        }
+
+        void onSubPlanCompleted() {
+            if (completedSubPlanCount.incrementAndGet() == subplans.size()) {
+                // All subplans have completed — release the empty sink so the exchange source
+                // can finish once all subplan sinks have been consumed by the coordinator.
+                emptySinkRef.close();
+            } else {
+                tryExecuteNextSubPlan();
             }
         }
     }
@@ -499,6 +683,7 @@ public class ComputeService {
                     coordinatorPlan,
                     plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
+                    distributionResult.coordinatorSplits(),
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -735,40 +920,38 @@ public class ComputeService {
                 })
             )
         ) {
-            try (Releasable ignored = exchangeSource.addEmptySink()) {
-                // Run the coordinator plan
-                runCompute(
-                    rootTask,
-                    new ComputeContext(
-                        sessionId,
-                        profileDescription(profileQualifier, "final"),
-                        LOCAL_CLUSTER,
-                        flags,
-                        EmptyIndexedByShardId.instance(),
-                        configuration,
-                        foldContext,
-                        exchangeSource::createExchangeSource,
-                        exchangeSinkSupplier
-                    ),
-                    coordinatorPlan,
-                    plannerSettings.get(),
-                    LocalPhysicalOptimization.ENABLED,
-                    planTimeProfile,
-                    computeListener.acquireCompute()
-                );
-                // Dispatch to each data node with its assigned splits
-                dataNodeComputeHandler.startExternalComputeOnDataNodes(
+            // Run the coordinator plan
+            runCompute(
+                rootTask,
+                new ComputeContext(
                     sessionId,
-                    rootTask,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
                     flags,
+                    EmptyIndexedByShardId.instance(),
                     configuration,
-                    dataNodePlan,
-                    distributionPlan,
-                    exchangeSource,
-                    cancelQueryOnFailure,
-                    computeListener
-                );
-            }
+                    foldContext,
+                    exchangeSource::createExchangeSource,
+                    exchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+            // Dispatch to each data node with its assigned splits
+            dataNodeComputeHandler.startExternalComputeOnDataNodes(
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                dataNodePlan,
+                distributionPlan,
+                exchangeSource,
+                cancelQueryOnFailure,
+                computeListener
+            );
         }
     }
 
@@ -858,6 +1041,19 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        runCompute(task, context, plan, plannerSettings, localPhysicalOptimization, List.of(), planTimeProfile, listener);
+    }
+
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
+        List<ExternalSplit> coordinatorExternalSplits,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -880,6 +1076,7 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
+                userAgentParserRegistry,
                 physicalOperationProviders,
                 operatorFactoryRegistry
             );
@@ -888,10 +1085,15 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            boolean hasExternalSource = plan.anyMatch(p -> p instanceof ExternalSourceExec);
-            var localPlan = switch (localPhysicalOptimization) {
-                case ENABLED -> hasExternalSource
-                    ? PlannerUtils.localPlan(
+            boolean hasExternalSource = plan.anyMatch(
+                p -> p instanceof ExternalSourceExec
+                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+            );
+            PhysicalPlan localPlan;
+            final String logicalPlanString;
+            if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                if (hasExternalSource) {
+                    localPlan = PlannerUtils.localPlan(
                         plannerSettings,
                         context.flags(),
                         context.configuration(),
@@ -899,9 +1101,12 @@ public class ComputeService {
                         plan,
                         SearchContextStats.from(localContexts),
                         filterPushdownRegistry,
+                        formatReaderRegistry,
                         planTimeProfile
-                    )
-                    : PlannerUtils.localPlan(
+                    );
+                    logicalPlanString = null;
+                } else {
+                    var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
                         localContexts,
@@ -910,15 +1115,37 @@ public class ComputeService {
                         plan,
                         planTimeProfile
                     );
-                case DISABLED -> plan;
-            };
+                    localPlan = localPlanResult.physicalPlan();
+                    logicalPlanString = localPlanResult.logicalPlanString();
+                }
+            } else {
+                localPlan = plan;
+                logicalPlanString = null;
+            }
+            if (coordinatorExternalSplits.isEmpty() == false) {
+                localPlan = localPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
+                );
+            }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+
+            // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
+            // The original localPlan is immutable and preserved for profiling.
+            PhysicalPlan planToExecute = localPlan;
+            if (context.configuration().explainOnly()) {
+                planToExecute = ExplainPlanTransformer.replaceDataSourcesWithEmpty(localPlan);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("EXPLAIN mode: transformed plan for {}:\n{}", context.description(), planToExecute);
+                }
+            }
+
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, localPlan, shardContexts);
+            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
@@ -936,7 +1163,15 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
+            // Pass the ORIGINAL plan (immutable, not transformed) for profiling
+            ActionListener<Void> driverListener = addCompletionInfo(
+                listener,
+                drivers,
+                context,
+                localPlan,
+                logicalPlanString,
+                planTimeProfile
+            );
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -955,6 +1190,7 @@ public class ComputeService {
         List<Driver> drivers,
         ComputeContext context,
         PhysicalPlan localPlan,
+        String logicalPlanString,
         PlanTimeProfile planTimeProfile
     ) {
         /*
@@ -971,6 +1207,7 @@ public class ComputeService {
                     clusterService.getClusterName().value(),
                     transportService.getLocalNode().getName(),
                     planString,
+                    logicalPlanString,
                     planTimeProfile
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
@@ -1058,10 +1295,11 @@ public class ComputeService {
         // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
         // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
         return fragment instanceof Aggregate
-            // MetricsInfo does not serialize its output attributes (they are generated automatically and do not depend on the input).
-            // After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of the
-            // data node plan.
-            || fragment instanceof MetricsInfo;
+            // MetricsInfo/TsInfo do not serialize their output attributes (they are generated automatically and do not depend on the
+            // input). After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of
+            // the data node plan.
+            || fragment instanceof MetricsInfo
+            || fragment instanceof TsInfo;
     }
 
     String newChildSession(String session) {
@@ -1123,4 +1361,5 @@ public class ComputeService {
         });
         return holder.getOrDefault(Map::of);
     }
+
 }

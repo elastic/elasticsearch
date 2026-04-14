@@ -36,7 +36,7 @@ public final class DeltaFloatAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public DeltaFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DeltaFloatGroupingAggregatorFunction.create(channels, driverContext);
+    return new DeltaFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -298,35 +299,38 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
-    public void testMultimodalChatCompletionNotSupportedByDefault() throws IOException {
+    public void testMultimodalChatCompletionSupportedByDefault() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var request = new UnifiedCompletionRequest(
-                List.of(
-                    new Message(
-                        new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
-                        "user",
-                        null,
-                        null
-                    )
-                ),
-                null,
-                null,
-                null,
-                null,
-                null,
+        List<Message> messages = List.of(
+            new Message(
+                new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
+                "user",
                 null,
                 null
-            );
+            )
+        );
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                assertThat(inputs.getRequest().messages(), is(messages));
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+        try (service) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
             service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
 
-            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), is("The test service service does not support unified completion with non-text inputs"));
+            listener.actionGet(TIMEOUT);
         }
     }
 
@@ -361,9 +365,9 @@ public class SenderServiceTests extends ESTestCase {
         return sender;
     }
 
-    private static class TestSenderService extends SenderService {
+    private static class TestSenderService extends SenderService<Model> {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-            super(factory, serviceComponents, clusterService);
+            super(factory, serviceComponents, clusterService, Map.of());
         }
 
         @Override
@@ -416,22 +420,12 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfigWithSecrets(
-            String inferenceEntityId,
-            TaskType taskType,
-            Map<String, Object> config,
-            Map<String, Object> secrets
-        ) {
-            return null;
-        }
-
-        @Override
         public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
             return null;
         }
 
         @Override
-        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(UnparsedModel unparsedModel) {
             return null;
         }
 

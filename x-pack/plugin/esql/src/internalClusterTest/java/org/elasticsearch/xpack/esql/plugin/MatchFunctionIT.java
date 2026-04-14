@@ -296,6 +296,36 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testMatchAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testMatchAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | EVAL upper_content = to_upper(content)
+            | WHERE match(content, "fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | KEEP id, content
+            | WHERE match(content, "fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after MV_EXPAND"));
+    }
+
     public void testMatchWithLookupJoin() {
         var query = """
             FROM test
@@ -311,6 +341,72 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     + "in non-STANDARD mode [lookup]"
             )
         );
+    }
+
+    public void testMatchOnJoinFieldWithLookupJoin() {
+        var query = """
+            FROM test
+            | EVAL x = 123
+            | RENAME x AS id
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND MATCH(id, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("line 5:26: [MATCH] function cannot operate on [id], which is not a field from an index mapping")
+        );
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | EVAL a = 1, b = a + 1, c = b + a
+            | WHERE c > 10
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | STATS c = COUNT(*)
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
     }
 
     public void testMatchWithLookupJoinOnMatch() {

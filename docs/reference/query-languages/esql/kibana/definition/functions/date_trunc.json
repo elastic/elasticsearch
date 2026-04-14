@@ -10,7 +10,7 @@
           "name" : "interval",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; [time span](https://www.elastic.co/docs/reference/query-languages/esql/esql-time-spans) (DATE_PERIOD or TIME_DURATION)."
         },
         {
           "name" : "date",
@@ -28,7 +28,7 @@
           "name" : "interval",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; [time span](https://www.elastic.co/docs/reference/query-languages/esql/esql-time-spans) (DATE_PERIOD or TIME_DURATION)."
         },
         {
           "name" : "date",
@@ -46,7 +46,7 @@
           "name" : "interval",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; [time span](https://www.elastic.co/docs/reference/query-languages/esql/esql-time-spans) (DATE_PERIOD or TIME_DURATION)."
         },
         {
           "name" : "date",
@@ -64,7 +64,7 @@
           "name" : "interval",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Interval; expressed using the timespan literal syntax."
+          "description" : "Interval; [time span](https://www.elastic.co/docs/reference/query-languages/esql/esql-time-spans) (DATE_PERIOD or TIME_DURATION)."
         },
         {
           "name" : "date",

@@ -10,10 +10,10 @@
 package org.elasticsearch.index.codec.vectors.reflect;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.lang.invoke.MethodHandles;

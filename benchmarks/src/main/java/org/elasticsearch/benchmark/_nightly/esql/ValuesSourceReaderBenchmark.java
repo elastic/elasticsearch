@@ -23,9 +23,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -93,8 +94,9 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
@@ -110,10 +112,9 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static IndexSettings defaultIndexSettings() {
         IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
@@ -126,7 +127,9 @@ public class ValuesSourceReaderBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
     }
 
     static void selfTest() {
@@ -161,19 +164,19 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
                 )
             );
             default -> List.of(
@@ -181,7 +184,7 @@ public class ValuesSourceReaderBenchmark {
                     name,
                     elementType(name),
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader(name))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader(name))
                 )
             );
         };
@@ -317,7 +320,9 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
         long sum = 0;
         for (Page page : pages) {
@@ -629,6 +634,11 @@ public class ValuesSourceReaderBenchmark {
 
         @Override
         public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
+
+        @Override
+        public Warnings warnings() {
             return null;
         }
 

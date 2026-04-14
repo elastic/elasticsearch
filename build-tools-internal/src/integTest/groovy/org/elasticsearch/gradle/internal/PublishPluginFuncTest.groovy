@@ -481,7 +481,6 @@ def "handles project shadow dependencies"() {
 def "generates artifacts for shadowed elasticsearch plugin"() {
     given:
     // we use the esplugin plugin in this test that is not configuration cache compatible yet
-    configurationCacheCompatible = false
     file('license.txt') << "License file"
     file('notice.txt') << "Notice file"
     buildFile << """
@@ -572,7 +571,6 @@ def "generates artifacts for shadowed elasticsearch plugin"() {
 def "generates pom for elasticsearch plugin"() {
     given:
     // we use the esplugin plugin in this test that is not configuration cache compatible yet
-    configurationCacheCompatible = false
     file('license.txt') << "License file"
     file('notice.txt') << "Notice file"
     buildFile << """
@@ -712,20 +710,14 @@ private boolean assertXmlEquals(String toTest, String expected) {
         .normalizeWhitespace()
         .withTest(Input.fromString(toTest))
         .build()
-    diff.differences.each { difference ->
-        println difference
+    if (diff.hasDifferences()) {
+        def message = "XML documents differ:\n"
+        diff.differences.each { difference ->
+            message += "  ${difference}\n"
+        }
+        message += "\ngiven:\n${toTest}\n\nexpected:\n${expected}\n"
+        assert false : message
     }
-    if (diff.differences.size() > 0) {
-        println """ given:
-$toTest
-"""
-        println """ expected:
-$expected
-"""
-
-
-    }
-    assert diff.hasDifferences() == false
     true
 }
 

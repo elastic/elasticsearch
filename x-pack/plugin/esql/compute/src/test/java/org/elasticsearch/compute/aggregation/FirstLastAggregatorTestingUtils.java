@@ -131,7 +131,11 @@ public class FirstLastAggregatorTestingUtils {
          * @param actual The value received from the real aggregator.
          */
         void check(Object actual) {
-            if (expectedValues.isEmpty()) {
+            check(expectedValues, actual);
+        }
+
+        public static void check(Set<List<Object>> expected, Object actual) {
+            if (expected.isEmpty()) {
                 if (actual != null) {
                     throw new AssertionError(String.format(Locale.ROOT, "Expected null but was %s", actual));
                 }
@@ -144,20 +148,20 @@ public class FirstLastAggregatorTestingUtils {
                     actualValues.add(actual);
                 }
 
-                if (expectedValues.contains(actualValues) == false) {
-                    throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(), actual));
+                if (expected.contains(actualValues) == false) {
+                    throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(expected), actual));
                 }
             }
         }
 
-        private String expectedMessage() {
-            if (expectedValues.size() == 1) {
-                return expectedValues.iterator().next().toString();
+        private static String expectedMessage(Set<List<Object>> expected) {
+            if (expected.size() == 1) {
+                return expected.iterator().next().toString();
             }
-            if (expectedValues.size() > 10) {
-                return "one of " + expectedValues.size() + " values";
+            if (expected.size() > 10) {
+                return "one of " + expected.size() + " values";
             }
-            return "one of " + expectedValues;
+            return "one of " + expected;
         }
     }
 }

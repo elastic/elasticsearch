@@ -105,6 +105,13 @@ public interface LocalClusterHandle extends ClusterHandle {
     void upgradeToVersion(Version version);
 
     /**
+     * Perform a rolling upgrade to the given version.
+     * @param version               The version to upgrade to.
+     * @param onNodeUpgradeComplete A callback that is invoked after each node is upgraded.
+     */
+    void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete);
+
+    /**
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -28,12 +30,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
@@ -65,8 +71,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryRequestTests extends ESTestCase {
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
@@ -696,12 +705,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(KEYWORD));
-        try (
-            BytesRefBlock.Builder builder = new BlockFactory(
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                BigArrays.NON_RECYCLING_INSTANCE
-            ).newBytesRefBlockBuilder(10)
-        ) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(10)) {
             builder.appendBytesRef(new BytesRef("a"));
             builder.appendBytesRef(new BytesRef("b"));
             builder.appendNull();
@@ -728,10 +732,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(INTEGER));
-        try (
-            IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newIntBlockBuilder(10)
-        ) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(10)) {
             builder.appendInt(1);
             builder.appendInt(2);
             builder.appendInt(3);
@@ -756,10 +757,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(LONG));
-        try (
-            LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newLongBlockBuilder(10)
-        ) {
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(10)) {
             builder.appendLong(1);
             builder.appendLong(2);
             builder.appendLong(3);
@@ -784,10 +782,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(DOUBLE));
-        try (
-            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newDoubleBlockBuilder(10)
-        ) {
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(10)) {
             builder.appendDouble(1.1);
             builder.appendDouble(2);
             builder.appendDouble(3.1415);
@@ -849,13 +844,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTask() throws IOException {
         String query = randomAlphaOfLength(10);
         int id = randomInt();
+        TimeValue keepAlive = TimeValue.timeValueDays(2);
 
         String requestJson = """
             {
-                "query": "QUERY"
-            }""".replace("QUERY", query);
+                "query": "QUERY",
+                "keep_alive": "KEEP_ALIVE"
+            }""".replace("QUERY", query).replace("KEEP_ALIVE", keepAlive.getStringRep());
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(requestJson);
         String localNode = randomAlphaOfLength(2);
         Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
@@ -870,7 +867,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                   "type" : "transport",
                   "action" : "indices:data/read/esql",
                   "status" : {
-                    "request_id" : "%s"
+                    "request_id" : "%s",
+                    "keep_alive" : "%s"
                   },
                   "description" : "%s",
                   "start_time" : "%s",
@@ -885,6 +883,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             localNode,
             id,
             ((EsqlQueryStatus) taskInfo.status()).id().getEncoded(),
+            keepAlive,
             query,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()),
             taskInfo.startTime(),
@@ -892,6 +891,45 @@ public class EsqlQueryRequestTests extends ESTestCase {
             taskInfo.runningTimeNanos()
         );
         assertThat(json, equalTo(expected));
+    }
+
+    public void testTaskStatusSerializationToPreviousTransportVersionOmitsKeepAlive() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus serialized = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+        assertThat(serialized.id(), equalTo(status.id()));
+        assertNull(serialized.keepAlive());
+    }
+
+    public void testTaskStatusWithNullKeepAliveCanBeSerializedBackToCurrentTransportVersion() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus withoutKeepAlive = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+
+        EsqlQueryStatus serializedBack = copyWriteable(
+            withoutKeepAlive,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            TransportVersion.current()
+        );
+        assertThat(serializedBack.id(), equalTo(status.id()));
+        assertNull(serializedBack.keepAlive());
     }
 
     public void testProjectRouting() throws IOException {
@@ -902,6 +940,120 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.projectRouting(), is("_alias:_origin"));
+    }
+
+    public void testApproximationNull() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": null
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
+    }
+
+    public void testApproximationTrue() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": true
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
+        assertThat(request.approximation().confidenceLevel(), equalTo(0.90));
+    }
+
+    public void testApproximationFalse() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": false
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
+    }
+
+    public void testApproximationObject() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 50000,
+                    "confidence_level": 0.678
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(50000, 0.678)));
+    }
+
+    public void testApproximationObjectPartial() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 20000
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(20000, 0.9)));
+    }
+
+    public void testApproximationObjectEmpty() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {}
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
+    }
+
+    public void testApproximationNotSet() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertNull(request.approximation());
+    }
+
+    public void testApproximationInvalidRows() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 100
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[rows] must be at least 10000"));
+    }
+
+    public void testApproximationNullConfidenceLevel() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "confidence_level": null
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), not(nullValue()));
+        assertThat(request.approximation().confidenceLevel(), nullValue());
+    }
+
+    public void testApproximationInvalidConfidenceLevel() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "confidence_level": 0.99
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[confidence_level] must be between 0.5 and 0.95"));
     }
 
     private List<QueryParam> randomParameters() {
@@ -991,5 +1143,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
             new RangeQueryBuilder(randomAlphaOfLength(5)).gt(randomIntBetween(0, 1000))
         );
+    }
+
+    private BlockFactory blockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
     }
 }

@@ -14,28 +14,28 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
+ * {@link ExpressionEvaluator} implementation for {@link Cast}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CastLongToDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CastLongToDoubleEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator v;
+  private final ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CastLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+  public CastLongToDoubleEvaluator(Source source, ExpressionEvaluator v,
       DriverContext driverContext) {
     this.source = source;
     this.v = v;
@@ -108,12 +108,12 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory v;
+    private final ExpressionEvaluator.Factory v;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+    public Factory(Source source, ExpressionEvaluator.Factory v) {
       this.source = source;
       this.v = v;
     }

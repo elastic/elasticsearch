@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Scalb}.
+ * {@link ExpressionEvaluator} implementation for {@link Scalb}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ScalbConstantLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ScalbConstantLongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbConstantLongEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator d;
+  private final ExpressionEvaluator d;
 
   private final long scaleFactor;
 
@@ -36,8 +36,8 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
 
   private Warnings warnings;
 
-  public ScalbConstantLongEvaluator(Source source, EvalOperator.ExpressionEvaluator d,
-      long scaleFactor, DriverContext driverContext) {
+  public ScalbConstantLongEvaluator(Source source, ExpressionEvaluator d, long scaleFactor,
+      DriverContext driverContext) {
     this.source = source;
     this.d = d;
     this.scaleFactor = scaleFactor;
@@ -120,14 +120,14 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory d;
+    private final ExpressionEvaluator.Factory d;
 
     private final long scaleFactor;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory d, long scaleFactor) {
+    public Factory(Source source, ExpressionEvaluator.Factory d, long scaleFactor) {
       this.source = source;
       this.d = d;
       this.scaleFactor = scaleFactor;

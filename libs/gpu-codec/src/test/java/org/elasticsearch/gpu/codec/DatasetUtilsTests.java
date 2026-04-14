@@ -15,15 +15,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
-import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
-
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 
 public class DatasetUtilsTests extends ESTestCase {
 
@@ -32,7 +30,7 @@ public class DatasetUtilsTests extends ESTestCase {
     @Before
     public void setup() {  // TODO: abstract out setup in to common GPUTestcase
         assumeTrue("cuvs runtime only supported on 22 or greater, your JDK is " + Runtime.version(), Runtime.version().feature() >= 22);
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", CuVSGPUSupport.instance().isSupported());
         datasetUtils = DatasetUtils.getInstance();
     }
 
@@ -47,8 +45,7 @@ public class DatasetUtilsTests extends ESTestCase {
                 var ba = new byte[dims * Float.BYTES];
                 var seg = MemorySegment.ofArray(ba);
                 for (int v = 0; v < numVecs; v++) {
-                    var src = MemorySegment.ofArray(randomVector(dims));
-                    MemorySegment.copy(src, JAVA_FLOAT_UNALIGNED, 0L, seg, JAVA_FLOAT_LE, 0L, numVecs);
+                    MemorySegment.copy(randomVector(dims), 0, seg, JAVA_FLOAT_LE, 0L, numVecs);
                     out.writeBytes(ba, 0, ba.length);
                 }
             }

@@ -80,7 +80,7 @@ public class UnsupportedEsField extends EsField {
         writeTimeSeriesFieldType(out);
     }
 
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
         return "UnsupportedEsField";
     }
 

@@ -12,10 +12,14 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsApplier;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
@@ -31,30 +35,40 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
     protected URI uri;
-    private final AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings;
+    private final AzureOpenAiSecretsApplier secretsApplier;
+    private final AzureOpenAiServiceSettings baseServiceSettings;
 
     public AzureOpenAiModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings
+        AzureOpenAiServiceSettings baseServiceSettings,
+        ThreadPool threadPool
     ) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.baseServiceSettings = Objects.requireNonNull(baseServiceSettings);
+        this.secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            configurations.getInferenceEntityId(),
+            threadPool,
+            (AzureOpenAiSecretSettings) secrets.getSecretSettings(),
+            baseServiceSettings
+        );
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
         this.uri = model.getUri();
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        this.baseServiceSettings = model.baseServiceSettings();
+        this.secretsApplier = model.secretsApplier();
     }
 
-    protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
+    protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings baseServiceSettings) {
+        super(model, baseServiceSettings);
 
         this.uri = model.getUri();
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        this.baseServiceSettings = model.baseServiceSettings();
+        this.secretsApplier = model.secretsApplier();
     }
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
@@ -92,13 +106,22 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
         this.uri = newUri;
     }
 
-    public AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    public AzureOpenAiSecretsApplier secretsApplier() {
+        return secretsApplier;
+    }
+
+    @Override
+    public AzureOpenAiSecretSettings getSecretSettings() {
+        return (AzureOpenAiSecretSettings) super.getSecretSettings();
+    }
+
+    public AzureOpenAiServiceSettings baseServiceSettings() {
+        return baseServiceSettings;
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return baseServiceSettings.rateLimitSettings();
     }
 
     @Override

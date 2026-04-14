@@ -23,23 +23,30 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -51,7 +58,9 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
@@ -59,7 +68,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -80,10 +88,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
+
+    private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
@@ -124,8 +135,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
+        UserAgentParserRegistry userAgentParserRegistry,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -165,7 +178,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             projectResolver,
-            plannerSettings
+            plannerSettings,
+            exchangeService
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -193,14 +207,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             usageService,
             new InferenceService(client, clusterService),
+            userAgentParserRegistry,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            new CrossProjectModeDecider(clusterService.getSettings())
+            crossProjectModeDecider
         );
 
-        OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
-            .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
-        FilterPushdownRegistry filterPushdownRegistry = planExecutor.dataSourceModule().filterPushdownRegistry();
+        var dataSourceModule = planExecutor.dataSourceModule();
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalSourceExecutor());
+        FilterPushdownRegistry filterPushdownRegistry = dataSourceModule.filterPushdownRegistry();
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -209,15 +224,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            filterPushdownRegistry
+            filterPushdownRegistry,
+            dataSourceModule.formatReaderRegistry()
         );
 
-        this.activityLogger = new ActivityLogger<>(
-            EsqlLogContext.TYPE,
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
             logWriterProvider,
-            fieldProvider
+            fieldProvider,
+            indexNameExpressionResolver.getSystemNamePredicate()
         );
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
@@ -244,6 +260,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             });
     }
 
+    /**
+     * Returns the executor used for external source I/O (e.g. {@code EXTERNAL/FROM external_source} operators).
+     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
+     * Currently shares {@code esql_worker} with compute drivers; override this method when a dedicated I/O pool is introduced.
+     */
+    protected Executor externalSourceExecutor() {
+        return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+    }
+
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
@@ -268,6 +293,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
+        task.rescheduleCancellationOnExpiry();
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
@@ -438,7 +464,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+            // Quick way to get the approximation column metadata in the response
+            // without a full implementation of a colum metadata service.
+            // TODO: remove this hack when we have a proper column metadata service,
+            // see https://github.com/elastic/elasticsearch/issues/138223
+            Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
@@ -520,7 +551,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.query(), // Pass the query as the description
+            request.queryDescription(), // Pass the query description as the task description
             parentTaskId,
             headers,
             originHeaders,
@@ -529,7 +560,24 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlQueryStatus(asyncExecutionId);
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
+            }
+
+            @Override
+            protected Scheduler.ScheduledCancellable scheduleCancellationOnExpiry(long expirationTimeMillis) {
+                final long delay = Math.max(expirationTimeMillis - threadPool.absoluteTimeInMillis(), 0);
+                final CancellableTask task = this;
+                return threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to cancel async-query on expiry", e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        taskManager.cancelTaskAndDescendants(task, "keep_alive expired", false, ActionListener.noop());
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
             }
         };
     }

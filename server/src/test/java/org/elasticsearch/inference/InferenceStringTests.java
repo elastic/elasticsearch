@@ -12,8 +12,6 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -27,19 +25,54 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
-import static org.elasticsearch.inference.InferenceString.supportedFormatsForType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
+    public static final String TEST_IMAGE_DATA_URI = "data:image/jpeg;base64,abcd";
+
     public void testConstructorWithNoFormat_usesDefault() {
         assertThat(new InferenceString(DataType.TEXT, "value").dataFormat(), is(DataFormat.TEXT));
-        assertThat(new InferenceString(DataType.IMAGE, "value").dataFormat(), is(DataFormat.BASE64));
+        assertThat(new InferenceString(DataType.IMAGE, TEST_IMAGE_DATA_URI).dataFormat(), is(DataFormat.BASE64));
     }
 
     public void testSupportedFormatsForType() {
-        assertThat(supportedFormatsForType(DataType.TEXT), is(EnumSet.of(DataFormat.TEXT)));
-        assertThat(supportedFormatsForType(DataType.IMAGE), is(EnumSet.of(DataFormat.BASE64)));
+        assertThat(DataType.TEXT.getSupportedFormats(), is(EnumSet.of(DataFormat.TEXT)));
+        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
+    }
+
+    public void testConstructorWithInvalidDataURI_throws() {
+        var invalidDataURIs = List.of(
+            "notADataURI",
+            "image/jpeg;base64,abcd", // missing "data:"
+            "data:image/jpeg;base64abcd", // missing final ","
+            "data:;base64,abcd", // missing MIME type
+            "data:image/jpeg;abcd", // missing "base64,"
+            "Xdata:image/jpeg;base64,abcd", // extra character at start
+            "data;image/jpeg;base64,abcd", // doesn't start with "data:"
+            "data:image/jpeg;base63,abcd", // doesn't contain "base64,"
+            "data:invalid;base64,abcd" // invalid MIME type format
+        );
+        invalidDataURIs.forEach(value -> {
+            var exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, value)
+            );
+            assertThat(
+                exception.getMessage(),
+                is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+            );
+        });
+    }
+
+    public void testConstructorWithValidDataURIFormat() {
+        var value = Strings.format(
+            "data:%s/%s;base64,%s",
+            randomAlphanumericOfLength(10),
+            randomAlphanumericOfLength(10),
+            randomAlphanumericOfLength(10)
+        );
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, value);
     }
 
     public void testParserWithText() throws IOException {
@@ -59,18 +92,18 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testParserWithBase64Image() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
                 "type": "image",
                 "format": "base64",
-                "value": "some image data"
+                "value": "%s"
             }
-            """;
+            """, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = InferenceString.PARSER.apply(parser, null);
             assertThat(request.dataType(), is(DataType.IMAGE));
             assertThat(request.dataFormat(), is(DataFormat.BASE64));
-            assertThat(request.value(), is("some image data"));
+            assertThat(request.value(), is(TEST_IMAGE_DATA_URI));
         }
     }
 
@@ -90,26 +123,26 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testParserWithDefaultImageFormat() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
                 "type": "image",
-                "value": "some image data"
+                "value": "%s"
             }
-            """;
+            """, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = InferenceString.PARSER.apply(parser, null);
             assertThat(request.dataType(), is(DataType.IMAGE));
             assertThat(request.dataFormat(), is(DataFormat.BASE64));
-            assertThat(request.value(), is("some image data"));
+            assertThat(request.value(), is(TEST_IMAGE_DATA_URI));
         }
     }
 
     public void testParserWithNoType_throwsException() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
-                "value": "some image data"
+                "value": "%s"
             }
-            """;
+            """, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
@@ -135,14 +168,14 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testParserWithUnknownField_throwsException() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
                 "type": "image",
                 "format": "base64",
-                "value": "some image data",
+                "value": "%s",
                 "extra": "should throw"
             }
-            """;
+            """, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
@@ -180,9 +213,9 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             {
                 "type": "text",
                 "format": "%s"
-                "value": "some image data"
+                "value": "%s"
             }
-            """, invalidFormat);
+            """, invalidFormat, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
@@ -199,7 +232,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     public void testParserWithInvalidTypeAndFormatCombination_throwsException() throws IOException {
         var type = randomFrom(DataType.values());
         var unsupportedDataFormats = EnumSet.allOf(DataFormat.class);
-        unsupportedDataFormats.removeAll(supportedFormatsForType(type));
+        unsupportedDataFormats.removeAll(type.getSupportedFormats());
         var invalidFormat = randomFrom(unsupportedDataFormats);
         var requestJson = Strings.format("""
             {
@@ -223,9 +256,29 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                         "Data type [%s] does not support data format [%s], supported formats are %s",
                         type,
                         invalidFormat,
-                        supportedFormatsForType(type)
+                        type.getSupportedFormats()
                     )
                 )
+            );
+        }
+    }
+
+    public void testParserWithInvalidDataURI_throwsException() throws IOException {
+        var requestJson = """
+            {
+                "type": "image",
+                "format": "base64",
+                "value": "not_a_data_uri"
+            }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(IllegalArgumentException.class, () -> InferenceString.PARSER.apply(parser, null));
+            assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [value]"));
+            Throwable cause = exception.getCause();
+            assertThat(cause.getMessage(), containsString("Failed to build [InferenceString] after last required field arrived"));
+            assertThat(
+                cause.getCause().getMessage(),
+                containsString("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
             );
         }
     }
@@ -240,7 +293,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         var rawStrings = List.of("one", "two", "three", "four");
         var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
-        inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, "image data"));
+        inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_IMAGE_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));
         assertThat(assertionError.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
@@ -257,22 +310,35 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static InferenceString createRandom() {
         DataType dataType = randomFrom(DataType.values());
-        DataFormat format = randomFrom(supportedFormatsForType(dataType));
-        return new InferenceString(dataType, format, randomAlphanumericOfLength(10));
+        DataFormat format = randomBoolean() ? randomFrom(dataType.getSupportedFormats()) : null;
+        var value = convertToDataURIIfNeeded(dataType, format, randomAlphanumericOfLength(10));
+        return new InferenceString(dataType, format, value);
+    }
+
+    // Ensure we create a valid data URI format value if the format is base64
+    public static String convertToDataURIIfNeeded(DataType dataType, DataFormat format, String value) {
+        var formatToUse = format == null ? dataType.getDefaultFormat() : format;
+        if (formatToUse == DataFormat.BASE64) {
+            return "data:image/jpeg;base64," + value;
+        }
+        return value;
     }
 
     @Override
     protected InferenceString mutateInstance(InferenceString instance) throws IOException {
         if (randomBoolean()) {
             DataType newDataType = randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values()));
-            DataFormat format = randomFrom(supportedFormatsForType(newDataType));
-            return new InferenceString(newDataType, format, instance.value());
+            DataFormat format = randomFrom(newDataType.getSupportedFormats());
+            return new InferenceString(newDataType, format, convertToDataURIIfNeeded(newDataType, format, instance.value()));
         } else {
             String value = instance.value();
             return new InferenceString(
                 instance.dataType(),
                 instance.dataFormat(),
-                randomValueOtherThan(value, () -> randomAlphanumericOfLength(10))
+                randomValueOtherThan(
+                    value,
+                    () -> convertToDataURIIfNeeded(instance.dataType(), instance.dataFormat(), randomAlphanumericOfLength(10))
+                )
             );
         }
     }

@@ -32,6 +32,7 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
 }
 
 tasks.named("dependencyLicenses").configure {

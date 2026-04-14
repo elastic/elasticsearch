@@ -344,11 +344,15 @@ public class SharedBytes extends AbstractRefCounted {
 
         private final CloseableMappedByteBuffer mappedByteBuffer;
 
+        // Cached reference to the region's ByteBuffer
+        private final ByteBuffer mmapBuffer;
+
         private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
             assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+            this.mmapBuffer = mappedByteBuffer != null ? mappedByteBuffer.buffer() : null;
         }
 
         public boolean prefetch(long offset, long length) {
@@ -367,12 +371,28 @@ public class SharedBytes extends AbstractRefCounted {
             if (mmap) {
                 bytesRead = remaining;
                 int startPosition = dst.position();
-                dst.put(startPosition, mappedByteBuffer.buffer(), position, bytesRead).position(startPosition + bytesRead);
+                dst.put(startPosition, mmapBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
                 bytesRead = fileChannel.read(dst, pageStart + position);
             }
             readBytes.accept(bytesRead);
             return bytesRead;
+        }
+
+        /**
+         * Returns a read-only ByteBuffer slice of the memory-mapped region,
+         * or {@code null} if not memory-mapped.
+         *
+         * @param position the starting position within the region, must be non-negative
+         * @param length   the number of bytes, {@code position + length} must not exceed the region size
+         * @throws IllegalArgumentException if the position/length are out of bounds
+         */
+        public ByteBuffer byteBufferSlice(int position, int length) {
+            if (mmap) {
+                checkOffsets(position, length);
+                return mmapBuffer.slice(position, length);
+            }
+            return null;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")

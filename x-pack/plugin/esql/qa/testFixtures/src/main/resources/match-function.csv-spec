@@ -714,6 +714,36 @@ title:text
 The Hobbit or There and Back Again
 ;
 
+testMatchWithOptionsZeroTermsQueryNone
+required_capability: match_function
+required_capability: match_function_zero_terms_query
+
+from books
+| where match(title, "", {"zero_terms_query": "none"})
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+;
+
+testMatchWithOptionsZeroTermsQueryAll
+required_capability: match_function
+required_capability: match_function_zero_terms_query
+
+from books
+| where match(title, "", {"zero_terms_query": "all"})
+| sort book_no
+| keep book_no
+| limit 5;
+
+book_no:keyword
+1211
+1463
+1502
+1937
+1985
+;
+
 testMatchWithNonPushableDisjunctions
 required_capability: match_function
 required_capability: full_text_functions_disjunctions_compute_engine
@@ -879,6 +909,41 @@ book_no:keyword | author:text
 3293            | Danny Faulkner
 ;
 
+matchBeforeMvExpand
+required_capability: match_function
+
+from books
+| where match(author, "Faulkner") and book_no == "2378"
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+matchBeforeMvExpandWithStats
+required_capability: match_function
+
+from books
+| where match(author, "Tolkien")
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+| limit 5
+;
+
+   count:long  |    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
+;
+
 testMatchFunctionUnionAll
 required_capability: subquery_in_from_command
 required_capability: full_text_functions_accept_null_field
@@ -893,4 +958,171 @@ year:integer | author:text            | host:keyword
 1979         | Gabriel Garcia Marquez | null
 2005         | Gabriel Garcia Marquez | null
 2014         | Gabriel Garcia Marquez | null
+;
+
+matchAfterSimpleRename
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where match(writer, "Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterChainedRename
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where match(writer, "Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterRenameWithKeep
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| keep book_no, writer
+| where match(writer, "Faulkner")
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterRenameWithEvalAndSort
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where match(writer, "Faulkner")
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterEvalAndRename
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where match(writer, "Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterRenameWithSort
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| sort book_no
+| where match(writer, "Faulkner")
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterRenameShadowing
+required_capability: match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename title as author
+| where match(author, "Return") and book_no == "7350"
+| keep book_no, author
+;
+
+book_no:keyword | author:text
+7350            | Return of the Shadow
+;
+
+matchOnConstantKeywordField
+required_capability: match_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match(`constant_keyword-foo`, "foo")
+| keep `constant_keyword-foo`, keyword
+| sort keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
+foo                          | key4
+foo                          | key5
+;
+
+matchOnConstantKeywordFieldNoMatch
+required_capability: match_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match(`constant_keyword-foo`, "bar")
+| keep `constant_keyword-foo`, keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
 ;

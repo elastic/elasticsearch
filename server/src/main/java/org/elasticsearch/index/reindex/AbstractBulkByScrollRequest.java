@@ -48,6 +48,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         "bulk_by_scroll_request_includes_relocation_field"
     );
     private static final TransportVersion REINDEX_RELOCATION_RESUME = TransportVersion.fromName("reindex_relocation_resume");
+    private static final TransportVersion SOURCE_INDICES_FOR_DESCRIPTION = TransportVersion.fromName(
+        "bulk_by_scroll_source_indices_for_description"
+    );
 
     /**
      * The search to be executed.
@@ -116,6 +119,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Nullable
     private ResumeInfo resumeInfo;
 
+    /**
+     * Source indices to use when building the task description. When using PIT, the search request's
+     * indices are cleared (PIT defines the index context), but we still want the description to show
+     * the original source indices (e.g. "reindex from [reindex_src] to [reindex_dst]").
+     */
+    @Nullable
+    private String[] sourceIndicesForDescription;
+
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);
@@ -135,6 +146,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (in.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
             resumeInfo = in.readOptionalWriteable(ResumeInfo::new);
+        }
+        if (in.getTransportVersion().supports(SOURCE_INDICES_FOR_DESCRIPTION)) {
+            sourceIndicesForDescription = in.readOptionalStringArray();
         }
     }
 
@@ -173,7 +187,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = searchRequest.validate();
         if (searchRequest.source().from() != -1) {
-            e = addValidationError("from is not supported in this context", e);
+            // Allow from=0 when using PIT for search_after compatibility
+            if (searchRequest.source().pointInTimeBuilder() == null || searchRequest.source().from() != 0) {
+                e = addValidationError("from is not supported in this context", e);
+            }
         }
         if (searchRequest.source().storedFields() != null) {
             e = addValidationError("stored_fields is not supported in this context", e);
@@ -451,6 +468,22 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
+     * Sets the source indices to use when building the task description.
+     */
+    public Self setSourceIndicesForDescription(String[] indices) {
+        this.sourceIndicesForDescription = indices;
+        return self();
+    }
+
+    /**
+     * Returns the source indices used when building the task description, or null if not set.
+     */
+    @Nullable
+    public String[] getSourceIndicesForDescription() {
+        return sourceIndicesForDescription;
+    }
+
+    /**
      * Build a new request for a slice of the parent request.
      */
     public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
@@ -480,7 +513,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             ResumeInfo resumeInfo = this.getResumeInfo().get();
             int sliceId = request.getSearchRequest().source().slice().getId();
             if (resumeInfo.isSliceCompleted(sliceId) == false) {
-                request.setResumeInfo(new ResumeInfo(resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
+                request.setResumeInfo(new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
             }
         }
 
@@ -491,13 +524,27 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
+        // Copy source indices for description so sliced requests (which may have empty indices when using PIT)
+        // still produce the correct task description
+        if (sourceIndicesForDescription != null) {
+            request.setSourceIndicesForDescription(sourceIndicesForDescription);
+        }
         // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
         return request;
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers, eligibleForRelocationOnShutdown);
+    public Task createTask(TaskId id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new BulkByScrollTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            resumeInfo == null ? null : resumeInfo.relocationOrigin()
+        );
     }
 
     @Override
@@ -521,6 +568,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (out.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
             out.writeOptionalWriteable(resumeInfo);
         }
+        if (out.getTransportVersion().supports(SOURCE_INDICES_FOR_DESCRIPTION)) {
+            out.writeOptionalStringArray(sourceIndicesForDescription);
+        }
     }
 
     /**
@@ -528,8 +578,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * to make toString.
      */
     protected void searchToString(StringBuilder b) {
-        if (searchRequest.indices() != null && searchRequest.indices().length != 0) {
-            b.append(Arrays.toString(searchRequest.indices()));
+        String[] indicesToUse = searchRequest.indices() != null && searchRequest.indices().length != 0
+            ? searchRequest.indices()
+            : sourceIndicesForDescription;
+        if (indicesToUse != null && indicesToUse.length != 0) {
+            b.append(Arrays.toString(indicesToUse));
         } else {
             b.append("[all indices]");
         }

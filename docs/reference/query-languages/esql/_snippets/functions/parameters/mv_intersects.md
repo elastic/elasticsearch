@@ -3,8 +3,8 @@
 ## Parameters
 
 `field1`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 
 `field2`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 

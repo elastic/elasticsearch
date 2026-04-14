@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -26,6 +27,13 @@ import java.util.List;
 
 public class Abs extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
+        .unary(Abs::new)
+        .capabilities(
+            // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
+            "min_warning"
+        )
+        .name("abs");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
@@ -57,12 +65,12 @@ public class Abs extends UnaryScalarFunction {
         return Math.abs(fieldVal);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static long process(long fieldVal) {
         return Math.absExact(fieldVal);
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static int process(int fieldVal) {
         return Math.absExact(fieldVal);
     }

@@ -15,7 +15,6 @@ import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -232,8 +231,25 @@ public interface CuVSResourceManager {
         }
 
         // visible for testing
+        /** Returns a resources if supported, otherwise null. */
         protected CuVSResources createNew() {
-            return GPUSupport.cuVSResourcesOrNull(true);
+            try {
+                return CuVSResources.create();
+            } catch (UnsupportedOperationException uoe) {
+                String msg = "";
+                if (uoe.getMessage() == null) {
+                    msg = "Runtime Java version: " + Runtime.version().feature();
+                } else {
+                    msg = ": " + uoe.getMessage();
+                }
+                logger.warn("GPU based vector indexing is not supported on this platform or java version; " + msg);
+            } catch (Throwable t) {
+                if (t instanceof ExceptionInInitializerError ex) {
+                    t = ex.getCause();
+                }
+                logger.warn("Exception occurred during creation of cuvs resources", t);
+            }
+            return null;
         }
 
         @Override

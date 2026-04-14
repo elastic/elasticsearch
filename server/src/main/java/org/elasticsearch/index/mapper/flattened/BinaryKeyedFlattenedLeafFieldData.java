@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -76,6 +77,13 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
     @Override
     public SortedBinaryDocValues getBytesValues() {
         return new KeyedFlattenedBinaryDocValues(new BytesRef(key), delegate.getBytesValues());
+    }
+
+    /**
+     * Returns key-filtered view on the provided SortedBinaryDocValues, for use by block loaders.
+     */
+    static SortedBinaryDocValues getKeyFilteredSortedBinaryDocValues(MultiValuedSortedBinaryDocValues dv, String key) throws IOException {
+        return new KeyedFlattenedBinaryDocValues(new BytesRef(key), dv);
     }
 
     private static int compare(BytesRef key, BytesRef term) {

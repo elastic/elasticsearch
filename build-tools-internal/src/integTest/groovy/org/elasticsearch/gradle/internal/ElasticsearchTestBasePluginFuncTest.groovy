@@ -9,13 +9,14 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.Unroll
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
-    def "can disable assertions via cmdline param"() {
-        given:
+    private void setupAssertionTest() {
         file("src/test/java/acme/SomeTests.java").text = """
         public class SomeTests {
             @org.junit.Test
@@ -38,31 +39,34 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
                 testImplementation 'junit:junit:4.12'
             }
         """
+    }
+
+    def "assertions are enabled by default"() {
+        given:
+        setupAssertionTest()
 
         when:
         def result = gradleRunner("test").buildAndFail()
         then:
         result.task(':test').outcome == TaskOutcome.FAILED
+    }
+
+    @Unroll
+    def "can disable assertions via #description"() {
+        given:
+        setupAssertionTest()
 
         when:
-        result = gradleRunner("test", "-Dtests.asserts=false").build()
+        def result = gradleRunner(*gradleArgs).build()
         then:
         result.task(':test').outcome == TaskOutcome.SUCCESS
 
-        when:
-        result = gradleRunner("test", "-Dtests.jvm.argline=-da").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
-
-        when:
-        result = gradleRunner("test", "-Dtests.jvm.argline=-disableassertions").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
-
-        when:
-        result = gradleRunner("test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
+        where:
+        description                              | gradleArgs
+        "tests.asserts=false"                    | ["test", "-Dtests.asserts=false"]
+        "tests.jvm.argline=-da"                  | ["test", "-Dtests.jvm.argline=-da"]
+        "tests.jvm.argline=-disableassertions"   | ["test", "-Dtests.jvm.argline=-disableassertions"]
+        "tests.asserts=false and -da combined"   | ["test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da"]
     }
 
     def "can configure nonInputProperties for test tasks"() {

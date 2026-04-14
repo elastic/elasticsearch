@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM sample_data, no_mapping_sample_data
+| KEEP event_duration

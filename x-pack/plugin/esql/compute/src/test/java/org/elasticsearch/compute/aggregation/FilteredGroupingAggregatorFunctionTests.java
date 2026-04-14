@@ -13,8 +13,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -115,11 +115,9 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
      * This checks if *any* of the integers are > 0. If so we push the group to
      * the aggregation.
      */
-    record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels)
-        implements
-            EvalOperator.ExpressionEvaluator.Factory {
+    record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             Exception tracker = new Exception(Integer.toString(unclosed.size()));
             unclosed.add(tracker);
             return new AnyGreaterThan(context.blockFactory(), unclosed, tracker, inputChannels);
@@ -133,7 +131,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
 
     private record AnyGreaterThan(BlockFactory blockFactory, List<Exception> unclosed, Exception tracker, List<Integer> inputChannels)
         implements
-            EvalOperator.ExpressionEvaluator {
+            ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             IntBlock ints = page.getBlock(inputChannels.get(0));

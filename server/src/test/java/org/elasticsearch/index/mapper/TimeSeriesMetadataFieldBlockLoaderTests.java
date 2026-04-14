@@ -20,208 +20,86 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCase {
 
-    public void testBlockLoaderWithTimeSeriesDimensionsFunction() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,cluster")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-            .build();
+    private static final Settings TSDB_SETTINGS = Settings.builder()
+        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
+        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+        .build();
 
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "host": { "type": "keyword", "time_series_dimension": true },
-                  "cluster": { "type": "keyword", "time_series_dimension": true },
-                  "metric": { "type": "long", "time_series_metric": "gauge" },
-                  "message": { "type": "keyword" },
-                  "status_code": { "type": "integer" },
-                  "tags": { "type": "keyword" }
-                }
-              }
+    private static final String MAPPING = """
+        {
+          "_doc": {
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "host": { "type": "keyword", "time_series_dimension": true },
+              "env": { "type": "keyword", "time_series_dimension": true },
+              "region": { "type": "keyword", "time_series_dimension": true },
+              "cpu": { "type": "double", "time_series_metric": "gauge" },
+              "request_count": { "type": "long", "time_series_metric": "counter" },
+              "message": { "type": "keyword" }
             }
-            """;
+          }
+        }
+        """;
 
-        MapperService mapperService = createMapperService(settings, mapping);
-        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
-        assertThat(sourceMapper.enabled(), equalTo(true));
-
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS
-        );
-
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
-
-        assertThat(blockLoader, notNullValue());
-        assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+    public void testDimensionsOnly() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of()));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
     }
 
-    public void testBlockLoaderWithoutTimeSeriesDimensionsFunction() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-            .build();
-
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "host": { "type": "keyword", "time_series_dimension": true },
-                  "metric": { "type": "long", "time_series_metric": "gauge" },
-                  "message": { "type": "keyword" },
-                  "status_code": { "type": "integer" },
-                  "tags": { "type": "keyword" }
-                }
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(settings, mapping);
-        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
-
-        // Without TIME_SERIES_DIMENSIONS function, should return SourceFieldBlockLoader
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, null));
-
-        assertThat(blockLoader, notNullValue());
-        assertThat(blockLoader, instanceOf(SourceFieldBlockLoader.class));
+    public void testDimensionsAndMetrics() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of()));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region", "cpu", "request_count")));
     }
 
-    public void testBlockLoaderWithTimeSeriesMetricsAndDimensionsFunction() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,cluster")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-            .build();
-
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "host": { "type": "keyword", "time_series_dimension": true },
-                  "cluster": { "type": "keyword", "time_series_dimension": true },
-                  "cpu": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" },
-                  "message": { "type": "keyword" },
-                  "status_code": { "type": "integer" },
-                  "tags": { "type": "keyword" }
-                }
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(settings, mapping);
-        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
-        assertThat(sourceMapper.enabled(), equalTo(true));
-
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS
-        );
-
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
-
-        assertThat(blockLoader, notNullValue());
-        assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+    public void testExcludedDimensions() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "region")));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("env")));
     }
 
-    public void testBlockLoaderWithTimeSeriesDimensionsFunctionOnlyLoadsDimensions() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-            .build();
-
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "host": { "type": "keyword", "time_series_dimension": true },
-                  "env": { "type": "keyword", "time_series_dimension": true },
-                  "cpu": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" },
-                  "message": { "type": "keyword" },
-                  "status_code": { "type": "integer" }
-                }
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(settings, mapping);
-        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
-
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS
-        );
-
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
-
-        assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-
-        var storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
-        Set<String> requiredFields = storedFieldsSpec.requiresSource() ? storedFieldsSpec.sourcePaths() : Set.of();
-        assertThat(requiredFields, equalTo(Set.of("host", "env")));
+    public void testExcludedDimensionsWithMetrics() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("env")));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "region", "cpu", "request_count")));
     }
 
-    public void testBlockLoaderWithMetricsAndDimensionsFunctionLoadsBoth() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
-            .build();
-
-        String mapping = """
-            {
-              "_doc": {
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "host": { "type": "keyword", "time_series_dimension": true },
-                  "env": { "type": "keyword", "time_series_dimension": true },
-                  "cpu": { "type": "double", "time_series_metric": "gauge" },
-                  "request_count": { "type": "long", "time_series_metric": "counter" },
-                  "message": { "type": "keyword" },
-                  "status_code": { "type": "integer" },
-                  "tags": { "type": "keyword" }
-                }
-              }
-            }
-            """;
-
-        MapperService mapperService = createMapperService(settings, mapping);
-        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
-
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS
-        );
-
-        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
-
-        assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-
-        // Should only include dimensions and metrics, not regular fields (message, status_code, tags)
-        var storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
-        Set<String> requiredFields = storedFieldsSpec.requiresSource() ? storedFieldsSpec.sourcePaths() : Set.of();
-        assertThat(requiredFields, equalTo(Set.of("host", "env", "cpu", "request_count")));
+    public void testNoConfigReturnSourceBlockLoader() throws IOException {
+        MapperService mapperService = createMapperService(TSDB_SETTINGS, MAPPING);
+        BlockLoader loader = mapperService.documentMapper()
+            .sourceMapper()
+            .fieldType()
+            .blockLoader(new TestBlockLoaderContext(mapperService, null));
+        assertThat(loader, instanceOf(SourceFieldBlockLoader.class));
     }
 
-    private MappedFieldType.BlockLoaderContext createBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {
-        return new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return config;
-            }
-        };
+    private BlockLoader createBlockLoader(BlockLoaderFunctionConfig config) throws IOException {
+        MapperService mapperService = createMapperService(TSDB_SETTINGS, MAPPING);
+        return mapperService.documentMapper().sourceMapper().fieldType().blockLoader(new TestBlockLoaderContext(mapperService, config));
+    }
+
+    private static Set<String> sourcePaths(BlockLoader loader) {
+        var spec = loader.rowStrideStoredFieldSpec();
+        return spec.requiresSource() ? spec.sourcePaths() : Set.of();
+    }
+
+    private static class TestBlockLoaderContext extends DummyBlockLoaderContext.MapperServiceBlockLoaderContext {
+        private final BlockLoaderFunctionConfig config;
+
+        private TestBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {
+            super(mapperService);
+            this.config = config;
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return config;
+        }
     }
 }

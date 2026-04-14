@@ -22,9 +22,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MMROperatorTests extends OperatorTestCase {
-
-    public static double NULL_BLOCK_CHANCE = 0.05;
-
     static List<float[]> TEST_VECTORS = List.of(
         new float[] { 0.4f, 0.2f, 0.4f, 0.4f },
         new float[] { 0.4f, 0.2f, 0.3f, 0.3f },
@@ -53,12 +50,8 @@ public class MMROperatorTests extends OperatorTestCase {
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
+                currentPosition += length;
                 var blocks = new Block[1];
-
-                if (randomDouble() < NULL_BLOCK_CHANCE) {
-                    blocks[0] = blockFactory.newConstantNullBlock(length);
-                    return new Page(blocks);
-                }
 
                 float[] vectors = new float[length * 4];
                 int[] vectorPositions = new int[length + 1];
@@ -77,7 +70,7 @@ public class MMROperatorTests extends OperatorTestCase {
                     blocks[0] = blockFactory.newFloatArrayBlock(vectors, length, vectorPositions, new BitSet(), Block.MvOrdering.UNORDERED);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
-                } finally {}
+                }
 
                 finish();
                 return new Page(blocks);
@@ -101,7 +94,7 @@ public class MMROperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, null);
+        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, 0.5f);
     }
 
     @Override
@@ -114,8 +107,7 @@ public class MMROperatorTests extends OperatorTestCase {
             + testLimitValue
             + ", queryVector="
             + "null"
-            + ", lambda="
-            + "null"
+            + ", lambda=0.5"
             + "]";
         return equalTo(description);
     }

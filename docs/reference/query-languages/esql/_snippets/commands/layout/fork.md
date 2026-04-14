@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.1.0
+serverless: ga
+stack: preview 9.1-9.3, ga 9.4+
 ```
 
 The `FORK` processing command creates multiple execution branches to operate
@@ -19,8 +19,17 @@ on the same input data and combines the results in a single output table. A disc
 
 Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) command, `FORK` enables hybrid search to combine and score results from multiple queries. To learn more about using {{esql}} for search, refer to [ES|QL for search](docs-content://solutions/search/esql-for-search.md).
 
-::::{note}
-`FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
+
+::::{applies-switch}
+
+:::{applies-item} { serverless: ga, stack: ga 9.4+ }
+`FORK` branches do not have an implicit `LIMIT 1000`.
+:::
+
+:::{applies-item} stack: preview 9.1-9.3
+An implicit `LIMIT 1000` is added to each `FORK` branch.
+:::
+
 ::::
 
 ## Output behavior

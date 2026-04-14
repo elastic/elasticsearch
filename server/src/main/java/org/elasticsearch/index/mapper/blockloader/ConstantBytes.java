@@ -40,7 +40,7 @@ public class ConstantBytes implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
-        return reader;
+        return null;
     }
 
     @Override
@@ -63,15 +63,10 @@ public class ConstantBytes implements BlockLoader {
         return "ConstantBytes[" + value + "]";
     }
 
-    private class Reader implements AllReader {
+    private class Reader implements ColumnAtATimeReader {
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
             return factory.constantBytes(value, docs.count() - offset);
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(value);
         }
 
         @Override

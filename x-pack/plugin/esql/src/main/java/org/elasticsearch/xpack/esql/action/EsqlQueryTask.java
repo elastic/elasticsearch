@@ -9,17 +9,20 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
+public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
     private final String sessionId;
     private EsqlExecutionInfo executionInfo;
+    private final AtomicReference<Scheduler.ScheduledCancellable> scheduledCancellation = new AtomicReference<>();
 
     public EsqlQueryTask(
         String sessionId,
@@ -68,5 +71,42 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
             getExpirationTimeMillis(),
             executionInfo
         );
+    }
+
+    @Override
+    public void onResponse(EsqlQueryResponse response) {
+        removeScheduledCancellation();
+        super.onResponse(response);
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        removeScheduledCancellation();
+        super.onFailure(e);
+    }
+
+    private void removeScheduledCancellation() {
+        var prev = scheduledCancellation.getAndSet(null);
+        if (prev != null) {
+            prev.cancel();
+        }
+    }
+
+    /**
+     * Schedules task cancellation at the given expiration time
+     */
+    protected abstract Scheduler.ScheduledCancellable scheduleCancellationOnExpiry(long expirationTimeMillis);
+
+    public void rescheduleCancellationOnExpiry() {
+        var prev = scheduledCancellation.getAndSet(scheduleCancellationOnExpiry(getExpirationTimeMillis()));
+        if (prev != null) {
+            prev.cancel();
+        }
+    }
+
+    @Override
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
+        super.setExpirationTime(expirationTime, keepAlive);
+        rescheduleCancellationOnExpiry();
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -71,7 +72,8 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
         };
     }
 
-    private static class Aggregate extends TDigestHistogramFieldDownsampler {
+    // Visible for testing
+    static class Aggregate extends TDigestHistogramFieldDownsampler {
 
         private final TDigestState.Type type;
         private final double compression;
@@ -79,8 +81,15 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
 
         Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
             super(name, fieldType, fieldData);
-            this.type = DEFAULT_TYPE;
-            this.compression = DEFAULT_COMPRESSION;
+            if (fieldType instanceof TDigestFieldMapper.TDigestFieldType tDigestFieldType) {
+                this.type = tDigestFieldType.getDigestExecutionHint() == TDigestExecutionHint.HIGH_ACCURACY
+                    ? TDigestState.Type.AVL_TREE
+                    : DEFAULT_TYPE;
+                this.compression = tDigestFieldType.getCompression();
+            } else {
+                this.type = DEFAULT_TYPE;
+                this.compression = DEFAULT_COMPRESSION;
+            }
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -121,6 +130,16 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
                 builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
                 tDigestState.close();
             }
+        }
+
+        // Visible for testing
+        TDigestState.Type getType() {
+            return type;
+        }
+
+        // Visible for testing
+        double getCompression() {
+            return compression;
         }
     }
 

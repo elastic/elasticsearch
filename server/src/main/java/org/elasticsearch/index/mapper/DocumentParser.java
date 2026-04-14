@@ -609,17 +609,17 @@ public final class DocumentParser {
                 }
 
             }
+            Mapper dynamicObjectMapper;
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
-                String fullPath = context.path().pathAsText(currentFieldName);
-                if (context.addDynamicMapper(dynamicObjectBuilder, fullPath) == false) {
+                dynamicObjectMapper = context.getDynamicMapper(dynamicObjectBuilder);
+                if (dynamicObjectMapper == null) {
                     failIfMatchesRoutingPath(context, currentFieldName);
                     skipChildren(context);
                     return;
                 }
+            } else {
+                dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             }
-            Mapper dynamicObjectMapper = dynamicObjectBuilder != null
-                ? dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext())
-                : new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }
@@ -716,15 +716,16 @@ public final class DocumentParser {
 
             parseNonDynamicArray(context, null, currentFieldName, currentFieldName);
         } else {
-            Mapper objectMapperFromTemplate = builderFromTemplate.build(context.createDynamicMapperBuilderContext());
+            MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
             if (parsesArrayValue(objectMapperFromTemplate)) {
-                String fullPath = context.path().pathAsText(currentFieldName);
-                if (context.addDynamicMapper(builderFromTemplate, fullPath) == false) {
+                Mapper mapper = context.getDynamicMapper(builderFromTemplate, objectMapperFromTemplate, builderContext);
+                if (mapper == null) {
                     skipChildren(context);
                     return;
                 }
                 context.path().add(currentFieldName);
-                parseObjectOrField(context, objectMapperFromTemplate);
+                parseObjectOrField(context, mapper);
                 context.path().remove();
             } else {
                 parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
@@ -783,6 +784,7 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         XContentParser.Token previousToken = parser.currentToken();
+        int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, lastFieldName);
@@ -795,6 +797,7 @@ public final class DocumentParser {
             } else {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
+                valueElements++;
             }
             previousToken = token;
         }
@@ -805,13 +808,13 @@ public final class DocumentParser {
             && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
-        postProcessDynamicArrayMapping(context, lastFieldName);
+        postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
     }
 
     /**
      * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
      */
-    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             final String fullFieldName = builderContext.buildFullName(fieldName);
@@ -819,8 +822,8 @@ public final class DocumentParser {
             if (builders == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
                 || context.isCopyToDestinationField(fullFieldName)
-                || builders.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                || builders.size() > MAX_DIMS_COUNT
+                || arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || arraySize > MAX_DIMS_COUNT
                 || builders.stream()
                     .anyMatch(
                         b -> b instanceof NumberFieldMapper.Builder == false
@@ -836,7 +839,7 @@ public final class DocumentParser {
                 IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
                 context.getVectorFormatProviders()
             );
-            builder.dimensions(builders.size());
+            builder.dimensions(arraySize);
             context.updateDynamicMappers(fullFieldName, List.of(builder));
         }
     }
@@ -1147,12 +1150,8 @@ public final class DocumentParser {
         }
 
         @Override
-        public Mapper getMapper(String name) {
-            Mapper mapper = getMetadataMapper(name);
-            if (mapper != null) {
-                return mapper;
-            }
-            return super.getMapper(name);
+        public final Mapper getMapper(String name) {
+            return mappingLookup().getMapping().findMetadataOrRootMapper(name);
         }
 
         @Override

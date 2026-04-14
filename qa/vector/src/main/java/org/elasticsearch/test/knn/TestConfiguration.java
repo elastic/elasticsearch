@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,20 +31,26 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
+
+import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
 
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record TestConfiguration(
+public record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
@@ -56,6 +63,7 @@ record TestConfiguration(
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
+    boolean normalizeVectors,
     Integer quantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
@@ -69,7 +77,9 @@ record TestConfiguration(
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    String directoryType,
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -110,6 +120,7 @@ record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -126,7 +137,7 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -174,6 +185,7 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -192,6 +204,14 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
+            new ParameterHelp(
+                "dataset",
+                "object",
+                "Optional. {\"gcp\": {\"name\": \"...\"}}, "
+                    + "{\"file\": {\"doc_vectors\": [...], \"query_vectors\": \"...\"}}, "
+                    + "or {\"partition_generated\": {\"num_partitions\": N, "
+                    + "\"partition_distribution\": \"uniform|zipf\", \"generator_seed\": L}}."
+            ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -205,7 +225,12 @@ record TestConfiguration(
             new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
             new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
             new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
-            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp(
+                "vector_space",
+                "string",
+                "Similarity: euclidean, maximum_inner_product, dot_product, or cosine. "
+                    + "If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
+            ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
             new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
@@ -230,25 +255,29 @@ record TestConfiguration(
                 "search_params",
                 "array[object]",
                 "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            ),
+            new ParameterHelp(
+                "directory_type",
+                "string",
+                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
             )
         );
 
-        int nameWidth = "parameter".length();
-        int typeWidth = "type".length();
+        int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
         for (ParameterHelp param : params) {
-            nameWidth = Math.max(nameWidth, param.name.length());
-            typeWidth = Math.max(typeWidth, param.type.length());
+            lengths[0] = Math.max(lengths[0], param.name.length());
+            lengths[1] = Math.max(lengths[1], param.type.length());
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Configuration parameters:");
         sb.append("\n");
-        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append(formatParamRow(lengths, "parameter", "type", "description"));
         sb.append("\n");
-        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
         sb.append("\n");
         for (ParameterHelp param : params) {
-            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append(formatParamRow(lengths, param.name, param.type, param.description));
             sb.append("\n");
         }
         sb.append("\n");
@@ -259,19 +288,90 @@ record TestConfiguration(
         return sb.toString();
     }
 
-    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
-        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    private static String formatParamRow(int[] entryLengths, String... entries) {
+        assert entries.length == entryLengths.length;
+        return Strings.format(
+            Arrays.stream(entryLengths).mapToObj(l -> "%-" + l + "s").collect(Collectors.joining("  ")),
+            (Object[]) entries
+        );
     }
 
     private record ParameterHelp(String name, String type, String description) {}
 
+    public static String listDatasets() throws IOException {
+        var datasets = datasets();
+
+        int[] lengths = new int[] { "dataset".length(), "docs".length(), "queries".length(), "dims".length(), "space".length() };
+        for (Map.Entry<String, String[]> entry : datasets.entrySet()) {
+            lengths[0] = Math.max(lengths[0], entry.getKey().length());
+            lengths[1] = Math.max(lengths[1], entry.getValue()[0].length());
+            lengths[2] = Math.max(lengths[2], entry.getValue()[1].length());
+            lengths[3] = Math.max(lengths[3], entry.getValue()[2].length());
+            lengths[4] = Math.max(lengths[4], entry.getValue()[3].length());
+        }
+
+        System.out.println(formatParamRow(lengths, "Dataset", "docs", "queries", "dims", "space"));
+        System.out.println(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
+        return datasets.entrySet()
+            .stream()
+            .map(e -> formatParamRow(lengths, e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
+            .collect(Collectors.joining("\n"));
+    }
+
+    private static Map<String, String[]> datasets() throws IOException {
+        final String cloudProjectId = "benchmarking";
+        final String datasetBucket = "knnindextester";
+
+        try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
+            Map<String, String[]> datasets = new TreeMap<>();
+            var page = storage.list(datasetBucket);
+
+            while (true) {
+                for (Blob blob : page.iterateAll()) {
+                    String name = blob.getName();
+                    int slash = name.indexOf('/');
+
+                    String dataset = name.substring(0, slash);
+                    String descriptor = name.substring(slash + 1);
+                    if (descriptor.equals(dataset + ".json")) {
+                        Map<?, ?> dsData;
+                        try (
+                            XContentParser parser = XContentType.JSON.xContent()
+                                .createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                        ) {
+                            dsData = parser.map();
+                        }
+
+                        datasets.put(
+                            dataset,
+                            new String[] {
+                                String.valueOf(dsData.get("num_doc_vectors")),
+                                String.valueOf(dsData.get("num_query_vectors")),
+                                String.valueOf(dsData.get("dimensions")),
+                                String.valueOf(dsData.get("vector_space")) }
+                        );
+                    }
+                }
+
+                if (page.hasNextPage() == false) {
+                    break;
+                }
+                page = page.getNextPage();
+            }
+
+            return datasets;
+        } catch (Exception e) {
+            throw new IOException("Failed to list datasets from gs://" + datasetBucket, e);
+        }
+    }
+
     static class Builder implements ToXContentObject {
-        private String dataset;
+        private DatasetConfig datasetConfig;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
-        private int numDocs = 1000;
-        private int numQueries = 100;
+        private Integer numDocs;
+        private Integer numQueries;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
@@ -286,7 +386,7 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
+        private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
@@ -303,6 +403,8 @@ record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private int flatIndexThreshold = -1; // use format's default threshold
+        private String directoryType = "default";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -310,9 +412,13 @@ record TestConfiguration(
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
-        public Builder setDataset(String dataset) {
-            this.dataset = dataset;
+        public Builder setDatasetConfig(DatasetConfig datasetConfig) {
+            this.datasetConfig = datasetConfig;
             return this;
+        }
+
+        DatasetConfig datasetConfig() {
+            return datasetConfig;
         }
 
         public Builder setDataDir(String dataDir) {
@@ -391,6 +497,11 @@ record TestConfiguration(
 
         public Builder setHnswEfConstruction(int hnswEfConstruction) {
             this.hnswEfConstruction = hnswEfConstruction;
+            return this;
+        }
+
+        public Builder setFlatIndexThreshold(int flatIndexThreshold) {
+            this.flatIndexThreshold = flatIndexThreshold;
             return this;
         }
 
@@ -504,6 +615,11 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDirectoryType(String directoryType) {
+            this.directoryType = directoryType.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -512,13 +628,14 @@ record TestConfiguration(
                "<corpus_2>.fvec"
              ],
              "queries": "<queries>.fvec",
+             "vector_encoding": "float32", // optional, default float32
              "dimensions": 512,
              "vector_space": "cosine",
              "num_doc_vectors": 10000000,
              "num_query_vectors": 5000
            }
          */
-        private void resolveDataset() throws Exception {
+        private void resolveDataset(String dataset) throws Exception {
             final String cloudProjectId = "benchmarking";
             final String datasetBucket = "knnindextester";
 
@@ -554,9 +671,17 @@ record TestConfiguration(
                 ).getFirst();
             }
 
+            Object vectorEncoding = dsData.get("vector_encoding");
             String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
+
+            if (numDocs == null) {
+                numDocs = numDocVectors;
+            }
+            if (numQueries == null) {
+                numQueries = numQueryVectors;
+            }
 
             if (numDocs > numDocVectors) {
                 throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
@@ -569,6 +694,10 @@ record TestConfiguration(
 
             docVectors = data;
             queryVectors = queries;
+            // vector encoding is optional (default float32)
+            if (vectorEncoding != null) {
+                setVectorEncoding(vectorEncoding.toString());
+            }
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
             // vector space might already be set explicitly from the config file
             if (this.vectorSpace == null) {
@@ -592,11 +721,19 @@ record TestConfiguration(
                 Path destFile = dest.resolve(id.getName());
                 dataFiles.add(destFile);
                 if (!Files.exists(destFile)) {
-                    KnnIndexTester.logger.info("Downloading {} to {}...", gsFile, destFile);
+                    long totalBytes = blob.getSize();
+                    KnnIndexTester.logger.info(
+                        "Downloading {} to {} ({} MB)...",
+                        gsFile,
+                        destFile,
+                        String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                    );
 
                     // may need to create a subdirectory
                     Files.createDirectories(destFile.getParent());
-                    blob.downloadTo(destFile);
+                    try (OutputStream out = new ProgressOutputStream(Files.newOutputStream(destFile), totalBytes)) {
+                        blob.downloadTo(out);
+                    }
                 } else {
                     KnnIndexTester.logger.info("Checking CRC32C for {}...", destFile.getFileName());
                     // check CRC32
@@ -641,22 +778,56 @@ record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (dataset != null) {
-                // this fills in various options from the dataset
-                resolveDataset();
+            switch (datasetConfig) {
+                case DatasetConfig.GcpDataset gcpDataset -> resolveDataset(gcpDataset.name());
+                case DatasetConfig.FileDataset fileDataset -> {
+                    docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
+                    if (fileDataset.queryVectors() != null) {
+                        queryVectors = PathUtils.get(fileDataset.queryVectors());
+                    }
+                }
+                case null, default -> {
+                }
             }
+            // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
-                // specify the default here, so it can be set by the config file or dataset first
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
             }
+            boolean normalizeVectors = false;
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding != KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine: normalizing float vectors and using dot_product internally");
+                vectorSpace = VectorSimilarityFunction.DOT_PRODUCT;
+                normalizeVectors = true;
+            }
+            if (numDocs == null) {
+                numDocs = 1000;
+            }
+            if (numQueries == null) {
+                numQueries = 100;
+            }
 
-            if (docVectors == null) {
-                throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+            switch (datasetConfig) {
+                case PartitionGenerated pg -> {
+                    if (dimensions <= 0) {
+                        throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                    }
+                    if (docVectors == null) {
+                        docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                    }
+                }
+                case null, default -> {
+                    if (docVectors == null) {
+                        throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+                    }
+                }
             }
             if (dimensions <= 0 && dimensions != -1) {
                 throw new IllegalArgumentException(
                     "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
                 );
+            }
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
 
             // length of the longest array parameter
@@ -708,6 +879,7 @@ record TestConfiguration(
                 reindex,
                 forceMerge,
                 vectorSpace,
+                normalizeVectors,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
@@ -721,15 +893,17 @@ record TestConfiguration(
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,
-                secondaryClusterSize
+                secondaryClusterSize,
+                directoryType,
+                datasetConfig
             );
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (dataset != null) {
-                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            if (datasetConfig != null) {
+                datasetConfig.toXContent(builder, params);
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);
@@ -779,6 +953,7 @@ record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }
 
@@ -846,6 +1021,57 @@ record TestConfiguration(
                 result = temp;
             }
             return result;
+        }
+    }
+
+    /** An OutputStream wrapper that logs download progress at every 10% increment. */
+    private static class ProgressOutputStream extends OutputStream {
+        private final OutputStream delegate;
+        private final long totalBytes;
+        private long bytesWritten;
+        private int lastReportedPct = -1;
+
+        ProgressOutputStream(OutputStream delegate, long totalBytes) {
+            this.delegate = delegate;
+            this.totalBytes = totalBytes;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            delegate.write(b);
+            bytesWritten++;
+            reportProgress();
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            delegate.write(b, off, len);
+            bytesWritten += len;
+            reportProgress();
+        }
+
+        private void reportProgress() {
+            if (totalBytes <= 0) return;
+            int pct = (int) (bytesWritten * 100 / totalBytes);
+            if (pct / 10 > lastReportedPct / 10) {
+                lastReportedPct = pct;
+                KnnIndexTester.logger.info(
+                    "  {}% ({} / {} MB)",
+                    pct,
+                    String.format(Locale.ROOT, "%.1f", bytesWritten / (1024.0 * 1024.0)),
+                    String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                );
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

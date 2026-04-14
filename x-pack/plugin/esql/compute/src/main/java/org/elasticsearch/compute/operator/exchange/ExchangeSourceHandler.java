@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.Page;
@@ -30,6 +32,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
+    /**
+     * Setting for the number of concurrent client instances for fetching pages from a remote sink.
+     * Multiple instances improve throughput by allowing concurrent page fetching.
+     *
+     * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
+     */
+    public static final Setting<Integer> CONCURRENT_CLIENTS_SETTING = Setting.intSetting("exchange_concurrent_clients", 2);
+
+    /**
+     * Gets the configured number of concurrent clients from settings.
+     */
+    public static int getConcurrentClients(Settings settings) {
+        return CONCURRENT_CLIENTS_SETTING.get(settings);
+    }
 
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;

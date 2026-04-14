@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -25,6 +26,7 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
     private final SearchExecutionContext ctx;
     private final MappedFieldType.FieldExtractPreference fieldExtractPreference;
     private final BlockLoaderFunctionConfig blockLoaderFunctionConfig;
+    private final Warnings warnings;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
 
@@ -32,12 +34,14 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
         SearchExecutionContext ctx,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
         BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+        Warnings warnings,
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript
     ) {
         this.ctx = ctx;
         this.fieldExtractPreference = fieldExtractPreference;
         this.blockLoaderFunctionConfig = blockLoaderFunctionConfig;
+        this.warnings = warnings;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
     }
@@ -80,6 +84,11 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
     @Override
     public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
         return blockLoaderFunctionConfig;
+    }
+
+    @Override
+    public Warnings warnings() {
+        return warnings;
     }
 
     @Override

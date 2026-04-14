@@ -206,7 +206,8 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
     static List<AggregateMetricDoubleFieldDownsampler> create(
         SearchExecutionContext context,
         AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         List<AggregateMetricDoubleFieldDownsampler> downsamplers = new ArrayList<>();
         // If the field is an aggregate_metric_double field, we should load all its subfields
@@ -217,6 +218,7 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
             if (context.fieldExistsInIndex(metricSubField.name())) {
                 IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
                 downsamplers.add(create(aggMetricFieldType, metric, fieldData, samplingMethod));
+                fieldCounts.increaseNumericFields();
             }
         }
         return downsamplers;

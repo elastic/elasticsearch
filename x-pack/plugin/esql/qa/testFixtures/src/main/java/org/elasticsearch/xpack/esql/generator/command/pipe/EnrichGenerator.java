@@ -7,20 +7,27 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public class EnrichGenerator implements CommandGenerator {
 
     public static final String ENRICH = "enrich";
+    public static final String ENRICH_FIELDS = "enrichFields";
     public static final CommandGenerator INSTANCE = new EnrichGenerator();
+
+    private static final Pattern ENRICH_FIELDS_PATTERN = Pattern.compile("\"enrich_fields\"\\s*:\\s*\\[([^\\]]*)]");
 
     @Override
     public CommandDescription generate(
@@ -35,11 +42,28 @@ public class EnrichGenerator implements CommandGenerator {
         }
 
         // TODO add WITH
-        String cmdString = " | enrich "
-            + randomFrom(EsqlQueryGenerator.policiesOnKeyword(schema.enrichPolicies())).policyName()
-            + " on "
-            + field;
-        return new CommandDescription(ENRICH, this, cmdString, Map.of());
+        CsvTestsDataLoader.EnrichConfig policy = randomFrom(EsqlQueryGenerator.policiesOnKeyword(schema.enrichPolicies()));
+        String cmdString = " | enrich " + policy.policyName() + " on " + field;
+        List<String> enrichFields = parseEnrichFields(policy.loadPolicy());
+        return new CommandDescription(ENRICH, this, cmdString, Map.of(ENRICH_FIELDS, enrichFields));
+    }
+
+    static List<String> parseEnrichFields(String policyJson) {
+        Matcher m = ENRICH_FIELDS_PATTERN.matcher(policyJson);
+        if (m.find()) {
+            List<String> fields = new ArrayList<>();
+            for (String part : m.group(1).split(",")) {
+                String trimmed = part.trim();
+                if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+                    trimmed = trimmed.substring(1, trimmed.length() - 1);
+                }
+                if (trimmed.isEmpty() == false) {
+                    fields.add(trimmed);
+                }
+            }
+            return fields;
+        }
+        return List.of();
     }
 
     @Override

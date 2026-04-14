@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -44,15 +43,12 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -61,8 +57,12 @@ import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverte
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
@@ -177,16 +178,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                this::clusterHasCapability
+                this::clusterHasCapability,
+                indicesToLoad()
             );
             return null;
         });
@@ -265,25 +265,31 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return "views".equals(groupName);
     }
 
+    /**
+     * Indices to load during setup. Override to control which indices are loaded.
+     *
+     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    protected List<String> indicesToLoad() {
+        return null;
+    }
+
     protected void shouldSkipTest(String testName) throws IOException {
-        assumeTrue("test clusters were broken", testClustersOk);
+        assumeTrueLogging("test clusters were broken", testClustersOk);
         if (requiresSemanticTextInference()) {
-            assumeTrue("Inference test service needs to be supported", supportsSemanticTextInference());
+            assumeTrueLogging("Inference test service needs to be supported", supportsSemanticTextInference());
         }
         if (requiresInferenceEndpointOnLocalCluster()) {
-            assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
+            assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
-            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+            assumeFalseLogging(
+                "source mapping tests are muted",
+                testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName())
+            );
         }
-        // EXTERNAL command tests require dedicated infrastructure (S3 fixture, datasource plugins, template replacement)
-        // that is only available in AbstractExternalSourceSpecTestCase subclasses, not in generic EsqlSpecIT suites.
-        assumeFalse(
-            "EXTERNAL command tests require dedicated external source test infrastructure",
-            testCase.query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL")
-        );
     }
 
     protected static void checkCapabilities(
@@ -309,8 +315,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         for (String feature : requiredCapabilities) {
             var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+            assumeTrueLogging("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrueLogging("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
     }
 
@@ -322,6 +328,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
+    }
+
     protected boolean requiresSemanticTextInference() {
         return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
     }
@@ -331,7 +347,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             RERANK.capabilityName(),
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
-            TEXT_EMBEDDING_FUNCTION.capabilityName()
+            TEXT_EMBEDDING_FUNCTION.capabilityName(),
+            EMBEDDING_FUNCTION.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
@@ -339,12 +356,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return Boolean.getBoolean("tests.esql.csv.timeseries_only");
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
+    }
+
+    /**
+     * Intended to be used in {@link #maybeRandomizeQuery(String)} except in test cases that do not support {@code nullify}
+     * (e.g. old test cases in bwc tests)
+     */
+    public String randomlyNullify(String query) {
+        return randomBoolean()
+            && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
+            && query.startsWith("SET") == false // avoid conflicts with provided settings
+                ? "SET unmapped_fields=" + randomFrom("\"nullify\"; ", "\"default\"; ") + query
+                : query;
     }
 
     /**
@@ -355,16 +389,27 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return hasCapabilities(client(), List.of(capability.capabilityName()));
     }
 
+    /**
+     * Override in subclasses that support EXTERNAL; return the path used for path.repo.
+     */
+    protected Path getCsvDataPath() {
+        return null;
+    }
+
     protected void doTest() throws Throwable {
         doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {
-        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-
-        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
-            builder.tables(tables());
+        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
+            Path path = getCsvDataPath();
+            if (path != null) {
+                query = substituteTemplates(query, csvFileTemplateResolver(path));
+            }
         }
+        query = maybeRandomizeQuery(query);
+
+        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
@@ -409,9 +454,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (preference != null) {
             pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
-        if (randomBoolean()) {
-            addRandomPragma(pragmaBuilder);
-        }
+        addRandomPragma(pragmaBuilder);
+
         Settings pragma = pragmaBuilder.build();
         if (pragma.isEmpty() == false) {
             builder.pragmas(pragma);
@@ -426,6 +470,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
             pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
+        }
+        if (enableRoundingDoubleValuesOnAsserting()
+            && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
+            && randomBoolean()) {
+            pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
         }
     }
 
@@ -534,62 +583,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         });
     }
 
-    /**
-     * "tables" parameter sent if there is a LOOKUP in the request. If you
-     * add to this, you must also add to {@link EsqlTestUtils#tables};
-     */
-    private Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables() {
-        Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables = new TreeMap<>();
-        tables.put(
-            "int_number_names",
-            EsqlTestUtils.table(
-                Map.entry("int", new RestEsqlTestCase.TypeAndValues("integer", IntStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "long_number_names",
-            EsqlTestUtils.table(
-                Map.entry("long", new RestEsqlTestCase.TypeAndValues("long", LongStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "double_number_names",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08))),
-                Map.entry("name", new RestEsqlTestCase.TypeAndValues("keyword", List.of("two point zero three", "two point zero eight")))
-            )
-        );
-        tables.put(
-            "double_number_names_with_null",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08, 0.0))),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", Arrays.asList("two point zero three", "two point zero eight", null))
-                )
-            )
-        );
-        tables.put(
-            "big",
-            EsqlTestUtils.table(
-                Map.entry("aa", new RestEsqlTestCase.TypeAndValues("keyword", List.of("foo", "bar", "baz", "foo"))),
-                Map.entry("ab", new RestEsqlTestCase.TypeAndValues("keyword", List.of("zoo", "zop", "zoi", "foo"))),
-                Map.entry("na", new RestEsqlTestCase.TypeAndValues("integer", List.of(1, 10, 100, 2))),
-                Map.entry("nb", new RestEsqlTestCase.TypeAndValues("integer", List.of(-1, -10, -100, -2)))
-            )
-        );
-        return tables;
-    }
-
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

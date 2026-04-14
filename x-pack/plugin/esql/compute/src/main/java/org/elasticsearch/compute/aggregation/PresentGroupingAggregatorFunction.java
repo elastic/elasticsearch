@@ -30,17 +30,13 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     private final List<Integer> channels;
     private final DriverContext driverContext;
 
-    public static PresentGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new PresentGroupingAggregatorFunction(inputChannels, new BitArray(1, driverContext.bigArrays()), driverContext);
-    }
-
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private PresentGroupingAggregatorFunction(List<Integer> channels, BitArray state, DriverContext driverContext) {
+    PresentGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = state;
+        this.state = new BitArray(1, driverContext.bigArrays());
         this.driverContext = driverContext;
     }
 
@@ -167,10 +163,20 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateIntermediate;
+    }
+
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (
+            BooleanVector.FixedBuilder builder = driverContext.blockFactory()
+                .newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())
+        ) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int group = selectedInPage.getInt(i);
                 builder.appendBoolean(state.get(group));
             }
             blocks[offset] = builder.build().asBlock();
@@ -178,10 +184,17 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (BooleanVector.Builder builder = evaluationContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateFinal;
+    }
+
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (BooleanVector.Builder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int si = selectedInPage.getInt(i);
                 builder.appendBoolean(state.get(si));
             }
             blocks[offset] = builder.build().asBlock();

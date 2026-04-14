@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.test;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,7 +19,6 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -124,8 +122,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
@@ -139,7 +136,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             blockFactory.ensureAllBlocksAreReleased();
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
     }
 
@@ -264,8 +261,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 }
             }
             operator.finish();
-            // for async operator, we need to wait for async actions to finish.
-            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+            // for operators with async actions, we need to wait for them to finish.
+            if (driverContext.hasPendingAsyncActions() || randomBoolean()) {
                 driverContext.finish();
                 PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
                 driverContext.waitForAsyncActions(waitForAsync);
@@ -289,9 +286,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
     protected final String byteRefBlockHashSize() {
-        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
+        if (HashImplFactory.SWISS_HASH_AVAILABLE) {
             return "213120b";
         }
         return "400b";
     }
+
 }

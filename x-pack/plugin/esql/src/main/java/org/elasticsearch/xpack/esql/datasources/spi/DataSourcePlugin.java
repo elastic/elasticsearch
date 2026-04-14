@@ -56,17 +56,11 @@ public interface DataSourcePlugin {
     }
 
     /**
-     * Format names this plugin provides (e.g. "csv", "parquet").
-     * Keys must match {@link #formatReaders(Settings)} keys.
+     * Format descriptors this plugin provides. Each {@link FormatSpec} pairs a logical
+     * format name with the file extensions that select it. Format names must match
+     * the keys returned by {@link #formatReaders(Settings)}.
      */
-    default Set<String> supportedFormats() {
-        return Set.of();
-    }
-
-    /**
-     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
-     */
-    default Set<String> supportedExtensions() {
+    default Set<FormatSpec> formatSpecs() {
         return Set.of();
     }
 
@@ -124,5 +118,14 @@ public interface DataSourcePlugin {
 
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
         return List.of();
+    }
+
+    /**
+     * CRUD-time validators for datasource and dataset settings, keyed by type name.
+     * Receives node {@link Settings} so implementations can read cluster admin overrides
+     * (e.g. limits, allowed auth modes, default field values) when constructing validators.
+     */
+    default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        return Map.of();
     }
 }

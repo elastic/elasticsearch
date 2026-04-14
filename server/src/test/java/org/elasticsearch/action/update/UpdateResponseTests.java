@@ -60,7 +60,9 @@ public class UpdateResponseTests extends ESTestCase {
                     "total": 0,
                     "successful": 0,
                     "failed": 0
-                  }
+                  },
+                  "_seq_no": -2,
+                  "_primary_term": 0
                 }"""), output);
         }
         {

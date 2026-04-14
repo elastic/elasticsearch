@@ -3469,7 +3469,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
-        blobStoreSnapshotMetrics.shardSnapshotStarted();
+        blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -3544,11 +3544,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = context.withCommitRef()) {
-                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    metadataFromStore = context.metadataSnapshot();
-                    fileNames = context.fileNames();
-                }
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                metadataFromStore = context.metadataSnapshot();
+                fileNames = context.fileNames();
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 

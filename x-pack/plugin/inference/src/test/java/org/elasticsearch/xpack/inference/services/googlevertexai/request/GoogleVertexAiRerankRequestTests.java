@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 
@@ -34,7 +35,7 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var query = "query";
 
         var request = createRequest(query, input, null, null, null, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -56,7 +57,7 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var taskSettingsTopN = 3;
 
         var request = createRequest(query, input, null, topN, null, taskSettingsTopN);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -78,7 +79,7 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var topN = 1;
 
         var request = createRequest(query, input, null, null, null, topN);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -99,7 +100,7 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var query = "query";
 
         var request = createRequest(query, input, null, null, Boolean.TRUE, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -121,7 +122,7 @@ public class GoogleVertexAiRerankRequestTests extends ESTestCase {
         var modelId = "model";
 
         var request = createRequest(query, input, modelId, null, null, null);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

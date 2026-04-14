@@ -1074,6 +1074,23 @@ null                   | 19
 17                     | null
 ;
 
+lengthOfMvPushed
+FROM employees
+| EVAL jpl = LENGTH(job_positions)
+| WHERE emp_no <= 10002 AND (jpl IS NULL OR jpl == 16)
+| SORT emp_no ASC
+| KEEP jpl
+| LIMIT 2
+;
+# Needs a warningRegex because the warning is slightly different if pushed vs not.
+warningRegex:Line 2:14:.+evaluation of \[LENGTH\(job_positions\)\].+Only first 20 failures recorded.
+warningRegex:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+jpl:integer
+null
+16
+;
+
 startsWithText
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;

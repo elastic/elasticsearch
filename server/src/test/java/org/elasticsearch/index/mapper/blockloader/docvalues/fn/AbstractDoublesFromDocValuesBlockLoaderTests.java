@@ -19,8 +19,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.TestBlock;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,10 +55,6 @@ public abstract class AbstractDoublesFromDocValuesBlockLoaderTests extends Abstr
                 innerTest(breaker, ctx, mvCount);
             }
         }
-    }
-
-    protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private static DoubleField field(int i) {

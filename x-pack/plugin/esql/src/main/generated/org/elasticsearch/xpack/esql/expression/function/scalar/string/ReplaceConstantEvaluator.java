@@ -14,33 +14,33 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
+ * {@link ExpressionEvaluator} implementation for {@link Replace}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReplaceConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
   private final Pattern regex;
 
-  private final EvalOperator.ExpressionEvaluator newStr;
+  private final ExpressionEvaluator newStr;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ReplaceConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext) {
+  public ReplaceConstantEvaluator(Source source, ExpressionEvaluator str, Pattern regex,
+      ExpressionEvaluator newStr, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.regex = regex;
@@ -149,17 +149,17 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
     private final Pattern regex;
 
-    private final EvalOperator.ExpressionEvaluator.Factory newStr;
+    private final ExpressionEvaluator.Factory newStr;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, Pattern regex,
-        EvalOperator.ExpressionEvaluator.Factory newStr) {
+    public Factory(Source source, ExpressionEvaluator.Factory str, Pattern regex,
+        ExpressionEvaluator.Factory newStr) {
       this.source = source;
       this.str = str;
       this.regex = regex;

@@ -15,24 +15,29 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
 
     public void testLastValueProducerForLegacyHistogram() throws IOException {
         var producer = TDigestHistogramFieldDownsampler.create(
             "my-histogram",
-            createFieldType("histogram"),
+            createLegacyHistogramFieldType("my-histogram"),
             null,
             DownsampleConfig.SamplingMethod.LAST_VALUE
         );
@@ -59,7 +64,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
     public void testAggregateProducerForLegacyHistogram() throws IOException {
         var producer = TDigestHistogramFieldDownsampler.create(
             "my-histogram",
-            createFieldType("histogram"),
+            createLegacyHistogramFieldType("my-histogram"),
             null,
             DownsampleConfig.SamplingMethod.AGGREGATE
         );
@@ -86,7 +91,11 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
     public void testLastValueProducerForTDigest() throws IOException {
         var producer = TDigestHistogramFieldDownsampler.create(
             "my-histogram",
-            createFieldType("tdigest"),
+            createTDigestFieldType(
+                "my-histogram",
+                randomBoolean() ? TDigestExecutionHint.DEFAULT : TDigestExecutionHint.HIGH_ACCURACY,
+                randomDoubleBetween(1000, 10000, true)
+            ),
             null,
             DownsampleConfig.SamplingMethod.LAST_VALUE
         );
@@ -111,9 +120,11 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
     }
 
     public void testAggregateProducerForTDigest() throws IOException {
+        var hint = randomBoolean() ? TDigestExecutionHint.DEFAULT : TDigestExecutionHint.HIGH_ACCURACY;
+        var compression = randomDoubleBetween(1000, 10000, true);
         var producer = TDigestHistogramFieldDownsampler.create(
             "my-histogram",
-            createFieldType("tdigest"),
+            createTDigestFieldType("my-histogram", hint, compression),
             null,
             DownsampleConfig.SamplingMethod.AGGREGATE
         );
@@ -135,6 +146,12 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         builder.endObject();
         var content = Strings.toString(builder);
         assertThat(content, equalTo("{\"my-histogram\":{\"counts\":[4,2,4],\"centroids\":[1.0,2.0,4.0]}}"));
+        assertThat(producer, instanceOf(TDigestHistogramFieldDownsampler.Aggregate.class));
+        assertThat(
+            ((TDigestHistogramFieldDownsampler.Aggregate) producer).getType(),
+            equalTo(hint == TDigestExecutionHint.HIGH_ACCURACY ? TDigestState.Type.AVL_TREE : TDigestState.Type.MERGING)
+        );
+        assertThat(((TDigestHistogramFieldDownsampler.Aggregate) producer).getCompression(), equalTo(compression));
     }
 
     HistogramValues createValuesInstance(IntArrayList docIdBuffer, HistogramValue[] values) {
@@ -144,7 +161,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
             int currentDocId = -1;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public boolean advanceExact(int target) {
                 currentDocId = target;
                 return docIdToValue.containsKey(target);
             }
@@ -178,8 +195,8 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
         };
     }
 
-    MappedFieldType createFieldType(String typeName) {
-        return new MappedFieldType(typeName, null, false, Map.of()) {
+    private MappedFieldType createLegacyHistogramFieldType(String fieldName) {
+        return new MappedFieldType(fieldName, null, false, Map.of()) {
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                 return null;
@@ -187,7 +204,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
 
             @Override
             public String typeName() {
-                return typeName;
+                return "histogram";
             }
 
             @Override
@@ -195,6 +212,16 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
                 return null;
             }
         };
+    }
+
+    private MappedFieldType createTDigestFieldType(String fieldName, TDigestExecutionHint executionHint, Double compression) {
+        return new TDigestFieldMapper.TDigestFieldType(
+            fieldName,
+            Map.of(),
+            randomBoolean() ? null : TimeSeriesParams.MetricType.HISTOGRAM,
+            executionHint,
+            compression
+        );
     }
 
 }

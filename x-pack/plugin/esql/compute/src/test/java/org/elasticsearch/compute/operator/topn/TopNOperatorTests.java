@@ -9,22 +9,26 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
@@ -33,6 +37,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockBuilder;
@@ -40,15 +45,14 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.test.operator.blocksource.TupleAbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
@@ -66,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -89,6 +94,7 @@ import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
@@ -98,14 +104,44 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
 public class TopNOperatorTests extends OperatorTestCase {
-    private final int pageSize = randomPageSize();
+    protected final int pageSize = randomPageSize();
+
+    /**
+     * Accumulator for {@link RamUsageTester} that excludes shared objects not owned by the operator.
+     */
+    protected static final RamUsageTester.Accumulator RAM_USAGE_ACCUMULATOR = new RamUsageTester.Accumulator() {
+        @Override
+        public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+            if (o instanceof ElementType) {
+                return 0; // shared
+            }
+            if (o instanceof TopNEncoder) {
+                return 0; // shared
+            }
+            if (o instanceof CircuitBreaker) {
+                return 0; // shared
+            }
+            if (o instanceof BlockFactory) {
+                return 0; // shared
+            }
+            if (o instanceof BigArrays) {
+                return 0; // shared
+            }
+            if (o instanceof BytesRefHashTable h) {
+                return h.ramBytesUsed();
+            }
+            return super.accumulateObject(o, shallowSize, fieldValues, queue);
+        }
+    };
+
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
     private static final List<String> VERSIONS = List.of(
         "1",
@@ -146,8 +182,12 @@ public class TopNOperatorTests extends OperatorTestCase {
         "1.2.3-rc1"
     );
 
+    protected int[] groupKeys() {
+        return new int[0];
+    }
+
     @Override
-    protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         List<ElementType> elementTypes = List.of(LONG);
         List<TopNEncoder> encoders = List.of(DEFAULT_UNSORTABLE);
         List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false));
@@ -160,6 +200,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             encoders,
             sortOrders,
             pageSize,
+            Long.MAX_VALUE,
             InputOrdering.NOT_SORTED,
             minCompetitive
         );
@@ -183,21 +224,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceLongBlockSourceOperator(
-            blockFactory,
-            LongStream.range(0, size).map(l -> ESTestCase.randomLong()),
-            between(1, size * 2)
-        );
-    }
-
-    protected SourceOperator simpleInput(BlockFactory blockFactory, int size, InputOrdering sortedInput) {
-        var longs = LongStream.range(0, size).map(l -> ESTestCase.randomLong());
-
-        return new SequenceLongBlockSourceOperator(
-            blockFactory,
-            sortedInput == InputOrdering.SORTED ? longs.sorted() : longs,
-            between(1, size * 2)
-        );
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomLong()), between(1, size * 2));
     }
 
     @Override
@@ -223,53 +250,41 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
-    public void testRamBytesUsed() {
-        for (var sortedInput : InputOrdering.values()) {
-            RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
-                @Override
-                public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-                    if (o instanceof ElementType) {
-                        return 0; // shared
-                    }
-                    if (o instanceof TopNEncoder) {
-                        return 0; // shared
-                    }
-                    if (o instanceof CircuitBreaker) {
-                        return 0; // shared
-                    }
-                    if (o instanceof BlockFactory) {
-                        return 0; // shard
-                    }
-                    return super.accumulateObject(o, shallowSize, fieldValues, queue);
-                }
-            };
-            int topCount = 10_000;
-            // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
-            long underCount = 200;
-            DriverContext context = driverContext();
-            try (
-                TopNOperator op = new TopNOperator.TopNOperatorFactory(
-                    topCount,
-                    List.of(LONG),
-                    List.of(DEFAULT_UNSORTABLE),
-                    List.of(new TopNOperator.SortOrder(0, true, false)),
-                    pageSize,
-                    sortedInput,
-                    null
-                ).get(context)
-            ) {
-                long actualEmpty = RamUsageTester.ramUsed(op, acc);
-                assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-                // But when we fill it then we're quite close
-                for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount, sortedInput))) {
-                    op.addInput(p);
-                }
-                long actualFull = RamUsageTester.ramUsed(op, acc);
-                assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
-
-                // TODO empty it again and check.
-            }
+    /**
+     * Creates the appropriate top-N operator factory for the test subclass.
+     */
+    protected Operator.OperatorFactory createTopNOperatorFactory(
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<TopNOperator.SortOrder> sortOrders,
+        int[] groupKeys,
+        int maxPageSize,
+        long jumboPageBytes,
+        TopNOperator.InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitive
+    ) {
+        if (groupKeys.length > 0) {
+            return new GroupedTopNOperator.GroupedTopNOperatorFactory(
+                topCount,
+                elementTypes,
+                encoders,
+                sortOrders,
+                IntStream.of(groupKeys).boxed().toList(),
+                maxPageSize,
+                jumboPageBytes
+            );
         }
+        return new TopNOperator.TopNOperatorFactory(
+            topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageSize,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitive
+        );
     }
 
     public void testRandomTopN() {
@@ -288,11 +303,10 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    private void testRandomTopN(boolean asc, DriverContext context) {
+    protected void testRandomTopN(boolean asc, DriverContext context) {
         int limit = randomIntBetween(1, 20);
-        List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
-        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+        List<Long> inputValues = randomList(0, 5000, () -> randomLong());
+        List<Long> expectedValues = inputValues.stream().sorted(asc ? naturalOrder() : reverseOrder()).limit(limit).toList();
         List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
         assertThat(outputValues, equalTo(expectedValues));
     }
@@ -325,38 +339,44 @@ public class TopNOperatorTests extends OperatorTestCase {
         boolean asc,
         boolean nullsFirst
     ) {
-        List<Page> pages = new ArrayList<>(pagesValues.size());
+        var layout = ChannelLayout.forDataColumns(1, groupKeys());
 
+        List<Page> pages = new ArrayList<>(pagesValues.size());
         for (var pageValues : pagesValues) {
             assert isSorted(pageValues, asc, nullsFirst);
-            List<Block> blocks = new ArrayList<>(pageValues.size());
-            try (Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory());) {
+            try (Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory())) {
                 for (var value : pageValues) {
                     append(column, value);
                 }
-                blocks.add(column.build());
+                pages.add(new Page(layout.buildPageBlocks(pageValues.size(), driverContext().blockFactory(), column.build())));
             }
-            pages.add(new Page(blocks.toArray(Block[]::new)));
         }
         List<List<Object>> actual = new ArrayList<>();
         DriverContext driverContext = driverContext();
+
+        List<ElementType> elementTypes = new ArrayList<>();
+        List<TopNEncoder> encoders = new ArrayList<>();
+        for (int ch = 0; ch < layout.totalChannels(); ch++) {
+            elementTypes.add(INT);
+            encoders.add(layout.groupKeySet().contains(ch) ? DEFAULT_UNSORTABLE : DEFAULT_SORTABLE);
+        }
 
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(pages.iterator()),
                 List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topNCount,
-                        List.of(INT),
-                        List.of(DEFAULT_SORTABLE),
-                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
+                        elementTypes,
+                        encoders,
+                        List.of(new TopNOperator.SortOrder(layout.dataChannel(0), asc, nullsFirst)),
+                        groupKeys(),
                         randomPageSize(),
+                        randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
@@ -364,7 +384,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TestDriverRunner().run(driver);
         }
 
-        assertThat(actual, equalTo(expectedResult));
+        assertThat(layout.extractDataColumns(actual), equalTo(expectedResult));
     }
 
     private void testTopNSortedInputWithTwoColumns(
@@ -374,11 +394,10 @@ public class TopNOperatorTests extends OperatorTestCase {
         boolean asc,
         boolean nullsFirst
     ) {
+        var layout = ChannelLayout.forDataColumns(2, groupKeys());
+
         List<Page> pages = new ArrayList<>(pagesValues.size());
-
         for (var pageValues : pagesValues) {
-            List<Block> blocks = new ArrayList<>(pageValues.size());
-
             try (
                 Block.Builder firstColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
                 Block.Builder secondColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
@@ -387,30 +406,42 @@ public class TopNOperatorTests extends OperatorTestCase {
                     append(firstColumn, value.v1());
                     append(secondColumn, value.v2());
                 }
-                blocks.add(firstColumn.build());
-                blocks.add(secondColumn.build());
+                pages.add(
+                    new Page(
+                        layout.buildPageBlocks(pageValues.size(), driverContext().blockFactory(), firstColumn.build(), secondColumn.build())
+                    )
+                );
             }
-            pages.add(new Page(blocks.toArray(Block[]::new)));
         }
         List<List<Object>> actual = new ArrayList<>();
         DriverContext driverContext = driverContext();
+
+        List<ElementType> elementTypes = new ArrayList<>();
+        List<TopNEncoder> encoders = new ArrayList<>();
+        for (int ch = 0; ch < layout.totalChannels(); ch++) {
+            elementTypes.add(INT);
+            encoders.add(layout.groupKeySet().contains(ch) ? DEFAULT_UNSORTABLE : DEFAULT_SORTABLE);
+        }
 
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(pages.iterator()),
                 List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topNCount,
-                        List.of(INT, INT),
-                        List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
-                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst), new TopNOperator.SortOrder(1, asc, nullsFirst)),
+                        elementTypes,
+                        encoders,
+                        List.of(
+                            new TopNOperator.SortOrder(layout.dataChannel(0), asc, nullsFirst),
+                            new TopNOperator.SortOrder(layout.dataChannel(1), asc, nullsFirst)
+                        ),
+                        groupKeys(),
                         randomPageSize(),
+                        randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
@@ -418,23 +449,39 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TestDriverRunner().run(driver);
         }
 
-        assertThat(actual, equalTo(expectedResult));
+        assertThat(layout.extractDataColumns(actual), equalTo(expectedResult));
     }
 
     public final void testTopNWithSortedInputToString() {
-        var topN = new TopNOperator.TopNOperatorFactory(
+        var topN = createTopNOperatorFactory(
             4,
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
+            groupKeys(),
             pageSize,
+            randomJumboPageBytes(),
             InputOrdering.SORTED,
             null
         );
-        var expectedDescription = "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]";
-        try (Operator operator = topN.get(driverContext())) {
-            assertThat(operator.toString(), equalTo(expectedDescription));
+        if (groupKeys().length > 0) {
+            var expectedDescription = "GroupedTopNOperator[count=0/0/4"
+                + ", elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
+                + ", groupKeys="
+                + Arrays.toString(groupKeys())
+                + "]";
+            try (Operator operator = topN.get(driverContext())) {
+                assertThat(operator.toString(), equalTo(expectedDescription));
+            }
+        } else {
+            var expectedDescription = "TopNOperator[count=0/4"
+                + ", elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
+                + ", inputOrdering=SORTED]";
+            try (Operator operator = topN.get(driverContext())) {
+                assertThat(operator.toString(), equalTo(expectedDescription));
+            }
         }
     }
 
@@ -690,7 +737,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(topNLong(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topNLong(
+    protected List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
+    }
+
+    protected List<Long> topNLong(
         DriverContext driverContext,
         List<Long> inputValues,
         int limit,
@@ -702,16 +753,13 @@ public class TopNOperatorTests extends OperatorTestCase {
             inputValues.stream().map(v -> tuple(v, 0L)).toList(),
             limit,
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst))
+            List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst)),
+            groupKeys()
         ).stream().map(Tuple::v1).toList();
     }
 
     private static TupleLongLongBlockSourceOperator longLongSourceOperator(DriverContext driverContext, List<Tuple<Long, Long>> values) {
         return new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000));
-    }
-
-    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
-        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
     }
 
     public void testCompareInts() {
@@ -804,14 +852,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
@@ -819,8 +867,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls first
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, true, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, lessThan(nullRow));
                 assertThat(nullRow, greaterThan(nonNullRow));
@@ -829,8 +877,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls last
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, false, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, greaterThan(nullRow));
                 assertThat(nullRow, lessThan(nonNullRow));
@@ -839,8 +887,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // ascending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, greaterThan(r2));
                 assertThat(r2, lessThan(r1));
@@ -848,8 +896,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // descending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, lessThan(r2));
                 assertThat(r2, greaterThan(r1));
@@ -858,7 +906,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         page.releaseBlocks();
     }
 
-    private TopNOperator.Row row(
+    private TopNRow row(
         ElementType elementType,
         TopNEncoder encoder,
         int channel,
@@ -877,7 +925,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             channelInKey,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
+        TopNRow row = new TopNRow(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;
@@ -891,7 +939,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false))
+                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
         );
@@ -901,7 +950,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false))
+                List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
         );
@@ -911,7 +961,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 values,
                 5,
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true))
+                List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true)),
+                groupKeys()
             ),
             equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
         );
@@ -924,13 +975,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         int size = 10;
         int topCount = 3;
         List<Block> blocks = new ArrayList<>();
-        List<List<? extends Object>> expectedTop = new ArrayList<>();
+        List<List<Object>> rawValues = new ArrayList<>();
 
         IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
-        List<Integer> topKeys = new ArrayList<>(IntStream.range(size - topCount, size).boxed().toList());
-        Collections.reverse(topKeys);
-        expectedTop.add(topKeys);
         blocks.add(keys);
+        rawValues.add(IntStream.range(0, size).<Object>mapToObj(Integer::valueOf).toList());
 
         List<ElementType> elementTypes = new ArrayList<>();
         List<TopNEncoder> encoders = new ArrayList<>();
@@ -945,38 +994,36 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
             elementTypes.add(e);
             encoders.add(nonKeyEncoder(e));
-            List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(size, driverContext().blockFactory())) {
+                var rawValuesForElement = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
                     Object value = randomValue(e);
                     append(builder, value);
-                    if (i >= size - topCount) {
-                        eTop.add(value);
-                    }
+                    rawValuesForElement.add(value);
                 }
-                Collections.reverse(eTop);
                 blocks.add(builder.build());
-                expectedTop.add(eTop);
+                rawValues.add(rawValuesForElement);
             }
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false));
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
-                    new TopNOperator(
-                        blockFactory,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topCount,
                         elementTypes,
                         encoders,
-                        List.of(new TopNOperator.SortOrder(0, false, false)),
+                        sortOrders,
+                        groupKeys(),
                         randomPageSize(),
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
@@ -984,8 +1031,53 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TestDriverRunner().run(driver);
         }
 
-        assertMap(actualTop, matchesList(expectedTop));
+        assertMap(actualTop, matchesList(expectedTop(rawValues, sortOrders, topCount)));
         assertDriverContext(driverContext);
+    }
+
+    protected List<List<Object>> expectedTop(List<List<Object>> input, List<TopNOperator.SortOrder> sortOrders, int topCount) {
+        // input is channel-oriented, transpose to row-oriented for processing and then back format.
+        return transpose(expectedTopRowOriented(transpose(input), sortOrders, topCount));
+    }
+
+    protected List<List<Object>> expectedTopRowOriented(
+        List<List<Object>> rowOriented,
+        List<TopNOperator.SortOrder> sortOrders,
+        int topCount
+    ) {
+        Comparator<List<Object>> comparator = (row1, row2) -> {
+            for (TopNOperator.SortOrder order : sortOrders) {
+                Object v1 = row1.get(order.channel());
+                Object v2 = row2.get(order.channel());
+                boolean firstIsNull = v1 == null;
+                boolean secondIsNull = v2 == null;
+
+                if (firstIsNull || secondIsNull) {
+                    int nullCompare = Boolean.compare(firstIsNull, secondIsNull) * (order.nullsFirst() ? -1 : 1);
+                    if (nullCompare != 0) {
+                        return nullCompare;
+                    }
+                    continue;
+                }
+
+                @SuppressWarnings("unchecked")
+                int cmp = ((Comparable<Object>) v1).compareTo(v2);
+                if (cmp != 0) {
+                    return order.asc() ? cmp : -cmp;
+                }
+            }
+            return 0;
+        };
+
+        return rowOriented.stream().sorted(comparator).limit(topCount).toList();
+    }
+
+    private static List<List<Object>> transpose(List<List<Object>> input) {
+        if (input.isEmpty()) {
+            return new ArrayList<>();
+        }
+        int numRows = input.getFirst().size();
+        return IntStream.range(0, numRows).mapToObj(row -> input.stream().map(channel -> channel.get(row)).toList()).toList();
     }
 
     public void testCollectAllValues_RandomMultiValues() {
@@ -996,13 +1088,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         int topCount = 3;
         int blocksCount = 20;
         List<Block> blocks = new ArrayList<>();
-        List<List<?>> expectedTop = new ArrayList<>();
+        List<List<Object>> rawValues = new ArrayList<>();
 
         IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
-        List<Integer> topKeys = new ArrayList<>(IntStream.range(rows - topCount, rows).boxed().toList());
-        Collections.reverse(topKeys);
-        expectedTop.add(topKeys);
         blocks.add(keys);
+        rawValues.add(IntStream.range(0, rows).<Object>mapToObj(Integer::valueOf).toList());
 
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
@@ -1023,56 +1113,50 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
             elementTypes.add(e);
             encoders.add(nonKeyEncoder(e));
-            List<Object> eTop = new ArrayList<>();
+            List<Object> channelValues = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 for (int i = 0; i < rows; i++) {
                     if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
                         // generate a multi-value block
                         int mvCount = randomIntBetween(5, 10);
-                        List<Object> eTopList = new ArrayList<>(mvCount);
+                        List<Object> mvValues = new ArrayList<>(mvCount);
                         builder.beginPositionEntry();
                         for (int j = 0; j < mvCount; j++) {
                             Object value = randomValue(e);
                             append(builder, value);
-                            if (i >= rows - topCount) {
-                                eTopList.add(value);
-                            }
+                            mvValues.add(value);
                         }
                         builder.endPositionEntry();
-                        if (i >= rows - topCount) {
-                            eTop.add(eTopList);
-                        }
+                        channelValues.add(mvValues);
                     } else {
                         Object value = randomValue(e);
                         append(builder, value);
-                        if (i >= rows - topCount) {
-                            eTop.add(value);
-                        }
+                        channelValues.add(value);
                     }
                 }
-                Collections.reverse(eTop);
                 blocks.add(builder.build());
-                expectedTop.add(eTop);
+                rawValues.add(channelValues);
             }
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false));
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
-                    new TopNOperator(
-                        blockFactory,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topCount,
                         elementTypes,
                         encoders,
-                        List.of(new TopNOperator.SortOrder(0, false, false)),
+                        sortOrders,
+                        groupKeys(),
                         randomPageSize(),
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
@@ -1080,7 +1164,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             new TestDriverRunner().run(driver);
         }
 
-        assertMap(actualTop, matchesList(expectedTop));
+        assertMap(actualTop, matchesList(expectedTop(rawValues, sortOrders, topCount)));
         assertDriverContext(driverContext);
     }
 
@@ -1092,37 +1176,36 @@ public class TopNOperatorTests extends OperatorTestCase {
         };
     }
 
-    private List<Tuple<Long, Long>> topNTwoLongColumns(
+    protected List<Tuple<Long, Long>> topNTwoLongColumns(
         DriverContext driverContext,
         List<Tuple<Long, Long>> values,
         int limit,
         List<TopNEncoder> encoder,
-        List<TopNOperator.SortOrder> sortOrders
+        List<TopNOperator.SortOrder> sortOrders,
+        int[] groupKeys
     ) {
-        var pages = topNTwoColumns(
+        var pages = topNMultipleColumns(
             driverContext,
             new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
-            AlwaysReferencedIndexedByShardId.INSTANCE,
             limit,
             encoder,
-            sortOrders
+            sortOrders,
+            groupKeys
         );
-        var result = pageToTuples(
+        return pageToTuples(
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
             pages
         );
-        assertThat(result, hasSize(Math.min(limit, values.size())));
-        return result;
     }
 
-    private <T, S> List<Page> topNTwoColumns(
+    protected <T, S> List<Page> topNMultipleColumns(
         DriverContext driverContext,
-        TupleAbstractBlockSourceOperator<T, S> sourceOperator,
-        IndexedByShardId<? extends RefCounted> shardRefCounters,
+        AbstractTypedBlockSourceOperator sourceOperator,
         int limit,
         List<TopNEncoder> encoder,
-        List<TopNOperator.SortOrder> sortOrders
+        List<TopNOperator.SortOrder> sortOrders,
+        int[] groupKeys
     ) {
         var pages = new ArrayList<Page>();
         boolean success = false;
@@ -1132,17 +1215,17 @@ public class TopNOperatorTests extends OperatorTestCase {
                     driverContext,
                     sourceOperator,
                     List.of(
-                        new TopNOperator(
-                            driverContext.blockFactory(),
-                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        createTopNOperatorFactory(
                             limit,
                             sourceOperator.elementTypes(),
                             encoder,
                             sortOrders,
+                            groupKeys,
                             randomPageSize(),
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
-                        )
+                        ).get(driverContext)
                     ),
                     new PageConsumerOperator(pages::add)
                 )
@@ -1159,7 +1242,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         return pages;
     }
 
-    private static <T, S> List<Tuple<T, S>> pageToTuples(
+    protected static <T, S> List<Tuple<T, S>> pageToTuples(
         BiFunction<Block, Integer, T> getFirstBlockValue,
         BiFunction<Block, Integer, S> getSecondBlockValue,
         List<Page> pages
@@ -1184,26 +1267,42 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testTopNManyDescriptionAndToString() {
         int fixedLength = between(1, 100);
-        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+        Operator.OperatorFactory factory = createTopNOperatorFactory(
             10,
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(0, false, false), new TopNOperator.SortOrder(1, false, true)),
+            groupKeys(),
             randomPageSize(),
+            randomJumboPageBytes(),
             InputOrdering.NOT_SORTED,
             null
         );
         String sorts = List.of("SortOrder[channel=0, asc=false, nullsFirst=false]", "SortOrder[channel=1, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
-        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["
-            + fixedLength
-            + "]], sortOrders=["
-            + sorts
-            + "], inputOrdering=NOT_SORTED]";
-        assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
-        try (Operator operator = factory.get(driverContext())) {
-            assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));
+        if (groupKeys().length > 0) {
+            String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["
+                + fixedLength
+                + "]], sortOrders=["
+                + sorts
+                + "], groupKeys="
+                + Arrays.toString(groupKeys())
+                + "]";
+            assertThat(factory.describe(), equalTo("GroupedTopNOperator[count=10" + tail));
+            try (Operator operator = factory.get(driverContext())) {
+                assertThat(operator.toString(), equalTo("GroupedTopNOperator[count=0/0/10" + tail));
+            }
+        } else {
+            String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["
+                + fixedLength
+                + "]], sortOrders=["
+                + sorts
+                + "], inputOrdering=NOT_SORTED]";
+            assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
+            try (Operator operator = factory.get(driverContext())) {
+                assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));
+            }
         }
     }
 
@@ -1433,7 +1532,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(blockType),
                         List.of(encoder),
                         List.of(sortOrders),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1454,12 +1554,10 @@ public class TopNOperatorTests extends OperatorTestCase {
         int blocksCount = between(20, 30);
         int sortingByColumns = between(1, 10);
 
-        Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
-        List<List<List<Object>>> expectedValues = new ArrayList<>(rowsPerPage * pageCount);
-        List<Supplier<Object>> randomValueSuppliers = new ArrayList<>(blocksCount);
         boolean[] validSortKeys = new boolean[blocksCount];
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
+        List<Supplier<Object>> randomValueSuppliers = new ArrayList<>(blocksCount);
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
@@ -1505,6 +1603,13 @@ public class TopNOperatorTests extends OperatorTestCase {
             randomValueSuppliers.add(randomValueSupplier);
         }
 
+        int[] gk = groupKeys();
+        var layout = ChannelLayout.forDataColumns(blocksCount, gk);
+        if (gk.length > 0) {
+            layout.insertGroupKeyEntries(elementTypes, INT);
+            layout.insertGroupKeyEntries(encoders, DEFAULT_UNSORTABLE);
+        }
+
         /*
          * Build sort keys, making sure not to include duplicates. This could
          * build fewer than the desired sort columns, but it's more important
@@ -1513,29 +1618,27 @@ public class TopNOperatorTests extends OperatorTestCase {
          * not to include sort keys that simulate geo objects. Those aren't
          * sortable at all.
          */
+        Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
         for (int i = 0; i < sortingByColumns; i++) {
             int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
-            uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
+            uniqueOrders.add(new TopNOperator.SortOrder(layout.dataChannel(column), randomBoolean(), randomBoolean()));
         }
         List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
-        NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
-        SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
-            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
-            : null;
-        SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
 
+        List<List<List<Object>>> expectedValues = new ArrayList<>(rowsPerPage * pageCount);
+        List<List<List<Object>>> actualValues = new ArrayList<>();
         try (
-            TopNOperator operator = new TopNOperator(
-                driverContext.blockFactory(),
-                nonBreakingBigArrays().breakerService().getBreaker("request"),
+            Operator operator = createTopNOperatorFactory(
                 topCount,
                 elementTypes,
                 encoders,
                 sortOrders,
+                gk,
                 rowsPerPage,
+                Long.MAX_VALUE,
                 InputOrdering.NOT_SORTED,
-                minCompetitiveSupplier
-            )
+                null
+            ).get(driverContext)
         ) {
             for (int p = 0; p < pageCount; p++) {
                 assertThat(operator.needsInput(), equalTo(true));
@@ -1543,40 +1646,30 @@ public class TopNOperatorTests extends OperatorTestCase {
                 assertThat(operator.getOutput(), nullValue());
 
                 for (int r = 0; r < rowsPerPage; r++) {
-                    expectedValues.add(new ArrayList<>(blocksCount));
+                    expectedValues.add(new ArrayList<>(blocksCount + gk.length));
                 }
-                Block[] blocks = new Block[blocksCount];
+                Block[] dataBlocks = new Block[blocksCount];
                 for (int b = 0; b < blocksCount; b++) {
-                    ElementType elementType = elementTypes.get(b);
+                    ElementType elementType = elementTypes.get(layout.dataChannel(b));
                     try (Block.Builder builder = elementType.newBlockBuilder(rowsPerPage, driverContext().blockFactory())) {
                         List<Object> previousValue = null;
-
                         for (int r = 0; r < rowsPerPage; r++) {
                             List<Object> values = new ArrayList<>();
-                            // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the
-                            // same
-                            // block
                             if (rarely() && previousValue != null) {
                                 values = previousValue;
                             } else {
                                 if (elementType != ElementType.NULL && randomBoolean()) {
-                                    // generate a multi-value block
                                     int mvCount = randomIntBetween(5, 10);
                                     for (int j = 0; j < mvCount; j++) {
-                                        Object value = randomValueSuppliers.get(b).get();
-                                        values.add(value);
+                                        values.add(randomValueSuppliers.get(b).get());
                                     }
-                                } else {// null or single-valued value
-                                    Object value = randomValueSuppliers.get(b).get();
-                                    values.add(value);
+                                } else {
+                                    values.add(randomValueSuppliers.get(b).get());
                                 }
-
                                 if (usually() && randomBoolean()) {
-                                    // let's remember the "previous" value, maybe we'll use it again in a different row
                                     previousValue = values;
                                 }
                             }
-
                             if (values.size() == 1) {
                                 append(builder, values.get(0));
                             } else {
@@ -1586,59 +1679,45 @@ public class TopNOperatorTests extends OperatorTestCase {
                                 }
                                 builder.endPositionEntry();
                             }
-
                             expectedValues.get(p * rowsPerPage + r).add(values);
                         }
-                        blocks[b] = builder.build();
+                        dataBlocks[b] = builder.build();
                     }
                 }
-                operator.addInput(new Page(blocks));
-
-                if (minCompetitive != null) {
-                    if ((p + 1) * rowsPerPage < topCount) {
-                        assertThat(minCompetitive.get(blockFactory()), nullValue());
-                    } else {
-                        List<List<Object>> minCompetitiveRow = expectedValues.stream()
-                            .sorted(comparator)
-                            .skip(topCount - 1)
-                            .findFirst()
-                            .get();
-                        try (Page min = minCompetitive.get(blockFactory())) {
-                            assertThat(min.getBlockCount(), equalTo(sortOrders.size()));
-                            for (int s = 0; s < min.getBlockCount(); s++) {
-                                logger.info("checking key {}", s);
-                                TopNOperator.SortOrder sort = sortOrders.get(s);
-                                Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
-                                Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
-                                assertThat(actual, equalTo(expected));
-                            }
-                        }
+                if (gk.length > 0) {
+                    for (int r = 0; r < rowsPerPage; r++) {
+                        layout.insertGroupKeyEntries(expectedValues.get(p * rowsPerPage + r), List.of(0));
                     }
                 }
+                Block[] pageBlocks = gk.length > 0
+                    ? layout.buildPageBlocks(rowsPerPage, driverContext.blockFactory(), dataBlocks)
+                    : dataBlocks;
+                operator.addInput(new Page(pageBlocks));
             }
             operator.finish();
             assertThat(operator.needsInput(), equalTo(false));
             assertThat(operator.isFinished(), equalTo(false));
-
-            List<List<List<Object>>> actualValues = new ArrayList<>();
             while (operator.isFinished() == false) {
-                try (Page p = operator.getOutput()) {
+                Page p = operator.getOutput();
+                assertThat(operator.needsInput(), equalTo(false));
+                if (p != null) {
                     readAsRows(actualValues, p);
-                    assertThat(operator.needsInput(), equalTo(false));
+                    p.releaseBlocks();
                 }
             }
-
-            List<List<List<Object>>> topNExpectedValues = expectedValues.stream().sorted(comparator).limit(topCount).toList();
-            List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
-            List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
-
-            assertMap(actualReducedValues, matchesList(expectedReducedValues));
-        } finally {
-            Releasables.close(minCompetitive);
         }
+
+        List<List<List<Object>>> topNExpectedValues = expectedValues.stream()
+            .sorted(new NaiveTopNComparator(sortOrders))
+            .limit(topCount)
+            .toList();
+        List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
+        List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
+
+        assertMap(actualReducedValues, matchesList(expectedReducedValues));
     }
 
-    private List<SharedMinCompetitive.KeyConfig> keyConfigs(
+    protected List<SharedMinCompetitive.KeyConfig> keyConfigs(
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders
@@ -1678,7 +1757,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                            randomPageSize(),
+                            pageSize,
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
                         )
@@ -1806,7 +1886,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                            randomPageSize(),
+                            pageSize,
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
                         )
@@ -1898,7 +1979,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1937,6 +2019,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
                         maxPageSize,
+                        Long.MAX_VALUE,
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1964,7 +2047,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCloseWithoutCompleting() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -1973,7 +2056,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize(),
+                pageSize,
+                randomJumboPageBytes(),
                 InputOrdering.NOT_SORTED,
                 null
             )
@@ -1985,9 +2069,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testRowResizes() {
         int columns = 1000;
         int rows = 1000;
-        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
-            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
-        );
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1)));
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
         boolean asc = randomBoolean();
@@ -1999,7 +2081,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 types,
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                randomPageSize(),
+                pageSize,
+                randomJumboPageBytes(),
                 InputOrdering.NOT_SORTED,
                 null
             )
@@ -2021,56 +2104,8 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
-        topNShardContextManagementAux(4, Stream.generate(() -> true).limit(4).toList());
-    }
-
-    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
-        topNShardContextManagementAux(2, List.of(true, false, false, true));
-    }
-
-    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
-        List<Tuple<BlockUtils.Doc, Long>> values = Arrays.asList(
-            tuple(new BlockUtils.Doc(0, 10, 100), 1L),
-            tuple(new BlockUtils.Doc(1, 20, 200), 2L),
-            tuple(new BlockUtils.Doc(2, 30, 300), null),
-            tuple(new BlockUtils.Doc(3, 40, 400), -3L)
-        );
-
-        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
-        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
-        var pages = topNTwoColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
-            @Override
-            protected Block.Builder firstElementBlockBuilder(int length) {
-                return DocBlock.newBlockBuilder(blockFactory, length).shardRefCounters(shardRefCounters);
-            }
-        },
-            shardRefCounters,
-            limit,
-            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(1, true, false))
-        );
-        refCountedList.forEach(RefCounted::decRef);
-
-        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
-
-        var expectedValues = values.stream()
-            .sorted(Comparator.comparingLong(t -> t.v2() == null ? Long.MAX_VALUE : t.v2()))
-            .limit(limit)
-            .toList();
-        assertThat(
-            pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
-            equalTo(expectedValues)
-        );
-        Releasables.close(pages);
-
-        for (var rc : refCountedList) {
-            assertFalse(rc.hasReferences());
-        }
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static void readAsRows(List<List<List<Object>>> values, Page page) {
+    protected static void readAsRows(List<List<List<Object>>> values, Page page) {
         if (page.getBlockCount() == 0) {
             fail("No blocks returned!");
         }
@@ -2094,6 +2129,78 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
+    protected static List<List<Object>> readAsRowsSingleValue(Page page) {
+        assertThat(page.getBlockCount(), greaterThan(0));
+        return IntStream.range(0, page.getPositionCount())
+            .mapToObj(position -> IntStream.range(0, page.getBlockCount()).mapToObj(i -> toJavaObject(page.getBlock(i), position)).toList())
+            .toList();
+    }
+
+    public void testSplitOnSize() {
+        int topCount = 50;
+        long jumboPageBytes = randomJumboPageBytes();
+        int byteLength = Math.max(10, Math.toIntExact(jumboPageBytes / 10));
+        logger.info("byteLength {}", byteLength);
+        int inputPageRows = 10;
+        int inputPageCount = 10;
+        int blockOverhead = 1000;
+        BlockFactory factory = blockFactory();
+        long minPageSize = jumboPageBytes;
+        long maxPageSize = jumboPageBytes + byteLength + blockOverhead;
+        if (byteLength < 100) {
+            /*
+             * With very small bytes we might break too early. That's ok. Small
+             * ones are rare and if we have them then a few early-breaks is fine.
+             */
+            minPageSize -= 20;
+        }
+        if (byteLength < PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+            /*
+             * In this range fall into a hole where we switch to BigArrayVectors.
+             * Under it we grow a more controlled amount. Over it our byteLength
+             * is big enough that it covers the
+             */
+            maxPageSize += PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        }
+        int[] gk = groupKeys();
+        int expectedTotal = gk.length > 0 ? inputPageRows * inputPageCount : topCount;
+        try (
+            Operator op = createTopNOperatorFactory(
+                topCount,
+                List.of(BYTES_REF),
+                List.of(UTF8),
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                gk,
+                Integer.MAX_VALUE,
+                jumboPageBytes,
+                InputOrdering.NOT_SORTED,
+                null
+            ).get(driverContext())
+        ) {
+            for (int p = 0; p < inputPageCount; p++) {
+                try (BytesRefBlock.Builder bytes = factory.newBytesRefBlockBuilder(inputPageRows)) {
+                    for (int r = 0; r < inputPageRows; r++) {
+                        bytes.appendBytesRef(new BytesRef(randomAlphanumericOfLength(byteLength)));
+                    }
+                    op.addInput(new Page(bytes.build()));
+                }
+            }
+            op.finish();
+            int totalPositions = 0;
+            while (op.isFinished() == false) {
+                try (Page out = op.getOutput()) {
+                    totalPositions += out.getPositionCount();
+                    if (totalPositions < expectedTotal) {
+                        assertThat(out.ramBytesUsedByBlocks(), both(greaterThanOrEqualTo(minPageSize)).and(lessThanOrEqualTo(maxPageSize)));
+                    } else {
+                        assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                    }
+                }
+            }
+            assertThat(totalPositions, equalTo(expectedTotal));
+        }
+    }
+
     /**
      * Because the ordering algorithm used here (mainly vanilla Java sorting with streams and Comparators) uses
      * compareTo which also considers equality, multiple rows can be considered equal between each others
@@ -2105,7 +2212,7 @@ public class TopNOperatorTests extends OperatorTestCase {
      * but it's as close as possible to a very general and fully randomized unit test for TopNOperator with multi-values support.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private List<List<Object>> extractAndReduceSortedValues(List<List<List<Object>>> rows, Set<TopNOperator.SortOrder> orders) {
+    protected List<List<Object>> extractAndReduceSortedValues(List<List<List<Object>>> rows, Set<TopNOperator.SortOrder> orders) {
         List<List<Object>> result = new ArrayList<>(rows.size());
 
         for (List<List<Object>> row : rows) {
@@ -2132,7 +2239,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             : values.stream().map(element -> (Comparable) element).max(naturalOrder()).get();
     }
 
-    private class NaiveTopNComparator implements Comparator<List<List<Object>>> {
+    protected class NaiveTopNComparator implements Comparator<List<List<Object>>> {
         private final List<TopNOperator.SortOrder> orders;
 
         NaiveTopNComparator(List<TopNOperator.SortOrder> orders) {
@@ -2166,5 +2273,565 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     static Version randomVersion() {
         return new Version(randomFrom(VERSIONS));
+    }
+
+    protected static class RandomMultiValueBlocksResult {
+        final List<List<List<Object>>> expectedValues;
+        final List<Block> blocks;
+        final boolean[] validSortKeys;
+        final List<ElementType> elementTypes;
+        final List<TopNEncoder> encoders;
+
+        RandomMultiValueBlocksResult(
+            List<List<List<Object>>> expectedValues,
+            List<Block> blocks,
+            boolean[] validSortKeys,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders
+        ) {
+            this.expectedValues = expectedValues;
+            this.blocks = blocks;
+            this.validSortKeys = validSortKeys;
+            this.elementTypes = elementTypes;
+            this.encoders = encoders;
+        }
+    }
+
+    protected RandomMultiValueBlocksResult generateRandomMultiValueBlocks(int rows, int blocksCount, DriverContext driverContext) {
+        List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
+        List<Block> blocks = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
+        List<ElementType> elementTypes = new ArrayList<>(blocksCount);
+        List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
+
+        for (int i = 0; i < rows; i++) {
+            expectedValues.add(new ArrayList<>(blocksCount));
+        }
+
+        for (int type = 0; type < blocksCount; type++) {
+            ElementType e = randomValueOtherThanMany(
+                t -> t == ElementType.UNKNOWN
+                    || t == ElementType.DOC
+                    || t == COMPOSITE
+                    || t == AGGREGATE_METRIC_DOUBLE
+                    || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST
+                    || t == LONG_RANGE,
+                () -> randomFrom(ElementType.values())
+            );
+            elementTypes.add(e);
+            validSortKeys[type] = true;
+            try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
+                List<Object> previousValue = null;
+                Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
+                if (e == BYTES_REF) {
+                    if (rarely()) {
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                encoders.add(TopNEncoder.IP);
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                encoders.add(TopNEncoder.VERSION);
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            case 2 -> {
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                validSortKeys[type] = false;
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                            default -> throw new UnsupportedOperationException();
+                        };
+                    } else {
+                        encoders.add(UTF8);
+                    }
+                } else {
+                    encoders.add(DEFAULT_SORTABLE);
+                }
+
+                for (int i = 0; i < rows; i++) {
+                    List<Object> values = new ArrayList<>();
+                    if (rarely() && previousValue != null) {
+                        values = previousValue;
+                    } else {
+                        if (e != ElementType.NULL && randomBoolean()) {
+                            int mvCount = randomIntBetween(5, 10);
+                            for (int j = 0; j < mvCount; j++) {
+                                Object value = randomValueSupplier.apply(e);
+                                values.add(value);
+                            }
+                        } else {
+                            Object value = randomValueSupplier.apply(e);
+                            values.add(value);
+                        }
+
+                        if (usually() && randomBoolean()) {
+                            previousValue = values;
+                        }
+                    }
+
+                    if (values.size() == 1) {
+                        append(builder, values.get(0));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (Object o : values) {
+                            append(builder, o);
+                        }
+                        builder.endPositionEntry();
+                    }
+
+                    expectedValues.get(i).add(values);
+                }
+                blocks.add(builder.build());
+            }
+        }
+
+        return new RandomMultiValueBlocksResult(expectedValues, blocks, validSortKeys, elementTypes, encoders);
+    }
+
+    protected Set<TopNOperator.SortOrder> generateSortOrders(
+        int sortingByColumns,
+        int blocksCount,
+        boolean[] validSortKeys,
+        java.util.function.Predicate<Integer> excludeColumn
+    ) {
+        Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
+        for (int i = 0; i < sortingByColumns; i++) {
+            int column = randomValueOtherThanMany(
+                c -> false == validSortKeys[c] || excludeColumn.test(c),
+                () -> randomIntBetween(0, blocksCount - 1)
+            );
+            uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
+        }
+        return uniqueOrders;
+    }
+
+    protected static class RandomBlocksResult {
+        final List<List<Object>> expectedValues;
+        final List<Block> blocks;
+        final boolean[] validSortKeys;
+        final List<ElementType> elementTypes;
+        final List<TopNEncoder> encoders;
+
+        RandomBlocksResult(
+            List<List<Object>> expectedValues,
+            List<Block> blocks,
+            boolean[] validSortKeys,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders
+        ) {
+            this.expectedValues = expectedValues;
+            this.blocks = blocks;
+            this.validSortKeys = validSortKeys;
+            this.elementTypes = elementTypes;
+            this.encoders = encoders;
+        }
+    }
+
+    protected RandomBlocksResult generateRandomSingleValueBlocks(int rows, int blocksCount, DriverContext driverContext) {
+        List<List<Object>> expectedValues = new ArrayList<>(rows);
+        List<Block> blocks = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
+        List<ElementType> elementTypes = new ArrayList<>(blocksCount);
+        List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
+
+        for (int i = 0; i < rows; i++) {
+            expectedValues.add(new ArrayList<>(blocksCount));
+        }
+
+        for (int type = 0; type < blocksCount; type++) {
+            ElementType e = randomValueOtherThanMany(
+                t -> t == ElementType.UNKNOWN
+                    || t == ElementType.DOC
+                    || t == COMPOSITE
+                    || t == AGGREGATE_METRIC_DOUBLE
+                    || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST
+                    || t == LONG_RANGE,
+                () -> randomFrom(ElementType.values())
+            );
+            elementTypes.add(e);
+            validSortKeys[type] = true;
+            try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
+                Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
+                if (e == BYTES_REF) {
+                    if (rarely()) {
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                encoders.add(TopNEncoder.IP);
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                encoders.add(TopNEncoder.VERSION);
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            case 2 -> {
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                validSortKeys[type] = false;
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                            default -> throw new UnsupportedOperationException();
+                        };
+                    } else {
+                        encoders.add(UTF8);
+                    }
+                } else {
+                    encoders.add(DEFAULT_SORTABLE);
+                }
+
+                for (int i = 0; i < rows; i++) {
+                    Object value = randomValueSupplier.apply(e);
+                    append(builder, value);
+                    expectedValues.get(i).add(value);
+                }
+                blocks.add(builder.build());
+            }
+        }
+
+        return new RandomBlocksResult(expectedValues, blocks, validSortKeys, elementTypes, encoders);
+    }
+
+    /**
+     * Maps group key channels and data channels for tests that need to add constant-value
+     * group key columns alongside their data columns. When {@code groupKeys} is empty, the
+     * layout is an identity mapping (data channel i == channel i).
+     */
+    protected record ChannelLayout(int[] groupKeys, Set<Integer> groupKeySet, int[] dataChannels, int totalChannels) {
+
+        static ChannelLayout forDataColumns(int dataColumnCount, int[] groupKeys) {
+            int totalChannels = dataColumnCount + groupKeys.length;
+            Set<Integer> groupKeySet = IntStream.of(groupKeys).boxed().collect(Collectors.toSet());
+            int[] dataChannels = IntStream.range(0, totalChannels).filter(ch -> groupKeySet.contains(ch) == false).toArray();
+            return new ChannelLayout(groupKeys, groupKeySet, dataChannels, totalChannels);
+        }
+
+        /** Returns the actual channel index for the given data column index. */
+        int dataChannel(int dataIndex) {
+            return dataChannels[dataIndex];
+        }
+
+        /**
+         * Builds a {@code Block[]} with constant-0 INT blocks at the group key channels
+         * and the supplied data blocks placed at the corresponding data channels.
+         */
+        Block[] buildPageBlocks(int positions, BlockFactory blockFactory, Block... dataBlocks) {
+            Block[] blockArray = new Block[totalChannels];
+            for (int g : groupKeys) {
+                try (Block.Builder groupCol = INT.newBlockBuilder(positions, blockFactory)) {
+                    for (int j = 0; j < positions; j++) {
+                        append(groupCol, 0);
+                    }
+                    blockArray[g] = groupCol.build();
+                }
+            }
+            for (int d = 0; d < dataBlocks.length; d++) {
+                blockArray[dataChannels[d]] = dataBlocks[d];
+            }
+            return blockArray;
+        }
+
+        /** Extracts only the data-channel columns from column-oriented results. */
+        List<List<Object>> extractDataColumns(List<List<Object>> actual) {
+            if (groupKeys.length == 0 || actual.isEmpty()) {
+                return actual;
+            }
+            return IntStream.of(dataChannels).mapToObj(actual::get).toList();
+        }
+
+        /** Inserts group key entries into pre-built lists at the correct positions. */
+        <T> void insertGroupKeyEntries(List<T> list, T value) {
+            int[] sortedGk = IntStream.of(groupKeys).sorted().toArray();
+            for (int g : sortedGk) {
+                list.add(g, value);
+            }
+        }
+    }
+
+    public void testRamBytesUsed() {
+        int topCount = 10_000;
+        long underCount = groupKeys().length > 0 ? 1000 : 250;
+        DriverContext context = driverContext();
+        int numColumns = 1 + groupKeys().length;
+        List<ElementType> elementTypes = Collections.nCopies(numColumns, LONG);
+        List<TopNEncoder> encoders = Collections.nCopies(numColumns, DEFAULT_UNSORTABLE);
+        try (
+            Operator op = createTopNOperatorFactory(
+                topCount,
+                elementTypes,
+                encoders,
+                List.of(new TopNOperator.SortOrder(0, true, false)),
+                groupKeys(),
+                pageSize,
+                Long.MAX_VALUE,
+                TopNOperator.InputOrdering.NOT_SORTED,
+                null
+            ).get(context)
+        ) {
+            Accountable accountable = (Accountable) op;
+            long actualEmpty = RamUsageTester.ramUsed(op, RAM_USAGE_ACCUMULATOR);
+            assertThat(accountable.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
+            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
+                op.addInput(p);
+            }
+            long actualFull = RamUsageTester.ramUsed(op, RAM_USAGE_ACCUMULATOR);
+            assertThat(accountable.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
+        }
+    }
+
+    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
+        assumeTrue("only applies to ungrouped TopN", groupKeys().length == 0);
+        topNShardContextManagementAux(4, Stream.generate(() -> true).limit(4).toList());
+    }
+
+    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
+        assumeTrue("only applies to ungrouped TopN", groupKeys().length == 0);
+        topNShardContextManagementAux(2, List.of(true, false, false, true));
+    }
+
+    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
+        List<Tuple<BlockUtils.Doc, Long>> values = Arrays.asList(
+            tuple(new BlockUtils.Doc(0, 10, 100), 1L),
+            tuple(new BlockUtils.Doc(1, 20, 200), 2L),
+            tuple(new BlockUtils.Doc(2, 30, 300), null),
+            tuple(new BlockUtils.Doc(3, 40, 400), -3L)
+        );
+
+        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
+        var shardRefCounters = new IndexedByShardIdFromList<>(refCountedList);
+        var pages = topNMultipleColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
+            @Override
+            protected Block.Builder firstElementBlockBuilder(int length) {
+                return DocBlock.newBlockBuilder(blockFactory, length).shardRefCounters(shardRefCounters);
+            }
+        },
+            limit,
+            List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE),
+            List.of(new TopNOperator.SortOrder(1, true, false)),
+            groupKeys()
+        );
+        refCountedList.forEach(RefCounted::decRef);
+
+        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+
+        var expectedValues = values.stream()
+            .sorted(Comparator.comparingLong(t -> t.v2() == null ? Long.MAX_VALUE : t.v2()))
+            .limit(limit)
+            .toList();
+        assertThat(
+            pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
+            equalTo(expectedValues)
+        );
+        Releasables.close(pages);
+
+        for (var rc : refCountedList) {
+            assertFalse(rc.hasReferences());
+        }
+    }
+
+    public void testRandomMultiValuesTopNWithMinCompetitive() {
+        assumeTrue("only applies to ungrouped TopN", groupKeys().length == 0);
+        DriverContext driverContext = driverContext();
+        int pageCount = between(1, 100);
+        int rowsPerPage = between(50, 100);
+        int topCount = between(1, rowsPerPage * pageCount);
+        int blocksCount = between(20, 30);
+        int sortingByColumns = between(1, 10);
+
+        Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
+        List<List<List<Object>>> expectedValues = new ArrayList<>(rowsPerPage * pageCount);
+        List<Supplier<Object>> randomValueSuppliers = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
+        List<ElementType> elementTypes = new ArrayList<>(blocksCount);
+        List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
+
+        for (int type = 0; type < blocksCount; type++) {
+            ElementType e = randomValueOtherThanMany(
+                t -> t == ElementType.UNKNOWN
+                    || t == ElementType.DOC
+                    || t == ElementType.COMPOSITE
+                    || t == ElementType.AGGREGATE_METRIC_DOUBLE
+                    || t == ElementType.EXPONENTIAL_HISTOGRAM
+                    || t == ElementType.TDIGEST
+                    || t == ElementType.LONG_RANGE,
+                () -> randomFrom(ElementType.values())
+            );
+            elementTypes.add(e);
+            validSortKeys[type] = true;
+            Supplier<Object> randomValueSupplier = () -> randomValue(e);
+            if (e == ElementType.BYTES_REF) {
+                if (rarely()) {
+                    randomValueSupplier = switch (randomInt(2)) {
+                        case 0 -> {
+                            // Simulate ips
+                            encoders.add(TopNEncoder.IP);
+                            yield () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                        }
+                        case 1 -> {
+                            // Simulate version fields
+                            encoders.add(TopNEncoder.VERSION);
+                            yield () -> randomVersion().toBytesRef();
+                        }
+                        case 2 -> {
+                            // Simulate geo_shape and geo_point
+                            encoders.add(TopNEncoder.DEFAULT_UNSORTABLE);
+                            validSortKeys[type] = false;
+                            yield TopNEncoderTests::randomPointAsWKB;
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    };
+                } else {
+                    encoders.add(TopNEncoder.UTF8);
+                }
+            } else {
+                encoders.add(TopNEncoder.DEFAULT_SORTABLE);
+            }
+            randomValueSuppliers.add(randomValueSupplier);
+        }
+
+        for (int i = 0; i < sortingByColumns; i++) {
+            int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
+            uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
+        }
+        List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
+        NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
+            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
+            : null;
+        SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
+
+        try (
+            TopNOperator operator = new TopNOperator(
+                driverContext.blockFactory(),
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                topCount,
+                elementTypes,
+                encoders,
+                sortOrders,
+                rowsPerPage,
+                Long.MAX_VALUE,
+                TopNOperator.InputOrdering.NOT_SORTED,
+                minCompetitiveSupplier
+            )
+        ) {
+            for (int p = 0; p < pageCount; p++) {
+                assertThat(operator.needsInput(), equalTo(true));
+                assertThat(operator.isFinished(), equalTo(false));
+                assertThat(operator.getOutput(), nullValue());
+
+                for (int r = 0; r < rowsPerPage; r++) {
+                    expectedValues.add(new ArrayList<>(blocksCount));
+                }
+                Block[] blocks = new Block[blocksCount];
+                for (int b = 0; b < blocksCount; b++) {
+                    ElementType elementType = elementTypes.get(b);
+                    try (Block.Builder builder = elementType.newBlockBuilder(rowsPerPage, driverContext().blockFactory())) {
+                        List<Object> previousValue = null;
+                        for (int r = 0; r < rowsPerPage; r++) {
+                            List<Object> values = new ArrayList<>();
+                            if (rarely() && previousValue != null) {
+                                values = previousValue;
+                            } else {
+                                if (elementType != ElementType.NULL && randomBoolean()) {
+                                    int mvCount = randomIntBetween(5, 10);
+                                    for (int j = 0; j < mvCount; j++) {
+                                        values.add(randomValueSuppliers.get(b).get());
+                                    }
+                                } else {
+                                    values.add(randomValueSuppliers.get(b).get());
+                                }
+                                if (usually() && randomBoolean()) {
+                                    previousValue = values;
+                                }
+                            }
+                            if (values.size() == 1) {
+                                append(builder, values.get(0));
+                            } else {
+                                builder.beginPositionEntry();
+                                for (Object o : values) {
+                                    append(builder, o);
+                                }
+                                builder.endPositionEntry();
+                            }
+                            expectedValues.get(p * rowsPerPage + r).add(values);
+                        }
+                        blocks[b] = builder.build();
+                    }
+                }
+                operator.addInput(new Page(blocks));
+
+                if (minCompetitive != null) {
+                    if ((p + 1) * rowsPerPage < topCount) {
+                        assertThat(minCompetitive.get(blockFactory()), nullValue());
+                    } else {
+                        List<List<Object>> minCompetitiveRow = expectedValues.stream()
+                            .sorted(comparator)
+                            .skip(topCount - 1)
+                            .findFirst()
+                            .get();
+                        try (Page min = minCompetitive.get(blockFactory())) {
+                            assertThat(min.getBlockCount(), equalTo(sortOrders.size()));
+                            for (int s = 0; s < min.getBlockCount(); s++) {
+                                logger.info("checking key {}", s);
+                                TopNOperator.SortOrder sort = sortOrders.get(s);
+                                Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
+                                Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
+                                assertThat(actual, equalTo(expected));
+                            }
+                        }
+                    }
+                }
+            }
+            operator.finish();
+            assertThat(operator.needsInput(), equalTo(false));
+            assertThat(operator.isFinished(), equalTo(false));
+
+            List<List<List<Object>>> actualValues = new ArrayList<>();
+            while (operator.isFinished() == false) {
+                try (Page p = operator.getOutput()) {
+                    readAsRows(actualValues, p);
+                    assertThat(operator.needsInput(), equalTo(false));
+                }
+            }
+
+            List<List<List<Object>>> topNExpectedValues = expectedValues.stream().sorted(comparator).limit(topCount).toList();
+            List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
+            List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
+
+            assertMap(actualReducedValues, matchesList(expectedReducedValues));
+        } finally {
+            Releasables.close(minCompetitive);
+        }
+    }
+
+    public void testStatus() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
+            Operator.Status status = op.status();
+            assertThat(status, instanceOf(TopNOperatorStatus.class));
+            TopNOperatorStatus topNStatus = (TopNOperatorStatus) status;
+            assertThat(topNStatus.occupiedRows(), equalTo(0));
+            assertThat(topNStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(topNStatus.pagesReceived(), equalTo(0));
+            assertThat(topNStatus.pagesEmitted(), equalTo(0));
+            assertThat(topNStatus.rowsReceived(), equalTo(0L));
+            assertThat(topNStatus.rowsEmitted(), equalTo(0L));
+
+            Page p = new Page(blockFactory.newConstantLongBlockWith(1, 10));
+            op.addInput(p);
+            status = op.status();
+            topNStatus = (TopNOperatorStatus) status;
+            assertThat(topNStatus.receiveNanos(), greaterThan(0L));
+            assertThat(topNStatus.emitNanos(), equalTo(0L));
+            assertThat(topNStatus.occupiedRows(), equalTo(4));
+            assertThat(topNStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(topNStatus.pagesReceived(), equalTo(1));
+            assertThat(topNStatus.pagesEmitted(), equalTo(0));
+            assertThat(topNStatus.rowsReceived(), equalTo(10L));
+            assertThat(topNStatus.rowsEmitted(), equalTo(0L));
+        }
+    }
+
+    private long randomJumboPageBytes() {
+        return rarely() ? between(1, 100) : ByteSizeValue.ofKb(between(1, 1000)).getBytes();
     }
 }

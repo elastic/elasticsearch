@@ -61,7 +61,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
         boolean release = true;
         try {
@@ -101,7 +101,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
                 }
             }
 
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         } finally {
             if (release) {
                 breaker.addWithoutBreaking(-ESTIMATED_SIZE);
@@ -149,12 +149,6 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            read(docId, (B) builder);
         }
 
         /**

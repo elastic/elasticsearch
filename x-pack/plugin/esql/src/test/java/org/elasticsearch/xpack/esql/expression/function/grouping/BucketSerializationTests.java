@@ -59,23 +59,31 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
     }
 
     public void testOffsetBackcompatSerialization() throws IOException {
-        Bucket instance = new Bucket(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), configuration(), 0L);
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
+        Bucket instance = new Bucket(
+            randomSource(),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            configuration(),
+            0L
+        );
         Bucket copy = copyInstance(instance, oldVersion);
         assertThat(copy.offset(), equalTo(0L));
     }
 
     public void testOffsetBackcompatSerializationRejectsNonZeroOffset() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
         Bucket instance = new Bucket(
             randomSource(),
-            randomChild(),
-            randomChild(),
-            randomChild(),
-            randomChild(),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
             configuration(),
             randomLongBetween(1, 1000)
         );
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> copyInstance(instance, oldVersion));
         assertThat(e.getMessage(), containsString("bucket with offset is not supported in peer node's version [" + oldVersion + "]"));
     }

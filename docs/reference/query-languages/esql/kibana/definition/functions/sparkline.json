@@ -22,7 +22,7 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets."
         },
         {
           "name" : "from",
@@ -58,7 +58,7 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets."
         },
         {
           "name" : "from",
@@ -94,7 +94,7 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets."
         },
         {
           "name" : "from",

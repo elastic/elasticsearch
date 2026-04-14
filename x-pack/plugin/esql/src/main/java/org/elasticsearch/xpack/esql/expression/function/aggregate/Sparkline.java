@@ -63,11 +63,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
         @Param(name = "key", type = { "date" }, description = "Date expression from which to derive buckets.") Expression key,
-        @Param(
-            name = "buckets",
-            type = { "integer" },
-            description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        ) Expression buckets,
+        @Param(name = "buckets", type = { "integer" }, description = "Target number of buckets.") Expression buckets,
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },

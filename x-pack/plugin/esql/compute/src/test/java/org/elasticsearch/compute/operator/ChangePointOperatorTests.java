@@ -104,9 +104,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1×15] -> step at row 15 of page0
-        // Group B: [1×15, 0×15] -> step at row 15 of page1
-        // Group C: [0×15, 1×15] -> step at row 15 of page2
+        // Pages split at rows 30 and 60 — one group per page:
+        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page1 [rows 30-59]: grp=B, values=[1×15, 0×15] -> step at row 45
+        // page2 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
         List<Long> valuesColumn = Stream.of(
             nCopies(15, 0L),
             nCopies(15, 1L),
@@ -132,8 +133,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1×20] -> step at row 15 of page0
-        // Group B: [1×85]
+        // Pages split at rows 40 and 80 — group A share a page0 with group B:
+        // page0 [rows 0-39]: grp=A, values=[0×15, 1×20] -> step at row 15
+        //                    grp=B, values=[1×5]
+        // page1 [rows 40-79]: grp=B, values=[1×40]
+        // page2 [rows 80-119]: grp=B, values=[1×40]
         List<String> groupsColumn = Stream.concat(nCopies(35, "A").stream(), nCopies(85, "B").stream()).toList();
         List<Long> valuesColumn = Stream.concat(nCopies(15, 0L).stream(), nCopies(105, 1L).stream()).toList();
         List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
@@ -152,16 +156,19 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×40, 1×25] -> step at row 20 of page1
-        // Group B: [0×35]
-        List<String> groupsColumn = Stream.concat(nCopies(65, "A").stream(), nCopies(35, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(40, 0L), nCopies(25, 1L), nCopies(35, 0L)).flatMap(List::stream).toList();
-        List<Page> pages = buildPages(blockFactory, List.of(20, 60), valuesColumn, groupsColumn);
+        // Pages split at rows 10 and 45 — group switch and step both fall on page1:
+        //   page0 [rows  0-9]:  grp=A  values=[0×10]
+        //   page1 [rows 10-44]: grp=A  values=[0×15, 1×15]  -> step at row 25
+        //                       grp=B  values=[0×5]
+        //   page2 [rows 45-69]: grp=B  values=[0×25]
+        List<String> groupsColumn = Stream.concat(nCopies(40, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(25, 0L), nCopies(15, 1L), nCopies(30, 0L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(10, 45), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertNoChangePoints(outputPages.get(0));
-            assertChangePointAt(outputPages.get(1), 20);
+            assertChangePointAt(outputPages.get(1), 15);
             assertNoChangePoints(outputPages.get(2));
         } finally {
             outputPages.forEach(Page::releaseBlocks);
@@ -172,8 +179,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [1×85]
-        // Group B: [0×20, 1×15] -> step at row 25 of page2
+        // Pages split at rows 40 and 80 — group A spans the first two pages, B starts mid-last-page:
+        // page0 [rows 0-39]: grp=A, values=[1×40]
+        // page1 [rows 40-79]: grp=A, values=[1×40]
+        // page2 [rows 80-119]: grp=A, values=[1×5]
+        //                      grp=B, values=[0×20, 1×15]  -> step at row 105
         List<String> groupsColumn = Stream.concat(nCopies(85, "A").stream(), nCopies(35, "B").stream()).toList();
         List<Long> valuesColumn = Stream.of(nCopies(85, 1L), nCopies(20, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
         List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
@@ -230,8 +240,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×1]
-        // Group B: [0×15, 1×15] -> step at row 15 of page1
+        // Page split at row 1 — group A is a single-row page, group B follows:
+        // page0 [rows 0-0]: grp=A, values=[0×1] -> (too few values, indeterminable)
+        // page1 [rows 1-30]: grp=B, values=[0×15, 1×15] -> step at row 16
         List<String> groupsColumn = Stream.concat(nCopies(1, "A").stream(), nCopies(30, "B").stream()).toList();
         List<Long> valuesColumn = Stream.concat(nCopies(1, 0L).stream(), Stream.concat(nCopies(15, 0L).stream(), nCopies(15, 1L).stream()))
             .toList();
@@ -255,8 +266,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1×15] -> step at row 15 of page0
-        // Group B: [null×5] -> warnings produced
+        // Page split at row 30 — group A fills page0, group B is a trailing all-null page:
+        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page1 [rows 30-34]: grp=B, values=[null×5] -> (no change point, null warning produced)
         List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(5, "B").stream()).toList();
         List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(5, (Long) null)).flatMap(List::stream).toList();
         List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
@@ -280,8 +292,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [null×5] -> should produce indeterminable warning
-        // Group B: [0×15, 1×15] -> step change at row 15 of page1
+        // Page split at row 5 — group A is a leading all-null page, group B follows:
+        // page0 [rows  0-4]: grp=A, values=[null×5] -> (no change point, null warning produced)
+        // page1 [rows  5-34]: grp=B, values=[0×15, 1×15] -> step at row 20
         List<String> groupsColumn = Stream.concat(nCopies(5, "A").stream(), nCopies(30, "B").stream()).toList();
         List<Long> valuesColumn = Stream.of(nCopies(5, (Long) null), nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
         List<Page> pages = buildPages(blockFactory, List.of(5), valuesColumn, groupsColumn);
@@ -305,8 +318,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0x500, 1x501] -> should detect step change and produce warning
-        // Group B: [0x500, 1x501] -> should detect step change
+        // Page split at row 1001 — one group per page, each exceeds INPUT_VALUE_COUNT_LIMIT (1000):
+        // page0 [rows 0-1000]: grp=A, values=[0×500, 1×501] -> step at row 500 (warning: too many values)
+        // page1 [rows 1001-2001]: grp=B, values=[0×500, 1×501] -> step at row 1501 (warning: too many values)
         List<String> groupsColumn = Stream.concat(nCopies(1001, "A").stream(), nCopies(1001, "B").stream()).toList();
         List<Long> valuesColumn = Stream.concat(
             Stream.of(nCopies(500, 0L), nCopies(501, 1L)).flatMap(List::stream),
@@ -337,8 +351,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // 4 groups: (us,web), (us,db), (eu,web), (eu,db)
-        // Each group: [0×13, 1×12] -> step change at row 13 within the group
+        // Single page, 4 composite-key groups (region, service), 25 rows each:
+        // page0 [rows 0-24]: grp=(us,web), values=[0×13, 1×12] -> step at row 13
+        // page0 [rows 25-49]: grp=(us,db), values=[0×13, 1×12] -> step at row 38
+        // page0 [rows 50-74]: grp=(eu,web), values=[0×13, 1×12] -> step at row 63
+        // page0 [rows 75-99]: grp=(eu,db), values=[0×13, 1×12] -> step at row 88
         int groupSize = 25;
         List<String> regionsColumn = Stream.of(
             nCopies(groupSize, "us"),
@@ -385,8 +402,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1×15] -> step at row 15 of page0
-        // Group B: [0×15, 1×15] -> step at row 45 of page0
+        // Single page, two groups — multiple flushGroup calls on the same boundary page:
+        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page0 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
         List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
         List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
             .flatMap(List::stream)
@@ -406,9 +424,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1×15] -> step at row 15
-        // Group B: [0×15, 1×15] -> step at row 45
-        // Group C: [0×15, 1×15] -> step at row 75
+        // Single page, three groups — exercises pageChangePoints accumulating across all three groups:
+        // page0 [rows  0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page0 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
+        // page0 [rows 60-89]: grp=C, values=[0×15, 1×15] -> step at row 75
         List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
         List<Long> valuesColumn = Stream.of(
             nCopies(15, 0L),
@@ -434,9 +453,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A fills page0 exactly (30 rows), group B starts at position 0 of page1 (30 rows).
-        // Group A: [0×15, 1×15] -> step at row 15 of page0
-        // Group B: [0×15, 1×15] -> step at row 15 of page1
+        // Page split at row 30 — group boundary falls exactly at the first position of page1:
+        // page0 [rows 0-29]: grp=A, values=[0×15, 1×15] -> step at row 15
+        // page1 [rows 30-59]: grp=B, values=[0×15, 1×15] -> step at row 45
         List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
         List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
             .flatMap(List::stream)
@@ -457,7 +476,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×29, 1×31] -> step at row 29 (last row of page0).
+        // Page split at row 30 — step falls on the last row of page0:
+        // page0 [rows 0-29]: grp=A, values=[0×29, 1×1] -> step at row 29
+        // page1 [rows 30-59]: grp=A, values=[1×30]
         List<String> groupsColumn = nCopies(60, "A");
         List<Long> valuesColumn = Stream.concat(nCopies(29, 0L).stream(), nCopies(31, 1L).stream()).toList();
         List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
@@ -475,7 +496,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×30, 1×30] -> step at row 30 (first row of page1).
+        // Page split at row 30 — step falls on the first row of page1:
+        // page0 [rows 0-29]: grp=A, values=[0×30]
+        // page1 [rows 30-59]: grp=A, values=[1×30] -> step at row 30
         List<String> groupsColumn = nCopies(60, "A");
         List<Long> valuesColumn = Stream.concat(nCopies(30, 0L).stream(), nCopies(30, 1L).stream()).toList();
         List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);

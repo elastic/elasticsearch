@@ -371,7 +371,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                new Holder<>(),
+                                new Holder<Approximation>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l

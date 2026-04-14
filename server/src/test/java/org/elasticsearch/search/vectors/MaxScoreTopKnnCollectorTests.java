@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -54,6 +55,14 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
         assertEquals(globalCompetitiveScore, collector.getMinCompetitiveDocScore());
         assertTrue(Float.NEGATIVE_INFINITY == collector.minCompetitiveSimilarity());
+    }
+
+    public void testEmptyTopDocsUsesStaticNoResults() {
+        LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator));
+
+        assertSame(MaxScoreTopKnnCollector.NO_RESULTS, collector.topDocs());
+        assertSame(TopDocsCollector.EMPTY_TOPDOCS, collector.topDocs());
     }
 
 }

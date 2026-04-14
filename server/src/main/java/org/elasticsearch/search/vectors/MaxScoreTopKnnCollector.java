@@ -11,12 +11,14 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
+    static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
     private long minCompetitiveDocScore;
     private float minCompetitiveSimilarity;
     protected final NeighborQueue queue;
@@ -57,6 +59,9 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public TopDocs topDocs() {
+        if (queue.size() == 0) {
+            return NO_RESULTS;
+        }
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
         for (int i = 1; i <= scoreDocs.length; i++) {

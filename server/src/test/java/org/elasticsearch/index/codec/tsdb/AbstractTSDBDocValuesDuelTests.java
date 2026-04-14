@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -26,10 +24,6 @@ import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
-import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -37,7 +31,35 @@ import java.util.Arrays;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-public class DocValuesCodecDuelTests extends ESTestCase {
+/**
+ * Duel test that verifies a doc values format produces bit-for-bit identical results to a
+ * known-correct baseline. This catches encoding bugs that round-trip tests miss: a format that
+ * writes wrong values but reads them back consistently would pass its own round-trip tests but
+ * fail here against an independent baseline.
+ *
+ * <p><b>How it works:</b> writes identical randomized documents (with controlled sparsity and
+ * value reuse) to two separate indexes, one using the baseline format, one using the contender.
+ * Both are force-merged to a single segment, then every value is compared across all five doc
+ * value types:
+ * <ul>
+ *   <li>Sorted (single keyword per doc): ordinals, term lookups, termsEnum with seek</li>
+ *   <li>SortedSet (multiple keywords per doc): ordinals, counts, term lookups, termsEnum</li>
+ *   <li>SortedNumeric (multiple longs per doc): values and counts</li>
+ *   <li>Numeric (single long per doc): values</li>
+ *   <li>Binary (opaque bytes per doc): byte-level equality</li>
+ * </ul>
+ * Each type is tested with three iteration modes: sequential ({@code nextDoc()}), random forward
+ * jumps ({@code advance()}), and exact positioning ({@code advanceExact()}).
+ *
+ * <p><b>How to subclass:</b> override {@link #baselineFormat()} (typically Lucene's
+ * {@code Lucene90DocValuesFormat} as the reference implementation) and {@link #contenderFormat()}
+ * (the TSDB format under test). Each subclass represents one pair of formats to compare.
+ */
+public abstract class AbstractTSDBDocValuesDuelTests extends ESTestCase {
+
+    protected abstract DocValuesFormat baselineFormat();
+
+    protected abstract DocValuesFormat contenderFormat();
 
     private static final String FIELD_1 = "string_field_1";
     private static final String FIELD_2 = "string_field_2";
@@ -45,7 +67,6 @@ public class DocValuesCodecDuelTests extends ESTestCase {
     private static final String FIELD_4 = "number_field_4";
     private static final String FIELD_5 = "binary_field_5";
 
-    @SuppressWarnings("checkstyle:LineLength")
     public void testDuel() throws IOException {
         try (var baselineDirectory = newDirectory(); var contenderDirectory = newDirectory()) {
             int numDocs = randomIntBetween(256, 32768);
@@ -53,30 +74,10 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             var mergePolicy = new ForceMergePolicy(newLogMergePolicy());
             var baselineConfig = newIndexWriterConfig();
             baselineConfig.setMergePolicy(mergePolicy);
-            baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
+            baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(baselineFormat()));
             var contenderConf = newIndexWriterConfig();
             contenderConf.setMergePolicy(mergePolicy);
-            Codec codec = new Elasticsearch93Lucene104Codec() {
-
-                final DocValuesFormat docValuesFormat = randomBoolean()
-                    ? new ES819Version3TSDBDocValuesFormat(
-                        ESTestCase.randomIntBetween(1, 4096),
-                        ESTestCase.randomIntBetween(1, 512),
-                        random().nextBoolean(),
-                        ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
-                        random().nextBoolean(),
-                        ES819TSDBDocValuesFormatTests.randomNumericBlockSize(),
-                        randomBoolean()
-                    )
-                    : new TestES87TSDBDocValuesFormat();
-
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return docValuesFormat;
-                }
-            };
-            contenderConf.setCodec(codec);
-            contenderConf.setMergePolicy(mergePolicy);
+            contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(contenderFormat()));
 
             try (
                 var baselineIw = new RandomIndexWriter(random(), baselineDirectory, baselineConfig);

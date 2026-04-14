@@ -482,7 +482,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Get the current metadata for the specified files.
-     * We e.g. use this during PIT context transfer between nodes in Serverless.
+     * We e.g. use this during PIT context transfer between nodes in stateless.
      */
     public Map<String, BlobLocation> getBlobLocationForFiles(Collection<String> fileNames) {
         Map<String, BlobLocation> metadata = new HashMap<>(fileNames.size());

@@ -173,7 +173,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
         }
 
         // Note that waiting for all the same roles as the current node would mean we could never remove roles.
-        // Instead, these roles are expected to be disjoint; nodes in serverless do not share them, so we find
+        // Instead, these roles are expected to be disjoint; stateless nodes do not share them, so we find
         // the one relevant role of the current node.
         Set<DiscoveryNodeRole> relevantRoles = Set.of(
             DiscoveryNodeRole.INDEX_ROLE,
@@ -183,7 +183,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
         Set<DiscoveryNodeRole> currentRoles = localNode.getRoles();
         Set<DiscoveryNodeRole> foundRoles = localNode.getRoles().stream().filter(relevantRoles::contains).collect(Collectors.toSet());
         if (foundRoles.isEmpty()) {
-            assert false : "Expected all serverless nodes to have exactly one role from " + relevantRoles;
+            assert false : "Expected all stateless nodes to have exactly one role from " + relevantRoles;
             logger.warn(
                 "Current node roles "
                     + currentRoles
@@ -193,7 +193,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
             );
             return;
         } else if (foundRoles.size() > 1) {
-            assert false : "Expected all serverless nodes to have exactly one role from " + relevantRoles;
+            assert false : "Expected all stateless nodes to have exactly one role from " + relevantRoles;
             logger.warn(
                 "Current node roles "
                     + currentRoles

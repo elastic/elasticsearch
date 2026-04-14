@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETT
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServerlessFieldCapabilitiesIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessFieldCapabilitiesIT extends AbstractStatelessPluginIntegTestCase {
 
     private final String mapping = """
         {

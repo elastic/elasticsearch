@@ -40,14 +40,14 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
- * We don't support direct IO in Serverless, but we run a test that exercises the code paths to ensure that they operate without issue.
+ * We don't support direct IO in stateless, but we run a test that exercises the code paths to ensure that they operate without issue.
  * It should always be possible to create an index using BBQ and index some docs, regardless of direct IO.
  *
  * The test trivially creates an index using BBQ and ingests a number of docs containing vectors. This is sufficient to verify that
  * the directory implementations do not try to access the raw vectors `.vec` file (using direct IO) when it may be within the blob
  * cache (rather than an individual file in the file-system).
  */
-public class ServerlessDirectIORestIT extends ESRestTestCase {
+public class StatelessDirectIORestIT extends ESRestTestCase {
 
     @ClassRule
     public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()

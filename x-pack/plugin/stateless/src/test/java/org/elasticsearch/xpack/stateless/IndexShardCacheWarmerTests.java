@@ -54,7 +54,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             taskQueue.getThreadPool().generic()
         );
 
-        // Prepare shard routing `role` to correspond to indexing shard setup in Serverless
+        // Prepare shard routing `role` to correspond to indexing shard setup in stateless
         var copyShardRoutingWithIndexOnlyRole = new TestShardRouting.Builder(
             indexShard.shardId(),
             indexShard.routingEntry().currentNodeId(),
@@ -105,7 +105,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
             taskQueue.getThreadPool().generic()
         );
 
-        // Prepare shard routing `role` to correspond to indexing shard setup in Serverless
+        // Prepare shard routing `role` to correspond to indexing shard setup in stateless
         var copyShardRoutingWithIndexOnlyRole = new TestShardRouting.Builder(
             indexShard.shardId(),
             indexShard.routingEntry().currentNodeId(),

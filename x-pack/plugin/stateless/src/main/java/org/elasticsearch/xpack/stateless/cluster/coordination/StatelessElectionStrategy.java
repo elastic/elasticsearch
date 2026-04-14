@@ -259,7 +259,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         /*
          * Refuse to participate in elections if we are marked for shutdown.
          *
-         * Note that this only really works in serverless where it's possible to stand up a new master-eligible node, with no shutdown
+         * Note that this only really works in stateless where it's possible to stand up a new master-eligible node, with no shutdown
          * marker, that will read the latest state from the blob store. In stateful ES this is dangerous because the shutdown markers are
          * part of the persistent cluster state and if all master nodes are marked for shutdown then no elections will take place. If we
          * want something similar in stateful ES then we'd need to allow the shutting-down nodes to win elections if there are no other

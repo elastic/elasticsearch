@@ -984,6 +984,7 @@ steps:
               - openjdk21
               - openjdk22
               - openjdk25
+              - openjdk26
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -1012,6 +1013,7 @@ steps:
               - openjdk21
               - openjdk22
               - openjdk25
+              - openjdk26
             BWC_VERSION: ["8.19.15"]
         agents:
           provider: gcp

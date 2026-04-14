@@ -504,8 +504,10 @@ public class SynonymsManagementAPIService {
     private void executeBulkChunks(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
         int end = Math.min(offset + bulkChunkSize, synonymsSet.length);
         boolean isLastChunk = end == synonymsSet.length;
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        try {
+        // Refresh only on the last chunk so all rules become visible on the same forced refresh.
+        WriteRequest.RefreshPolicy refreshPolicy = isLastChunk ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE;
+        ActionListener.run(listener, l -> {
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             if (offset == 0) {
                 // Synonym set object is always written in the first chunk
                 bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
@@ -513,29 +515,24 @@ public class SynonymsManagementAPIService {
             for (int i = offset; i < end; i++) {
                 bulkRequestBuilder.add(createSynonymRuleIndexRequest(synonymSetId, synonymsSet[i]));
             }
-        } catch (IOException ex) {
-            listener.onFailure(ex);
-            return;
-        }
-        // Refresh only on the last chunk so all rules become visible on the same forced refresh.
-        WriteRequest.RefreshPolicy refreshPolicy = isLastChunk ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE;
-        bulkRequestBuilder.setRefreshPolicy(refreshPolicy).execute(ActionListener.wrap(response -> {
-            if (response.hasFailures()) {
-                logUniqueFailureMessagesWithIndices(
-                    Arrays.stream(response.getItems())
-                        .filter(BulkItemResponse::isFailed)
-                        .map(BulkItemResponse::getFailure)
-                        .collect(Collectors.toList())
-                );
-                listener.onFailure(new ElasticsearchException("Error updating synonyms: " + response.buildFailureMessage()));
-                return;
-            }
-            if (isLastChunk) {
-                listener.onResponse(null);
-            } else {
-                executeBulkChunks(synonymSetId, synonymsSet, end, listener);
-            }
-        }, listener::onFailure));
+            bulkRequestBuilder.setRefreshPolicy(refreshPolicy).execute(ActionListener.wrap(response -> {
+                if (response.hasFailures()) {
+                    logUniqueFailureMessagesWithIndices(
+                        Arrays.stream(response.getItems())
+                            .filter(BulkItemResponse::isFailed)
+                            .map(BulkItemResponse::getFailure)
+                            .collect(Collectors.toList())
+                    );
+                    l.onFailure(new ElasticsearchException("Error updating synonyms: " + response.buildFailureMessage()));
+                    return;
+                }
+                if (isLastChunk) {
+                    l.onResponse(null);
+                } else {
+                    executeBulkChunks(synonymSetId, synonymsSet, end, l);
+                }
+            }, l::onFailure));
+        });
     }
 
     public void putSynonymRule(

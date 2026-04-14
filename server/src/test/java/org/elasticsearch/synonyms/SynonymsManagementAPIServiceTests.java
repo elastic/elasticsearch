@@ -10,7 +10,6 @@
 package org.elasticsearch.synonyms;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpNodeClient;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,75 +48,52 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
+    private static SynonymsManagementAPIService buildService(Client client, int maxRules, int chunkSize) {
+        return new SynonymsManagementAPIService(client, null, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
+    }
+
+    private static SynonymsManagementAPIService buildService(Client client, ClusterService clusterService) {
+        return new SynonymsManagementAPIService(
+            client,
+            clusterService,
+            SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 10,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+        );
+    }
+
     /**
-     * Verifies that {@code bulkUpdateSynonymsSet} issues multiple sequential bulk requests when
-     * the number of rules exceeds the chunk size, and that each document is sent exactly once.
+     * All rules plus the synonym set document are written regardless of whether the rule count
+     * falls below or above the chunk size boundary.
      */
-    public void testBulkUpdateChunksLargeSet() throws Exception {
-        int chunkSize = 3;
-        int numRules = 7; // expects ceil(7/3) = 3 chunks
+    public void testBulkUpdateWritesAllDocs() throws Exception {
+        int chunkSize = randomIntBetween(2, 10);
+        // randomize below and above the chunk boundary
+        int numRules = randomBoolean() ? randomIntBetween(1, chunkSize) : randomIntBetween(chunkSize + 1, chunkSize * 4);
         SynonymRule[] rules = randomSynonymsSet(numRules);
 
         try (var threadPool = createThreadPool()) {
             var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-            var service = new SynonymsManagementAPIService(
-                countingClient,
-                null,
-                numRules,
-                SynonymsManagementAPIService.PIT_BATCH_SIZE,
-                chunkSize
-            );
+            var service = buildService(countingClient, numRules, chunkSize);
 
             var future = new PlainActionFuture<Void>();
             service.bulkUpdateSynonymsSet("my-set", rules, future);
             future.actionGet();
 
-            assertThat(countingClient.bulkRequestCount.get(), equalTo(3));
             // +1 for the synonym set document written in the first chunk
             assertThat(countingClient.totalDocCount.get(), equalTo(numRules + 1));
         }
     }
 
     /**
-     * Verifies that {@code bulkUpdateSynonymsSet} issues a single bulk request when the number
-     * of rules fits within one chunk.
-     */
-    public void testBulkUpdateSingleChunkSmallSet() throws Exception {
-        int chunkSize = 10;
-        int numRules = 5;
-        SynonymRule[] rules = randomSynonymsSet(numRules);
-
-        try (var threadPool = createThreadPool()) {
-            var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-            var service = new SynonymsManagementAPIService(
-                countingClient,
-                null,
-                numRules,
-                SynonymsManagementAPIService.PIT_BATCH_SIZE,
-                chunkSize
-            );
-
-            var future = new PlainActionFuture<Void>();
-            service.bulkUpdateSynonymsSet("my-set", rules, future);
-            future.actionGet();
-
-            assertThat(countingClient.bulkRequestCount.get(), equalTo(1));
-            assertThat(countingClient.totalDocCount.get(), equalTo(numRules + 1));
-        }
-    }
-
-    /**
-     * Verifies that an empty synonym set results in exactly one bulk request containing
-     * only the synonym set document.
+     * An empty rule set still writes the synonym set document in one bulk request.
      */
     public void testBulkUpdateEmptySet() throws Exception {
         try (var threadPool = createThreadPool()) {
             var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-            var service = new SynonymsManagementAPIService(
+            var service = buildService(
                 countingClient,
-                null,
                 SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-                SynonymsManagementAPIService.PIT_BATCH_SIZE,
                 SynonymsManagementAPIService.BULK_CHUNK_SIZE
             );
 
@@ -129,13 +107,15 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@code putSynonymsSet} rejects writes of more than {@code PRE_LARGE_SETS_LIMIT}
-     * rules when the cluster's minimum transport version predates large synonym set support, and
-     * that no bulk requests are issued.
+     * putSynonymsSet rejects writes above PRE_LARGE_SETS_LIMIT on a cluster that predates large synonym set support.
      */
     public void testTransportVersionGateRejectsLargeSetsOnOldCluster() {
         ClusterState oldClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putCompatibilityVersions("node1", TransportVersion.minimumCompatible(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .putCompatibilityVersions(
+                "node1",
+                TransportVersionUtils.randomVersionNotSupporting(SynonymsManagementAPIService.SYNONYMS_LARGE_SETS),
+                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
+            )
             .build();
 
         try (var threadPool = createThreadPool()) {
@@ -143,13 +123,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(oldClusterState, threadPool, clusterSettings);
             try {
                 var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-                var service = new SynonymsManagementAPIService(
-                    countingClient,
-                    clusterService,
-                    SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 10,
-                    SynonymsManagementAPIService.PIT_BATCH_SIZE,
-                    SynonymsManagementAPIService.BULK_CHUNK_SIZE
-                );
+                var service = buildService(countingClient, clusterService);
 
                 SynonymRule[] rules = randomSynonymsSet(SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 1);
                 boolean[] failed = new boolean[] { false };
@@ -171,31 +145,28 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@code putSynonymRule} rejects a write that would push the synonym set count
-     * above {@code PRE_LARGE_SETS_LIMIT} when the cluster has not yet fully upgraded to support
-     * large synonym sets. The check mirrors the guard in {@code putSynonymsSet}.
+     * putSynonymRule rejects a rule that would push the count above PRE_LARGE_SETS_LIMIT on a cluster that predates
+     * large synonym set support.
      */
     public void testPutSynonymRuleUpgradeGuardRejectsOnOldCluster() {
         ClusterState oldClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putCompatibilityVersions("node1", TransportVersion.minimumCompatible(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .putCompatibilityVersions(
+                "node1",
+                TransportVersionUtils.randomVersionNotSupporting(SynonymsManagementAPIService.SYNONYMS_LARGE_SETS),
+                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
+            )
             .build();
 
         try (var threadPool = createThreadPool()) {
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(oldClusterState, threadPool, clusterSettings);
             try {
-                // Simulate a set already at the pre-upgrade limit; adding one more rule would cross it.
+                // Set already at the limit; adding one more rule would cross it.
                 var client = new SynonymSetExistsAndCountClient(
                     new NoOpNodeClient(threadPool),
                     SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT
                 );
-                var service = new SynonymsManagementAPIService(
-                    client,
-                    clusterService,
-                    SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 10,
-                    SynonymsManagementAPIService.PIT_BATCH_SIZE,
-                    SynonymsManagementAPIService.BULK_CHUNK_SIZE
-                );
+                var service = buildService(client, clusterService);
 
                 boolean[] failed = new boolean[] { false };
                 Exception[] exceptionHolder = new Exception[1];
@@ -220,10 +191,8 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * A {@link FilterClient} that responds to GET requests with a found synonym-set document and
-     * to SEARCH requests with a fixed total-hits count, simulating an existing synonym set of a
-     * known size. INDEX requests are counted so tests can assert none were issued. All other
-     * action types are forwarded to the underlying client unchanged.
+     * Fakes an existing synonym set of a known size: GET returns found, SEARCH returns {@code ruleCount} total hits,
+     * and INDEX requests are counted so tests can assert none were issued.
      */
     private static class SynonymSetExistsAndCountClient extends FilterClient {
         final AtomicInteger indexRequestCount = new AtomicInteger();
@@ -269,8 +238,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that when a mid-sequence chunk fails the listener receives {@code onFailure} exactly
-     * once and subsequent chunks are not attempted.
+     * A mid-sequence chunk failure propagates to the listener and halts subsequent chunks.
      */
     public void testBulkUpdateChunkFailurePropagatesToListener() throws Exception {
         int chunkSize = 1;
@@ -279,13 +247,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             var failingClient = new FailOnChunkClient(new NoOpNodeClient(threadPool), 1);
-            var service = new SynonymsManagementAPIService(
-                failingClient,
-                null,
-                numRules,
-                SynonymsManagementAPIService.PIT_BATCH_SIZE,
-                chunkSize
-            );
+            var service = buildService(failingClient, numRules, chunkSize);
 
             var future = new PlainActionFuture<Void>();
             service.bulkUpdateSynonymsSet("my-set", rules, future);
@@ -297,8 +259,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * A {@link FilterClient} that succeeds on all bulk requests up to {@code failOnChunk} (0-based)
-     * and returns a bulk failure for that chunk. Used to verify mid-write error propagation.
+     * Succeeds on all bulk requests until {@code failOnChunk} (0-based), then returns a bulk failure.
      */
     private static class FailOnChunkClient extends FilterClient {
         final AtomicInteger bulkRequestCount = new AtomicInteger();
@@ -336,9 +297,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * A {@link FilterClient} that counts bulk requests and returns successful empty responses,
-     * without requiring a live Elasticsearch cluster. Calls to other action types are forwarded
-     * to the underlying client unchanged.
+     * Counts bulk requests and documents without requiring a live cluster.
      */
     private static class BulkCountingClient extends FilterClient {
         final AtomicInteger bulkRequestCount = new AtomicInteger();

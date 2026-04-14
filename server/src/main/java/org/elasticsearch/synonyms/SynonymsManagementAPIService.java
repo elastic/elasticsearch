@@ -126,7 +126,7 @@ public class SynonymsManagementAPIService {
     static final int PRE_LARGE_SETS_LIMIT = 10_000;
     // Gate writes above PRE_LARGE_SETS_LIMIT behind this version to prevent silent truncation on
     // old nodes during rolling upgrades
-    private static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
+    static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
@@ -453,7 +453,7 @@ public class SynonymsManagementAPIService {
             );
             return;
         }
-        if (clusterSupportsLargeSynonymSets(synonymsSet.length) == false) {
+        if (clusterSupportsSynonymSetSize(synonymsSet.length) == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
@@ -564,7 +564,7 @@ public class SynonymsManagementAPIService {
                         listener.onFailure(
                             new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
                         );
-                    } else if (clusterSupportsLargeSynonymSets(synonymsSetSize + 1) == false) {
+                    } else if (clusterSupportsSynonymSetSize(synonymsSetSize + 1) == false) {
                         listener.onFailure(
                             new IllegalStateException(
                                 "Cannot write more than "
@@ -697,14 +697,7 @@ public class SynonymsManagementAPIService {
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
 
-    /**
-     * Returns {@code true} if the cluster supports a synonym set of {@code resultingCount} rules.
-     * Writes that would result in more than {@link #PRE_LARGE_SETS_LIMIT} rules are gated behind
-     * {@link #SYNONYMS_LARGE_SETS} to prevent silent truncation on older nodes during rolling upgrades.
-     *
-     * @param resultingCount the total number of rules that will exist after the write completes
-     */
-    private boolean clusterSupportsLargeSynonymSets(long resultingCount) {
+    private boolean clusterSupportsSynonymSetSize(long resultingCount) {
         if (resultingCount <= PRE_LARGE_SETS_LIMIT) {
             return true;
         }

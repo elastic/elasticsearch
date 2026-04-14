@@ -140,7 +140,7 @@ public interface IndexAbstraction {
 
         /**
          * An index abstraction that refers to a named external dataset.
-         * Datasets inherit credentials from a parent datasource and point to external data.
+         * Datasets inherit credentials from a parent data source and point to external data.
          */
         DATASET("dataset");
 

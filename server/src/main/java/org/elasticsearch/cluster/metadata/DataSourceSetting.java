@@ -23,8 +23,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A validated datasource setting value paired with its sensitivity classification.
- * Stored in cluster state as part of datasource metadata.
+ * A validated data source setting value paired with its sensitivity classification.
+ * Stored in cluster state as part of data source metadata.
  *
  * <p>Non-secret settings may carry any JSON-native value (String, Integer, Long, Double,
  * Boolean, or null). Secret settings must be String-valued (or null); the constructor
@@ -76,7 +76,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         // and `null instanceof String` would throw NPE if the null-check were skipped.
         if (secret && value != null && value instanceof String == false) {
             throw new IllegalArgumentException(
-                "secret datasource settings must be String-valued; got [" + value.getClass().getName() + "]"
+                "secret data source settings must be String-valued; got [" + value.getClass().getName() + "]"
             );
         }
         this.value = value;

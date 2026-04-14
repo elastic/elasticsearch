@@ -99,7 +99,7 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         // Excludes API context: the raw XContent contains plaintext secret setting values, which must not appear in
-        // GET /_cluster/state. The CRUD REST layer exposes datasources separately via a masked path (presentationValue).
+        // GET /_cluster/state. The CRUD REST layer exposes data sources separately via a masked path (presentationValue).
         return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 

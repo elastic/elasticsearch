@@ -230,7 +230,12 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         // Updating an existing rule at max capacity should succeed
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> updateFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymRule(synonymSetId, synonymsSet[randomIntBetween(0, maxSynonymRules - 1)], randomBoolean(), updateFuture);
+        synonymsManagementAPIService.putSynonymRule(
+            synonymSetId,
+            synonymsSet[randomIntBetween(0, maxSynonymRules - 1)],
+            randomBoolean(),
+            updateFuture
+        );
         updateFuture.actionGet();
     }
 

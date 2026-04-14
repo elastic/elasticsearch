@@ -37,6 +37,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -95,28 +96,61 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
+    private final boolean optimizedReader;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
+    static final String OPTIMIZED_READER_CONFIG_KEY = "optimized_reader";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null);
+        this(blockFactory, FilterCompat.NOOP, null, false);
     }
 
-    private ParquetFormatReader(BlockFactory blockFactory, FilterCompat.Filter pushedFilter, ParquetPushedExpressions pushedExpressions) {
+    ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader);
+    }
+
+    private ParquetFormatReader(
+        BlockFactory blockFactory,
+        FilterCompat.Filter pushedFilter,
+        ParquetPushedExpressions pushedExpressions,
+        boolean optimizedReader
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
+        this.optimizedReader = optimizedReader;
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null);
+            return new ParquetFormatReader(blockFactory, filter, null, optimizedReader);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs);
+            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, optimizedReader);
         }
         return this;
+    }
+
+    @Override
+    public ParquetFormatReader withConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return this;
+        }
+        Object value = config.get(OPTIMIZED_READER_CONFIG_KEY);
+        if (value == null) {
+            return this;
+        }
+        boolean enabled;
+        if (value instanceof Boolean b) {
+            enabled = b;
+        } else {
+            enabled = Booleans.parseBoolean(value.toString());
+        }
+        if (enabled == this.optimizedReader) {
+            return this;
+        }
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, enabled);
     }
 
     @Override
@@ -340,6 +374,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
         String createdBy = fileMetaData.getCreatedBy();
+        if (optimizedReader) {
+            ColumnInfo[] columnInfos = buildColumnInfos(reader, projectedSchema, projectedAttributes, object.path().toString());
+            return new OptimizedParquetColumnIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                rowLimit,
+                createdBy,
+                object.path().toString(),
+                columnInfos,
+                PreloadedRowGroupMetadata.empty()
+            );
+        }
         return new ParquetColumnIterator(
             reader,
             projectedSchema,
@@ -505,6 +554,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
         String createdBy = fileMetaData.getCreatedBy();
+        if (optimizedReader) {
+            ColumnInfo[] columnInfos = buildColumnInfos(reader, projectedSchema, projectedAttributes, object.path().toString());
+            return new OptimizedParquetColumnIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                NO_LIMIT,
+                createdBy,
+                object.path().toString(),
+                columnInfos,
+                PreloadedRowGroupMetadata.empty()
+            );
+        }
         return new ParquetColumnIterator(
             reader,
             projectedSchema,
@@ -789,7 +853,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             columnReaders = new ColumnReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
                 if (columnInfos[i] != null) {
-                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
+                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
                 }
             }
             return rowsRemainingInGroup > 0;
@@ -863,17 +927,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead) {
-            if (info.maxRepLevel > 0) {
+            if (info.maxRepLevel() > 0) {
                 return readListColumn(cr, info, rowsToRead);
             }
-            return switch (info.esqlType) {
-                case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel, rowsToRead);
-                case INTEGER -> readIntColumn(cr, info.maxDefLevel, rowsToRead);
+            return switch (info.esqlType()) {
+                case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
+                case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
                 case LONG -> {
-                    if (info.parquetType == PrimitiveType.PrimitiveTypeName.INT32) {
-                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel, rowsToRead);
+                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
                     }
-                    yield readLongColumn(cr, info.maxDefLevel, rowsToRead);
+                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
                 }
                 case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
                 case KEYWORD, TEXT -> readBytesRefColumn(cr, info, rowsToRead);
@@ -959,19 +1023,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readDoubleColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            LogicalTypeAnnotation logical = info.logicalType;
+            LogicalTypeAnnotation logical = info.logicalType();
             if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
                 return readDecimalAsDoubleColumn(cr, info, decimal.getScale(), rows);
             }
             if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
-                return readFloat16Column(cr, info.maxDefLevel, rows);
+                return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
             double[] values = new double[rows];
-            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
+            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
-            boolean isFloat = info.parquetType == PrimitiveType.PrimitiveTypeName.FLOAT;
+            boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
+                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull[i] = true;
                     noNulls = false;
                 } else {
@@ -984,18 +1048,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
             double[] values = new double[rows];
-            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
+            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
+                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull[i] = true;
                     noNulls = false;
                 } else {
-                    BigInteger unscaled = switch (info.parquetType) {
+                    BigInteger unscaled = switch (info.parquetType()) {
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
                         case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
-                        default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType);
+                        default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
                 }
@@ -1023,10 +1087,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            boolean isUuid = info.logicalType instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
+            boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
             try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
                 for (int i = 0; i < rows; i++) {
-                    if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
+                    if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                         builder.appendNull();
                     } else if (isUuid) {
                         builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())));
@@ -1040,22 +1104,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            if (info.parquetType == PrimitiveType.PrimitiveTypeName.INT96) {
-                return readInt96TimestampColumn(cr, info.maxDefLevel, rows);
+            if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+                return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
             long[] values = new long[rows];
-            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
+            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
-            boolean isDate = info.parquetType == PrimitiveType.PrimitiveTypeName.INT32;
+            boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
+                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull[i] = true;
                     noNulls = false;
                 } else if (isDate) {
                     values[i] = cr.getInteger() * MILLIS_PER_DAY;
                 } else {
                     long raw = cr.getLong();
-                    values[i] = convertTimestampToMillis(raw, info.logicalType);
+                    values[i] = convertTimestampToMillis(raw, info.logicalType());
                 }
                 cr.consume();
             }
@@ -1104,8 +1168,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          * null elements within lists correctly.
          */
         private Block readListColumn(ColumnReader cr, ColumnInfo info, int rows) {
-            DataType elementType = info.esqlType;
-            int maxDef = info.maxDefLevel;
+            DataType elementType = info.esqlType();
+            int maxDef = info.maxDefLevel();
             return switch (elementType) {
                 case INTEGER -> readListIntColumn(cr, maxDef, rows);
                 case LONG -> readListLongColumn(cr, maxDef, rows);
@@ -1330,16 +1394,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         private Block readListDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
             try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-                int maxDef = info.maxDefLevel;
+                int maxDef = info.maxDefLevel();
                 for (int row = 0; row < rows; row++) {
                     int def = cr.getCurrentDefinitionLevel();
                     if (def >= maxDef) {
                         builder.beginPositionEntry();
-                        builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                        builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
                         cr.consume();
                         while (cr.getCurrentRepetitionLevel() > 0) {
                             if (cr.getCurrentDefinitionLevel() >= maxDef) {
-                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
                             }
                             cr.consume();
                         }
@@ -1353,7 +1417,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                                     builder.beginPositionEntry();
                                     hasValues = true;
                                 }
-                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType()));
                             }
                             cr.consume();
                         }
@@ -1396,14 +1460,42 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
     }
 
-    private record ColumnInfo(
-        ColumnDescriptor descriptor,
-        PrimitiveType.PrimitiveTypeName parquetType,
-        DataType esqlType,
-        int maxDefLevel,
-        int maxRepLevel,
-        LogicalTypeAnnotation logicalType
-    ) {}
+    /**
+     * Builds column metadata array for both baseline and optimized iterators.
+     * Validates planner types against the file schema and nulls out incompatible columns.
+     */
+    static ColumnInfo[] buildColumnInfos(
+        ParquetFileReader reader,
+        MessageType projectedSchema,
+        List<Attribute> attributes,
+        String fileLocation
+    ) {
+        ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
+        Map<String, ColumnDescriptor> descByName = new HashMap<>();
+        for (ColumnDescriptor desc : projectedSchema.getColumns()) {
+            descByName.put(desc.getPath()[0], desc);
+        }
+        for (int i = 0; i < attributes.size(); i++) {
+            Attribute attr = attributes.get(i);
+            if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            ColumnDescriptor desc = descByName.get(attr.name());
+            if (desc != null) {
+                LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
+                columnInfos[i] = new ColumnInfo(
+                    desc,
+                    desc.getPrimitiveType().getPrimitiveTypeName(),
+                    attr.dataType(),
+                    desc.getMaxDefinitionLevel(),
+                    desc.getMaxRepetitionLevel(),
+                    logicalType
+                );
+            }
+        }
+        validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos);
+        return columnInfos;
+    }
 
     /**
      * Minimal GroupConverter that satisfies {@link ColumnReadStoreImpl}'s constructor.

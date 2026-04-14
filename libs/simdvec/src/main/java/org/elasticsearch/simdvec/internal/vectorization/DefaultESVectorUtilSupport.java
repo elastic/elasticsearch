@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -506,6 +507,14 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
+        int dim = out.length;
+        for (int i = 0; i < dim; i++) {
+            out[i] = ESVectorUtil.dotProduct(matrix[i], vector);
+        }
     }
 
     @Override

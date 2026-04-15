@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator.GeneratedIndex;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -62,46 +61,17 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
-    /**
-     * Additional error patterns beyond {@link GenerativeRestTest#ALLOWED_ERRORS}
-     * for errors caused by exotic field types (dense_vector, aggregate_metric_double,
-     * histogram, range types, rank_feature, completion, etc.).
-     */
     private static final Set<String> ADDITIONAL_ALLOWED_ERRORS = Set.of(
-        // Type ambiguity across indices with conflicting mappings for the same field name
-        //"Cannot use field \\[.*\\] due to ambiguities being mapped as \\[.*\\] in .*",
-        // Unsupported types: dense_vector, aggregate_metric_double, histogram, etc.
-        //"Cannot use field \\[.*\\] with unsupported type \\[unsupported\\]",
-        //"found value \\[.*\\] type \\[unsupported\\]",
-        //"Dense vector \\[.*\\] cannot be used",
-        // Sorting limitations for exotic types
-        //"cannot sort on \\[.*\\] of type \\[.*_range\\]",
-        //"cannot sort on \\[.*\\] of type \\[geo_.*\\]",
-        //"cannot sort on \\[.*\\] of type \\[shape\\]",
-        //"cannot sort on \\[.*\\] of type \\[point\\]",
-        //"cannot sort on \\[.*\\] of type \\[unsupported\\]",
-        //"Sorting by range field \\[.*\\] is not supported",
-        // Field operations on text/fielddata-disabled fields
-        //"Fielddata is not supported on field \\[.*\\] of type \\[.*\\]",
-        //"Text fields are not optimised for operations that require per-document field data",
-        //"Fielddata is disabled on \\[.*\\] in \\[.*\\]",
-        // Aggregate/metric type restrictions
-        //"is not supported for \\[aggregate_metric_double\\]",
-        //"is not supported for \\[histogram\\]",
-        // Total fields limit
-        //"Limit of total fields \\[.*\\] has been exceeded",
-        // Partial results from range doc values reader bugs (known ES issue with date_range/other range types)
-        //"RangeArrayBlock.*has \\[\\d+\\] positions instead of"
+        // DateRangeDocValuesReader produces blocks with incorrect position counts when reading date_range
+        // fields with multi-value documents. The mismatch causes an IllegalStateException at the compute layer,
+        // surfaced as partial results. https://github.com/elastic/elasticsearch/issues/146380
+        "RangeArrayBlock.*has \\[\\d+\\] positions instead of"
     );
 
     private static final Set<Pattern> ADDITIONAL_ALLOWED_PATTERNS = ADDITIONAL_ALLOWED_ERRORS.stream()
         .map(x -> ".*" + x + ".*")
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
-
-    // ──────────────────────────────────────────────────
-    // Setup / teardown
-    // ──────────────────────────────────────────────────
 
     @Before
     public void setupRandomIndices() throws IOException {
@@ -114,7 +84,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                     bulkLoadDocuments(idx);
                 }
                 generatedIndices = indices;
-                logger.info("Created {} random mapping indices: {}", indices.size(), indexNames());
             }
         }
     }
@@ -129,10 +98,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         generatedIndices = null;
     }
 
-    // ──────────────────────────────────────────────────
-    // Test — simpler loop without lookup/enrich/unmapped tracking
-    // ──────────────────────────────────────────────────
-
     @Override
     public void test() throws IOException {
         List<String> names = indexNames();
@@ -146,10 +111,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                     QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
-
-                    if (FromGenerator.hasApproximationSettings(result.query())) {
-                        result = stripApproximationColumns(result);
-                    }
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
@@ -203,33 +164,18 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 String query = exec.previousResult != null ? exec.previousResult.query() : null;
                 throw new AssertionError(ae.getMessage() + formatReproductionContext(query), ae.getCause() != null ? ae.getCause() : ae);
             } catch (Exception e) {
-                if (e.getMessage() != null && isAdditionalAllowedError(e.getMessage())) {
+                String errorMessage = e.getMessage();
+                if (isAdditionalAllowedError(errorMessage) || isAllowedError(errorMessage)) {
                     continue;
                 }
-                boolean knownError = false;
-                if (e.getMessage() != null) {
-                    for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                        if (isAllowedError(e.getMessage(), allowedError)) {
-                            knownError = true;
-                            break;
-                        }
-                    }
-                }
-                if (knownError == false) {
-                    String query = exec.previousResult != null ? exec.previousResult.query() : null;
-                    throw new AssertionError(
-                        "Random mapping generative tests, error generating new command"
-                            + formatReproductionContext(query),
-                        e
-                    );
-                }
+                String query = exec.previousResult != null ? exec.previousResult.query() : null;
+                throw new AssertionError(
+                    "Random mapping generative tests, error generating new command" + formatReproductionContext(query),
+                    e
+                );
             }
         }
     }
-
-    // ──────────────────────────────────────────────────
-    // Extended error handling — adds random-mapping patterns
-    // ──────────────────────────────────────────────────
 
     @Override
     protected CommandGenerator.ValidationResult checkPipelineResults(
@@ -274,47 +220,49 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     private static boolean isAdditionalAllowedError(String errorMessage) {
         if (errorMessage == null) return false;
         for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
-            if (p.matcher(errorMessage).matches()) {
+            if (isAllowedError(errorMessage, p)) {
                 return true;
             }
         }
         return false;
     }
 
-    // ──────────────────────────────────────────────────
-    // Failure context — full reproduction commands
-    // ──────────────────────────────────────────────────
-
     private static String formatReproductionContext(String query) {
         List<GeneratedIndex> indices = generatedIndices;
         if (indices == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("\n\n=== Reproduction commands (copy-paste into Kibana Dev Tools) ===\n");
+        StringBuilder sb = new StringBuilder("\n\n=== Reproduction commands ===\n");
         for (GeneratedIndex idx : indices) {
             sb.append("\nPUT /").append(idx.name()).append("\n");
             sb.append("{\"mappings\":{").append(RandomMappingGenerator.toMappingJson(idx.fields())).append("}}\n");
+        }
 
-            sb.append("\nPOST /").append(idx.name()).append("/_bulk?refresh=true\n");
+        StringBuilder bulkBody = new StringBuilder();
+        for (GeneratedIndex idx : indices) {
             for (Map<String, Object> doc : idx.documents()) {
                 if (doc.isEmpty()) {
                     continue;
                 }
-                sb.append("{\"index\":{}}\n");
-                sb.append(RandomMappingGenerator.toDocumentJson(doc)).append("\n");
+                bulkBody.append("{\"index\":{\"_index\":\"").append(idx.name()).append("\"}}\n");
+                bulkBody.append(RandomMappingGenerator.toDocumentJson(doc)).append("\n");
             }
+        }
+        if (bulkBody.isEmpty() == false) {
+            sb.append("\nPOST /_bulk?refresh=true\n");
+            sb.append(bulkBody);
         }
         if (query != null) {
             sb.append("\nPOST /_query\n");
-            sb.append("{\"query\":\"").append(query.replace("\\", "\\\\").replace("\"", "\\\"")).append("\"}\n");
+            sb.append("{\"query\":\"").append(escapeJsonString(query)).append("\"}\n");
         }
         sb.append("\n=== End of reproduction commands ===\n");
         return sb.toString();
     }
 
-    // ──────────────────────────────────────────────────
-    // Helpers
-    // ──────────────────────────────────────────────────
+    private static String escapeJsonString(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
 
     private static List<String> indexNames() {
         List<String> names = new ArrayList<>();
@@ -324,14 +272,9 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         return names;
     }
 
-    // ──────────────────────────────────────────────────
-    // Index creation and data loading
-    // ──────────────────────────────────────────────────
-
     private void createRandomIndex(GeneratedIndex idx) throws IOException {
         String mappingJson = RandomMappingGenerator.toMappingJson(idx.fields());
         createIndex(idx.name(), null, mappingJson, null, MAPPING_DEPRECATION_OPTIONS);
-        logger.info("Created index [{}] with mapping: {}", idx.name(), mappingJson);
     }
 
     @SuppressWarnings("unchecked")
@@ -375,6 +318,5 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 docCount
             );
         }
-        logger.info("Loaded {} documents into [{}]", docCount, idx.name());
     }
 }

@@ -46,7 +46,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     /**
      * The default timeout used for all task types prior to {@link BaseInferenceActionRequest#INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED}
      */
-    public static final TimeValue OLD_DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue OLD_DEFAULT_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     private static final Map<TaskType, TimeValue> DEFAULT_TIMEOUTS_MAP = Map.of(
         TaskType.TEXT_EMBEDDING,
@@ -111,6 +111,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
      * @param taskType The task type for which the default timeout should be returned
      */
     public static TimeValue getDefaultTimeoutForTaskType(TaskType taskType) {
+        Objects.requireNonNull(taskType);
         return DEFAULT_TIMEOUTS_MAP.get(taskType);
     }
 

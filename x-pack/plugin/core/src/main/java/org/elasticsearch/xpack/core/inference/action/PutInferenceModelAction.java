@@ -79,7 +79,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             if (in.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
                 this.timeout = in.readTimeValue();
             } else {
-                this.timeout = BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+                this.timeout = TIMEOUT_NOT_DETERMINED;
             }
         }
 

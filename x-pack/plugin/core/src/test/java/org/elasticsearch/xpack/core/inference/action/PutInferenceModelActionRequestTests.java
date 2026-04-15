@@ -32,59 +32,59 @@ public class PutInferenceModelActionRequestTests extends AbstractBWCWireSerializ
         "inference_add_timeout_put_endpoint"
     );
 
-    public static TaskType TASK_TYPE;
-    public static String MODEL_ID;
-    public static XContentType X_CONTENT_TYPE;
-    public static BytesReference BYTES;
+    private TaskType taskType;
+    private String modelId;
+    private XContentType xContentType;
+    private BytesReference bytes;
 
     @Before
     public void setup() throws Exception {
-        TASK_TYPE = TaskType.SPARSE_EMBEDDING;
-        MODEL_ID = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        X_CONTENT_TYPE = randomFrom(XContentType.values());
-        BYTES = new BytesArray(randomAlphaOfLengthBetween(1, 10));
+        taskType = randomFrom(TaskType.values());
+        modelId = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        xContentType = randomFrom(XContentType.values());
+        bytes = new BytesArray(randomAlphaOfLengthBetween(1, 10));
     }
 
     public void testConstructor_WithNullTimeout_UsesPlaceholder() {
-        var request = new PutInferenceModelAction.Request(randomFrom(TaskType.values()), MODEL_ID, BYTES, X_CONTENT_TYPE, null);
+        var request = new PutInferenceModelAction.Request(randomFrom(TaskType.values()), modelId, bytes, xContentType, null);
         assertThat(request.getTimeout(), is(TIMEOUT_NOT_DETERMINED));
     }
 
     public void testConstructor_WithNonNullTimeout_UsesTimeout() {
         var timeout = randomTimeValue();
-        var request = new PutInferenceModelAction.Request(randomFrom(TaskType.values()), MODEL_ID, BYTES, X_CONTENT_TYPE, timeout);
+        var request = new PutInferenceModelAction.Request(randomFrom(TaskType.values()), modelId, bytes, xContentType, timeout);
         assertThat(request.getTimeout(), is(timeout));
     }
 
     public void testValidate() {
         // valid model ID
-        var request = new PutInferenceModelAction.Request(TASK_TYPE, MODEL_ID + "_-0", BYTES, X_CONTENT_TYPE, null);
+        var request = new PutInferenceModelAction.Request(taskType, modelId + "_-0", bytes, xContentType, null);
         ActionRequestValidationException validationException = request.validate();
         assertNull(validationException);
 
         // invalid model IDs
 
-        var invalidRequest = new PutInferenceModelAction.Request(TASK_TYPE, "", BYTES, X_CONTENT_TYPE, null);
+        var invalidRequest = new PutInferenceModelAction.Request(taskType, "", bytes, xContentType, null);
         validationException = invalidRequest.validate();
         assertNotNull(validationException);
 
         var invalidRequest2 = new PutInferenceModelAction.Request(
-            TASK_TYPE,
+            taskType,
             randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStringsTests.SOME_INVALID_CHARS),
-            BYTES,
-            X_CONTENT_TYPE,
+            bytes,
+            xContentType,
             null
         );
         validationException = invalidRequest2.validate();
         assertNotNull(validationException);
 
-        var invalidRequest3 = new PutInferenceModelAction.Request(TASK_TYPE, null, BYTES, X_CONTENT_TYPE, null);
+        var invalidRequest3 = new PutInferenceModelAction.Request(taskType, null, bytes, xContentType, null);
         validationException = invalidRequest3.validate();
         assertNotNull(validationException);
     }
 
     public void testValidate_ReturnsException_WhenIdStartsWithADot() {
-        var invalidRequest = new PutInferenceModelAction.Request(TASK_TYPE, ".elser-2-elastic", BYTES, X_CONTENT_TYPE, null);
+        var invalidRequest = new PutInferenceModelAction.Request(taskType, ".elser-2-elastic", bytes, xContentType, null);
         var validationException = invalidRequest.validate();
         assertNotNull(validationException);
     }
@@ -127,11 +127,11 @@ public class PutInferenceModelActionRequestTests extends AbstractBWCWireSerializ
 
     @Override
     protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) throws IOException {
-        var taskType = randomFrom(TaskType.values());
-        var inferenceEntityId = randomIdentifier();
-        var content = randomBytesReference(10);
-        var contentType = randomFrom(XContentType.values());
-        var timeout = randomFrom(randomTimeValue(), null);
+        var taskType = instance.getTaskType();
+        var inferenceEntityId = instance.getInferenceEntityId();
+        var content = instance.getContent();
+        var contentType = instance.getContentType();
+        var timeout = instance.getTimeout();
         switch (randomIntBetween(0, 4)) {
             case 0 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
             case 1 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, ESTestCase::randomIdentifier);

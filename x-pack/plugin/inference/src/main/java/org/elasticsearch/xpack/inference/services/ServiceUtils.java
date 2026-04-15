@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSetti
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeGreaterThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
-import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.FALLBACK_TIMEOUT;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
@@ -1116,11 +1115,12 @@ public final class ServiceUtils {
                 return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
             } else {
                 var defaultTimeoutForTaskType = BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType);
-                // Fall back to a generic timeout in case one could not be determined for the task type, but log a warning
                 if (defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED)) {
-                    logger.warn("Default inference timeout could not be determined for task type [{}]", taskType);
+                    throw new IllegalArgumentException(
+                        Strings.format("Default inference timeout could not be determined for task type [%s]", taskType)
+                    );
                 }
-                return defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED) ? FALLBACK_TIMEOUT : defaultTimeoutForTaskType;
+                return defaultTimeoutForTaskType;
             }
         }
         return timeout;

@@ -24,8 +24,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
@@ -1137,16 +1137,24 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testResolveInferenceTimeout_WithNullTimeout_ReturnsExpectedTimeoutByInputType() {
+        testResolveInferenceTimeout_ReturnsExpectedTimeoutByInputType(null);
+    }
+
+    public void testResolveInferenceTimeout_WithUndeterminedTimeout_ReturnsExpectedTimeoutByInputType() {
+        testResolveInferenceTimeout_ReturnsExpectedTimeoutByInputType(TIMEOUT_NOT_DETERMINED);
+    }
+
+    private static void testResolveInferenceTimeout_ReturnsExpectedTimeoutByInputType(TimeValue providedTimeout) {
         var configuredTimeout = TimeValue.timeValueSeconds(10);
         var clusterService = mockClusterService(
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
         for (InputType inputType : InputType.values()) {
-            for (TaskType taskType : TaskType.values()) {
-                TimeValue expectedTimeout = getTimeoutProviderForInputType(inputType, configuredTimeout).apply(taskType);
+            for (TaskType taskType : EnumSet.complementOf(EnumSet.of(TaskType.ANY))) {
+                TimeValue expectedTimeout = getTimeoutForInputType(inputType, taskType, configuredTimeout);
 
-                var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService, taskType);
+                var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService, taskType);
                 assertEquals(
                     "Input type " + inputType + " with task type " + taskType + " should return expected timeout",
                     expectedTimeout,
@@ -1156,19 +1164,50 @@ public class ServiceUtilsTests extends ESTestCase {
         }
     }
 
-    private static Function<TaskType, TimeValue> getTimeoutProviderForInputType(InputType inputType, TimeValue configuredTimeout) {
+    public void testResolveInferenceTimeout_TaskTypeAny_WithNullTimeout_ThrowsWhenInputTypeIsNotSearch() {
+        testResolveInferenceTimeout_TaskTypeAny_ThrowsWhenInputTypeIsNotSearch(null);
+    }
+
+    public void testResolveInferenceTimeout_TaskTypeAny_WithUndeterminedTimeout_ThrowsWhenInputTypeIsNotSearch() {
+        testResolveInferenceTimeout_TaskTypeAny_ThrowsWhenInputTypeIsNotSearch(TIMEOUT_NOT_DETERMINED);
+    }
+
+    private static void testResolveInferenceTimeout_TaskTypeAny_ThrowsWhenInputTypeIsNotSearch(TimeValue providedTimeout) {
+        var configuredTimeout = TimeValue.timeValueSeconds(10);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
+        );
+
+        for (InputType inputType : InputType.values()) {
+            var taskType = TaskType.ANY;
+            if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
+                assertEquals(
+                    "Input type " + inputType + " with task type " + taskType + " should return expected timeout",
+                    configuredTimeout,
+                    ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService, taskType)
+                );
+            } else {
+                var exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService, taskType)
+                );
+                assertThat(exception.getMessage(), is("Default inference timeout could not be determined for task type [any]"));
+            }
+        }
+    }
+
+    private static TimeValue getTimeoutForInputType(InputType inputType, TaskType taskType, TimeValue configuredTimeout) {
         return switch (inputType) {
-            case InputType.SEARCH, INTERNAL_SEARCH -> t -> configuredTimeout;
-            default -> ServiceUtilsTests::getExpectedTimeoutForTaskType;
+            case InputType.SEARCH, INTERNAL_SEARCH -> configuredTimeout;
+            default -> ServiceUtilsTests.getExpectedTimeoutForTaskType(taskType);
         };
     }
 
     private static TimeValue getExpectedTimeoutForTaskType(TaskType taskType) {
         return switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING -> TimeValue.timeValueSeconds(30);
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING -> TimeValue.THIRTY_SECONDS;
             case COMPLETION, CHAT_COMPLETION -> TimeValue.timeValueSeconds(120);
-            // If the task type is still unknown when resolveInferenceTimeout() is called, a fallback timeout is returned
-            case ANY -> TimeValue.THIRTY_SECONDS;
+            default -> throw new IllegalArgumentException("Invalid task type " + taskType);
         };
     }
 }

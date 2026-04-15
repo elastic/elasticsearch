@@ -184,10 +184,9 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        // collapsed is captured in the lambda because NodeInfo.create supports up to 11 params
         return NodeInfo.create(
             this,
-            (s, child, plan, st, en, stp, bk, si, vcn, vi, sti, ts) -> new PromqlCommand(
+            (s, child, plan, st, en, stp, bk, si, vcn, vi, sti, ts, col) -> new PromqlCommand(
                 s,
                 child,
                 plan,
@@ -200,7 +199,7 @@ public class PromqlCommand extends UnaryPlan
                 vi,
                 sti,
                 ts,
-                collapsed
+                col
             ),
             child(),
             promqlPlan(),
@@ -212,7 +211,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            isCollapsed()
         );
     }
 

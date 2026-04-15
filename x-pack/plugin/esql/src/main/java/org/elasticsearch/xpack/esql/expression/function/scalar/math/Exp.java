@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +33,11 @@ import java.util.List;
 public class Exp extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Exp", Exp::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Exp.class).unary(Exp::new).name("exp");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Exp::new)
+        .description("Calculates the exponential function for all elements in the input vector.")
+        .example("exp(rate(http_requests_total[5m]))")
+        .name("exp");
 
     @FunctionInfo(
         returnType = { "double" },

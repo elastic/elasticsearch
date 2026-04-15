@@ -11,11 +11,10 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.Request;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public abstract class JinaAIRequest implements Request {
+public final class JinaAIRequestUtils {
 
     public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -23,4 +22,5 @@ public abstract class JinaAIRequest implements Request {
         request.setHeader(JinaAIUtils.createRequestSourceHeader());
     }
 
+    private JinaAIRequestUtils() {}
 }

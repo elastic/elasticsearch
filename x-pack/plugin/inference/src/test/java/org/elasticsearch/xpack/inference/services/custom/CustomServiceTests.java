@@ -166,7 +166,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();

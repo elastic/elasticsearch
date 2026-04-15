@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSn
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -50,6 +51,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -60,9 +63,13 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -128,7 +135,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
-            maybeMountSearchableSnapshot();
+            maybeMountSearchableSnapshot(forceMergeIndex);
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
                 // if the original index was not found, then we can assume
@@ -382,9 +389,72 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    public void maybeMountSearchableSnapshot() throws InterruptedException {
+    public void maybeMountSearchableSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+
+        if (isSnapshotMounted()) {
+            logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName(forceMergeIndex));
+            return;
+        }
+
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        String snapshotName = snapshotName(forceMergeIndex);
+        String mountedIndexName = snapshotName(indexName);
+
+        // We ignore these settings when mounting the snapshot to frozen:
+        // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
+        // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
+        // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
+        // allocate all the shards in the frozen tier and the user does not have any way of
+        // fixing this. For this reason, we ignore this setting when moving to frozen.
+        // - LifecycleSettings.LIFECYCLE_NAME:
+        // Avoids potential conflicts with ILM.
+        // - DataTier.TIER_PREFERENCE:
+        // Since we are moving to frozen, we want to ensure that any existing tier preferences
+        // do not interfere with the allocation of the mounted index to the frozen tier.
+        String[] ignoredIndexSettings = new String[] {
+            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
+            LifecycleSettings.LIFECYCLE_NAME,
+            DataTier.TIER_PREFERENCE };
+
+        MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
+            mountedIndexName,
+            getRepositoryForFrozen(projectMetadata, indexName),
+            snapshotName,
+            forceMergeIndex,
+            Settings.EMPTY,
+            ignoredIndexSettings,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        logger.debug("DLM attempting to mount frozen index [{}]", snapshotName);
+        try {
+            RestoreSnapshotResponse resp = client.projectClient(projectId)
+                .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest)
+                .get();
+            RestoreInfo restoreInfo = resp.getRestoreInfo();
+            if (restoreInfo == null) {
+                throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
+            }
+            if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
+                throw new ElasticsearchException(
+                    "DLM failed to mount snapshot [{}] because there were failed shards or no successful shards. Restore info: [{}]",
+                    snapshotName,
+                    restoreInfo
+                );
+            }
+            logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
+        }
+
     }
 
     private boolean isIndexReadOnly() {
@@ -923,6 +993,15 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     static String snapshotName(String indexName) {
         return SNAPSHOT_NAME_PREFIX + indexName;
+    }
+
+    /**
+     * Checks whether the snapshot for the index is already mounted by
+     * looking for an index with the expected mounted name in the project metadata.
+     */
+    boolean isSnapshotMounted() {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        return projectMetadata.indices().containsKey(snapshotName(indexName));
     }
 
 }

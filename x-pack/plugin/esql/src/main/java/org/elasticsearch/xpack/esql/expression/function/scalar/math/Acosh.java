@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +30,11 @@ import java.util.List;
 public class Acosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Acosh", Acosh::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Acosh.class).unary(Acosh::new).name("acosh");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Acosh::new)
+        .description("Calculates the inverse hyperbolic cosine of all elements in the input vector.")
+        .example("acosh(some_metric)")
+        .name("acosh");
 
     private static final double LN2 = Math.log(2);
     private static final double LARGE = (double) (1L << 28);

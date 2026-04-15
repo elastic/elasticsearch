@@ -230,7 +230,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected OpenShiftAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected OpenShiftAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();

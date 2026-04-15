@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -355,6 +356,113 @@ public class HierarchicalKMeans {
     }
 
     /**
+     * Reduce a large set of centroids to targetCount using lightweight weighted K-means.
+     * Each centroid is weighted by its source posting-list size so seed reduction preserves
+     * the influence of large source clusters.
+     */
+    private float[][] reduceCentroids(float[][] centroids, int[] weights, int targetCount) throws IOException {
+        if (weights == null || weights.length != centroids.length) {
+            return reduceCentroids(centroids, targetCount);
+        }
+
+        ClusteringFloatVectorValues centroidValues = KMeansFloatVectorValues.build(java.util.Arrays.asList(centroids), null, dimension);
+        float[][] reduced = KMeansLocal.pickInitialCentroids(centroidValues, targetCount);
+        int[] assignments = new int[centroids.length];
+        Arrays.fill(assignments, -1);
+        float[] distances = new float[4];
+
+        for (int iteration = 0; iteration < 3; iteration++) {
+            boolean changed = false;
+            float[][] weightedSums = new float[targetCount][dimension];
+            long[] totalWeights = new long[targetCount];
+
+            for (int i = 0; i < centroids.length; i++) {
+                int bestCentroid = findNearestCentroid(centroids[i], reduced, distances);
+                if (assignments[i] != bestCentroid) {
+                    assignments[i] = bestCentroid;
+                    changed = true;
+                }
+
+                int weight = Math.max(1, weights[i]);
+                totalWeights[bestCentroid] += weight;
+                float[] centroid = centroids[i];
+                float[] sum = weightedSums[bestCentroid];
+                for (int d = 0; d < dimension; d++) {
+                    sum[d] += centroid[d] * weight;
+                }
+            }
+
+            for (int c = 0; c < targetCount; c++) {
+                if (totalWeights[c] == 0) {
+                    continue;
+                }
+                float invWeight = 1.0f / totalWeights[c];
+                float[] centroid = reduced[c];
+                float[] sum = weightedSums[c];
+                for (int d = 0; d < dimension; d++) {
+                    centroid[d] = sum[d] * invWeight;
+                }
+            }
+
+            if (changed == false) {
+                break;
+            }
+        }
+
+        return reduced;
+    }
+
+    private static int findNearestCentroid(float[] vector, float[][] centroids, float[] distances) {
+        int bestCentroid = 0;
+        float minDistance = Float.MAX_VALUE;
+        int i = 0;
+        int limit = centroids.length - 3;
+        for (; i < limit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
+            for (int j = 0; j < 4; j++) {
+                float distance = distances[j];
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestCentroid = i + j;
+                }
+            }
+        }
+        for (; i < centroids.length; i++) {
+            float distance = ESVectorUtil.squareDistance(vector, centroids[i]);
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestCentroid = i;
+            }
+        }
+        return bestCentroid;
+    }
+
+    private void assignSoarOnly(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+        if (soarLambda < 0) {
+            return;
+        }
+
+        NeighborHood[] neighborhoods = null;
+        float[][] centroids = kMeansIntermediate.centroids();
+        if (centroids.length > clustersPerNeighborhood) {
+            neighborhoods = executor == null || numWorkers < 2
+                ? NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood)
+                : NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+        }
+
+        kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
+        vectors.assignSpilled(
+            0,
+            vectors.size(),
+            centroids,
+            neighborhoods,
+            soarLambda,
+            kMeansIntermediate.assignments(),
+            kMeansIntermediate.soarAssignments()
+        );
+    }
+
+    /**
      * Supplement a small set of centroids with random vectors to reach targetCount.
      * Uses stride-based sampling to spread selected vectors evenly across the dataset.
      */
@@ -499,6 +607,16 @@ public class HierarchicalKMeans {
      */
     public KMeansResult clusterByConcatenation(ClusteringFloatVectorValues vectors, float[][] allPriorCentroids, int targetSize)
         throws IOException {
+        return clusterByConcatenation(vectors, allPriorCentroids, null, targetSize, true);
+    }
+
+    public KMeansResult clusterByConcatenation(
+        ClusteringFloatVectorValues vectors,
+        float[][] allPriorCentroids,
+        int[] allPriorWeights,
+        int targetSize,
+        boolean refineCentroids
+    ) throws IOException {
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
         }
@@ -523,7 +641,9 @@ public class HierarchicalKMeans {
         if (allPriorCentroids.length == k) {
             seedCentroids = deepCopy(allPriorCentroids);
         } else if (allPriorCentroids.length > k) {
-            seedCentroids = reduceCentroids(allPriorCentroids, k);
+            seedCentroids = allPriorWeights == null
+                ? reduceCentroids(allPriorCentroids, k)
+                : reduceCentroids(allPriorCentroids, allPriorWeights, k);
         } else {
             seedCentroids = supplementCentroids(allPriorCentroids, vectors, k);
         }
@@ -574,8 +694,12 @@ public class HierarchicalKMeans {
 
         // SOAR refinement with single pass
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            KMeansLocal refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
-            refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+            if (refineCentroids) {
+                KMeansLocal refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
+                refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+            } else {
+                assignSoarOnly(vectors, kMeansIntermediate);
+            }
         }
 
         return kMeansIntermediate;

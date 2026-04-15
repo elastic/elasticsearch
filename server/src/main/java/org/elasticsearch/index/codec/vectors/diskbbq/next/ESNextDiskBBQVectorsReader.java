@@ -323,20 +323,48 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
         int dimension = fieldInfo.getVectorDimension();
         int numCentroids = entry.numCentroids();
+        FloatVectorValues vectorValues = getFloatVectorValues(fieldInfo.name);
+        int numVectors = vectorValues != null ? vectorValues.size() : 0;
         float[][] centroids = new float[numCentroids][];
         int[] clusterSizes = new int[numCentroids];
 
         long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
-        try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids)) {
+        try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids); IndexInput postingSlice = entry.postingListSlice(ivfClusters)) {
+            long[] postingOffsets = readPostingListOffsets(centroidSlice, numVectors, numCentroids, dimension);
+
             // Raw centroids are appended at the end of the centroid data
             centroidSlice.seek(centroidSlice.length() - rawCentroidsSize);
             for (int c = 0; c < numCentroids; c++) {
                 centroids[c] = new float[dimension];
                 centroidSlice.readFloats(centroids[c], 0, dimension);
+                postingSlice.seek(postingOffsets[c] + Integer.BYTES);
+                clusterSizes[c] = postingSlice.readVInt();
             }
         }
 
         return new CentroidData(centroids, clusterSizes, entry.globalCentroid());
+    }
+
+    private static long[] readPostingListOffsets(IndexInput centroidSlice, int numVectors, int numCentroids, int dimension)
+        throws IOException {
+        long[] offsets = new long[numCentroids];
+        int bitsRequired = DirectWriter.bitsRequired(numCentroids);
+        long sizeLookup = DirectWriter.bytesRequired(numVectors, bitsRequired);
+        centroidSlice.seek(sizeLookup);
+        int numParents = centroidSlice.readVInt();
+        long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
+        long offsetTableEntrySize = numParents == 0 ? 2L * Long.BYTES : 2L * Long.BYTES + Integer.BYTES;
+        long offsetTableStart = centroidSlice.length() - rawCentroidsSize - offsetTableEntrySize * numCentroids;
+
+        centroidSlice.seek(offsetTableStart);
+        for (int i = 0; i < numCentroids; i++) {
+            offsets[i] = centroidSlice.readLong();
+            centroidSlice.readLong();
+            if (numParents > 0) {
+                centroidSlice.readInt();
+            }
+        }
+        return offsets;
     }
 
     static class NextFieldEntry extends FieldEntry {

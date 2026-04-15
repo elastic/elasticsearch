@@ -842,48 +842,128 @@ public abstract class GoldenTestCase extends ESTestCase {
         return mapping;
     }
 
-    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+    private record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+    private record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+
+    private record MergedField(EsField field, Map<String, Set<String>> fieldToUnmappedIndices) {
+        static MergedField leaf(EsField field) {
+            return new MergedField(field, Map.of());
+        }
+    }
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
-        int numberOfIndices = mappingsPerIndex.size();
-        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                String columnName = entry.getKey();
-                EsField field = entry.getValue();
-                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+                columnNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                    .put(mappingPerIndex.index(), entry.getValue());
             }
         }
 
         Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        Map<String, EsField> mappings = new HashMap<>();
+        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
         for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < numberOfIndices) {
+            if (e.getValue().size() < mappingsPerIndex.size()) {
                 Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
                 if (unmappedIndices.isEmpty() == false) {
                     fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
                 }
             }
+            MergedField merged = mergeFields(e.getKey(), e.getValue());
+            mappings.put(e.getKey(), merged.field());
+            fieldToUnmappedIndices.putAll(merged.fieldToUnmappedIndices());
         }
-        var mappings = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
         return new MergedResult(mappings, fieldToUnmappedIndices);
     }
 
-    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
-        var indexFields = columnNameToField.values();
-        if (indexFields.stream().distinct().count() > 1) {
-            var typesToIndices = new HashMap<String, Set<String>>();
-            for (var typeToIndex : columnNameToField.entrySet()) {
-                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(typeToIndex.getKey());
-            }
-            return new InvalidMappedField(index, typesToIndices);
-        } else {
-            return indexFields.iterator().next();
+    private static MergedField mergeFields(String fieldName, Map<String, EsField> fieldByIndex) {
+        if (fieldByIndex.values().stream().map(EsField::getDataType).distinct().count() > 1) {
+            return MergedField.leaf(new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex)));
         }
+
+        // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
+        // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
+        // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
+        // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
+        List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
+        EsField representative = fields.getFirst();
+        if (fields.size() == 1) {
+            return MergedField.leaf(representative);
+        }
+
+        Map<String, Map<String, EsField>> subNameToIndexToSubField = getSubNameToIndexToSubField(fieldByIndex);
+        Map<String, Set<String>> fieldToUnmappedIndices = getFieldToUnmappedIndices(
+            fieldName,
+            fieldByIndex.keySet(),
+            subNameToIndexToSubField
+        );
+        // Same DataType but different properties; merge sub-fields recursively.
+        MergedField mergedChildren = mergeSubFields(fieldName, subNameToIndexToSubField);
+        fieldToUnmappedIndices.putAll(mergedChildren.fieldToUnmappedIndices());
+
+        return new MergedField(
+            new EsField(
+                representative.getName(),
+                representative.getDataType(),
+                mergedChildren.field().getProperties(),
+                representative.isAggregatable(),
+                representative.getTimeSeriesFieldType()
+            ),
+            fieldToUnmappedIndices
+        );
+    }
+
+    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are type defs when you need them! */
+    private static Map<String, Map<String, EsField>> getSubNameToIndexToSubField(Map<String, EsField> fieldByIndex) {
+        Map<String, Map<String, EsField>> result = new HashMap<>();
+        for (var entry : fieldByIndex.entrySet()) {
+            String index = entry.getKey();
+            for (var property : entry.getValue().getProperties().entrySet()) {
+                result.computeIfAbsent(property.getKey(), k -> new HashMap<>()).put(index, property.getValue());
+            }
+        }
+        return result;
+    }
+
+    /** Returns {@code Map<FieldName, Set<IndexName>>}; where are type defs when you need them! */
+    private static Map<String, Set<String>> getFieldToUnmappedIndices(
+        String parentName,
+        Set<String> parentIndices,
+        Map<String, Map<String, EsField>> subFieldsByIndexBySubName
+    ) {
+        Map<String, Set<String>> result = new HashMap<>();
+        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
+            Set<String> unmapped = parentIndices.stream().filter(i -> subEntry.getValue().containsKey(i) == false).collect(toSet());
+            if (unmapped.isEmpty() == false) {
+                result.put(parentName + "." + subEntry.getKey(), unmapped);
+            }
+        }
+        return result;
+    }
+
+    private static MergedField mergeSubFields(String fieldName, Map<String, Map<String, EsField>> subFieldsByIndexBySubName) {
+        Map<String, EsField> properties = new TreeMap<>();
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
+            String dottedName = fieldName + "." + subEntry.getKey();
+            MergedField mergedChild = mergeFields(dottedName, subEntry.getValue());
+            properties.put(subEntry.getKey(), mergedChild.field());
+            fieldToUnmappedIndices.putAll(mergedChild.fieldToUnmappedIndices());
+        }
+        return new MergedField(
+            new EsField(fieldName, DataType.OBJECT, properties, false, EsField.TimeSeriesFieldType.NONE),
+            fieldToUnmappedIndices
+        );
+    }
+
+    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are type defs when you need them! */
+    private static Map<String, Set<String>> getTypesToIndices(Map<String, EsField> fieldByIndex) {
+        var result = new HashMap<String, Set<String>>();
+        for (var entry : fieldByIndex.entrySet()) {
+            result.computeIfAbsent(entry.getValue().getDataType().typeName(), k -> new HashSet<>()).add(entry.getKey());
+        }
+        return result;
     }
 }

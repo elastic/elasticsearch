@@ -365,7 +365,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         BytesRefBlock.Builder builder,
         @Position int position,
         BytesRefBlock field,
-        BytesRefBlock query,
+        @Fixed String queryString,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
@@ -376,21 +376,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             builder.appendNull();
             return;
         }
-
-        // Get query value (should be single-valued)
-        int queryValueCount = query.getValueCount(position);
-        if (queryValueCount == 0) {
-            builder.appendNull();
-            return;
-        }
-        if (queryValueCount > 1) {
-            throw new IllegalArgumentException("single-value function encountered multi-value");
-        }
-
         BytesRef scratch = new BytesRef();
-        BytesRef queryValue = query.getBytesRef(query.getFirstValueIndex(position), scratch);
-        String queryString = queryValue.utf8ToString();
-
         int firstValueIndex = field.getFirstValueIndex(position);
 
         // Collect all chunks from all field values upfront so we build one index.
@@ -503,10 +489,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
+        String queryString = ((BytesRef) query.fold(toEvaluator.foldCtx())).utf8ToString();
+
         return new TopSnippetsEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
-            toEvaluator.apply(query),
+            queryString,
             chunkingSettings,
             scorer,
             numSnippets,

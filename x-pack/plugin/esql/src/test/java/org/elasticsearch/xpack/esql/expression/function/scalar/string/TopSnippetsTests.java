@@ -101,9 +101,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral()
                 ),
-                "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                     + query
-                    + "], "
+                    + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -151,9 +151,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                         + query
-                        + "], "
+                        + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,

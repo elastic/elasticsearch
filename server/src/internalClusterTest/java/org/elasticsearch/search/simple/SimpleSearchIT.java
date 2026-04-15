@@ -212,6 +212,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testIpCidrHighCardinality() throws Exception {
+        assumeTrue("cardinality option is available", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         testIpCidr(
             XContentFactory.jsonBuilder()
                 .startObject()

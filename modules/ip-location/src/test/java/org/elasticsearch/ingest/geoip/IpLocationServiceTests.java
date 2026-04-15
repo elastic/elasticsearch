@@ -181,26 +181,33 @@ public class IpLocationServiceTests extends ESTestCase {
         IpDataLookup cityLookup = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-City.mmdb", null);
         assertThat(cityLookup, notNullValue());
 
+        // these are lazy loaded until first use, so we expect null here
         assertNull(configDbs.get("GeoLite2-City.mmdb").databaseReader.get());
         cityLookup.lookup("1.1.1.1");
+        // the first lookup should trigger a database load
         assertNotNull(configDbs.get("GeoLite2-City.mmdb").databaseReader.get());
 
         IpDataLookup countryLookup = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-Country.mmdb", null);
         assertThat(countryLookup, notNullValue());
 
+        // these are lazy loaded until first use, so we expect null here
         assertNull(configDbs.get("GeoLite2-Country.mmdb").databaseReader.get());
         countryLookup.lookup("1.1.1.1");
+        // the first lookup should trigger a database load
         assertNotNull(configDbs.get("GeoLite2-Country.mmdb").databaseReader.get());
 
         IpDataLookup asnLookup = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-ASN.mmdb", null);
         assertThat(asnLookup, notNullValue());
 
+        // these are lazy loaded until first use, so we expect null here
         assertNull(configDbs.get("GeoLite2-ASN.mmdb").databaseReader.get());
         asnLookup.lookup("1.1.1.1");
+        // the first lookup should trigger a database load
         assertNotNull(configDbs.get("GeoLite2-ASN.mmdb").databaseReader.get());
     }
 
     public void testCustomDatabase() throws IOException {
+        // fake the GeoIP2-City database
         copyDatabase("GeoLite2-City.mmdb", geoIpConfigDir);
         Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
         configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoIP2-City.mmdb"), true);
@@ -209,8 +216,10 @@ public class IpLocationServiceTests extends ESTestCase {
         assertThat(lookup, notNullValue());
 
         var configDbs = configDatabases.getConfigDatabases();
+        // these are lazy loaded until first use, so we expect null here
         assertNull(configDbs.get("GeoIP2-City.mmdb").databaseReader.get());
         lookup.lookup("1.1.1.1");
+        // the first lookup should trigger a database load
         assertNotNull(configDbs.get("GeoIP2-City.mmdb").databaseReader.get());
     }
 
@@ -229,12 +238,14 @@ public class IpLocationServiceTests extends ESTestCase {
         assertThat(data2, notNullValue());
         assertThat(data2.get("city_name"), equalTo("Linköping"));
 
+        // No databases are available, so lookup returns null:
         databaseNodeService.removeStaleEntries(projectId, List.of("GeoLite2-City.mmdb"));
         configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
 
         Map<String, Object> data3 = lookup.lookup("89.160.20.128");
         assertThat(data3, nullValue());
 
+        // There are databases available, but not the right one, so lookup still returns null:
         copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseNodeService.updateDatabase(projectId, "GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         Map<String, Object> data4 = lookup.lookup("89.160.20.128");

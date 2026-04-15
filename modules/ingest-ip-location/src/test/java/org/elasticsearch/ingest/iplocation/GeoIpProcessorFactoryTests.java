@@ -53,6 +53,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void loadDatabaseReaders() throws IOException {
+        // cover for multi-project enable/disabled
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         ProjectResolver projectResolver = multiProject
@@ -186,6 +187,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("field", randomIdentifier());
         config.put("download_database_on_pipeline_creation", randomBoolean());
         factory.create(null, null, null, config, projectId);
+        // Check all the config params were consumed.
         assertThat(config, anEmptyMap());
     }
 
@@ -232,6 +234,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildUnsupportedDatabase() throws Exception {
+        // mock up a lookup from a database with an unsupported type
         IpDataLookup lookup = mockLookup("IPinfo standard_asn");
         IpLocationService service = mock(IpLocationService.class);
         when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
@@ -249,6 +252,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildNullDatabaseType() throws Exception {
+        // mock up a lookup that returns a null databaseType
         IpDataLookup lookup = mockLookup(null);
         IpLocationService service = mock(IpLocationService.class);
         when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);

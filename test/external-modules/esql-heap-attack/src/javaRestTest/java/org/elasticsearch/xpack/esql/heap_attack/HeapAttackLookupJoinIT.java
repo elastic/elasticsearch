@@ -140,8 +140,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
-        // So something like 5000, 10 is much more of a sure thing there.
-        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
+        // Use a large multiplier so the breaker trips early, avoiding slow scaled attempts (#145710).
+        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 10000, 10));
     }
 
     private Map<String, Object> lookupExplosion(

@@ -31,7 +31,18 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+            boolean collapsed = randomBoolean();
+            return new TimeSeriesAggregateExec(
+                source,
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                null,
+                collapsed
+            );
         }
     }
 
@@ -48,7 +59,9 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         List<Attribute> intermediateAttributes = instance.intermediateAttributes();
         AggregatorMode mode = instance.getMode();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 5)) {
+        boolean collapsed = instance instanceof TimeSeriesAggregateExec ts && ts.isCollapsed();
+        int maxCase = instance instanceof TimeSeriesAggregateExec ? 6 : 5;
+        switch (between(0, maxCase)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
@@ -58,6 +71,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
+            case 6 -> collapsed = collapsed == false;
             default -> throw new IllegalStateException();
         }
         if (instance instanceof TimeSeriesAggregateExec) {
@@ -69,7 +83,8 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 mode,
                 intermediateAttributes,
                 estimatedRowSize,
-                null
+                null,
+                collapsed
             );
         } else {
             return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);

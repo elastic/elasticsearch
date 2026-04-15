@@ -82,68 +82,44 @@ The output contains the following columns, all of type `keyword`:
 Return every (metric, time series) pair in the targeted data stream, sorted by metric name and
 dimension values:
 
-```esql
-TS k8s
-| TS_INFO
-| SORT metric_name, dimensions
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoBasic.md
+:::
 
 ### Discover series matching a filter
 
 Place a [`WHERE`](/reference/query-languages/esql/commands/where.md) clause before `TS_INFO` to restrict
 the time series considered. Only metrics and series with matching data are returned:
 
-```esql
-TS metrics-*
-| WHERE job == "elasticsearch"
-| TS_INFO
-| SORT metric_name, dimensions
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoDiscover.md
+:::
 
 ### Select specific columns
 
 Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to return only the columns you need:
 
-```esql
-TS metrics-*
-| WHERE job == "elasticsearch"
-| TS_INFO
-| KEEP metric_name, dimensions
-| SORT metric_name, dimensions
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoKeep.md
+:::
 
 ### Filter by metric type
 
 Use [`WHERE`](/reference/query-languages/esql/commands/where.md) after `TS_INFO` to narrow results by
 metadata:
 
-```esql
-TS k8s
-| TS_INFO
-| WHERE metric_type == "gauge"
-| SORT metric_name, dimensions
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoFilterByGauge.md
+:::
 
 ### Count distinct time series per metric
 
 Combine with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) to count how many
 time series exist for each metric:
 
-```esql
-TS k8s
-| TS_INFO
-| STATS series_count = COUNT(*) BY metric_name
-| SORT metric_name
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoCountByMetric.md
+:::
 
 ### Count distinct metrics per time series
 
 Find out how many different metrics each time series reports. This can help identify series that
 report an unusually small or large number of metrics:
 
-```esql
-TS k8s
-| TS_INFO
-| STATS metric_count = COUNT_DISTINCT(metric_name) BY dimensions
-| SORT dimensions
-```
+:::{include} ../examples/ts-info.csv-spec/tsInfoCountDistinctByDimensions.md
+:::

@@ -76,11 +76,8 @@ The output contains the following columns, all of type `keyword`:
 Return every metric available in the targeted time series data stream, sorted alphabetically by
 name:
 
-```esql
-TS k8s
-| METRICS_INFO
-| SORT metric_name
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoBasic.md
+:::
 
 ### Discover metrics matching a filter
 
@@ -88,36 +85,23 @@ Place a [`WHERE`](/reference/query-languages/esql/commands/where.md) clause befo
 restrict the time series considered. Only metrics that have actual data matching the filter are
 returned:
 
-```esql
-TS metrics-*
-| WHERE job == "elasticsearch"
-| METRICS_INFO
-| SORT metric_name
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoDiscover.md
+:::
 
 ### Select specific columns
 
 Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to return only the columns you need:
 
-```esql
-TS metrics-*
-| WHERE job == "elasticsearch"
-| METRICS_INFO
-| KEEP metric_name, metric_type
-| SORT metric_name
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoKeep.md
+:::
 
 ### Filter by metric type
 
 Use [`WHERE`](/reference/query-languages/esql/commands/where.md) after `METRICS_INFO` to narrow results
 by metadata, for example to only counter metrics:
 
-```esql
-TS k8s
-| METRICS_INFO
-| WHERE metric_type == "counter"
-| SORT metric_name
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoFilterByType.md
+:::
 
 ### Filter by metric name pattern
 
@@ -125,34 +109,21 @@ Use a `LIKE` pattern after `METRICS_INFO` to find metrics whose name matches a p
 wildcard. This is useful for exploring a specific subsystem when you know part of the metric
 name:
 
-```esql
-TS k8s
-| METRICS_INFO
-| WHERE metric_name LIKE "network.eth0*"
-| SORT metric_name
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoFilterByName.md
+:::
 
 ### Count matching metrics
 
 Combine with [`STATS`](/reference/query-languages/esql/commands/stats-by.md) to aggregate the metadata.
 For example, count distinct metrics whose name matches a pattern:
 
-```esql
-TS metrics-*
-| WHERE job == "elasticsearch"
-| METRICS_INFO
-| WHERE metric_name LIKE "%k8s%"
-| STATS matching_metrics = COUNT_DISTINCT(metric_name)
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoCountMatching.md
+:::
 
 ### Count metrics by type
 
 Group the metric catalogue by `metric_type` to see how many counter, gauge, or other metrics
 exist:
 
-```esql
-TS k8s
-| METRICS_INFO
-| STATS metric_count = COUNT(*) BY metric_type
-| SORT metric_type
-```
+:::{include} ../examples/metrics-info.csv-spec/metricsInfoCountByType.md
+:::

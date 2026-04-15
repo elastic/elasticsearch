@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -108,7 +109,8 @@ public class TestUtils {
         Executor bccHeaderReadExecutor,
         ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
-        SnapshotsCommitService snapshotsCommitService
+        SnapshotsCommitService snapshotsCommitService,
+        ClusterService clusterService
     ) {
         return new StatelessIndexEventListener(
             threadPool,
@@ -124,7 +126,8 @@ public class TestUtils {
             bccHeaderReadExecutor,
             clusterSettings,
             cacheService,
-            snapshotsCommitService
+            snapshotsCommitService,
+            clusterService
         );
     }
 

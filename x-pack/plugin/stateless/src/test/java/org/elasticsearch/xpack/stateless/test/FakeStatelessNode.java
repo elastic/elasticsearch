@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.cache.NoWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -305,7 +305,7 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            WarmingRatioProvider warmingRatioProvider = new NoWarmingRatioProviderFactory().create(clusterSettings);
+            WarmingRatioProvider warmingRatioProvider = new DefaultWarmingRatioProviderFactory().create(clusterSettings);
             warmingService = createSharedBlobCacheWarmingService(
                 sharedCacheService,
                 threadPool,
@@ -372,7 +372,13 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
+            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
+            DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING
         );
     }
 

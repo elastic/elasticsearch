@@ -245,7 +245,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         // Filter out transient shard unavailability errors on .ml-inference-* indices. These can occur when
         // multiple concurrent requests race to initialize the ML model storage index during the first deployment.
         var significantErrors = errors.stream().filter(e -> isTransientMlInferenceIndexError(e) == false).toList();
-        assertThat(significantErrors.toString(), significantErrors, empty());
+        assertThat("Received non-transient errors", significantErrors, empty());
         assertThat("Expected at least one inference request to succeed", successCount.get(), greaterThan(0));
         assertElserDeploymentStarted();
     }

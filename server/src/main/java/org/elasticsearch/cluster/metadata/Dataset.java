@@ -34,6 +34,14 @@ import java.util.Objects;
  *
  * <p>Dataset settings are plain values ({@code Map<String, Object>}) — no secrets.
  * Credentials are always inherited from the parent {@link DataSource}.
+ *
+ * <p><b>Referential integrity.</b> The {@link #dataSource} field is a name reference, not an
+ * embedded object — the data source it points to lives in {@link DataSourceMetadata}, a separate
+ * cluster-state container with an independent update lifecycle. Integrity (i.e., the referenced
+ * data source actually exists) is enforced at the service layer when datasets are created or
+ * deleted, not by this class. A cluster state that arrives via gateway recovery or rollback could
+ * in principle carry a dangling reference; query-time resolution is responsible for surfacing a
+ * clear error in that case.
  */
 public final class Dataset implements Writeable, ToXContentObject, IndexAbstraction {
 

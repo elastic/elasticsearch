@@ -333,6 +333,7 @@ public class EsqlSession {
         analyzedPlan(
             plan,
             viewResolution.viewQueries(),
+            viewResolution.remoteExclusions(),
             statement.setting(UNMAPPED_FIELDS),
             finalConfiguration,
             executionInfo,
@@ -840,6 +841,7 @@ public class EsqlSession {
     private void analyzedPlan(
         LogicalPlan parsed,
         Map<String, String> viewResolution,
+        Set<String> remoteExclusions,
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
@@ -859,7 +861,7 @@ public class EsqlSession {
             parsed,
             preAnalysis.enriches().isEmpty() == false,
             unmappedResolution == UnmappedResolution.LOAD
-        ).withViewResolution(viewResolution).withMinimumTransportVersion(localClusterMinimumVersion);
+        ).withViewResolution(viewResolution, remoteExclusions).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1290,7 +1292,7 @@ public class EsqlSession {
                 result,
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
-                    Strings.collectionToCommaDelimitedString(result.viewResolution().keySet()),
+                    buildOptionalViewPattern(result),
                     e.getValue(),
                     configuration.projectRouting(),
                     preAnalysis,
@@ -1303,6 +1305,15 @@ public class EsqlSession {
                 listener
             );
         }
+    }
+
+    private static String buildOptionalViewPattern(PreAnalysisResult result) {
+        if (result.remoteExclusions().isEmpty()) {
+            return Strings.collectionToCommaDelimitedString(result.viewResolution().keySet());
+        }
+        List<String> parts = new ArrayList<>(result.viewResolution().keySet());
+        parts.addAll(result.remoteExclusions());
+        return Strings.collectionToCommaDelimitedString(parts);
     }
 
     private void preAnalyzeMainIndices(
@@ -1648,6 +1659,7 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, String> viewResolution,
+        Set<String> remoteExclusions,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -1661,6 +1673,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 new HashMap<>(),
                 new HashMap<>(),
+                Set.of(),
                 new HashMap<>(),
                 null,
                 InferenceResolution.EMPTY,
@@ -1679,12 +1692,13 @@ public class EsqlSession {
             return this;
         }
 
-        PreAnalysisResult withViewResolution(Map<String, String> viewResolution) {
+        PreAnalysisResult withViewResolution(Map<String, String> viewResolution, Set<String> remoteExclusions) {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
+                remoteExclusions,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1699,6 +1713,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
+                remoteExclusions,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1713,6 +1728,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
+                remoteExclusions,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1727,6 +1743,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
+                remoteExclusions,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
@@ -1747,6 +1764,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 viewResolution,
+                remoteExclusions,
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,

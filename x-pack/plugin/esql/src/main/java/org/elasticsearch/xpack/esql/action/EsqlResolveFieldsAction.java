@@ -76,10 +76,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
         // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
         if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
+            // Force local re-resolution: the request's resolvedIndexExpressions were built on
+            // the origin cluster and don't reflect exclusions that apply on this (remote) cluster.
             Set<String> viewsLocalToRemoteCluster = getViews(
                 request.indices(),
                 request.indicesOptions(),
-                request.getResolvedIndexExpressions()
+                null
             );
             if (viewsLocalToRemoteCluster.isEmpty() == false) {
                 listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));

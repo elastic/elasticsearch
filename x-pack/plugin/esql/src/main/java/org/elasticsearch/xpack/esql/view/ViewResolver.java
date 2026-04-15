@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -42,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -104,7 +106,7 @@ public class ViewResolver {
     /**
      * Result of view resolution containing both the rewritten plan and the view queries.
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, Set<String> remoteExclusions) {}
 
     /**
      * Replaces views in the logical plan with their subqueries recursively.
@@ -132,16 +134,25 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
+        Set<String> remoteExclusions = new LinkedHashSet<>();
         if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, remoteExclusions));
             return;
         }
-        replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
-            LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
-            postProcessed = compactNestedViewUnionAlls(postProcessed);
-            postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
-        }));
+        replaceViews(
+            plan,
+            parser,
+            new LinkedHashSet<>(),
+            viewQueries,
+            remoteExclusions,
+            0,
+            listener.delegateFailureAndWrap((l, rewritten) -> {
+                LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
+                postProcessed = compactNestedViewUnionAlls(postProcessed);
+                postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
+                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries, remoteExclusions));
+            })
+        );
     }
 
     private void replaceViews(
@@ -149,6 +160,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Set<String> remoteExclusions,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -166,11 +178,20 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener);
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, remoteExclusions, depth, planListener);
                     return;
                 }
                 case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(ur, parser, seenInner, seenWildcards, viewQueries, depth, planListener);
+                    replaceViewsUnresolvedRelation(
+                        ur,
+                        parser,
+                        seenInner,
+                        seenWildcards,
+                        viewQueries,
+                        remoteExclusions,
+                        depth,
+                        planListener
+                    );
                     return;
                 }
                 default -> {
@@ -185,6 +206,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Set<String> remoteExclusions,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -199,6 +221,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    remoteExclusions,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -232,6 +255,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        Set<String> remoteExclusions,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -268,6 +292,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        remoteExclusions,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
@@ -278,7 +303,7 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
+                List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns, remoteExclusions);
                 if (subqueries.size() == 1) {
                     return subqueries.getFirst().plan();
                 }
@@ -296,7 +321,8 @@ public class ViewResolver {
         UnresolvedRelation unresolvedRelation,
         EsqlResolveViewAction.Response response,
         HashMap<String, ViewPlan> resolvedViews,
-        String[] originalPatterns
+        String[] originalPatterns,
+        Set<String> remoteExclusions
     ) {
         List<ViewPlan> result = new ArrayList<>();
         List<String> unresolvedPatterns = new ArrayList<>();
@@ -304,6 +330,19 @@ public class ViewResolver {
         int unresolvedInsertPos = -1;
 
         for (var expr : response.getResolvedIndexExpressions().expressions()) {
+            // CPS-qualified patterns (e.g. my_project:-index) are not locally resolvable —
+            // the view resolution step misclassifies them. Pass through to field caps directly.
+            if (crossProjectModeDecider.crossProjectEnabled() && RemoteClusterAware.isRemoteIndexName(expr.original())) {
+                if (unresolvedInsertPos < 0) {
+                    unresolvedInsertPos = result.size();
+                }
+                unresolvedPatterns.add(expr.original());
+                if (expr.original().contains(":-")) {
+                    remoteExclusions.add(expr.original());
+                }
+                continue;
+            }
+
             var localResult = expr.localExpressions().localIndexResolutionResult();
 
             // Unauthorized or not visible resources pass through to field caps
@@ -350,13 +389,9 @@ public class ViewResolver {
             }
         }
 
-        // Preserve exclusion patterns targeting non-view resources
-        if (unresolvedPatterns.isEmpty() == false) {
-            var viewNames = getMetadata().views();
-            for (String pattern : originalPatterns) {
-                if (patternIsExclusion(pattern) && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
-                    unresolvedPatterns.add(pattern);
-                }
+        if (unresolvedPatterns.isEmpty() == false && hasPositivePattern(unresolvedPatterns)) {
+            if (unresolvedInsertPos < 0) {
+                unresolvedInsertPos = result.size();
             }
             result.add(unresolvedInsertPos, createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
         }
@@ -388,6 +423,15 @@ public class ViewResolver {
 
     private static boolean patternIsExclusion(String pattern) {
         return pattern.startsWith("-");
+    }
+
+    private static boolean hasPositivePattern(List<String> patterns) {
+        for (String p : patterns) {
+            if (patternIsExclusion(p) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

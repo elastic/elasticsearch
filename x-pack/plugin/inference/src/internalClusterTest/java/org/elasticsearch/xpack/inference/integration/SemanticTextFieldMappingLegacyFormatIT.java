@@ -1,0 +1,445 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.integration;
+
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+
+import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.inference.Utils.storeDenseModel;
+import static org.elasticsearch.xpack.inference.Utils.storeSparseModel;
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Integration tests ported from {@code 10_semantic_text_field_mapping_bwc.yml}, covering
+ * mapping population, field_caps, index options, and inference_id updates for legacy-format
+ * semantic_text indices.
+ */
+public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFormatTestCase {
+
+    /**
+     * Creates a legacy index with a semantic_text field that has no initial model_settings,
+     * confirms the settings are absent before indexing, then indexes a document and confirms
+     * that model_settings are subsequently populated in the mapping.
+     */
+    public void testLegacyFormatMappingPopulatedAfterFirstSparseDocument() throws Exception {
+        assertAcked(
+            prepareCreate(indexName).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(SPARSE_FIELD)
+                        .field("type", "semantic_text")
+                        .field("inference_id", SPARSE_INFERENCE_ID)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        // Before indexing: model_settings should be absent
+        assertMappingModelSettings(indexName, SPARSE_FIELD, false);
+
+        // Index a document to trigger inference and mapping population
+        client().prepareIndex(indexName).setSource(Map.of(SPARSE_FIELD, "mapping test")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // After indexing: model_settings should be present
+        assertMappingModelSettings(indexName, SPARSE_FIELD, true);
+    }
+
+    /**
+     * Creates a legacy index with a dense semantic_text field that has no initial model_settings,
+     * confirms the settings are absent before indexing, then indexes a document and confirms
+     * that model_settings (including dimensions, similarity, and element_type) are subsequently
+     * populated in the mapping.
+     */
+    public void testLegacyFormatMappingPopulatedAfterFirstDenseDocument() throws Exception {
+        assertAcked(
+            prepareCreate(indexName).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(DENSE_FIELD)
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        // Before indexing: model_settings should be absent
+        assertMappingModelSettings(indexName, DENSE_FIELD, false);
+
+        // Index a document to trigger inference and mapping population
+        client().prepareIndex(indexName).setSource(Map.of(DENSE_FIELD, "dense mapping test")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // After indexing: model_settings should be present with dense-specific fields
+        assertMappingModelSettings(indexName, DENSE_FIELD, true);
+        assertDenseMappingModelSettings(indexName, DENSE_FIELD);
+    }
+
+    /**
+     * Verifies field_caps behaviour for a legacy index containing a sparse semantic_text field.
+     * Before indexing, {@code include_empty_fields=false} returns neither field. After indexing a
+     * sparse document, {@code include_empty_fields=false} returns the sparse field but not the
+     * dense field. The text sub-field of the sparse field should be searchable.
+     */
+    public void testLegacyFormatFieldCapsWithSparseEmbedding() throws Exception {
+        createLegacyIndex();
+
+        // Before indexing: include_empty_fields=true → both fields present
+        FieldCapabilitiesResponse withEmpty = fieldCaps(true);
+        assertNotNull(withEmpty.getField(SPARSE_FIELD));
+        assertNotNull(withEmpty.getField(DENSE_FIELD));
+
+        // Before indexing: include_empty_fields=false → neither field present
+        FieldCapabilitiesResponse withoutEmpty = fieldCaps(false);
+        assertNull(withoutEmpty.getField(SPARSE_FIELD));
+        assertNull(withoutEmpty.getField(DENSE_FIELD));
+
+        // Index one sparse document and refresh
+        client().prepareIndex(indexName).setSource(Map.of(SPARSE_FIELD, "these are not the droids you're looking for")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // After indexing: include_empty_fields=true → both fields present, sparse text sub-field searchable
+        FieldCapabilitiesResponse withEmptyAfter = fieldCaps(true);
+        assertNotNull(withEmptyAfter.getField(SPARSE_FIELD));
+        assertNotNull(withEmptyAfter.getField(DENSE_FIELD));
+        assertThat(withEmptyAfter.getField(SPARSE_FIELD).get("text").isSearchable(), equalTo(true));
+        assertThat(withEmptyAfter.getField(DENSE_FIELD).get("text").isSearchable(), equalTo(true));
+
+        // After indexing: include_empty_fields=false → sparse_field present, dense_field absent
+        FieldCapabilitiesResponse withoutEmptyAfter = fieldCaps(false);
+        assertNotNull(withoutEmptyAfter.getField(SPARSE_FIELD));
+        assertNull(withoutEmptyAfter.getField(DENSE_FIELD));
+        assertThat(withoutEmptyAfter.getField(SPARSE_FIELD).get("text").isSearchable(), equalTo(true));
+    }
+
+    /**
+     * Verifies that indexing a document into a legacy-format index backed by a BBQ-compatible model
+     * does NOT auto-populate {@code index_options} in the mapping. In the new (non-legacy) format
+     * the mapper would inject default index_options from the inference service; the legacy format
+     * must not do so.
+     */
+    public void testLegacyFormatBbqCompatibleModelHasNoAutoIndexOptions() throws Exception {
+        storeDenseModel(DENSE_BBQ_INFERENCE_ID, modelRegistry, 64, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+
+        String bbqIndexName = indexName + "_bbq";
+        assertAcked(
+            prepareCreate(bbqIndexName).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(DENSE_FIELD)
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_BBQ_INFERENCE_ID)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        try {
+            // Before indexing: no model_settings and no index_options
+            assertMappingModelSettings(bbqIndexName, DENSE_FIELD, false);
+            assertMappingHasNoIndexOptions(bbqIndexName, DENSE_FIELD);
+
+            // Index one document
+            client().prepareIndex(bbqIndexName).setSource(Map.of(DENSE_FIELD, "these are not the droids you're looking for")).get();
+            client().admin().indices().prepareRefresh(bbqIndexName).get();
+
+            // After indexing: model_settings present, but still no index_options (legacy does not auto-populate)
+            assertMappingModelSettings(bbqIndexName, DENSE_FIELD, true);
+            assertMappingHasNoIndexOptions(bbqIndexName, DENSE_FIELD);
+        } finally {
+            IntegrationTestUtils.deleteIndex(client(), bbqIndexName);
+        }
+    }
+
+    /**
+     * Verifies field_caps behaviour for a legacy index containing a dense semantic_text field.
+     * After indexing a dense document, {@code include_empty_fields=false} returns the dense field
+     * but not the sparse field.
+     */
+    public void testLegacyFormatFieldCapsWithTextEmbedding() throws Exception {
+        createLegacyIndex();
+
+        // Before indexing: include_empty_fields=false → neither field present
+        FieldCapabilitiesResponse withoutEmpty = fieldCaps(false);
+        assertNull(withoutEmpty.getField(SPARSE_FIELD));
+        assertNull(withoutEmpty.getField(DENSE_FIELD));
+
+        // Index one dense document and refresh
+        client().prepareIndex(indexName).setSource(Map.of(DENSE_FIELD, "these are not the droids you're looking for")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // After indexing: include_empty_fields=true → both fields present
+        FieldCapabilitiesResponse withEmptyAfter = fieldCaps(true);
+        assertNotNull(withEmptyAfter.getField(SPARSE_FIELD));
+        assertNotNull(withEmptyAfter.getField(DENSE_FIELD));
+        assertThat(withEmptyAfter.getField(SPARSE_FIELD).get("text").isSearchable(), equalTo(true));
+        assertThat(withEmptyAfter.getField(DENSE_FIELD).get("text").isSearchable(), equalTo(true));
+
+        // After indexing: include_empty_fields=false → dense_field present, sparse_field absent
+        FieldCapabilitiesResponse withoutEmptyAfter = fieldCaps(false);
+        assertNull(withoutEmptyAfter.getField(SPARSE_FIELD));
+        assertNotNull(withoutEmptyAfter.getField(DENSE_FIELD));
+        assertThat(withoutEmptyAfter.getField(DENSE_FIELD).get("text").isSearchable(), equalTo(true));
+    }
+
+    /**
+     * Verifies that field_caps does not expose the internal sub-fields of semantic_text
+     * ({@code inference}, {@code inference.chunks}, {@code inference.chunks.embeddings}, etc.).
+     */
+    public void testLegacyFormatFieldCapsExcludesSubFields() throws Exception {
+        createLegacyIndex();
+        client().prepareIndex(indexName).setSource(Map.of(SPARSE_FIELD, "test text", DENSE_FIELD, "test text")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        FieldCapabilitiesResponse response = fieldCaps(true);
+        assertNotNull(response.getField(SPARSE_FIELD));
+        assertNotNull(response.getField(DENSE_FIELD));
+
+        // Internal sub-fields must NOT be exposed
+        assertNull(response.getField(SPARSE_FIELD + ".inference"));
+        assertNull(response.getField(SPARSE_FIELD + ".inference.chunks"));
+        assertNull(response.getField(SPARSE_FIELD + ".inference.chunks.embeddings"));
+        assertNull(response.getField(DENSE_FIELD + ".inference"));
+        assertNull(response.getField(DENSE_FIELD + ".inference.chunks"));
+        assertNull(response.getField(DENSE_FIELD + ".inference.chunks.embeddings"));
+    }
+
+    /**
+     * Verifies that using a {@code SemanticQueryBuilder} as an index filter in a field_caps request
+     * does not cause a failure and returns the expected fields.
+     */
+    public void testLegacyFormatFieldCapsWithSemanticQueryFilter() throws Exception {
+        createLegacyIndex();
+        client().prepareIndex(indexName).setSource(Map.of(SPARSE_FIELD, "This is a story about a cat and a dog.")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices(indexName);
+        request.fields("*");
+        request.indexFilter(new SemanticQueryBuilder(SPARSE_FIELD, "test"));
+
+        FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
+        assertNotNull(response.getField(SPARSE_FIELD));
+        assertThat(response.getField(SPARSE_FIELD).get("text").isSearchable(), equalTo(true));
+    }
+
+    /**
+     * Creates a legacy index with explicit {@code int8_hnsw} dense index options, verifies the
+     * options are persisted in the mapping before and after indexing a document.
+     */
+    public void testLegacyFormatDenseIndexOptionsPreserved() throws Exception {
+        String optionsIndex = indexName + "_options";
+        assertAcked(
+            prepareCreate(optionsIndex).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(DENSE_FIELD)
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "int8_hnsw")
+                        .field("m", 20)
+                        .field("ef_construction", 100)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        try {
+            assertDenseIndexOptions(optionsIndex, DENSE_FIELD, "int8_hnsw", 20, 100);
+
+            client().prepareIndex(optionsIndex).setSource(Map.of(DENSE_FIELD, "mapping test")).get();
+            client().admin().indices().prepareRefresh(optionsIndex).get();
+
+            assertDenseIndexOptions(optionsIndex, DENSE_FIELD, "int8_hnsw", 20, 100);
+        } finally {
+            IntegrationTestUtils.deleteIndex(client(), optionsIndex);
+        }
+    }
+
+    /**
+     * Creates a legacy index with dense index options and verifies they can be updated (m and
+     * ef_construction) but not with an incompatible type change.
+     */
+    public void testLegacyFormatDenseIndexOptionsUpdate() throws Exception {
+        String optionsIndex = indexName + "_options_update";
+        assertAcked(
+            prepareCreate(optionsIndex).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "int8_hnsw")
+                        .field("m", 16)
+                        .field("ef_construction", 100)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        try {
+            assertDenseIndexOptions(optionsIndex, "semantic_field", "int8_hnsw", 16, 100);
+
+            // Update m and ef_construction (compatible change)
+            indicesAdmin().preparePutMapping(optionsIndex)
+                .setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("semantic_field")
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .startObject("index_options")
+                        .startObject("dense_vector")
+                        .field("type", "int8_hnsw")
+                        .field("m", 20)
+                        .field("ef_construction", 90)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get();
+
+            assertDenseIndexOptions(optionsIndex, "semantic_field", "int8_hnsw", 20, 90);
+
+            // Changing the type is incompatible and must fail
+            assertThrows(
+                Exception.class,
+                () -> indicesAdmin().preparePutMapping(optionsIndex)
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("properties")
+                            .startObject("semantic_field")
+                            .field("type", "semantic_text")
+                            .field("inference_id", DENSE_INFERENCE_ID)
+                            .startObject("index_options")
+                            .startObject("dense_vector")
+                            .field("type", "int8_flat")
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
+                    .get()
+            );
+        } finally {
+            IntegrationTestUtils.deleteIndex(client(), optionsIndex);
+        }
+    }
+
+    /**
+     * Verifies that the inference_id of a semantic_text field can be updated to a compatible
+     * endpoint. After updating, documents indexed before the change retain the old inference_id
+     * in their stored source, and documents indexed after the change use the new inference_id.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLegacyFormatInferenceIdUpdate() throws Exception {
+        createLegacyIndex();
+
+        // Index first document with the original inference_id
+        client().prepareIndex(indexName).setId("doc_1").setSource(Map.of(SPARSE_FIELD, "This is a story about a cat and a dog.")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Verify mapping shows original inference_id and model_settings
+        assertMappingInferenceId(indexName, SPARSE_FIELD, SPARSE_INFERENCE_ID);
+        assertMappingModelSettings(indexName, SPARSE_FIELD, true);
+
+        // Register the second sparse model and update the inference_id
+        storeSparseModel(SPARSE_INFERENCE_ID_2, modelRegistry);
+        indicesAdmin().preparePutMapping(indexName)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject(SPARSE_FIELD)
+                    .field("type", "semantic_text")
+                    .field("inference_id", SPARSE_INFERENCE_ID_2)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Verify mapping shows updated inference_id
+        assertMappingInferenceId(indexName, SPARSE_FIELD, SPARSE_INFERENCE_ID_2);
+
+        // Index second document with the updated inference_id
+        client().prepareIndex(indexName).setId("doc_2").setSource(Map.of(SPARSE_FIELD, "One day they started playing the piano.")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // Search and verify per-doc inference_id in stored source
+        assertResponse(
+            client().search(
+                new SearchRequest(indexName).source(
+                    new SearchSourceBuilder().query(new SemanticQueryBuilder(SPARSE_FIELD, "piano"))
+                        .excludeVectors(false)
+                        .trackTotalHits(true)
+                )
+            ),
+            response -> {
+                assertHitCount(response, 2L);
+                // Both docs are returned; locate each by _id and verify inference_id
+                for (int i = 0; i < 2; i++) {
+                    String docId = response.getHits().getAt(i).getId();
+                    Map<String, Object> source = response.getHits().getAt(i).getSourceAsMap();
+                    Map<String, Object> fieldMap = (Map<String, Object>) source.get(SPARSE_FIELD);
+                    assertNotNull("source for " + docId + " should have " + SPARSE_FIELD, fieldMap);
+                    Map<String, Object> inferenceMap = (Map<String, Object>) fieldMap.get("inference");
+                    assertNotNull("inference should be present for " + docId, inferenceMap);
+                    String expectedInferenceId = "doc_1".equals(docId) ? SPARSE_INFERENCE_ID : SPARSE_INFERENCE_ID_2;
+                    assertThat("inference_id for " + docId, inferenceMap.get("inference_id"), equalTo(expectedInferenceId));
+                }
+            }
+        );
+    }
+}

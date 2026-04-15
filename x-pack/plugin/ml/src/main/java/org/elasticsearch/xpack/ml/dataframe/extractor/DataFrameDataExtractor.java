@@ -115,6 +115,7 @@ public class DataFrameDataExtractor {
 
     /**
      * Returns the next batch as {@link SearchHits} with an extra ref for the caller; see class Javadoc.
+     * Consumers must call `searchHits.decRef()` the returned object after they are finished with it.
      */
     public Optional<SearchHits> next() throws IOException {
         if (hasNext() == false) {

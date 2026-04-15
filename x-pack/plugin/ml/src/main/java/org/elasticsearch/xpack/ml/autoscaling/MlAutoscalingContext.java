@@ -30,7 +30,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getDataFrameAnalyticsState;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReassignments;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getSnapshotUpgradeState;
-import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 class MlAutoscalingContext {
 
@@ -101,7 +100,7 @@ class MlAutoscalingContext {
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> dataframeAnalyticsTasks
     ) {
         return dataframeAnalyticsTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .filter(t -> t.getAssignment().getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT)
             .map(t -> ((StartDataFrameAnalyticsAction.TaskParams) t.getParams()).getId())
             .toList();
     }
@@ -110,14 +109,14 @@ class MlAutoscalingContext {
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks
     ) {
         return snapshotUpgradeTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .filter(t -> t.getAssignment().getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT)
             .map(t -> ((SnapshotUpgradeTaskParams) t.getParams()).getJobId())
             .toList();
     }
 
     private static List<String> waitingAnomalyJobs(Collection<PersistentTasksCustomMetadata.PersistentTask<?>> anomalyDetectionTasks) {
         return anomalyDetectionTasks.stream()
-            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .filter(t -> t.getAssignment().getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT)
             .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
             .toList();
     }

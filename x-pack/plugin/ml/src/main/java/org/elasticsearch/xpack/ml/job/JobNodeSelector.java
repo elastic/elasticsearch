@@ -54,6 +54,7 @@ public class JobNodeSelector {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_LAZY_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
         null,
+        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
         "persistent task is awaiting node assignment."
     );
 
@@ -308,7 +309,11 @@ public class JobNodeSelector {
             return considerLazyAssignment(currentAssignment, maxNodeSize);
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
-        return new PersistentTasksCustomMetadata.Assignment(minLoadedNode.getId(), "");
+        return new PersistentTasksCustomMetadata.Assignment(
+            minLoadedNode.getId(),
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            ""
+        );
     }
 
     PersistentTasksCustomMetadata.Assignment considerLazyAssignment(

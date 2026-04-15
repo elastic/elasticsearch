@@ -57,7 +57,11 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         return Scope.PROJECT;
     }
 
-    public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
+    public static final Assignment NO_NODE_FOUND = new Assignment(
+        null,
+        Assignment.Reason.NO_NODE_FOUND,
+        "no appropriate nodes found for the assignment"
+    );
 
     /**
      * Returns the node id where the params has to be executed,
@@ -93,7 +97,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new Assignment(discoveryNode.getId(), "");
+            return new Assignment(discoveryNode.getId(), Assignment.Reason.ASSIGNED, "");
         }
     }
 

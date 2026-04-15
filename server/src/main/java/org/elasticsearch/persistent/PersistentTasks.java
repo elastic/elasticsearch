@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.assertAllocationIdsConsistency;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.assertUniqueTaskIdForClusterScopeTasks;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The common data structure for persistent tasks, both cluster-scoped and project-scoped.
@@ -50,8 +51,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public interface PersistentTasks {
 
     String API_CONTEXT = Metadata.XContentContext.API.toString();
-    Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, "awaiting reassignment after node loss");
-    Assignment INITIAL_ASSIGNMENT = new Assignment(null, "waiting for initial assignment");
+    Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, Assignment.Reason.LOST_NODE, "awaiting reassignment after node loss");
+    Assignment INITIAL_ASSIGNMENT = new Assignment(null, Assignment.Reason.INITIAL_ASSIGNMENT, "waiting for initial assignment");
+    Assignment ASSIGNMENT_DISABLED = new Assignment(
+        null,
+        Assignment.Reason.ASSIGNMENT_DISABLED,
+        "no persistent task assignments are allowed due to cluster settings"
+    );
 
     /**
      * @return The last allocation id for the tasks.
@@ -161,7 +167,21 @@ public interface PersistentTasks {
     class Parsers {
         public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER = new ConstructingObjectParser<>(
             "assignment",
-            objects -> new Assignment((String) objects[0], (String) objects[1])
+            objects -> {
+                String executorNode = (String) objects[0];
+                String explanation = (String) objects[1];
+                String reasonStr = (String) objects[2];
+                if (reasonStr != null) {
+                    Assignment.Reason reason;
+                    try {
+                        reason = Assignment.Reason.valueOf(reasonStr);
+                    } catch (IllegalArgumentException e) {
+                        reason = Assignment.Reason.OTHER;
+                    }
+                    return new Assignment(executorNode, reason, explanation);
+                }
+                return new Assignment(executorNode, Assignment.Reason.fromExplanation(executorNode, explanation), explanation);
+            }
         );
         static final ObjectParser<TaskBuilder<PersistentTaskParams>, Void> PERSISTENT_TASK_PARSER = new ObjectParser<>(
             "tasks",
@@ -187,6 +207,7 @@ public interface PersistentTasks {
             // Assignment parser
             ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("executor_node"));
             ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("explanation"));
+            ASSIGNMENT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("reason"));
 
             // Task parser initialization
             PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setId, new ParseField("id"));

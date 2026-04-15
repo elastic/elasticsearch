@@ -40,10 +40,12 @@ public class DatafeedNodeSelector {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
         null,
+        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_ASSIGNMENT,
         "datafeed awaiting job assignment."
     );
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION = new PersistentTasksCustomMetadata.Assignment(
         null,
+        PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_RELOCATION,
         "datafeed awaiting job relocation."
     );
 
@@ -126,7 +128,7 @@ public class DatafeedNodeSelector {
             if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
                 return AWAITING_JOB_RELOCATION;
             }
-            return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
+            return new PersistentTasksCustomMetadata.Assignment(jobNode, PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "");
         }
         LOGGER.debug(assignmentFailure.reason);
         assert assignmentFailure.reason.isEmpty() == false;

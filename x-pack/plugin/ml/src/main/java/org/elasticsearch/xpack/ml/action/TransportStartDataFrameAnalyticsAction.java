@@ -555,13 +555,13 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
             // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
-            if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
+            if (assignment != null && assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
                 return true;
             }
             String reason = "__unknown__";
 
             if (assignment != null
-                && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT
                 && assignment.isAssigned() == false) {
                 assignmentExplanation = assignment.getExplanation();
                 // Assignment failed due to primary shard check.

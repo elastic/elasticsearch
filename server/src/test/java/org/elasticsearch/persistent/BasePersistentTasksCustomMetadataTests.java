@@ -253,10 +253,21 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             if (randomBoolean()) {
                 return NO_NODE_FOUND;
             } else {
-                return new PersistentTasksCustomMetadata.Assignment(null, randomAlphaOfLength(10));
+                return new PersistentTasksCustomMetadata.Assignment(
+                    null,
+                    randomValueOtherThan(
+                        PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                        () -> randomFrom(PersistentTasksCustomMetadata.Assignment.Reason.values())
+                    ),
+                    randomAlphaOfLength(10)
+                );
             }
         }
-        return new PersistentTasksCustomMetadata.Assignment(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new PersistentTasksCustomMetadata.Assignment(
+            randomAlphaOfLength(10),
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            randomAlphaOfLength(10)
+        );
     }
 
     protected abstract PersistentTasks.Builder<?> builder();

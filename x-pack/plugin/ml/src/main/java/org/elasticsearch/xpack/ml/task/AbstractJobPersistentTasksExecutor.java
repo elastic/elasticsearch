@@ -43,7 +43,6 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
@@ -132,7 +131,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         JobNodeSelector jobNodeSelector,
         boolean isMemoryTrackerRecentlyRefreshed
     ) {
-        if (assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
+        if (assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
             if (isMemoryTrackerRecentlyRefreshed) {
                 Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.currentCapacityAndMaxFreeMemory(
                     maxMachineMemoryPercent,

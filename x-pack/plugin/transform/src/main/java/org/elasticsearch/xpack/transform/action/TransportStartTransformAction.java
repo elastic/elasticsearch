@@ -391,7 +391,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
             PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null
-                && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+                && assignment.getReason() != PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT
                 && assignment.isAssigned() == false) {
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.

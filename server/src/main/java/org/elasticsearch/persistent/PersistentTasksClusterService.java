@@ -455,7 +455,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
         AssignmentDecision decision = enableDecider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
-            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+            return PersistentTasks.ASSIGNMENT_DISABLED;
         }
 
         // Filter all nodes that are marked as shutting down, because we do not

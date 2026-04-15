@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -176,6 +177,161 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));
         assertNotEquals(originalTasks.getTask("task-on-deceased-node"), returnedTasks.getTask("task-on-deceased-node"));
         assertEquals(PersistentTasks.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
+    }
+
+    public void testAssignmentReasonFromExplanation() {
+        // All well-known explanation strings
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "waiting for initial assignment")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.LOST_NODE,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "awaiting reassignment after node loss")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNMENT_DISABLED,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(
+                null,
+                "no persistent task assignments are allowed due to cluster settings"
+            )
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "no appropriate nodes found for the assignment")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "persistent task is awaiting node assignment.")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_UPGRADE,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(
+                null,
+                "persistent task cannot be assigned while upgrade mode is enabled."
+            )
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.RESET_IN_PROGRESS,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(
+                null,
+                "persistent task will not be assigned as a feature reset is in progress."
+            )
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_ASSIGNMENT,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job assignment.")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_JOB_RELOCATION,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job relocation.")
+        );
+
+        // Unknown explanation defaults to OTHER
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "some unknown reason")
+        );
+
+        // Non-null executor node always returns ASSIGNED regardless of explanation
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation("node1", "")
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation("node1", "waiting for initial assignment")
+        );
+    }
+
+    public void testAssignmentReasonFromOrdinal() {
+        for (PersistentTasksCustomMetadata.Assignment.Reason reason : PersistentTasksCustomMetadata.Assignment.Reason.values()) {
+            assertEquals(reason, PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(reason.ordinal()));
+        }
+        // Out of bounds returns OTHER
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(-1)
+        );
+        assertEquals(
+            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(PersistentTasksCustomMetadata.Assignment.Reason.values().length)
+        );
+    }
+
+    public void testAssignmentReasonWireRoundTrip() throws Exception {
+        for (PersistentTasksCustomMetadata.Assignment.Reason reason : PersistentTasksCustomMetadata.Assignment.Reason.values()) {
+            String executorNode = reason == PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED ? randomAlphaOfLength(10) : null;
+            PersistentTasksCustomMetadata.PersistentTask<TestPersistentTasksPlugin.TestParams> task =
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    "task-id",
+                    TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+                    new TestPersistentTasksPlugin.TestParams(randomAlphaOfLength(10)),
+                    1L,
+                    new PersistentTasksCustomMetadata.Assignment(executorNode, reason, randomAlphaOfLength(10))
+                );
+            PersistentTasksCustomMetadata.PersistentTask<?> copy = copyWriteable(
+                task,
+                getNamedWriteableRegistry(),
+                PersistentTasksCustomMetadata.PersistentTask::new
+            );
+            assertEquals(reason, copy.getAssignment().getReason());
+            assertEquals(executorNode, copy.getAssignment().getExecutorNode());
+            assertEquals(task.getAssignment().getExplanation(), copy.getAssignment().getExplanation());
+        }
+    }
+
+    public void testAssignmentReasonWireBackwardCompatibility() throws Exception {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("persistent_task_assignment_reason")
+        );
+
+        // Well-known explanation: fromExplanation should infer INITIAL_ASSIGNMENT
+        PersistentTasksCustomMetadata.PersistentTask<TestPersistentTasksPlugin.TestParams> task =
+            new PersistentTasksCustomMetadata.PersistentTask<>(
+                "task-id",
+                TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+                new TestPersistentTasksPlugin.TestParams("test"),
+                1L,
+                new PersistentTasksCustomMetadata.Assignment(
+                    null,
+                    PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT,
+                    "waiting for initial assignment"
+                )
+            );
+        PersistentTasksCustomMetadata.PersistentTask<?> copy = copyWriteable(
+            task,
+            getNamedWriteableRegistry(),
+            PersistentTasksCustomMetadata.PersistentTask::new,
+            oldVersion
+        );
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.INITIAL_ASSIGNMENT, copy.getAssignment().getReason());
+
+        // Assigned task: fromExplanation returns ASSIGNED when executorNode is non-null
+        task = new PersistentTasksCustomMetadata.PersistentTask<>(
+            "task-id",
+            TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+            new TestPersistentTasksPlugin.TestParams("test"),
+            1L,
+            new PersistentTasksCustomMetadata.Assignment(
+                "node1",
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
+        );
+        copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, copy.getAssignment().getReason());
+
+        // Unknown explanation: fromExplanation returns OTHER
+        task = new PersistentTasksCustomMetadata.PersistentTask<>(
+            "task-id",
+            TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
+            new TestPersistentTasksPlugin.TestParams("test"),
+            1L,
+            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.OTHER, "some dynamic reason")
+        );
+        copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.OTHER, copy.getAssignment().getReason());
     }
 
     private PersistentTaskParams emptyTaskParams(String taskName) {

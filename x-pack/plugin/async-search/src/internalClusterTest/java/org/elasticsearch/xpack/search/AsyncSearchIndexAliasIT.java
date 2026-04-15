@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -65,7 +66,12 @@ public class AsyncSearchIndexAliasIT extends AsyncSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsWithAliasPlugin.class);
+        return Arrays.asList(
+            LocalStateCompositeXPackPlugin.class,
+            AsyncSearch.class,
+            AsyncResultsWithAliasPlugin.class,
+            ReindexPlugin.class
+        );
     }
 
     public void testSearchAsyncIndexIsAlias() throws Exception {
@@ -82,7 +88,7 @@ public class AsyncSearchIndexAliasIT extends AsyncSearchIntegTestCase {
         final SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder()),
             dataIndex
-        ).setKeepOnCompletion(true).setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
+        ).setKeepOnCompletion(true).setKeepAlive(TimeValue.timeValueSeconds(2));
 
         int asyncSearches = randomIntBetween(1, 10);
         for (int i = 0; i < asyncSearches; i++) {
@@ -96,6 +102,7 @@ public class AsyncSearchIndexAliasIT extends AsyncSearchIntegTestCase {
             ensureTaskNotRunning(searchId);
         }
 
+        refresh(ASYNC_RESULTS_INDEX);
         assertAsyncSearchIndexIsAlias();
         assertAsyncSearchIndexHasNoDocuments();
     }

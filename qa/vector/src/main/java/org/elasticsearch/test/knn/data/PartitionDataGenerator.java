@@ -44,25 +44,16 @@ public class PartitionDataGenerator implements DataGenerator {
     private final int numPartitions;
     private final DatasetConfig.PartitionDistribution distribution;
     private final Random random;
-    private final boolean sliceIndex;
     private final PartitionAssignmentInfo partitionAssignments;
 
     record PartitionAssignmentInfo(Map<String, List<Integer>> partitionToDocIds, String[] docPartitionIds, int[] docOrdinals) {}
 
-    PartitionDataGenerator(
-        int numDocs,
-        int dimensions,
-        int numPartitions,
-        DatasetConfig.PartitionDistribution distribution,
-        long seed,
-        boolean sliceIndex
-    ) {
+    PartitionDataGenerator(int numDocs, int dimensions, int numPartitions, DatasetConfig.PartitionDistribution distribution, long seed) {
         this.numDocs = numDocs;
         this.dimensions = dimensions;
         this.numPartitions = numPartitions;
         this.distribution = distribution;
         this.random = new Random(seed);
-        this.sliceIndex = sliceIndex;
         this.partitionAssignments = computePartitionAssignments();
     }
 
@@ -163,12 +154,7 @@ public class PartitionDataGenerator implements DataGenerator {
         sampledPartitions = sampledPartitions.subList(0, numSampledPartitions);
         logger.info("Sampled {} of {} partitions for search", numSampledPartitions, getPartitionAssignments().size());
 
-        var provider = new KnnSearcher.PartitionFilterQueryProvider(
-            sampledPartitions,
-            searcher.numQueryVectors(),
-            selectivityFilter,
-            sliceIndex
-        );
+        var provider = new KnnSearcher.PartitionFilterQueryProvider(sampledPartitions, searcher.numQueryVectors(), selectivityFilter);
         var consumer = new KnnSearcher.PartitionResultsConsumer(
             searcher.indexPath(),
             searcher.vectorEncoding(),

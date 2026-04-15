@@ -96,12 +96,19 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
 
         assertThat("should not be completed (relocated task is still running)", runningResult.isCompleted(), is(false));
         assertThat("should be a reindex action", runningResult.getTask().action(), equalTo(ReindexAction.NAME));
+        assertThat("task ID should be the relocated task", runningResult.getTask().taskId(), equalTo(relocatedTaskId));
+        assertThat("node should be the survivor node", runningResult.getTask().node(), equalTo(setup.survivorNodeId));
+        assertThat("start time should be from original task", runningResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
         assertThat(
-            "task ID should be the original (relocation is transparent)",
-            runningResult.getTask().taskId(),
+            "original task ID should reference the original",
+            runningResult.getTask().originalTaskId(),
             equalTo(setup.originalTaskId)
         );
-        assertThat("start time should be from original task", runningResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat(
+            "original start time should match original",
+            runningResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
         assertThat(
             "running time should cover time since original start",
             runningResult.getTask().runningTimeNanos(),
@@ -111,12 +118,41 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat("no error on running task", runningResult.getError(), is(nullValue()));
         assertThat("no response yet on running task", runningResult.getResponse(), is(nullValue()));
 
+        // Direct get of the relocated task returns its own start_time (not the original's)
+        final TaskResult directResult = getTask(relocatedTaskId, false).getTask();
+        assertThat("direct get: task ID is the relocated task", directResult.getTask().taskId(), equalTo(relocatedTaskId));
+        assertThat(
+            "direct get: start_time is the relocated task's own (later than original)",
+            directResult.getTask().startTime(),
+            greaterThan(setup.originalStartTimeMillis)
+        );
+        assertThat(
+            "direct get: original_task_id references the original",
+            directResult.getTask().originalTaskId(),
+            equalTo(setup.originalTaskId)
+        );
+        assertThat(
+            "direct get: original_start_time is from the original",
+            directResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
+
         unthrottleReindex(relocatedTaskId);
 
         final TaskResult completedResult = getTask(setup.originalTaskId, true).getTask();
         assertThat("task should be completed after wait", completedResult.isCompleted(), is(true));
-        assertThat("task ID preserved after completion", completedResult.getTask().taskId(), equalTo(setup.originalTaskId));
+        assertThat("task ID should be the relocated task after completion", completedResult.getTask().taskId(), equalTo(relocatedTaskId));
         assertThat("start time preserved after completion", completedResult.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+        assertThat(
+            "original task ID preserved after completion",
+            completedResult.getTask().originalTaskId(),
+            equalTo(setup.originalTaskId)
+        );
+        assertThat(
+            "original start time preserved after completion",
+            completedResult.getTask().originalStartTimeMillis(),
+            equalTo(setup.originalStartTimeMillis)
+        );
         assertThat("completed task should have no error", completedResult.getError(), is(nullValue()));
 
         assertCompletedReindexResponse(completedResult);

@@ -357,6 +357,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
   issue: https://github.com/elastic/elasticsearch/issues/146342
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats.sumAsSurrogateWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/146376
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testForceSleepsProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/146377
 
 # Examples:
 #

@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -83,7 +85,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -332,7 +334,7 @@ public class SearchTransportService {
         SearchTask task = context.getTask();
 
         final TransportVersion dataNodeVersion = connection.getTransportVersion();
-        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
         boolean isCCSQuery = shardTarget.getClusterAlias() != null;
         boolean isScrollOrReindex = context.getRequest().scroll() != null
             || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
@@ -340,13 +342,13 @@ public class SearchTransportService {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
-                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_DOC_ID_ORDER_id={}, "
                     + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
                 shardTarget.getShardId(),
                 searchService.fetchPhaseChunked(),
                 dataNodeSupports,
                 dataNodeVersion.id(),
-                CHUNKED_FETCH_PHASE.id(),
+                CHUNKED_FETCH_DOC_ID_ORDER.id(),
                 connection.getNode(),
                 isCCSQuery,
                 isScrollOrReindex
@@ -355,7 +357,7 @@ public class SearchTransportService {
 
         // Determine if chunked fetch can be used for this request, checking
         // 1. Feature flag enabled
-        // 2. Data node supports CHUNKED_FETCH_PHASE transport version
+        // 2. Data node supports CHUNKED_FETCH_DOC_ID_ORDER transport version
         // 3. Not a cross-cluster search (CCS)
         // 4. Not a scroll or reindex operation
         if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
@@ -667,7 +669,7 @@ public class SearchTransportService {
                 && fetchSearchReq.getCoordinatingNode() != null;
 
             TransportVersion channelVersion = channel.getVersion();
-            boolean versionSupported = channelVersion.supports(CHUNKED_FETCH_PHASE);
+            boolean versionSupported = channelVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
 
             // Check if we can connect to the coordinator (CCS detection)
             boolean canConnectToCoordinator = false;
@@ -680,7 +682,7 @@ public class SearchTransportService {
                 if (canConnectToCoordinator) {
                     try {
                         Transport.Connection coordConnection = transportService.getConnection(coordinatorNode);
-                        coordinatorSupportsChunkedFetch = coordConnection.getTransportVersion().supports(CHUNKED_FETCH_PHASE);
+                        coordinatorSupportsChunkedFetch = coordConnection.getTransportVersion().supports(CHUNKED_FETCH_DOC_ID_ORDER);
                     } catch (Exception e) {
                         coordinatorSupportsChunkedFetch = false;
                     }
@@ -758,7 +760,18 @@ public class SearchTransportService {
                     }
                 };
             }
-            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
+            // BWC: old coordinator (CHUNKED_FETCH_PHASE) expects lastChunkBytes but this node
+            // (CHUNKED_FETCH_DOC_ID_ORDER) fell back to traditional fetch — serialize hits into
+            // lastChunkBytes in the old format so the coordinator's response stream isn't empty.
+            ActionListener<FetchSearchResult> responseListener = new ChannelActionListener<>(channel);
+            if (hasCoordinator && chunkWriter == null) {
+                final TransportVersion bwcVersion = channelVersion;
+                responseListener = responseListener.map(result -> {
+                    populateBwcLastChunkBytes(result, bwcVersion);
+                    return result;
+                });
+            }
+            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, responseListener);
         };
 
         transportService.registerRequestHandler(
@@ -804,6 +817,25 @@ public class SearchTransportService {
             CanMatchNodeResponse::new,
             namedWriteableRegistry
         );
+    }
+
+    /**
+     * BWC: serializes hits into lastChunkBytes (old format, no vInt position prefix) for old coordinators
+     * whose TransportFetchPhaseCoordinationAction ignores FetchSearchResult.hits.
+     */
+    static void populateBwcLastChunkBytes(FetchSearchResult result, TransportVersion transportVersion) throws IOException {
+        SearchHit[] hits = result.hits().getHits();
+        if (hits.length == 0) {
+            return;
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(transportVersion);
+            for (SearchHit hit : hits) {
+                hit.writeTo(out);
+            }
+            result.setLastChunkSequenceStart(0);
+            result.setLastChunkBytes(out.bytes(), hits.length);
+        }
     }
 
     private static Executor buildFreeContextExecutor(TransportService transportService) {

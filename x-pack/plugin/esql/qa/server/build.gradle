@@ -1,14 +1,18 @@
 apply plugin: 'elasticsearch.java'
 
+versions << [
+  'hadoop' : '3.4.3',
+]
+
 description = 'Integration tests for ESQL'
 
 configurations {
-  // Separate classpath for OrcFixtureGenerator to avoid jar hell: hadoop-client-runtime
-  // bundles javax.xml.bind (multi-release) which conflicts with jakarta.xml.bind-api from
-  // repository-azure.
+  // Separate classpath for OrcFixtureGenerator to avoid jar hell with repository-azure.
   orcFixtureGenerator
   // Separate classpath for ParquetFixtureGenerator to avoid jar hell with repository-azure.
   parquetFixtureGenerator
+  // NdJsonFixtureGenerator: x-content JSON output + CSV parsing only (no Hadoop).
+  ndjsonFixtureGenerator
 }
 
 sourceSets {
@@ -17,6 +21,9 @@ sourceSets {
   }
   parquetFixtureGenerator {
     compileClasspath += configurations.parquetFixtureGenerator
+  }
+  ndjsonFixtureGenerator {
+    compileClasspath += configurations.ndjsonFixtureGenerator
   }
 }
 
@@ -48,23 +55,30 @@ dependencies {
   implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 
   // OrcFixtureGenerator: ORC/Hadoop (separate from main to avoid jar hell)
-  orcFixtureGenerator("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  // hadoop-client-runtime is needed here because OrcFile.createWriter() triggers
+  // Configuration class initialization which requires shaded Woodstox classes.
+  orcFixtureGenerator("org.apache.orc:orc-core:${versions.orc}") { exclude group: 'org.slf4j', module: 'slf4j-api' }
   orcFixtureGenerator('org.apache.hive:hive-storage-api:2.8.1')
   orcFixtureGenerator('com.google.protobuf:protobuf-java:3.25.8')
-  orcFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
-  orcFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.slf4j', module: 'slf4j-api' }
   orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   orcFixtureGenerator project(':libs:core')
   orcFixtureGenerator project(xpackModule('esql-datasource-csv'))
 
   // ParquetFixtureGenerator: Parquet/Hadoop (separate from main to avoid jar hell)
-  parquetFixtureGenerator("org.apache.parquet:parquet-hadoop-bundle:1.16.0") {
+  // hadoop-client-runtime is needed here because ParquetWriter.Builder.build() triggers
+  // HadoopParquetConfiguration which requires shaded Woodstox classes.
+  parquetFixtureGenerator("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}") {
     exclude group: 'org.apache.logging.log4j'
   }
   parquetFixtureGenerator "org.locationtech.jts:jts-core:${versions.jts}"
-  parquetFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.apache.logging.log4j' }
-  parquetFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.apache.logging.log4j' }
+  parquetFixtureGenerator("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
+  parquetFixtureGenerator("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   parquetFixtureGenerator project(':libs:core')
   parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
+
+  ndjsonFixtureGenerator project(':libs:x-content')
+  ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
 }

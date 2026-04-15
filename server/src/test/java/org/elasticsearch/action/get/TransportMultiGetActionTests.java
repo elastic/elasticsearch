@@ -9,11 +9,14 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,12 +30,16 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +47,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,14 +60,17 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -72,6 +83,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     private static TransportService transportService;
     private static ProjectResolver projectResolver;
     private static ClusterService clusterService;
+    private static ClusterApplierService clusterApplierService;
     private static TransportMultiGetAction transportAction;
 
     @BeforeClass
@@ -172,6 +184,45 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
+
+        final var settings = Settings.builder().put(ROUTE_REFRESH_TIMEOUT.getKey(), "100ms").build();
+        when(clusterService.getSettings()).thenReturn(settings);
+
+        final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterApplierService = new ClusterApplierService("node", settings, clusterSettings, threadPool) {
+            private final PrioritizedEsThreadPoolExecutor directExecutor = new PrioritizedEsThreadPoolExecutor(
+                "master-service",
+                1,
+                1,
+                1,
+                TimeUnit.SECONDS,
+                r -> {
+                    throw new AssertionError("should not create new threads");
+                },
+                null,
+                null
+            ) {
+                @Override
+                public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                    execute(command);
+                }
+
+                @Override
+                public void execute(Runnable command) {
+                    command.run();
+                }
+            };
+
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return directExecutor;
+            }
+        };
+
+        clusterApplierService.setInitialState(clusterState);
+        clusterApplierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+        clusterApplierService.start();
+        when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
     }
 
     @AfterClass
@@ -179,6 +230,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         transportService = null;
+        clusterApplierService.close();
+        clusterApplierService = null;
         clusterService = null;
         transportAction = null;
     }
@@ -248,9 +301,59 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
+        final var result = new PlainActionFuture<MultiGetResponse>();
+        ActionTestUtils.execute(transportAction, task, request.request(), result);
         assertTrue(shardActionInvoked.get());
 
+    }
+
+    public void testStaleRequestExceptionTimesOut() {
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        transportAction = new TransportMultiGetAction(
+            transportService,
+            clusterService,
+            client,
+            new ActionFilters(emptySet()),
+            projectResolver,
+            new Resolver(),
+            mock(IndicesService.class)
+        ) {
+            @Override
+            protected void executeShardAction(
+                final ActionListener<MultiGetResponse> listener,
+                final AtomicArray<MultiGetItemResponse> responses,
+                final Map<ShardId, MultiGetShardRequest> shardRequests
+            ) {
+                // return StaleRequestException for every item
+                for (final var entry : shardRequests.entrySet()) {
+                    final var shardRequest = entry.getValue();
+                    for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        final var item = shardRequest.items.get(i);
+                        responses.set(
+                            shardRequest.locations.get(i),
+                            new MultiGetItemResponse(
+                                null,
+                                new MultiGetResponse.Failure(
+                                    shardRequest.index(),
+                                    item.id(),
+                                    new StaleRequestException(entry.getKey(), shardRequest.getSplitShardCountSummary())
+                                )
+                            )
+                        );
+                    }
+                }
+                listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+            }
+        };
+
+        final var request = new MultiGetRequestBuilder(client);
+        request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
+        request.add(new MultiGetRequest.Item("index2", "2"));
+
+        final var result = new PlainActionFuture<MultiGetResponse>();
+        ActionTestUtils.execute(transportAction, createTask(), request.request(), result);
+        final var exception = assertThrows(ExecutionException.class, () -> result.get(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        assertThat(exception.getCause(), isA(ElasticsearchTimeoutException.class));
     }
 
     private static Task createTask() {

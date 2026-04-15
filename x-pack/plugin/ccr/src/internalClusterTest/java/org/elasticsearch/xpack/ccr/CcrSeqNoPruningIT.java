@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsSeqNoDocValuesCount;
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.persistGlobalCheckpointOnPrimaryShards;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,8 +61,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
     }
 
     public void testSeqNoPrunedOnLeaderAfterFollowerCatchesUp() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         final var leaderIndex = randomIdentifier();
         final var followerIndex = "follower-" + leaderIndex;
         final int numberOfShards = 1;
@@ -110,6 +109,8 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
 
         final long maxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, maxSeqNo + 1);
+        persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
+        flush(leaderClient(), leaderIndex);
 
         var forceMerge = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -134,8 +135,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
     }
 
     public void testSeqNoPartiallyRetainedByCcrLease() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         final var leaderIndex = randomIdentifier();
         final var followerIndex = "follower-" + leaderIndex;
         final int numberOfShards = 1;
@@ -238,6 +237,8 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         final long finalMaxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
 
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, finalMaxSeqNo + 1);
+        persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
+        flush(leaderClient(), leaderIndex);
 
         forceMerge = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -257,5 +258,4 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
     private static long getMaxSeqNo(Client client, String index) {
         return client.admin().indices().prepareStats(index).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
     }
-
 }

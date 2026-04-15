@@ -343,13 +343,17 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
                 @Override
-                public void warmCacheForShardRecoveryOrUnhollowing(
+                protected void warmCache(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm
-                ) {}
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    boolean preWarmForIdLookup,
+                    org.elasticsearch.action.ActionListener<Void> listener
+                ) {
+                    listener.onResponse(null);
+                }
             };
         }
     }

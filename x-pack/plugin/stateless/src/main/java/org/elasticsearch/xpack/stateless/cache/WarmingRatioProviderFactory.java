@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 
 /**
  * Factory for creating {@link WarmingRatioProvider} instances.
- * The exact implementation is provided via SPI. If none is provided, {@link NoWarmingRatioProviderFactory} will be used.
+ * The exact implementation is provided via SPI. If none is provided, {@link DefaultWarmingRatioProviderFactory} is used.
  */
 public interface WarmingRatioProviderFactory {
     WarmingRatioProvider create(ClusterSettings clusterSettings);

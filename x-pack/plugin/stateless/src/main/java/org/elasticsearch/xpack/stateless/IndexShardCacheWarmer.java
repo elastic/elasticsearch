@@ -204,8 +204,10 @@ public class IndexShardCacheWarmer {
                     last,
                     prewarmingDirectory,
                     null,
-                    preWarmForIdLookup
+                    preWarmForIdLookup,
+                    ActionListener.noop()
                 );
+
             }
         }
     }

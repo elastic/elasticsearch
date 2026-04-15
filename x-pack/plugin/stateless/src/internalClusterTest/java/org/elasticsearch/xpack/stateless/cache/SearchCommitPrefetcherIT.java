@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -803,13 +804,17 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // no-op the warming on shard recovery so we do not introduce noise in the testing
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
                 @Override
-                public void warmCacheForShardRecoveryOrUnhollowing(
+                protected void warmCache(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm
-                ) {}
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    boolean preWarmForIdLookup,
+                    ActionListener<Void> listener
+                ) {
+                    listener.onResponse(null);
+                }
             };
         }
     }

@@ -288,19 +288,34 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
-    public void testInitialSearchProjectRouting() throws IOException {
-        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+    public void testInitialSearchIncludesProjectRoutingOnRemoteAfter93() throws IOException {
         String query = "{\"match_all\":{}}";
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         String projectRouting = "_alias:linked";
         searchRequest.setProjectRouting(projectRouting);
         String body = Streams.copyToString(
             new InputStreamReader(
-                initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity().getContent(),
+                initialSearch(searchRequest, new BytesArray(query), Version.CURRENT).getEntity().getContent(),
                 StandardCharsets.UTF_8
             )
         );
         assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
+    }
+
+    /**
+     * {@code project_routing} is not sent to remotes before 9.3
+     */
+    public void testInitialSearchOmitsProjectRoutingOnRemoteBefore93() throws IOException {
+        String query = "{\"match_all\":{}}";
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        searchRequest.setProjectRouting("_alias:linked");
+        String body = Streams.copyToString(
+            new InputStreamReader(
+                initialSearch(searchRequest, new BytesArray(query), Version.V_7_10_0).getEntity().getContent(),
+                StandardCharsets.UTF_8
+            )
+        );
+        assertThat(body, not(containsString("project_routing")));
     }
 
     public void testScrollParams() {
@@ -662,6 +677,15 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
     }
 
+    public void testOpenPitOmitsProjectRoutingOnRemoteBefore93() throws IOException {
+        String index = randomAlphaOfLength(between(1, 20));
+        TimeValue keepAlive = randomPositiveTimeValue();
+        SearchRequest searchRequest = emptySearchRequestForOpenPit();
+        searchRequest.setProjectRouting("_alias:linked");
+        Request request = openPit(new String[] { index }, keepAlive, searchRequest, Version.V_7_10_0);
+        assertNull(request.getEntity());
+    }
+
     public void testOpenPitBodyIncludesIndexFilterWhenQuerySet() throws IOException {
         String index = randomAlphaOfLength(between(1, 20));
         TimeValue keepAlive = randomPositiveTimeValue();
@@ -673,6 +697,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(body, containsString("term"));
         assertThat(body, containsString("\"k\""));
         assertThat(body, containsString("\"v\""));
+    }
+
+    public void testOpenPitOmitsIndexFilterOnRemoteBefore812() throws IOException {
+        String index = randomAlphaOfLength(between(1, 20));
+        TimeValue keepAlive = randomPositiveTimeValue();
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.termQuery("k", "v")));
+        Request request = openPit(new String[] { index }, keepAlive, searchRequest, Version.V_7_10_0);
+        assertNull(request.getEntity());
     }
 
     public void testOpenPitBodyIncludesProjectRoutingAndIndexFilterWhenBothSet() throws IOException {
@@ -687,6 +719,22 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
         assertThat(body, containsString("\"index_filter\""));
         assertThat(body, containsString("match_all"));
+    }
+
+    /**
+     * From 8.12+, {@code index_filter} is sent; {@code project_routing} still requires 9.3+.
+     */
+    public void testOpenPit812IncludesIndexFilterButOmitsProjectRoutingWhenBothSet() throws IOException {
+        String index = randomAlphaOfLength(between(1, 20));
+        TimeValue keepAlive = randomPositiveTimeValue();
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+        searchRequest.setProjectRouting("_alias:linked");
+        Request request = openPit(new String[] { index }, keepAlive, searchRequest, Version.V_8_12_0);
+        assertNotNull(request.getEntity());
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"index_filter\""));
+        assertThat(body, containsString("match_all"));
+        assertThat(body, not(containsString("project_routing")));
     }
 
     /**

@@ -25,6 +25,7 @@ MARCH_AARCH64_TIER1 = armv8.2-a+dotprod
 MARCH_AARCH64_TIER2 = armv8.2-a+sve
 MARCH_AMD64_TIER1   = core-avx2
 MARCH_AMD64_TIER2   = icelake-client
+MARCH_AMD64_TIER3   = cooperlake
 
 # Compilers
 # Darwin cross-compilation: -nostdinc blocks host (glibc) headers, then we
@@ -41,8 +42,9 @@ CXX_X64     = clang++-21 -Winline
 # Sources split by tier
 SRC_AARCH64_TIER1 = $(filter-out %_2.cpp, $(wildcard src/vec/c/aarch64/*.cpp))
 SRC_AARCH64_TIER2 = $(wildcard src/vec/c/aarch64/*_2.cpp)
-SRC_AMD64_TIER1   = $(filter-out %_2.cpp, $(wildcard src/vec/c/amd64/*.cpp))
+SRC_AMD64_TIER1   = $(filter-out %_2.cpp %_3.cpp, $(wildcard src/vec/c/amd64/*.cpp))
 SRC_AMD64_TIER2   = $(wildcard src/vec/c/amd64/*_2.cpp)
+SRC_AMD64_TIER3   = $(wildcard src/vec/c/amd64/*_3.cpp)
 
 # Object directories
 OBJ_DARWIN  = build/obj/darwin-aarch64
@@ -56,6 +58,7 @@ OBJ_LIN_ARM_TIER1 = $(SRC_AARCH64_TIER1:src/vec/c/aarch64/%.cpp=$(OBJ_LIN_ARM)/%
 OBJ_LIN_ARM_TIER2 = $(SRC_AARCH64_TIER2:src/vec/c/aarch64/%.cpp=$(OBJ_LIN_ARM)/%.o)
 OBJ_LIN_X64_TIER1 = $(SRC_AMD64_TIER1:src/vec/c/amd64/%.cpp=$(OBJ_LIN_X64)/%.o)
 OBJ_LIN_X64_TIER2 = $(SRC_AMD64_TIER2:src/vec/c/amd64/%.cpp=$(OBJ_LIN_X64)/%.o)
+OBJ_LIN_X64_TIER3 = $(SRC_AMD64_TIER3:src/vec/c/amd64/%.cpp=$(OBJ_LIN_X64)/%.o)
 
 # Output files
 OUT_DIR_AARCH64 = build/libs/vec/shared/aarch64
@@ -130,7 +133,10 @@ $(OBJ_LIN_X64_TIER1): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
 $(OBJ_LIN_X64_TIER2): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
 	$(CXX_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER2) $(HEADERS) -c $< -o $@
 
-$(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) | $(OUT_DIR_AMD64)
+$(OBJ_LIN_X64_TIER3): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
+	$(CXX_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER3) $(HEADERS) -c $< -o $@
+
+$(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) $(OBJ_LIN_X64_TIER3) | $(OUT_DIR_AMD64)
 	$(CXX_X64) -shared $^ -o $@
 	llvm-strip-21 --strip-unneeded $@
 

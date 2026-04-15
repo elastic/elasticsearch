@@ -424,8 +424,4 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         client().performRequest(request);
     }
 
-    protected Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        return entityAsMap(client().performRequest(request));
-    }
 }

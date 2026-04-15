@@ -542,7 +542,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             .keySet();
     }
 
-    @FixForMultiProject(description = "https://elasticco.atlassian.net/browse/ES-10099")
+    @FixForMultiProject(description = "ES-10099")
     public RepositoryStats stats() {
         return objectStore.stats();
     }

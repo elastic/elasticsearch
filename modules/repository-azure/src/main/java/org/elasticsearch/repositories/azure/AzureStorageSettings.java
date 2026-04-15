@@ -134,6 +134,7 @@ final class AzureStorageSettings {
     );
 
     private final String account;
+    private final String sasToken;
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
@@ -158,6 +159,7 @@ final class AzureStorageSettings {
         String secondaryEndpoint
     ) {
         this.account = account;
+        this.sasToken = sasToken;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
         this.hasCredentials = Strings.hasText(key) || Strings.hasText(sasToken);
         this.endpointSuffix = endpointSuffix;
@@ -207,6 +209,10 @@ final class AzureStorageSettings {
 
     public Proxy getProxy() {
         return proxy;
+    }
+
+    public String getSasToken() {
+        return sasToken;
     }
 
     public String getConnectString() {

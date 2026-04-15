@@ -14,7 +14,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 
 import java.io.ByteArrayInputStream;
@@ -24,10 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public interface GoogleVertexAiRequest extends Request {
-    List<String> AUTH_SCOPE = Collections.singletonList("https://www.googleapis.com/auth/cloud-platform");
+public final class GoogleVertexAiRequestUtils {
+    private static final List<String> AUTH_SCOPE = Collections.singletonList("https://www.googleapis.com/auth/cloud-platform");
 
-    static void decorateWithBearerToken(HttpPost httpPost, GoogleVertexAiSecretSettings secretSettings) {
+    public static void decorateWithBearerToken(HttpPost httpPost, GoogleVertexAiSecretSettings secretSettings) {
         try {
             GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(secretSettings.serviceAccountJson().toString().getBytes(StandardCharsets.UTF_8))
@@ -38,4 +37,6 @@ public interface GoogleVertexAiRequest extends Request {
             throw new ElasticsearchStatusException(e.getMessage(), RestStatus.FORBIDDEN, e);
         }
     }
+
+    private GoogleVertexAiRequestUtils() {}
 }

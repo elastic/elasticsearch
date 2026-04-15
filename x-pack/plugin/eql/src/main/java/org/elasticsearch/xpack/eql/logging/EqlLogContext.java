@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.logging;
 
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -23,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class EqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
+public class EqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "eql";
     private final EqlSearchRequest request;
     private final EqlSearchResponse response;

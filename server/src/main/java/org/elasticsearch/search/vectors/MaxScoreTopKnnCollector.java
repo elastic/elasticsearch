@@ -15,6 +15,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
+import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.NO_RESULTS;
+
 class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     private long minCompetitiveDocScore;
@@ -30,12 +32,12 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public long getMinCompetitiveDocScore() {
-        return queue.size() > 0 ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
+        return queue.size() >= k() ? Math.max(minCompetitiveDocScore, queue.peek()) : minCompetitiveDocScore;
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = queue.size() > 0 ? queue.peek() : LEAST_COMPETITIVE;
+        long queueMinCompetitiveDocScore = queue.size() >= k() ? queue.peek() : LEAST_COMPETITIVE;
         this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
         this.minCompetitiveSimilarity = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }
@@ -57,6 +59,9 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector {
 
     @Override
     public TopDocs topDocs() {
+        if (queue.size() == 0) {
+            return NO_RESULTS;
+        }
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
         for (int i = 1; i <= scoreDocs.length; i++) {

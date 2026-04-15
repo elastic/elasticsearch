@@ -86,6 +86,79 @@ class ScoreCorrections {
         }
     }
 
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsEuclideanBulk();
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsMaxInnerProductBulk();
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsDotProductBulk();
+
+    static float nativeBbqApplyCorrectionsBulk(
+        VectorSimilarityFunction similarityFunction,
+        MemorySegment data,
+        int bulkSize,
+        int vectorSizeInBytes,
+        int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment scores
+    ) {
+        try {
+            return switch (similarityFunction) {
+                case EUCLIDEAN -> (float) BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+                case DOT_PRODUCT, COSINE -> (float) BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+                case MAXIMUM_INNER_PRODUCT -> (float) BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            };
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {
             throw err;

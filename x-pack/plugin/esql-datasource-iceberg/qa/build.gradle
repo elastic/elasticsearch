@@ -69,6 +69,41 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-s3'))
 }
 
+// Standalone Parquet under iceberg-fixtures/standalone/ is generated from esql:qa:testFixtures CSV basenames.
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+def serverProject = project(xpackModule('esql:qa:server'))
+def standaloneParquetFixturesRoot = file("${buildDir}/iceberg-standalone-parquet-fixtures")
+def standaloneParquetFromCsv = ['employees']
+
+def generateIcebergStandaloneParquetTasks = []
+standaloneParquetFromCsv.each { baseName ->
+  def taskName = "generateStandaloneParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetOut = file("${standaloneParquetFixturesRoot}/iceberg-fixtures/standalone/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetOut.path]
+    inputs.file(csvInput)
+    outputs.file(parquetOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateIcebergStandaloneParquetTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateStandaloneParquetFixtures') {
+  dependsOn generateIcebergStandaloneParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir standaloneParquetFixturesRoot
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'generateStandaloneParquetFixtures'
+}
+
 // Test resources (iceberg-fixtures) are now local to this module
 // in src/javaRestTest/resources/
 
@@ -87,6 +122,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
+  dependsOn 'generateStandaloneParquetFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

@@ -50,8 +50,10 @@ dependencies {
   // com.google.protobuf.MessageOrBuilder at runtime
   implementation('com.google.protobuf:protobuf-java:3.25.8')
 
-  // Hadoop dependencies - required because ORC's Reader API uses Hadoop Configuration,
-  // Path, and FileSystem in its public interfaces.
+  // Hadoop dependencies — required because ORC's Reader API uses Configuration,
+  // Path, and FileSystem in its public interfaces. Unlike Parquet/Iceberg,
+  // hadoop-client-runtime is also needed at runtime: FileSystem's static
+  // initializer references shaded Woodstox classes from the runtime jar.
   implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }

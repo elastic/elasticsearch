@@ -315,20 +315,44 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
 
-        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
-            logger,
-            BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
-            threadPool,
-            actualSearchRetries::incrementAndGet,
-            responses::add,
-            failureHandler,
-            new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
-        );
+        final var testHeaderName = randomIdentifier("header-");
+        final var threadContext = threadPool.getThreadContext();
+
+        final ClientPitPaginatedHitSource paginatedHitSource;
+        try (var ignored = threadContext.newStoredContext()) {
+            final var testHeaderInitialValue = randomIdentifier("initial-");
+            threadContext.putHeader(testHeaderName, testHeaderInitialValue);
+            paginatedHitSource = new ClientPitPaginatedHitSource(
+                logger,
+                BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
+                threadPool,
+                actualSearchRetries::incrementAndGet,
+                responses::add,
+                failureHandler,
+                new ParentTaskAssigningClient(client, parentTask) {
+                    @Override
+                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        // Verify that the action is always invoked in the initial thread context, even though this header is set to
+                        // different random values in the rest of the test. This ensures we don't accumulate a deeply-nested tree of spans
+                        // when tracing these requests for APM.
+                        assertEquals(testHeaderInitialValue, threadContext.getHeader(testHeaderName));
+                        super.doExecute(action, request, listener);
+                    }
+                },
+                createPitSearchRequest()
+            );
+        }
 
         paginatedHitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-            client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+            }
             if (retry >= retries) {
                 return;
             }
@@ -338,7 +362,10 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertSame(Boolean.FALSE, r.allowPartialSearchResults()));
         SearchResponse searchResponse = createPitSearchResponse();
         try {
-            client.respond(TransportSearchAction.TYPE, searchResponse);
+            try (var ignored = threadContext.newStoredContext()) {
+                threadContext.putHeader(testHeaderName, randomIdentifier());
+                client.respond(TransportSearchAction.TYPE, searchResponse);
+            }
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
                 PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
@@ -348,14 +375,20 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                    client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+                    try (var ignored = threadContext.newStoredContext()) {
+                        threadContext.putHeader(testHeaderName, randomIdentifier());
+                        client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
+                    }
                     client.awaitOperation();
                     ++expectedSearchRetries;
                 }
 
                 searchResponse.decRef();
                 searchResponse = createPitSearchResponse();
-                client.respond(TransportSearchAction.TYPE, searchResponse);
+                try (var ignored = threadContext.newStoredContext()) {
+                    threadContext.putHeader(testHeaderName, randomIdentifier());
+                    client.respond(TransportSearchAction.TYPE, searchResponse);
+                }
             }
 
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);

@@ -609,6 +609,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
         if (asyncResponse.hasRemainingHits()) {
+            // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
             onScrollResponse(asyncResponse);
             return;
         }

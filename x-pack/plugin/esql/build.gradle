@@ -531,7 +531,10 @@ tasks.withType(Javadoc).configureEach {
   opts.addBooleanOption('-allow-script-in-comments', true)
   // The inline style below is borrowed from Elastic's doc's primary stylesheet
   // the rest is standard activation for highlight.js
-  opts.header('''\
+  // Newlines are stripped from the header to avoid Windows javadoc argument
+  // parsing issues: the options file is parsed line-by-line, so CSS custom
+  // properties like --color-blue-elastic are misread as javadoc flags.
+  opts.header(('''\
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
 <style>
   .snippet-container {
@@ -729,5 +732,5 @@ tasks.withType(Javadoc).configureEach {
 </style>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/elastic/highlightjs-esql@1.2.2/dist/esql.min.js"></script>
-<script>hljs.highlightAll();</script>''')
+<script>hljs.highlightAll();</script>''').replaceAll(/[\r\n]+/, ''))
 }

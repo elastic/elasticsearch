@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import org.elasticsearch.common.network.NetworkAddress;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -21,7 +25,9 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
@@ -155,10 +161,6 @@ public final class RandomMappingGenerator {
 
     public record GeneratedIndex(String name, List<FieldDef> fields, List<Map<String, Object>> documents) {}
 
-    // ──────────────────────────────────────────────────
-    // Public entry point
-    // ──────────────────────────────────────────────────
-
     public static List<GeneratedIndex> generateIndices(int numIndices, String prefix) {
         Map<String, FieldDef> firstSeenMapping = new HashMap<>();
 
@@ -204,10 +206,6 @@ public final class RandomMappingGenerator {
         return result;
     }
 
-    // ──────────────────────────────────────────────────
-    // Mapping generation
-    // ──────────────────────────────────────────────────
-
     static FieldDef reuseMapping(FieldDef original) {
         if (randomBoolean()) {
             return original;
@@ -220,28 +218,29 @@ public final class RandomMappingGenerator {
     private static void tweakSettings(String type, Map<String, Object> s) {
         switch (type) {
             case "keyword" -> {
-                optPut(s, "ignore_above", randomIntBetween(64, 512));
-                optPut(s, "doc_values", randomBoolean());
-                optPut(s, "store", randomBoolean());
+                optionalPut(s, "ignore_above", randomIntBetween(64, 512));
+                optionalPut(s, "doc_values", randomBoolean());
+                optionalPut(s, "store", randomBoolean());
             }
-            case "text", "match_only_text" -> optPut(s, "store", randomBoolean());
+            case "text", "match_only_text" -> optionalPut(s, "store", randomBoolean());
             case "integer", "long", "short", "byte", "float", "double", "half_float" -> {
-                optPut(s, "doc_values", randomBoolean());
-                optPut(s, "coerce", randomBoolean());
+                optionalPut(s, "doc_values", randomBoolean());
+                optionalPut(s, "coerce", randomBoolean());
             }
-            case "unsigned_long" -> optPut(s, "doc_values", randomBoolean());
-            case "scaled_float" -> optPut(s, "scaling_factor", randomFrom(10, 100, 1000));
-            case "date", "date_nanos" -> optPut(s, "doc_values", randomBoolean());
-            case "geo_point" -> optPut(s, "ignore_malformed", randomBoolean());
-            case "geo_shape" -> optPut(s, "orientation", randomFrom("right", "left"));
-            case "flattened" -> optPut(s, "depth_limit", randomIntBetween(5, 50));
-            default -> {
-                /* keep unchanged */ }
+            case "unsigned_long" -> optionalPut(s, "doc_values", randomBoolean());
+            case "scaled_float" -> optionalPut(s, "scaling_factor", randomFrom(10, 100, 1000));
+            case "date", "date_nanos" -> optionalPut(s, "doc_values", randomBoolean());
+            case "geo_point" -> optionalPut(s, "ignore_malformed", randomBoolean());
+            case "geo_shape" -> optionalPut(s, "orientation", randomFrom("right", "left"));
+            case "flattened" -> optionalPut(s, "depth_limit", randomIntBetween(5, 50));
+            default -> {}
         }
     }
 
-    private static void optPut(Map<String, Object> m, String key, Object val) {
-        if (randomBoolean()) m.put(key, val);
+    private static void optionalPut(Map<String, Object> m, String key, Object val) {
+        if (randomBoolean()) {
+            m.put(key, val);
+        }
     }
 
     static FieldDef randomFieldDef(String fieldName) {
@@ -251,220 +250,180 @@ public final class RandomMappingGenerator {
         return new FieldDef(fieldName, type, settings, subFields);
     }
 
-    // ──────────────────────────────────────────────────
-    // Settings generation — every type, every parameter
-    // ──────────────────────────────────────────────────
-
     static Map<String, Object> generateSettings(String type) {
         Map<String, Object> s = new LinkedHashMap<>();
         switch (type) {
-            // ── keyword family ──
             case "keyword" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_above", randomIntBetween(64, 8191));
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "index_options", randomFrom("docs", "freqs"));
-                optSet(s, 1, "norms", randomBoolean());
-                optSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
-                optSet(s, 1, "split_queries_on_whitespace", true);
-                optSet(s, 1, "eager_global_ordinals", true);
-                optSet(s, 1, "null_value", "null_kw_" + randomAlphaOfLength(3));
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_above", randomIntBetween(64, 8191));
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "index_options", randomFrom("docs", "freqs"));
+                optionalSet(s, 1, "norms", randomBoolean());
+                optionalSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
+                optionalSet(s, 1, "split_queries_on_whitespace", true);
+                optionalSet(s, 1, "eager_global_ordinals", true);
+                optionalSet(s, 1, "null_value", "null_kw_" + randomAlphaOfLength(3));
             }
             case "constant_keyword" -> s.put("value", "const_" + randomAlphaOfLength(randomIntBetween(3, 8)));
             case "wildcard" -> {
-                optSet(s, 2, "ignore_above", randomIntBetween(64, 8191));
-                optSet(s, 1, "null_value", "null_wc_" + randomAlphaOfLength(3));
+                optionalSet(s, 2, "ignore_above", randomIntBetween(64, 8191));
+                optionalSet(s, 1, "null_value", "null_wc_" + randomAlphaOfLength(3));
             }
-
-            // ── text family ──
             case "text" -> {
-                optSet(s, 2, "store", true);
-                optSet(s, 1, "analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "index_options", randomFrom("docs", "freqs", "positions", "offsets"));
-                optSet(s, 1, "norms", randomBoolean());
-                optSet(s, 1, "index_phrases", true);
-                optSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));
-                optSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
-                optSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions", "with_offsets", "with_positions_offsets"));
-                optSet(s, 1, "eager_global_ordinals", true);
-                optSet(s, 1, "fielddata", true);
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 1, "analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "index_options", randomFrom("docs", "freqs", "positions", "offsets"));
+                optionalSet(s, 1, "norms", randomBoolean());
+                optionalSet(s, 1, "index_phrases", true);
+                optionalSet(s, 1, "position_increment_gap", randomFrom(100, 0, 50, 200));
+                optionalSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
+                optionalSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions", "with_offsets", "with_positions_offsets"));
+                optionalSet(s, 1, "eager_global_ordinals", true);
+                optionalSet(s, 1, "fielddata", true);
             }
-            case "match_only_text" -> {
-                /* no configurable settings */ }
-
-            // ── boolean ──
+            case "match_only_text" -> {}
             case "boolean" -> {
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "ignore_malformed", true);
-                optSet(s, 1, "null_value", randomBoolean());
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "ignore_malformed", true);
+                optionalSet(s, 1, "null_value", randomBoolean());
             }
-
-            // ── integer numeric types ──
             case "integer", "long", "short", "byte" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
                 if ("integer".equals(type) || "long".equals(type)) {
-                    optSet(s, 1, "null_value", randomIntBetween(-100, 100));
+                    optionalSet(s, 1, "null_value", randomIntBetween(-100, 100));
                 }
             }
-
-            // ── float numeric types ──
             case "float", "double", "half_float" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
             }
             case "scaled_float" -> {
                 s.put("scaling_factor", randomFrom(10, 100, 1000, 10000));
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
             }
             case "unsigned_long" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "index", randomBoolean());
             }
-
-            // ── date family ──
             case "date", "date_nanos" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "format", randomFrom(DATE_FORMATS));
-                optSet(s, 1, "locale", randomFrom("en", "de", "fr", "ja", "und"));
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "format", randomFrom(DATE_FORMATS));
+                optionalSet(s, 1, "locale", randomFrom("en", "de", "fr", "ja", "und"));
             }
-
-            // ── ip ──
             case "ip" -> {
-                optSet(s, 3, "doc_values", randomBoolean());
-                optSet(s, 2, "store", true);
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "null_value", "0.0.0.0");
+                optionalSet(s, 3, "doc_values", randomBoolean());
+                optionalSet(s, 2, "store", true);
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "null_value", "0.0.0.0");
             }
-
-            // ── version ──
-            case "version" -> {
-                /* only meta, no configurable params */ }
-
-            // ── binary ──
+            case "version" -> {}
             case "binary" -> {
-                optSet(s, 2, "doc_values", true);
-                optSet(s, 2, "store", true);
+                optionalSet(s, 2, "doc_values", true);
+                optionalSet(s, 2, "store", true);
             }
-
-            // ── range types ──
             case "integer_range", "long_range", "float_range", "double_range" -> {
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "store", true);
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "store", true);
             }
             case "date_range" -> {
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "store", true);
-                optSet(s, 1, "format", randomFrom(DATE_FORMATS));
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "store", true);
+                optionalSet(s, 1, "format", randomFrom(DATE_FORMATS));
             }
             case "ip_range" -> {
-                optSet(s, 2, "coerce", randomBoolean());
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "store", true);
+                optionalSet(s, 2, "coerce", randomBoolean());
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "store", true);
             }
-
-            // ── flattened ──
             case "flattened" -> {
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 2, "depth_limit", randomFrom(5, 10, 20, 50));
-                optSet(s, 1, "eager_global_ordinals", true);
-                optSet(s, 1, "ignore_above", randomIntBetween(256, 8191));
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "index_options", randomFrom("docs", "freqs"));
-                optSet(s, 1, "null_value", "null_flat");
-                optSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
-                optSet(s, 1, "split_queries_on_whitespace", true);
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 2, "depth_limit", randomFrom(5, 10, 20, 50));
+                optionalSet(s, 1, "eager_global_ordinals", true);
+                optionalSet(s, 1, "ignore_above", randomIntBetween(256, 8191));
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "index_options", randomFrom("docs", "freqs"));
+                optionalSet(s, 1, "null_value", "null_flat");
+                optionalSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
+                optionalSet(s, 1, "split_queries_on_whitespace", true);
             }
-
-            // ── spatial ──
             case "geo_point" -> {
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "ignore_z_value", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "ignore_z_value", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
             }
             case "geo_shape" -> {
-                optSet(s, 2, "orientation", randomFrom("right", "left"));
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "ignore_z_value", randomBoolean());
-                optSet(s, 1, "coerce", true);
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "doc_values", randomBoolean());
+                optionalSet(s, 2, "orientation", randomFrom("right", "left"));
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "ignore_z_value", randomBoolean());
+                optionalSet(s, 1, "coerce", true);
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "doc_values", randomBoolean());
             }
             case "point" -> {
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "ignore_z_value", randomBoolean());
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "ignore_z_value", randomBoolean());
             }
             case "shape" -> {
-                optSet(s, 2, "orientation", randomFrom("right", "left"));
-                optSet(s, 2, "ignore_malformed", true);
-                optSet(s, 1, "ignore_z_value", randomBoolean());
-                optSet(s, 1, "coerce", true);
+                optionalSet(s, 2, "orientation", randomFrom("right", "left"));
+                optionalSet(s, 2, "ignore_malformed", true);
+                optionalSet(s, 1, "ignore_z_value", randomBoolean());
+                optionalSet(s, 1, "coerce", true);
             }
-
-            // ── token_count ──
             case "token_count" -> {
                 s.put("analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 2, "doc_values", randomBoolean());
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "store", true);
-                optSet(s, 1, "enable_position_increments", randomBoolean());
-                optSet(s, 1, "null_value", 0);
+                optionalSet(s, 2, "doc_values", randomBoolean());
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "store", true);
+                optionalSet(s, 1, "enable_position_increments", randomBoolean());
+                optionalSet(s, 1, "null_value", 0);
             }
-
-            // ── completion ──
             case "completion" -> {
-                optSet(s, 2, "analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "max_input_length", randomFrom(50, 20, 100));
-                optSet(s, 1, "preserve_separators", randomBoolean());
-                optSet(s, 1, "preserve_position_increments", randomBoolean());
+                optionalSet(s, 2, "analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "max_input_length", randomFrom(50, 20, 100));
+                optionalSet(s, 1, "preserve_separators", randomBoolean());
+                optionalSet(s, 1, "preserve_position_increments", randomBoolean());
             }
-
-            // ── search_as_you_type ──
             case "search_as_you_type" -> {
-                optSet(s, 2, "max_shingle_size", randomFrom(2, 3, 4));
-                optSet(s, 1, "analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
-                optSet(s, 1, "index", randomBoolean());
-                optSet(s, 1, "index_options", randomFrom("docs", "freqs", "positions", "offsets"));
-                optSet(s, 1, "norms", randomBoolean());
-                optSet(s, 1, "store", true);
-                optSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
-                optSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions"));
+                optionalSet(s, 2, "max_shingle_size", randomFrom(2, 3, 4));
+                optionalSet(s, 1, "analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "search_analyzer", randomFrom(BUILTIN_ANALYZERS));
+                optionalSet(s, 1, "index", randomBoolean());
+                optionalSet(s, 1, "index_options", randomFrom("docs", "freqs", "positions", "offsets"));
+                optionalSet(s, 1, "norms", randomBoolean());
+                optionalSet(s, 1, "store", true);
+                optionalSet(s, 1, "similarity", randomFrom("BM25", "boolean"));
+                optionalSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions"));
             }
-
-            // ── rank_feature / rank_features ──
-            case "rank_feature" -> optSet(s, 3, "positive_score_impact", randomBoolean());
-            case "rank_features" -> {
-                /* no configurable params */ }
-
-            // ── aggregate_metric_double ──
+            case "rank_feature" -> optionalSet(s, 3, "positive_score_impact", randomBoolean());
+            case "rank_features" -> {}
             case "aggregate_metric_double" -> {
                 List<String> allMetrics = List.of("min", "max", "sum", "value_count");
                 int count = randomIntBetween(1, 4);
@@ -477,37 +436,28 @@ public final class RandomMappingGenerator {
                 s.put("metrics", metrics);
                 s.put("default_metric", metrics.get(randomIntBetween(0, metrics.size() - 1)));
             }
-
-            // ── histogram ──
-            case "histogram" -> {
-                /* no configurable params beyond type */ }
-
-            // ── dense_vector ──
+            case "histogram" -> {}
             case "dense_vector" -> {
                 int dims = randomFrom(3, 8, 16, 32, 64, 128);
                 s.put("dims", dims);
                 boolean indexed = randomBoolean();
                 s.put("index", indexed);
-                optSet(s, 2, "element_type", randomFrom("float", "byte"));
+                optionalSet(s, 2, "element_type", randomFrom("float", "byte"));
                 if (indexed) {
-                    optSet(s, 2, "similarity", randomFrom("l2_norm", "dot_product", "cosine", "max_inner_product"));
+                    optionalSet(s, 2, "similarity", randomFrom("l2_norm", "dot_product", "cosine", "max_inner_product"));
                 }
             }
-
-            default -> {
-                /* unknown type, no settings */ }
+            default -> {}
         }
         return s;
     }
 
-    // Adds a setting with probability chance/10
-    private static void optSet(Map<String, Object> s, int chance, String key, Object val) {
+    /**
+     * Adds a setting with probability chance/10
+     */
+    private static void optionalSet(Map<String, Object> s, int chance, String key, Object val) {
         if (randomIntBetween(0, 9) < chance) s.put(key, val);
     }
-
-    // ──────────────────────────────────────────────────
-    // Sub-field generation
-    // ──────────────────────────────────────────────────
 
     static List<FieldDef> generateSubFields(String parentType) {
         List<FieldDef> subFields = new ArrayList<>();
@@ -525,15 +475,10 @@ public final class RandomMappingGenerator {
             case "search_as_you_type" -> {
                 // auto-generated sub-fields; no custom sub-fields needed
             }
-            default -> {
-                /* no sub-fields */ }
+            default -> { /* no sub-fields */ }
         }
         return subFields;
     }
-
-    // ──────────────────────────────────────────────────
-    // Mapping JSON serialization
-    // ──────────────────────────────────────────────────
 
     public static String toMappingJson(List<FieldDef> fields) {
         StringBuilder sb = new StringBuilder();
@@ -582,10 +527,6 @@ public final class RandomMappingGenerator {
         }
     }
 
-    // ──────────────────────────────────────────────────
-    // Document generation
-    // ──────────────────────────────────────────────────
-
     public static Map<String, Object> generateDocument(List<FieldDef> fields) {
         Map<String, Object> doc = new LinkedHashMap<>();
         for (FieldDef field : fields) {
@@ -615,19 +556,12 @@ public final class RandomMappingGenerator {
         };
     }
 
-    // ──────────────────────────────────────────────────
-    // Value generation — every type
-    // ──────────────────────────────────────────────────
-
     @SuppressWarnings("unchecked")
     static Object generateValue(FieldDef field) {
         return switch (field.esType()) {
-            // keyword family
             case "keyword" -> "kw_" + randomAlphaOfLength(randomIntBetween(3, 10));
             case "constant_keyword" -> null;
             case "wildcard" -> "wc_" + randomAlphaOfLength(randomIntBetween(3, 10));
-
-            // text family
             case "text" -> randomFrom("alpha", "bravo", "charlie", "delta", "echo") + " " + randomAlphaOfLength(randomIntBetween(3, 12));
             case "match_only_text" -> randomFrom("foxtrot", "golf", "hotel") + " " + randomAlphaOfLength(randomIntBetween(3, 12));
             case "search_as_you_type" -> randomFrom(
@@ -637,36 +571,20 @@ public final class RandomMappingGenerator {
                 "elastic search query",
                 "random text here"
             );
-
-            // boolean
             case "boolean" -> randomBoolean();
-
-            // integer numerics
             case "integer" -> randomIntBetween(-1000, 1000);
             case "long" -> randomLongBetween(-1_000_000L, 1_000_000L);
             case "short" -> randomIntBetween(Short.MIN_VALUE, Short.MAX_VALUE);
             case "byte" -> randomIntBetween(Byte.MIN_VALUE, Byte.MAX_VALUE);
-
-            // float numerics
             case "float", "double", "half_float" -> Math.round(randomDoubleBetween(-100.0, 100.0, true) * 100.0) / 100.0;
             case "scaled_float" -> Math.round(randomDoubleBetween(0, 100.0, true) * 100.0) / 100.0;
             case "unsigned_long" -> randomLongBetween(0, 1_000_000L);
-
-            // date family
             case "date" -> randomDate();
             case "date_nanos" -> randomDateNanos();
-
-            // ip
             case "ip" -> randomIpV4();
-
-            // version
             case "version" -> randomVersionString();
-
-            // binary
             case "binary" -> Base64.getEncoder()
                 .encodeToString(randomAlphaOfLength(randomIntBetween(4, 20)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-
-            // range types
             case "integer_range" -> {
                 int lo = randomIntBetween(-100, 50);
                 yield Map.of("gte", lo, "lte", lo + randomIntBetween(1, 100));
@@ -680,13 +598,13 @@ public final class RandomMappingGenerator {
                 yield Map.of("gte", lo, "lte", lo + Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
             }
             case "date_range" -> {
-                String d1 = randomDate();
-                String d2 = randomDate();
-                yield d1.compareTo(d2) <= 0 ? Map.of("gte", d1, "lte", d2) : Map.of("gte", d2, "lte", d1);
+                Instant i1 = randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).truncatedTo(ChronoUnit.MILLIS);
+                Instant i2 = randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).truncatedTo(ChronoUnit.MILLIS);
+                yield i1.isBefore(i2)
+                    ? Map.of("gte", i1.toString(), "lte", i2.toString())
+                    : Map.of("gte", i2.toString(), "lte", i1.toString());
             }
             case "ip_range" -> randomFrom("10.0.0.0/24", "192.168.1.0/28", Map.of("gte", "10.0.0.0", "lte", "10.0.0.255"));
-
-            // flattened
             case "flattened" -> {
                 Map<String, Object> flat = new LinkedHashMap<>();
                 flat.put("key_" + randomAlphaOfLength(3), "val_" + randomAlphaOfLength(5));
@@ -696,8 +614,6 @@ public final class RandomMappingGenerator {
                 }
                 yield flat;
             }
-
-            // spatial
             case "geo_point" -> Map.of(
                 "lat",
                 Math.round(randomDoubleBetween(-90.0, 90.0, true) * 1000.0) / 1000.0,
@@ -726,16 +642,10 @@ public final class RandomMappingGenerator {
                     Math.round(randomDoubleBetween(-1000.0, 1000.0, true) * 100.0) / 100.0
                 )
             );
-
-            // token_count — indexed as the token count of a text value
             case "token_count" -> randomFrom("one two three", "hello", "quick brown fox jumped", "a b c d e f", "single");
-
-            // completion
             case "completion" -> randomBoolean()
                 ? randomFrom("Elasticsearch", "Elastic Stack", "Kibana", "Logstash", "Beats")
                 : Map.of("input", List.of(randomFrom("search", "query", "index", "mapping", "field")), "weight", randomIntBetween(1, 100));
-
-            // rank_feature — must be strictly positive
             case "rank_feature" -> Math.round(randomDoubleBetween(0.1, 1000.0, true) * 100.0) / 100.0;
             case "rank_features" -> {
                 Map<String, Object> feats = new LinkedHashMap<>();
@@ -743,8 +653,6 @@ public final class RandomMappingGenerator {
                 feats.put("feat_" + randomAlphaOfLength(3), Math.round(randomDoubleBetween(0.1, 100.0, true) * 100.0) / 100.0);
                 yield feats;
             }
-
-            // aggregate_metric_double
             case "aggregate_metric_double" -> {
                 List<String> metrics = (List<String>) field.settings().getOrDefault("metrics", List.of("min", "max", "sum", "value_count"));
                 Map<String, Object> amd = new LinkedHashMap<>();
@@ -761,8 +669,6 @@ public final class RandomMappingGenerator {
                 }
                 yield amd;
             }
-
-            // histogram
             case "histogram" -> {
                 int bins = randomIntBetween(2, 6);
                 List<Double> values = new ArrayList<>(bins);
@@ -775,8 +681,6 @@ public final class RandomMappingGenerator {
                 }
                 yield Map.of("values", values, "counts", counts);
             }
-
-            // dense_vector
             case "dense_vector" -> {
                 int dims = ((Number) field.settings().getOrDefault("dims", 3)).intValue();
                 String elemType = String.valueOf(field.settings().getOrDefault("element_type", "float"));
@@ -795,48 +699,24 @@ public final class RandomMappingGenerator {
         };
     }
 
-    // ──────────────────────────────────────────────────
-    // Value helpers
-    // ──────────────────────────────────────────────────
+    private static final Instant DATE_RANGE_START = Instant.parse("2020-01-01T00:00:00Z");
+    private static final Instant DATE_RANGE_END = Instant.parse("2025-12-28T23:59:59Z");
 
     static String randomDate() {
-        return String.format(
-            Locale.ROOT,
-            "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
-            randomIntBetween(2020, 2025),
-            randomIntBetween(1, 12),
-            randomIntBetween(1, 28),
-            randomIntBetween(0, 23),
-            randomIntBetween(0, 59),
-            randomIntBetween(0, 59)
-        );
+        return randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).truncatedTo(ChronoUnit.MILLIS).toString();
     }
 
     static String randomDateNanos() {
-        return String.format(
-            Locale.ROOT,
-            "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ",
-            randomIntBetween(2020, 2025),
-            randomIntBetween(1, 12),
-            randomIntBetween(1, 28),
-            randomIntBetween(0, 23),
-            randomIntBetween(0, 59),
-            randomIntBetween(0, 59),
-            randomIntBetween(0, 999_999_999)
-        );
+        return randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).toString();
     }
 
     static String randomIpV4() {
-        return String.format(Locale.ROOT, "10.%d.%d.%d", randomIntBetween(0, 255), randomIntBetween(0, 255), randomIntBetween(0, 255));
+        return NetworkAddress.format(randomIp(true));
     }
 
     static String randomVersionString() {
         return String.format(Locale.ROOT, "%d.%d.%d", randomIntBetween(0, 10), randomIntBetween(0, 20), randomIntBetween(0, 100));
     }
-
-    // ──────────────────────────────────────────────────
-    // Document JSON serialization
-    // ──────────────────────────────────────────────────
 
     public static String toDocumentJson(Map<String, Object> doc) {
         StringBuilder sb = new StringBuilder("{");

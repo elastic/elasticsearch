@@ -86,7 +86,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         assertThat(store.decRef(), is(true));
 
         taskQueue.runAllTasks();
-        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecoveryOrUnhollowing(any(), any(), any(), any(), any());
+        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecoveryOrUnhollowing(any(), any(), any(), any(), any(), any());
     }
 
     public void testLogErrorIfPrewarmingFailed() throws Exception {

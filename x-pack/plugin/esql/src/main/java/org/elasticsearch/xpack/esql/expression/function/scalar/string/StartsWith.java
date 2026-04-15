@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -146,9 +146,9 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
-        var wildcardQuery = QueryParser.escape(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
+        var wildcardQuery = StringUtils.escapeWildcardLiteral(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override

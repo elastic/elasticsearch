@@ -70,7 +70,9 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void cleanUp() {
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
         IntegrationTestUtils.deleteIndex(client(), indexName);
     }
 

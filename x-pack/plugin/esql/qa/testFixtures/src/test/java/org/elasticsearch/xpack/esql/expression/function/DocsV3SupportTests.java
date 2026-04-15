@@ -476,7 +476,9 @@ public class DocsV3SupportTests extends ESTestCase {
     private TestCallbacks renderTestClassWithMapParamDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClassWithMapParam.class);
         assert info != null;
-        FunctionDefinition definition = EsqlFunctionRegistry.def(TestClassWithMapParam.class, TestClassWithMapParam::new, "test_map_func");
+        FunctionDefinition definition = FunctionDefinition.def(TestClassWithMapParam.class)
+            .ternary(TestClassWithMapParam::new)
+            .name("test_map_func");
         TestCallbacks callbacks = new TestCallbacks();
         var docsSupport = new DocsV3Support.FunctionDocsSupport(
             "test_map_func",

@@ -25,7 +25,6 @@ import org.junit.runners.model.Statement;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -142,10 +141,14 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );
         ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
+        assertTrue(
+            "Remote parent span ID was not propagated: parentSpanId is empty",
+            rootSpan.parentSpanId().isPresent()
+        );
         assertEquals(
-            "Remote parent span ID from traceparent header was not propagated onto the root span",
-            Optional.of(remoteParentSpanId),
-            rootSpan.parentSpanId()
+            "Remote parent span ID value does not match the traceparent header",
+            remoteParentSpanId,
+            rootSpan.parentSpanId().get()
         );
         assertNodeStatsRootSpanAttributes(rootSpan);
     }

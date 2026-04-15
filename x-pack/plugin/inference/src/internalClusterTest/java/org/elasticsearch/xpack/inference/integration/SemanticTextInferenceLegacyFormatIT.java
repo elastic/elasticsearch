@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyFormatTestCase {
 
     /**
+     * Ported from "Calculates sparse embedding and text embedding results for new documents" in {@code 30_semantic_text_inference_bwc.yml}.
      * Indexes a single document and verifies that the legacy source structure is populated:
      * {@code field.text} holds the original string, and {@code field.inference.chunks[0].text}
      * plus {@code field.inference.chunks[0].embeddings} are present.
@@ -49,6 +50,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
     }
 
     /**
+     * Ported from "Calculates sparse embedding and text embedding results for new documents with integer value" and "...with boolean value" in {@code 30_semantic_text_inference_bwc.yml}.
      * Verifies that integer and boolean source values are coerced to strings in the legacy format
      * (matching the YAML test {@code 30_semantic_text_inference_bwc.yml}).
      */
@@ -73,6 +75,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
     }
 
     /**
+     * Ported from "Sparse vector results are indexed as nested chunks and searchable" in {@code 30_semantic_text_inference_bwc.yml}.
      * Bulk-indexes two documents and verifies that a {@code SemanticQueryBuilder} search on the
      * sparse field returns both hits.
      */
@@ -96,6 +99,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
     }
 
     /**
+     * Ported from "Dense vector results are indexed as nested chunks and searchable" in {@code 30_semantic_text_inference_bwc.yml}.
      * Bulk-indexes two documents and verifies that a {@code SemanticQueryBuilder} search on the
      * dense field returns hits.
      */
@@ -119,6 +123,7 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
     }
 
     /**
+     * Ported from "Calculates embeddings for bulk operations - index" in {@code 30_semantic_text_inference_bwc.yml}.
      * Bulk-indexes several documents and asserts that there are no failures and the expected hit
      * count is correct.
      */

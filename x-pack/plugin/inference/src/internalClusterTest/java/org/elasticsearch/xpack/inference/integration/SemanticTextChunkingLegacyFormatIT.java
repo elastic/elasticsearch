@@ -69,6 +69,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We return chunking configurations with mappings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates legacy indices with default, custom (word), and none chunking strategies and
      * verifies that the chunking_settings are reflected correctly in the index mapping.
      */
@@ -125,6 +126,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We do not set custom chunking settings for null chunking settings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a legacy index with {@code chunking_settings: null} and verifies that
      * no chunking_settings appear in the mapping.
      */
@@ -150,6 +152,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We do not set custom chunking settings for empty specified chunking settings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a legacy index with an empty {@code chunking_settings: {}} object and verifies that
      * no chunking_settings appear in the mapping.
      */
@@ -176,6 +179,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We return different chunks based on configured chunking overrides or model defaults for sparse embeddings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Indexes a document into both a default-chunking (sparse) index and a custom word-chunking
      * (sparse) index, then verifies that highlights reflect the different chunking configurations:
      * the default index produces a single fragment while the custom index produces three.
@@ -246,6 +250,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We return different chunks based on configured chunking overrides or model defaults for dense embeddings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Indexes a document into a default-chunking (dense), a custom word-chunking (dense), and a
      * none-chunking (dense) index, then verifies that highlights reflect the different chunking
      * configurations.
@@ -342,6 +347,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We respect multiple semantic_text fields with different chunking configurations" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a single legacy index with two semantic_text fields — one with default chunking and
      * one with custom word chunking — indexes a document, and verifies that highlights for each
      * field reflect the respective chunking configuration.
@@ -423,6 +429,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "Bulk requests are handled appropriately" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Bulk-indexes three documents across two indices with different chunking configurations and
      * verifies that highlights for each document match its index's chunking strategy.
      */
@@ -497,6 +504,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "Invalid chunking settings will result in an error" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Verifies that creating a legacy index with invalid chunking_settings (extra unknown fields,
      * missing required fields, or an invalid strategy) produces a descriptive error.
      */
@@ -578,6 +586,7 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
+     * Ported from "We can update chunking settings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a legacy index without chunking settings, verifies they are absent, updates the
      * mapping to add word chunking settings, verifies they are present, then removes them by
      * updating the mapping again without chunking_settings, and verifies they are absent once more.

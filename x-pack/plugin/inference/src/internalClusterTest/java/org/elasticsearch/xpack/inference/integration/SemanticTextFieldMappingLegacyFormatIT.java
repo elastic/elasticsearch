@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFormatTestCase {
 
     /**
+     * Ported from "Indexes sparse vector document" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Creates a legacy index with a semantic_text field that has no initial model_settings,
      * confirms the settings are absent before indexing, then indexes a document and confirms
      * that model_settings are subsequently populated in the mapping.
@@ -67,6 +68,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Indexes dense vector document" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Creates a legacy index with a dense semantic_text field that has no initial model_settings,
      * confirms the settings are absent before indexing, then indexes a document and confirms
      * that model_settings (including dimensions, similarity, and element_type) are subsequently
@@ -102,6 +104,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Field caps with sparse embedding" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies field_caps behaviour for a legacy index containing a sparse semantic_text field.
      * Before indexing, {@code include_empty_fields=false} returns neither field. After indexing a
      * sparse document, {@code include_empty_fields=false} returns the sparse field but not the
@@ -139,6 +142,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Indexes dense vector document with bbq compatible model" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies that indexing a document into a legacy-format index backed by a BBQ-compatible model
      * does NOT auto-populate {@code index_options} in the mapping. In the new (non-legacy) format
      * the mapper would inject default index_options from the inference service; the legacy format
@@ -182,6 +186,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Field caps with text embedding" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies field_caps behaviour for a legacy index containing a dense semantic_text field.
      * After indexing a dense document, {@code include_empty_fields=false} returns the dense field
      * but not the sparse field.
@@ -213,6 +218,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Field caps exclude chunks embedding and text fields" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies that field_caps does not expose the internal sub-fields of semantic_text
      * ({@code inference}, {@code inference.chunks}, {@code inference.chunks.embeddings}, etc.).
      */
@@ -235,6 +241,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Field caps with semantic query does not fail" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies that using a {@code SemanticQueryBuilder} as an index filter in a field_caps request
      * does not cause a failure and returns the expected fields.
      */
@@ -254,6 +261,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Users can set dense vector index options and index documents using those options" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Creates a legacy index with explicit {@code int8_hnsw} dense index options, verifies the
      * options are persisted in the mapping before and after indexing a document.
      */
@@ -295,6 +303,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Updating index options" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Creates a legacy index with dense index options and verifies they can be updated (m and
      * ef_construction) but not with an incompatible type change.
      */
@@ -378,6 +387,7 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
+     * Ported from "Updating inference_id to compatible endpoint should succeed given model settings" in {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies that the inference_id of a semantic_text field can be updated to a compatible
      * endpoint. After updating, documents indexed before the change retain the old inference_id
      * in their stored source, and documents indexed after the change use the new inference_id.

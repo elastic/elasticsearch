@@ -105,6 +105,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Updating non semantic_text fields does not recalculate embeddings" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Indexes a document with sparse, dense, and non-inference fields, captures the embeddings for
      * both semantic fields, updates only the non-inference field, and asserts that the text and
      * embeddings for both semantic fields are unchanged while the non-inference field is updated.
@@ -153,6 +154,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Updating semantic_text fields recalculates embeddings" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Indexes a document, then verifies that bulk and regular updates to semantic fields produce
      * updated text and chunk values for both sparse and dense fields across multiple update rounds.
      */
@@ -215,6 +217,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Update logic handles source fields in object fields" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Creates an index with {@code object_source} containing sub-fields that copy to the top-level
      * semantic_text fields. Verifies that bulk and regular updates including object-path keys
      * produce multiple inference chunks for each field.
@@ -323,6 +326,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Partial updates work when using the update API" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Creates an index where plain text fields copy their values into semantic_text fields. Verifies
      * that a partial update using only the source fields recalculates the copy-to chunks while
      * preserving the direct field values.
@@ -409,6 +413,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Partial updates work when using the update API and the semantic_text field's original value is null" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Indexes a document without setting the direct semantic_text field values (so their
      * {@code text} is null), then verifies that a partial update via source fields still
      * recalculates the chunks while keeping {@code text} null.
@@ -492,6 +497,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Updates with script are not allowed" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that both bulk and regular script updates are rejected with a 400 error on an
      * index that contains semantic_text fields.
      */
@@ -536,6 +542,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "semantic_text copy_to needs values for every source field for bulk updates" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that when a semantic_text field has multiple copy_to source fields, a bulk update
      * that omits one of the source fields is rejected with a 400 error.
      */
@@ -594,6 +601,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Calculates embeddings for bulk operations - update" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that bulk index and update operations calculate embeddings for both semantic fields
      * and that a subsequent bulk script update is rejected.
      */
@@ -666,6 +674,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Calculates embeddings for bulk operations - upsert" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that a bulk update on a non-existent document fails with 404, that doc_as_upsert
      * creates the document on the second attempt, and that a subsequent upsert updates it.
      */
@@ -726,6 +735,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Bypass inference on bulk update operation" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that a bulk update containing only a non-semantic field does not recalculate or
      * overwrite the existing semantic field embeddings.
      */
@@ -787,6 +797,7 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
+     * Ported from "Explicit nulls clear inference results on bulk update operation" in {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that a bulk update with explicit null values for both semantic fields clears the
      * inference results stored in the document.
      */

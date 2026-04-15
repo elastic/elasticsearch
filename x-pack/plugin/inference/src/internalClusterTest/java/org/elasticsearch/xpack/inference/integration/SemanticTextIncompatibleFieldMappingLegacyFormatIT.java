@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends SemanticTextLegacyFormatTestCase {
 
     /**
+     * Ported from "Fails for non-compatible dimensions" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense embedding whose dimensions differ from the
      * model_settings stored in the mapping, and asserts that the indexing fails.
      */
@@ -47,6 +48,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for non-compatible inference id" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense embedding whose inference_id does not match
      * the field's configured inference_id, and asserts that the indexing fails.
      */
@@ -75,6 +77,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for non-compatible similarity" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense embedding whose similarity does not match the
      * model_settings, and asserts that the indexing fails.
      */
@@ -100,6 +103,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for non-compatible element type" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense embedding whose element_type does not match
      * the model_settings, and asserts that the indexing fails.
      */
@@ -125,6 +129,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for non-compatible task type for dense vectors" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document into a dense field using {@code sparse_embedding} as the
      * task_type (wrong task type for a dense field), and asserts that the indexing fails.
      */
@@ -148,6 +153,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for non-compatible task type for sparse vectors" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document into a sparse field using {@code text_embedding} as the
      * task_type (wrong task type for a sparse field), and asserts that the indexing fails.
      */
@@ -173,6 +179,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for missing dense vector inference results in chunks" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense chunk that has no embeddings, and asserts
      * that the indexing fails with a parse error.
      */
@@ -205,6 +212,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for missing sparse vector inference results in chunks" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a sparse chunk that has no embeddings, and asserts
      * that the indexing fails with a parse error.
      */
@@ -234,6 +242,7 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
     }
 
     /**
+     * Ported from "Fails for missing text in chunks" in {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml}.
      * Indexes a legacy-format document with a dense chunk that has no text field, and asserts
      * that the indexing fails with a parse error.
      */

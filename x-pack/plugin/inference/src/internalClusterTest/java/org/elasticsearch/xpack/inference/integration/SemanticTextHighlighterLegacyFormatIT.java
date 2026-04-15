@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
@@ -796,9 +795,7 @@ public class SemanticTextHighlighterLegacyFormatIT extends SemanticTextLegacyFor
                             null,
                             null
                         )
-                    )
-                        .highlighter(new HighlightBuilder().field(highlightField("bbq_disk_body", 3)))
-                        .trackTotalHits(true)
+                    ).highlighter(new HighlightBuilder().field(highlightField("bbq_disk_body", 3))).trackTotalHits(true)
                 )
             ),
             response -> {

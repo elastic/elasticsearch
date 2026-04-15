@@ -1,0 +1,3 @@
+FROM k8s-downsampled METADATA _index
+| WHERE ends_with(_index, "-downsampled")
+| KEEP cluster

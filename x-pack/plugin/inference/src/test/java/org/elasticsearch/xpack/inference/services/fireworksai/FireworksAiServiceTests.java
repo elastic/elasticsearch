@@ -162,7 +162,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
+            protected Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure, null);
             }
         }).build();

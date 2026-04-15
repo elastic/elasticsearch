@@ -144,7 +144,15 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         String model,
         @Nullable String user
     ) {
-        var embeddingsModel = OpenAiEmbeddingsModelTests.createModel(url, org, apiKey, model, user, (Integer) null);
+        var embeddingsModel = OpenAiEmbeddingsModelTests.createModel(
+            url,
+            org,
+            apiKey,
+            model,
+            user,
+            (Integer) null,
+            TaskType.TEXT_EMBEDDING
+        );
 
         return new OpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),

@@ -15,11 +15,11 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import java.io.IOException;
 
 /**
- * Single threaded implementation of k-means
+ * Single threaded implementation of Lloyd's k-means
  */
-class KMeansLocalSerial extends KMeansLocal {
+class LloydKMeansLocalSerial extends LloydKMeansLocal {
 
-    KMeansLocalSerial(int sampleSize, int maxIterations) {
+    LloydKMeansLocalSerial(int sampleSize, int maxIterations) {
         super(sampleSize, maxIterations);
     }
 

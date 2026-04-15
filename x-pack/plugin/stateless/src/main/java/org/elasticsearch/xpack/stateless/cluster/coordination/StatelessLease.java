@@ -27,16 +27,21 @@ import org.elasticsearch.core.Strings;
 
 import java.util.Optional;
 
-public record StatelessLease(int formatVersion, long currentTerm, long nodeLeftGeneration, long projectsUnderDeletedGeneration) {
+/**
+ * @param formatVersion Currently the only acceptable/existing {@code formatVersion} is {@code V1_FORMAT_VERSION}
+ */
+public record StatelessLease(int formatVersion, long currentTerm, long nodeLeftGeneration, long projectsUnderDeletionGeneration) {
 
-    public static final int LEGACY_FORMAT_VERSION = 0;
-    public static final int LEGACY_FORMAT_VERSION_LENGTH = 2 * Long.BYTES;
     public static final int V1_FORMAT_VERSION = 1;
     private static final int V1_FORMAT_VERSION_LENGTH = Integer.BYTES + Long.BYTES * 3;
-    public static final StatelessLease ZERO = new StatelessLease(V1_FORMAT_VERSION, 0, 0, 0);
+    public static final StatelessLease ZERO = new StatelessLease(0, 0, 0);
 
-    public StatelessLease(long currentTerm, long nodeLeftGeneration, long projectsUnderDeletedGeneration) {
-        this(V1_FORMAT_VERSION, currentTerm, nodeLeftGeneration, projectsUnderDeletedGeneration);
+    public StatelessLease {
+        assert formatVersion == V1_FORMAT_VERSION;
+    }
+
+    public StatelessLease(long currentTerm, long nodeLeftGeneration, long projectsUnderDeletionGeneration) {
+        this(V1_FORMAT_VERSION, currentTerm, nodeLeftGeneration, projectsUnderDeletionGeneration);
     }
 
     public BytesReference asBytes() {
@@ -45,19 +50,15 @@ public record StatelessLease(int formatVersion, long currentTerm, long nodeLeftG
         }
         final byte[] bytes;
         assert nodeLeftGeneration >= 0;
-        if (formatVersion == LEGACY_FORMAT_VERSION) {
-            assert projectsUnderDeletedGeneration == 0 : "projectsUnderDeletedGeneration should be 0 for legacy format";
-            bytes = new byte[LEGACY_FORMAT_VERSION_LENGTH];
-            ByteUtils.writeLongBE(currentTerm, bytes, 0);
-            ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Long.BYTES);
-        } else if (formatVersion == V1_FORMAT_VERSION) {
+        assert projectsUnderDeletionGeneration >= 0;
+        if (formatVersion == V1_FORMAT_VERSION) {
             bytes = new byte[V1_FORMAT_VERSION_LENGTH];
             ByteUtils.writeIntBE(formatVersion, bytes, 0);
             ByteUtils.writeLongBE(currentTerm, bytes, Integer.BYTES);
             ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Integer.BYTES + Long.BYTES);
-            ByteUtils.writeLongBE(projectsUnderDeletedGeneration, bytes, Integer.BYTES + Long.BYTES * 2);
+            ByteUtils.writeLongBE(projectsUnderDeletionGeneration, bytes, Integer.BYTES + Long.BYTES * 2);
         } else {
-            throw new IllegalArgumentException("unknown format version: " + formatVersion);
+            throw new IllegalStateException("unknown format version: " + formatVersion);
         }
         return new BytesArray(bytes);
     }
@@ -71,34 +72,19 @@ public record StatelessLease(int formatVersion, long currentTerm, long nodeLeftG
         if (bytesReference.length() == 0) {
             return Optional.of(StatelessLease.ZERO);
         }
-        assert bytesReference.length() >= LEGACY_FORMAT_VERSION_LENGTH;
-        // Legacy format is detected based on the length of the byte array
-        if (bytesReference.length() == LEGACY_FORMAT_VERSION_LENGTH) {
+        // Any lease format must have a format version at the start
+        assert bytesReference.length() >= Integer.BYTES;
+        int version = bytesReference.getInt(0);
+        if (version == V1_FORMAT_VERSION && bytesReference.length() == V1_FORMAT_VERSION_LENGTH) {
             result = new StatelessLease(
-                LEGACY_FORMAT_VERSION,
-                Long.reverseBytes(bytesReference.getLongLE(0)),
-                Long.reverseBytes(bytesReference.getLongLE(Long.BYTES)),
-                0L
+                Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES)),
+                Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES + Long.BYTES)),
+                Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES + 2 * Long.BYTES))
             );
         } else {
-            // Any new format must have a format version at the start
-            int version = Integer.reverseBytes(bytesReference.getIntLE(0));
-            if (version == V1_FORMAT_VERSION && bytesReference.length() == V1_FORMAT_VERSION_LENGTH) {
-                result = new StatelessLease(
-                    version,
-                    Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES)),
-                    Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES + Long.BYTES)),
-                    Long.reverseBytes(bytesReference.getLongLE(Integer.BYTES + 2 * Long.BYTES))
-                );
-            } else {
-                throw new IllegalArgumentException(
-                    Strings.format(
-                        "cannot read lease format version [%d] from byte arrays of length [%d]",
-                        version,
-                        bytesReference.length()
-                    )
-                );
-            }
+            throw new IllegalStateException(
+                Strings.format("cannot read lease format version [%d] from byte arrays of length [%d]", version, bytesReference.length())
+            );
         }
         return Optional.of(result);
     }
@@ -109,8 +95,8 @@ public record StatelessLease(int formatVersion, long currentTerm, long nodeLeftG
         if (result == 0) {
             result = Long.compare(lease1.nodeLeftGeneration, lease2.nodeLeftGeneration);
         }
-        if (result == 0 && lease1.formatVersion == V1_FORMAT_VERSION && lease2.formatVersion == V1_FORMAT_VERSION) {
-            result = Long.compare(lease1.projectsUnderDeletedGeneration, lease2.projectsUnderDeletedGeneration);
+        if (result == 0) {
+            result = Long.compare(lease1.projectsUnderDeletionGeneration, lease2.projectsUnderDeletionGeneration);
         }
         return result;
     }

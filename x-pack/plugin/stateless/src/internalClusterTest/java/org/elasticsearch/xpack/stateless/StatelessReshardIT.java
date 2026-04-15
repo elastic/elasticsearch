@@ -57,7 +57,9 @@ import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -4192,6 +4194,216 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         waitForReshardCompletion(indexName);
+    }
+
+    public void testTermVectorsApiRealtimeGet() throws IOException, InterruptedException, ExecutionException {
+        String masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(4);
+
+        var indexName = randomIndexName();
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 1).build()).setMapping("""
+            {"properties":{"field":{"type": "text","term_vector":"yes"}}}
+            """));
+        ensureGreen(indexName);
+
+        var afterSplitMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
+        var afterSplitRouting = IndexRouting.fromIndexMetadata(afterSplitMetadata);
+
+        // A document that routes to the target shard post split.
+        String document1Id = makeIdThatRoutesToShard(afterSplitRouting, 1, "1");
+
+        client(coordinator).prepareIndex(indexName).setId(document1Id).setSource("field", "value").get();
+
+        // Note that we don't refresh since this is realtime.
+
+        var preSplitResponse = client(coordinator).prepareTermVectors(indexName, document1Id).setRealtime(true).get();
+        assertTrue(preSplitResponse.isExists());
+        assertEquals(1, preSplitResponse.getFields().size());
+        assertEquals("field", preSplitResponse.getFields().iterator().next());
+
+        var handoffStarted = new CountDownLatch(1);
+        var handoffBlocked = new CountDownLatch(1);
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
+                            handoffStarted.countDown();
+                            handoffBlocked.await();
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        String document2Id = makeIdThatRoutesToShard(afterSplitRouting, 1, "2");
+
+        // Simulate a request arriving at a stale coordinator by blocking shard level requests with current old summary.
+        var readInitiated = new CountDownLatch(1);
+        var readBlocked = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TermVectorsAction.NAME + "[s]")) {
+                try {
+                    readInitiated.countDown();
+                    readBlocked.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var readFuture = executor.submit(() -> client(coordinator).prepareTermVectors(indexName, document2Id).setRealtime(true).get());
+            readInitiated.await();
+
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+            handoffStarted.await();
+
+            // Now we will index the document and it should be resplit to the target shard.
+            var indexFuture = executor.submit(
+                () -> client(coordinator).prepareIndex(indexName).setId(document2Id).setSource("field", "value2").get()
+            );
+
+            // Once we unblock handoff the write should complete.
+            handoffBlocked.countDown();
+            indexFuture.get();
+
+            // And now we perform the "stale" read.
+            readBlocked.countDown();
+
+            // It should still be successful.
+            var response = readFuture.get();
+            assertTrue(response.isExists());
+            assertEquals(1, response.getFields().size());
+            assertEquals("field", response.getFields().iterator().next());
+
+            waitForReshardCompletion(indexName);
+        }
+    }
+
+    public void testMultiTermVectorsApiRealtimeGet() throws IOException, InterruptedException, ExecutionException {
+        String masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(4);
+
+        var indexName = randomIndexName();
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 1).build()).setMapping("""
+            {"properties":{"field":{"type": "text","term_vector":"yes"}}}
+            """));
+        ensureGreen(indexName);
+
+        var afterSplitMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
+        var afterSplitRouting = IndexRouting.fromIndexMetadata(afterSplitMetadata);
+
+        String document1Id = makeIdThatRoutesToShard(afterSplitRouting, 0, "1");
+        String document2Id = makeIdThatRoutesToShard(afterSplitRouting, 1, "2");
+
+        client(coordinator).prepareIndex(indexName).setId(document1Id).setSource("field", "value").get();
+        client(coordinator).prepareIndex(indexName).setId(document2Id).setSource("field", "value2").get();
+
+        // Note that we don't refresh since this is realtime.
+
+        var preSplitResponse = client(coordinator).prepareMultiTermVectors()
+            .add(new TermVectorsRequest(indexName, document1Id).realtime(true))
+            .add(new TermVectorsRequest(indexName, document2Id).realtime(true))
+            .get();
+        var document1PreSplitResponse = preSplitResponse.getResponses()[0].getResponse();
+        assertTrue(document1PreSplitResponse.isExists());
+        assertEquals(1, document1PreSplitResponse.getFields().size());
+        assertEquals("field", document1PreSplitResponse.getFields().iterator().next());
+        var document2PreSplitResponse = preSplitResponse.getResponses()[0].getResponse();
+        assertTrue(document2PreSplitResponse.isExists());
+        assertEquals(1, document2PreSplitResponse.getFields().size());
+        assertEquals("field", document2PreSplitResponse.getFields().iterator().next());
+
+        var handoffStarted = new CountDownLatch(1);
+        var handoffBlocked = new CountDownLatch(1);
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
+                            handoffStarted.countDown();
+                            handoffBlocked.await();
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Document queued to be indexed on the target shard.
+        String document3Id = makeIdThatRoutesToShard(afterSplitRouting, 1, "3");
+
+        // Simulate a request arriving at a stale coordinator by blocking shard level requests with current old summary.
+        var readInitiated = new CountDownLatch(1);
+        var readBlocked = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportShardMultiTermsVectorAction.TYPE.name() + "[s]")) {
+                try {
+                    readInitiated.countDown();
+                    readBlocked.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var readFuture = executor.submit(
+                () -> client(coordinator).prepareMultiTermVectors()
+                    .add(new TermVectorsRequest(indexName, document1Id).realtime(true))
+                    .add(new TermVectorsRequest(indexName, document2Id).realtime(true))
+                    .add(new TermVectorsRequest(indexName, document3Id).realtime(true))
+                    .get()
+            );
+            readInitiated.await();
+
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+            handoffStarted.await();
+
+            // Now we will index the document and it should be resplit to the target shard.
+            var indexFuture = executor.submit(
+                () -> client(coordinator).prepareIndex(indexName).setId(document3Id).setSource("field", "value3").get()
+            );
+
+            // Once we unblock handoff the write should complete.
+            handoffBlocked.countDown();
+            indexFuture.get();
+
+            // And now we perform the "stale" read.
+            readBlocked.countDown();
+
+            var response = readFuture.get();
+            // Right now we get an exception, eventually it will be retried.
+            for (var r : response.getResponses()) {
+                assertTrue(r.getFailure().getCause() instanceof StaleRequestException);
+            }
+
+            waitForReshardCompletion(indexName);
+        }
     }
 
     @Override

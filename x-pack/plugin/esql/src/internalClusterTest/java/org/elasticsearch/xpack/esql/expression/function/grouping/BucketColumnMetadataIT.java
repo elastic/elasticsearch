@@ -146,17 +146,12 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMultipleStatsWithBucket() {
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    """
-                        ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-                         | STATS number=VALUES(number), date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-                         | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
-                        """
-                )
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+             | STATS number=VALUES(number), date=VALUES(date)
+                BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+             | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
+            """))) {
             assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("date_range", "1 month"))));
             assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("numeric_range", 10.0))));
         }

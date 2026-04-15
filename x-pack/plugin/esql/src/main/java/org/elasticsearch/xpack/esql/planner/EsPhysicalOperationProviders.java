@@ -590,7 +590,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            needsOutputFiltering ? outputRounding : null
+            needsOutputFiltering ? outputRounding : null,
+            ts.isCollapsed()
         );
     }
 

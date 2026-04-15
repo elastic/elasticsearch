@@ -1561,7 +1561,7 @@ LUH            | Sahnewal          | 9                 | airports
 ;
 
 startsWithOnIndexWithMinusWhere
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | WHERE STARTS_WITH(_index, "k8s-")
@@ -1572,7 +1572,7 @@ c:long
 ;
 
 startsWithOnIndexWithMinusEval
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | EVAL is_there = STARTS_WITH(_index, "k8s-")
@@ -1584,7 +1584,7 @@ true
 ;
 
 endsWithOnIndexWithMinusWhere
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | WHERE ENDS_WITH(_index, "-downsampled")
@@ -1595,7 +1595,7 @@ c:long
 ;
 
 endsWithOnIndexWithMinusEval
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | EVAL is_there = ENDS_WITH(_index, "-downsampled")
@@ -1607,7 +1607,7 @@ true
 ;
 
 likeOnIndexWithMinusWhere
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | WHERE _index LIKE "k8s-*"
@@ -1618,7 +1618,7 @@ c:long
 ;
 
 likeOnIndexWithMinusEval
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | EVAL is_there = _index LIKE "k8s-*"
@@ -1630,7 +1630,7 @@ true
 ;
 
 rlikeOnIndexWithMinusWhere
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | WHERE _index RLIKE "k8s-.*"
@@ -1641,7 +1641,7 @@ c:long
 ;
 
 rlikeOnIndexWithMinusEval
-required_capability: index_metadata_field
+required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | EVAL is_there = _index RLIKE "k8s-.*"

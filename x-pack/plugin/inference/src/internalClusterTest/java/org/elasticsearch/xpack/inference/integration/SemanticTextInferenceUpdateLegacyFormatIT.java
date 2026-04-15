@@ -413,7 +413,8 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
-     * Ported from "Partial updates work when using the update API and the semantic_text field's original value is null" in {@code 60_semantic_text_inference_update_bwc.yml}.
+     * Ported from "Partial updates work when using the update API and the semantic_text field's original value is null" in
+     * {@code 60_semantic_text_inference_update_bwc.yml}.
      * Indexes a document without setting the direct semantic_text field values (so their
      * {@code text} is null), then verifies that a partial update via source fields still
      * recalculates the chunks while keeping {@code text} null.
@@ -542,7 +543,8 @@ public class SemanticTextInferenceUpdateLegacyFormatIT extends SemanticTextLegac
     }
 
     /**
-     * Ported from "semantic_text copy_to needs values for every source field for bulk updates" in {@code 60_semantic_text_inference_update_bwc.yml}.
+     * Ported from "semantic_text copy_to needs values for every source field for bulk updates" in
+     * {@code 60_semantic_text_inference_update_bwc.yml}.
      * Verifies that when a semantic_text field has multiple copy_to source fields, a bulk update
      * that omits one of the source fields is rejected with a 400 error.
      */

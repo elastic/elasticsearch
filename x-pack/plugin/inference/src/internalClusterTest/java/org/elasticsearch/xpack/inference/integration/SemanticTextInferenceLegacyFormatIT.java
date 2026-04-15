@@ -50,7 +50,8 @@ public class SemanticTextInferenceLegacyFormatIT extends SemanticTextLegacyForma
     }
 
     /**
-     * Ported from "Calculates sparse embedding and text embedding results for new documents with integer value" and "...with boolean value" in {@code 30_semantic_text_inference_bwc.yml}.
+     * Ported from "Calculates sparse embedding and text embedding results for new documents with integer value" and "...with boolean value"
+     * in {@code 30_semantic_text_inference_bwc.yml}.
      * Verifies that integer and boolean source values are coerced to strings in the legacy format
      * (matching the YAML test {@code 30_semantic_text_inference_bwc.yml}).
      */

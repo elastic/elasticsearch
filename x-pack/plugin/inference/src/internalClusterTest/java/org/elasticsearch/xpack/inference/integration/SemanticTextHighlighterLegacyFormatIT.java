@@ -39,7 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextHighlighterLegacyFormatIT extends SemanticTextLegacyFormatTestCase {
 
     private static final String LONG_CHUNK =
-        "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.";
+        "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene"
+            + " internally and enjoys all the features it provides.";
     private static final String SHORT_CHUNK = "You Know, for Search!";
     private static final String LONG_CHUNK_2 = "For a moment, nothing happened. Then, after a second or so, nothing continued to happen.";
     private static final String DOC_2_TEXT =

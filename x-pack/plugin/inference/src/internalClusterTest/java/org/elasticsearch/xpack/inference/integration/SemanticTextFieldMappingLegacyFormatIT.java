@@ -261,7 +261,8 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
-     * Ported from "Users can set dense vector index options and index documents using those options" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Ported from "Users can set dense vector index options and index documents using those options" in
+     * {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Creates a legacy index with explicit {@code int8_hnsw} dense index options, verifies the
      * options are persisted in the mapping before and after indexing a document.
      */
@@ -387,7 +388,8 @@ public class SemanticTextFieldMappingLegacyFormatIT extends SemanticTextLegacyFo
     }
 
     /**
-     * Ported from "Updating inference_id to compatible endpoint should succeed given model settings" in {@code 10_semantic_text_field_mapping_bwc.yml}.
+     * Ported from "Updating inference_id to compatible endpoint should succeed given model settings" in
+     * {@code 10_semantic_text_field_mapping_bwc.yml}.
      * Verifies that the inference_id of a semantic_text field can be updated to a compatible
      * endpoint. After updating, documents indexed before the change retain the old inference_id
      * in their stored source, and documents indexed after the change use the new inference_id.

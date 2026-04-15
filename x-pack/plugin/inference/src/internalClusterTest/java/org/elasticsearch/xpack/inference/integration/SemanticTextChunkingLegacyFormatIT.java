@@ -126,7 +126,8 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
-     * Ported from "We do not set custom chunking settings for null chunking settings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
+     * Ported from "We do not set custom chunking settings for null chunking settings" in
+     * {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a legacy index with {@code chunking_settings: null} and verifies that
      * no chunking_settings appear in the mapping.
      */
@@ -152,7 +153,8 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
-     * Ported from "We do not set custom chunking settings for empty specified chunking settings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
+     * Ported from "We do not set custom chunking settings for empty specified chunking settings" in
+     * {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a legacy index with an empty {@code chunking_settings: {}} object and verifies that
      * no chunking_settings appear in the mapping.
      */
@@ -179,7 +181,8 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
-     * Ported from "We return different chunks based on configured chunking overrides or model defaults for sparse embeddings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
+     * Ported from "We return different chunks based on configured chunking overrides or model defaults for sparse embeddings" in
+     * {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Indexes a document into both a default-chunking (sparse) index and a custom word-chunking
      * (sparse) index, then verifies that highlights reflect the different chunking configurations:
      * the default index produces a single fragment while the custom index produces three.
@@ -250,7 +253,8 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
-     * Ported from "We return different chunks based on configured chunking overrides or model defaults for dense embeddings" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
+     * Ported from "We return different chunks based on configured chunking overrides or model defaults for dense embeddings" in
+     * {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Indexes a document into a default-chunking (dense), a custom word-chunking (dense), and a
      * none-chunking (dense) index, then verifies that highlights reflect the different chunking
      * configurations.
@@ -347,7 +351,8 @@ public class SemanticTextChunkingLegacyFormatIT extends SemanticTextLegacyFormat
     }
 
     /**
-     * Ported from "We respect multiple semantic_text fields with different chunking configurations" in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
+     * Ported from "We respect multiple semantic_text fields with different chunking configurations"
+     * in {@code 25_semantic_text_field_mapping_chunking_bwc.yml}.
      * Creates a single legacy index with two semantic_text fields — one with default chunking and
      * one with custom word chunking — indexes a document, and verifies that highlights for each
      * field reflect the respective chunking configuration.

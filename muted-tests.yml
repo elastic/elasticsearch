@@ -154,9 +154,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
-  method: testDynamicDeletionInterval
-  issue: https://github.com/elastic/elasticsearch/issues/145022
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMissingField
   issue: https://github.com/elastic/elasticsearch/issues/144697
@@ -295,9 +292,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=delete/70_tsdb/basic tsdb delete}
   issue: https://github.com/elastic/elasticsearch/issues/146177
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/80_dense_vector_indexed_by_default/*}
-  issue: https://github.com/elastic/elasticsearch/issues/146177
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
@@ -351,6 +345,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/146377
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
+  issue: https://github.com/elastic/elasticsearch/issues/146409
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146091
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
+  issue: https://github.com/elastic/elasticsearch/issues/146410
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
+  issue: https://github.com/elastic/elasticsearch/issues/146409
 
 # Examples:
 #

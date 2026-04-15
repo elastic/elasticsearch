@@ -809,7 +809,10 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private void assertRemoteIndexPredicate(String predicate) throws Exception {
-        assumeTrue("needs fix", EsqlCapabilities.Cap.FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX.isEnabled());
+        assumeTrue(
+            "requires fix",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX.capabilityName()))
+        );
 
         boolean includeCCSMetadata = includeCCSMetadata();
 

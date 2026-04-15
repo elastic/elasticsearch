@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -257,25 +258,31 @@ public class AnalyticsProcessManager {
         long rowsProcessed = 0;
 
         while (dataExtractor.hasNext()) {
-            Optional<SearchHit[]> rows = dataExtractor.next();
-            if (rows.isPresent()) {
-                for (SearchHit searchHit : rows.get()) {
-                    if (dataExtractor.isCancelled()) {
-                        break;
-                    }
-                    rowsProcessed++;
-                    DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
-                    if (row.shouldSkip()) {
-                        dataCountsTracker.incrementSkippedDocsCount();
-                    } else {
-                        String[] rowValues = row.getValues();
-                        System.arraycopy(rowValues, 0, record, 0, rowValues.length);
-                        record[record.length - 2] = String.valueOf(row.getChecksum());
-                        if (row.isTraining()) {
-                            dataCountsTracker.incrementTrainingDocsCount();
-                            process.writeRecord(record);
+            Optional<SearchHits> batchOpt = dataExtractor.next();
+            if (batchOpt.isPresent()) {
+                SearchHits searchHits = batchOpt.get();
+                SearchHit[] batch = searchHits.getHits();
+                try {
+                    for (SearchHit searchHit : batch) {
+                        if (dataExtractor.isCancelled()) {
+                            break;
+                        }
+                        rowsProcessed++;
+                        DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
+                        if (row.shouldSkip()) {
+                            dataCountsTracker.incrementSkippedDocsCount();
+                        } else {
+                            String[] rowValues = row.getValues();
+                            System.arraycopy(rowValues, 0, record, 0, rowValues.length);
+                            record[record.length - 2] = String.valueOf(row.getChecksum());
+                            if (row.isTraining()) {
+                                dataCountsTracker.incrementTrainingDocsCount();
+                                process.writeRecord(record);
+                            }
                         }
                     }
+                } finally {
+                    searchHits.decRef();
                 }
                 progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }

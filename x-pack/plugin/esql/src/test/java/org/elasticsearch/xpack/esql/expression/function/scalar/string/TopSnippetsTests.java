@@ -319,10 +319,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     public void testHighlightMultipleTerms() {
         String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
         List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
-        assertThat(
-            result,
-            equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>."))
-        );
+        assertThat(result, equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>.")));
     }
 
     public void testHighlightFalseReturnsPlainText() {

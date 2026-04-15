@@ -70,9 +70,10 @@ public class PromqlCommand extends UnaryPlan
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
+    private final boolean collapsed;
     private List<Attribute> output;
 
-    // Range query constructor
+    // Range query constructor (collapsed=false)
     public PromqlCommand(
         Source source,
         LogicalPlan child,
@@ -85,7 +86,52 @@ public class PromqlCommand extends UnaryPlan
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            false
+        );
+    }
+
+    // Range query constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        Expression timestamp,
+        boolean collapsed
+    ) {
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            collapsed
+        );
     }
 
     // Range query constructor
@@ -103,6 +149,25 @@ public class PromqlCommand extends UnaryPlan
         NameId stepId,
         Expression timestamp
     ) {
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp, false);
+    }
+
+    // Full constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
+        Expression timestamp,
+        boolean collapsed
+    ) {
         super(source, child);
         this.promqlPlan = promqlPlan;
         this.start = start;
@@ -114,13 +179,28 @@ public class PromqlCommand extends UnaryPlan
         this.valueId = valueId;
         this.stepId = stepId;
         this.timestamp = timestamp;
+        this.collapsed = collapsed;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
         return NodeInfo.create(
             this,
-            PromqlCommand::new,
+            (s, child, plan, st, en, stp, bk, si, vcn, vi, sti, ts, col) -> new PromqlCommand(
+                s,
+                child,
+                plan,
+                st,
+                en,
+                stp,
+                bk,
+                si,
+                vcn,
+                vi,
+                sti,
+                ts,
+                col
+            ),
             child(),
             promqlPlan(),
             start(),
@@ -131,7 +211,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            isCollapsed()
         );
     }
 
@@ -149,7 +230,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -169,7 +251,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -197,8 +280,31 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
+    }
+
+    public PromqlCommand withCollapsed(boolean collapsed) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp(),
+            collapsed
+        );
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
     }
 
     @Override
@@ -306,7 +412,20 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(
+            child(),
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            valueId,
+            stepId,
+            timestamp,
+            collapsed
+        );
     }
 
     @Override
@@ -324,7 +443,8 @@ public class PromqlCommand extends UnaryPlan
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
-                && Objects.equals(timestamp, other.timestamp);
+                && Objects.equals(timestamp, other.timestamp)
+                && collapsed == other.collapsed;
         }
 
         return false;

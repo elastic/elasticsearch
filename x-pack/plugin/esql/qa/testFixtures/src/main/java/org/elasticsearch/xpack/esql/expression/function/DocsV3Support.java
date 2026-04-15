@@ -721,10 +721,10 @@ public abstract class DocsV3Support {
                     description.type()
                 );
             }
-            renderTypes(name, description.args());
-            renderParametersList(description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             assert info != null;
+            renderTypes(name, description.args());
+            renderParametersList(description.args());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -749,7 +749,11 @@ public abstract class DocsV3Support {
 
             for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
                 EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
-                rendered.append("`").append(arg.name()).append("`\n:   ");
+                rendered.append("`").append(arg.name()).append("`");
+                if (arg.appliesTo() != null && arg.appliesTo().isEmpty() == false) {
+                    rendered.append(" {applies_to}`").append(arg.appliesTo()).append("`");
+                }
+                rendered.append("\n:   ");
                 var type = arg.type().replaceAll("[\\[\\]]+", "");
                 rendered.append("(").append(type).append(") ").append(arg.description()).append("\n\n");
             }
@@ -802,6 +806,9 @@ public abstract class DocsV3Support {
 
                 // Only specify serverless if it's preview, using the preview boolean (GA is the default)
                 if (preview) {
+                    if (oneLine) {
+                        appliesToText.append("` {applies_to}`");
+                    }
                     appliesToText.append("serverless: preview");
                     if (false == oneLine) {
                         appliesToText.append('\n');
@@ -1268,6 +1275,9 @@ public abstract class DocsV3Support {
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
                     builder.append("- `").append(mapArgSignature.name()).append("` ");
+                    if (mapArgSignature.appliesTo() != null && mapArgSignature.appliesTo().isEmpty() == false) {
+                        builder.append("{applies_to}`").append(mapArgSignature.appliesTo()).append("` ");
+                    }
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }
@@ -1379,13 +1389,17 @@ public abstract class DocsV3Support {
         return (definition != null) ? RailRoadDiagram.functionSignature(definition) : null;
     }
 
-    void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
+    void renderParametersList(List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("## Parameters\n");
-        for (int a = 0; a < argNames.size(); a++) {
-            String description = replaceLinks(argDescriptions.get(a));
-            builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(description).append('\n');
+        for (EsqlFunctionRegistry.ArgSignature arg : args) {
+            String description = replaceLinks(arg.description());
+            builder.append("\n`").append(arg.name()).append("`");
+            if (arg.appliesTo() != null && arg.appliesTo().isEmpty() == false) {
+                builder.append(" {applies_to}`").append(arg.appliesTo()).append("`");
+            }
+            builder.append("\n:   ").append(description).append('\n');
         }
         builder.append('\n');
         String rendered = builder.toString();
@@ -1426,6 +1440,7 @@ public abstract class DocsV3Support {
             if (sig.argTypes().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
+
             table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);

@@ -2548,6 +2548,20 @@ foo * bar
 ;
 
 
+likeEscapingBackslashWindowsPath
+// tag::likeEscapingBackslashWindowsPath[]
+ROW path = """C:\Windows\System32\foo.txt"""
+| WHERE path LIKE """C:\\Windows*"""
+// end::likeEscapingBackslashWindowsPath[]
+;
+
+// tag::likeEscapingBackslashWindowsPath-result[]
+path:keyword
+C:\Windows\System32\foo.txt
+// end::likeEscapingBackslashWindowsPath-result[]
+;
+
+
 rlikeEscapingSingleQuotes
 // tag::rlikeEscapingSingleQuotes[]
 ROW message = "foo ( bar"

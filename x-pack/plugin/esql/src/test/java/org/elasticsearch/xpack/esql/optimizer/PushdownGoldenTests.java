@@ -154,6 +154,33 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    public void testStartsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE starts_with(_index, "k8s-")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE ends_with(_index, "-downsampled")
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeOnDashedIndex() {
+        String query = """
+            FROM k8s-downsampled METADATA _index
+            | WHERE _index LIKE "k8s-*"
+            | KEEP cluster
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     private void runUnmappedTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
     }

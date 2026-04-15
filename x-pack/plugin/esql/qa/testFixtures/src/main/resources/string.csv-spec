@@ -1652,6 +1652,56 @@ is_there:boolean
 true
 ;
 
+likeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s-*", "no_match*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s-*", "no_match*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeSingleCharListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s?downsampled", "no_match")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s?downsampled", "no_match")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
 rlikeOnIndexWithMinusWhere
 required_capability: fix_starts_with_ends_with_pushdown_on_index
 
@@ -1668,6 +1718,31 @@ required_capability: fix_starts_with_ends_with_pushdown_on_index
 
 FROM k8s-downsampled METADATA _index
 | EVAL is_there = _index RLIKE "k8s-.*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE ("k8s-.*", "no_match.*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE ("k8s-.*", "no_match.*")
 | KEEP is_there
 | LIMIT 1;
 

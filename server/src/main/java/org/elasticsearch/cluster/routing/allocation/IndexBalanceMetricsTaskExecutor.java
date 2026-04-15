@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -254,9 +255,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         private final ClusterStateListener routingTableChangedListener;
         private final Supplier<TimeValue> pollIntervalSupplier;
         private final Object lifecycleLock = new Object();
-        private Scheduler.Cancellable scheduledRefresh;
         /** Set when routing table changes; consumed by the refresh runnable. */
-        private volatile boolean needRefresh;
+        private final AtomicBoolean needRefresh;
+        private Scheduler.Cancellable scheduledRefresh;
         private volatile boolean stopped;
 
         Task(
@@ -278,11 +279,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             this.indexBalanceMetrics = indexBalanceMetrics;
             this.routingTableChangedListener = this::onRoutingTableChanged;
             this.pollIntervalSupplier = pollIntervalSupplier;
+            this.needRefresh = new AtomicBoolean(false);
         }
 
         private void onRoutingTableChanged(ClusterChangedEvent event) {
             if (event.routingTableChanged()) {
-                needRefresh = true;
+                needRefresh.set(true);
             }
         }
 
@@ -292,7 +294,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                     return;
                 }
                 logger.info("Starting index balance metrics task");
-                needRefresh = true;
+                needRefresh.set(true);
                 clusterService.addListener(routingTableChangedListener);
                 scheduleRefresh(pollIntervalSupplier.get());
             }
@@ -332,8 +334,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             if (stopped) {
                 return;
             }
-            if (needRefresh) {
-                needRefresh = false;
+            if (needRefresh.getAndSet(false)) {
                 var result = indexBalanceMetrics.compute(clusterService.state());
                 lastState.set(result);
             }

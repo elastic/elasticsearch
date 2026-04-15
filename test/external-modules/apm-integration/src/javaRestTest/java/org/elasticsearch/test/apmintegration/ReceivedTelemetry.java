@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.apmintegration;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +53,7 @@ public sealed interface ReceivedTelemetry {
             requireNonNull(traceId);
             requireNonNull(spanId);
             parentSpanId.ifPresent(Objects::requireNonNull);
-            attributes = Collections.unmodifiableMap(requireNonNull(attributes));
+            attributes = Map.copyOf(requireNonNull(attributes));
         }
     }
 

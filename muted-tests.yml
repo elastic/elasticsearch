@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/141548
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testExecute_Throws_WhenRateLimitedQueueIsFull
-  issue: https://github.com/elastic/elasticsearch/issues/141231
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -265,15 +262,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsNoMappings
-  issue: https://github.com/elastic/elasticsearch/issues/146108
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined
-  issue: https://github.com/elastic/elasticsearch/issues/146109
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsMigrateToTsdb
-  issue: https://github.com/elastic/elasticsearch/issues/146112
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/146130
@@ -283,12 +271,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:embedding.embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/146137
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGenerateRoutingPathFromDynamicTemplate
-  issue: https://github.com/elastic/elasticsearch/issues/146197
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsMappingsMerging
-  issue: https://github.com/elastic/elasticsearch/issues/146198
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=tsdb/25_id_generation/*}
   issue: https://github.com/elastic/elasticsearch/issues/146177
@@ -307,9 +289,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsLookAheadTime
-  issue: https://github.com/elastic/elasticsearch/issues/146305
 - class: org.elasticsearch.xpack.sql.qa.multi_node.RestSqlIT
   method: testAsyncTextPaginated
   issue: https://github.com/elastic/elasticsearch/issues/80089
@@ -322,11 +301,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.RestSqlIT
   method: testAsyncTextPaginated
   issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsLookBackTime
-  issue: https://github.com/elastic/elasticsearch/issues/146307
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  issue: https://github.com/elastic/elasticsearch/issues/146126
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
   issue: https://github.com/elastic/elasticsearch/issues/146312
@@ -348,6 +322,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/146377
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
+  issue: https://github.com/elastic/elasticsearch/issues/146409
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/146091
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mget/60_realtime_refresh/Realtime Refresh}
+  issue: https://github.com/elastic/elasticsearch/issues/146410
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
+  issue: https://github.com/elastic/elasticsearch/issues/146409
+- class: org.elasticsearch.xpack.diskbbq.DiskBbqTrialLicenseIT
+  method: testDefaultIndexOptionsForDenseVector
+  issue: https://github.com/elastic/elasticsearch/issues/146415
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
+  issue: https://github.com/elastic/elasticsearch/issues/146416
+- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
+  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/146419
 
 # Examples:
 #

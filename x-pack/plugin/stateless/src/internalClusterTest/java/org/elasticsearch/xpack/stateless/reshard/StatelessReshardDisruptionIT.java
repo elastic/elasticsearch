@@ -15,15 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
-import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;

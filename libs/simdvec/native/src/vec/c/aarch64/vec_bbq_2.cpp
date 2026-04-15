@@ -18,9 +18,10 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-static inline svuint64_t dot_bit_sv(const svbool_t pg, const svuint64_t a, const int8_t* b) {
-    const svuint64_t q0 = svld1_u64(pg, (const uint64_t*)b);
-    return svcnt_u64_x(pg, svand_u64_m(pg, q0, a));
+static inline svuint64_t dot_bit_sv(const svbool_t pg, const svuint8_t a, const int8_t* b) {
+    const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)b);
+    // reinterpret the u8 result as u64 so the count doesn't overflow
+    return svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, q0, a)));
 }
 
 static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
@@ -32,27 +33,15 @@ static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const 
     svuint64_t acc2 = svdup_n_u64(0);
     svuint64_t acc3 = svdup_n_u64(0);
 
-    const int sizeof_sv = svcntd() * sizeof(int64_t);
-    int upperBound = length & ~(sizeof_sv - 1);
-    for (; r < upperBound; r += sizeof_sv) {
-        const svuint64_t value = svld1_u64(svptrue_b64(), (const uint64_t*)(a + r));
+    for (svbool_t pg = svwhilelt_b8(r, length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, length)) {
+        const svuint8_t value = svld1_u8(pg, (const uint8_t*)(a + r));
 
-        acc0 = svadd_u64_z(svptrue_b64(), acc0, dot_bit_sv(svptrue_b64(), value, query + r));
-        acc1 = svadd_u64_z(svptrue_b64(), acc1, dot_bit_sv(svptrue_b64(), value, query + r + length));
-        acc2 = svadd_u64_z(svptrue_b64(), acc2, dot_bit_sv(svptrue_b64(), value, query + r + 2 * length));
-        acc3 = svadd_u64_z(svptrue_b64(), acc3, dot_bit_sv(svptrue_b64(), value, query + r + 3 * length));
-    }
+        acc0 = svadd_u64_x(svptrue_b64(), acc0, dot_bit_sv(pg, value, query + r));
+        acc1 = svadd_u64_x(svptrue_b64(), acc1, dot_bit_sv(pg, value, query + r + length));
+        acc2 = svadd_u64_x(svptrue_b64(), acc2, dot_bit_sv(pg, value, query + r + 2 * length));
+        acc3 = svadd_u64_x(svptrue_b64(), acc3, dot_bit_sv(pg, value, query + r + 3 * length));
 
-    // Handle tail with SVE predicate
-    const int remaining = length - r;
-    if (remaining > 0) {
-        const svbool_t pg = svwhilelt_b64_u64(r, length);
-        const svuint64_t value = svld1_u64(pg, (const uint64_t*)(a + r));
-
-        acc0 = svadd_u64_z(pg, acc0, dot_bit_sv(pg, value, query + r));
-        acc1 = svadd_u64_z(pg, acc1, dot_bit_sv(pg, value, query + r + length));
-        acc2 = svadd_u64_z(pg, acc2, dot_bit_sv(pg, value, query + r + 2 * length));
-        acc3 = svadd_u64_z(pg, acc3, dot_bit_sv(pg, value, query + r + 3 * length));
+        r += svcntb();
     }
 
     int64_t subRet0 = svaddv_u64(svptrue_b64(), acc0);
@@ -77,9 +66,6 @@ static inline void dotd1q4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int chunk_size = svcntd() * sizeof(int64_t);
-    const svbool_t all_vec = svptrue_b64();
-
     int c = 0;
 
     for (; c + 3 < count; c += 4) {
@@ -88,137 +74,80 @@ static inline void dotd1q4_inner_bulk(
         const int8_t* a2 = mapper(a, c + 2, offsets, pitch);
         const int8_t* a3 = mapper(a, c + 3, offsets, pitch);
 
-        int64_t subRet0_0 = 0;
-        int64_t subRet1_0 = 0;
-        int64_t subRet2_0 = 0;
-        int64_t subRet3_0 = 0;
-
-        int64_t subRet0_1 = 0;
-        int64_t subRet1_1 = 0;
-        int64_t subRet2_1 = 0;
-        int64_t subRet3_1 = 0;
-
-        int64_t subRet0_2 = 0;
-        int64_t subRet1_2 = 0;
-        int64_t subRet2_2 = 0;
-        int64_t subRet3_2 = 0;
-
-        int64_t subRet0_3 = 0;
-        int64_t subRet1_3 = 0;
-        int64_t subRet2_3 = 0;
-        int64_t subRet3_3 = 0;
-
         int r = 0;
-        if (length >= chunk_size) {
+        svuint64_t acc0_0 = svdup_n_u64(0);
+        svuint64_t acc1_0 = svdup_n_u64(0);
+        svuint64_t acc2_0 = svdup_n_u64(0);
+        svuint64_t acc3_0 = svdup_n_u64(0);
 
-            svuint64_t acc0_0 = svdup_n_u64(0);
-            svuint64_t acc1_0 = svdup_n_u64(0);
-            svuint64_t acc2_0 = svdup_n_u64(0);
-            svuint64_t acc3_0 = svdup_n_u64(0);
+        svuint64_t acc0_1 = svdup_n_u64(0);
+        svuint64_t acc1_1 = svdup_n_u64(0);
+        svuint64_t acc2_1 = svdup_n_u64(0);
+        svuint64_t acc3_1 = svdup_n_u64(0);
 
-            svuint64_t acc0_1 = svdup_n_u64(0);
-            svuint64_t acc1_1 = svdup_n_u64(0);
-            svuint64_t acc2_1 = svdup_n_u64(0);
-            svuint64_t acc3_1 = svdup_n_u64(0);
+        svuint64_t acc0_2 = svdup_n_u64(0);
+        svuint64_t acc1_2 = svdup_n_u64(0);
+        svuint64_t acc2_2 = svdup_n_u64(0);
+        svuint64_t acc3_2 = svdup_n_u64(0);
 
-            svuint64_t acc0_2 = svdup_n_u64(0);
-            svuint64_t acc1_2 = svdup_n_u64(0);
-            svuint64_t acc2_2 = svdup_n_u64(0);
-            svuint64_t acc3_2 = svdup_n_u64(0);
+        svuint64_t acc0_3 = svdup_n_u64(0);
+        svuint64_t acc1_3 = svdup_n_u64(0);
+        svuint64_t acc2_3 = svdup_n_u64(0);
+        svuint64_t acc3_3 = svdup_n_u64(0);
 
-            svuint64_t acc0_3 = svdup_n_u64(0);
-            svuint64_t acc1_3 = svdup_n_u64(0);
-            svuint64_t acc2_3 = svdup_n_u64(0);
-            svuint64_t acc3_3 = svdup_n_u64(0);
+        for (svbool_t pg = svwhilelt_b8(r, length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, length)) {
+            const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+            const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + length));
+            const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * length));
+            const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * length));
 
-            int upperBound = length & ~(chunk_size - 1);
-            for (; r < upperBound; r += chunk_size) {
-                const svuint64_t q0 = svld1_u64(all_vec, (const uint64_t*)(query + r));
-                const svuint64_t q1 = svld1_u64(all_vec, (const uint64_t*)(query + r + length));
-                const svuint64_t q2 = svld1_u64(all_vec, (const uint64_t*)(query + r + 2 * length));
-                const svuint64_t q3 = svld1_u64(all_vec, (const uint64_t*)(query + r + 3 * length));
+            const svuint8_t v0 = svld1_u8(pg, (const uint8_t*)(a0 + r));
+            const svuint8_t v1 = svld1_u8(pg, (const uint8_t*)(a1 + r));
+            const svuint8_t v2 = svld1_u8(pg, (const uint8_t*)(a2 + r));
+            const svuint8_t v3 = svld1_u8(pg, (const uint8_t*)(a3 + r));
 
-                const svuint64_t v0 = svld1_u64(all_vec, (const uint64_t*)(a0 + r));
-                const svuint64_t v1 = svld1_u64(all_vec, (const uint64_t*)(a1 + r));
-                const svuint64_t v2 = svld1_u64(all_vec, (const uint64_t*)(a2 + r));
-                const svuint64_t v3 = svld1_u64(all_vec, (const uint64_t*)(a3 + r));
+            acc0_0 = svadd_u64_x(svptrue_b64(), acc0_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q0))));
+            acc1_0 = svadd_u64_x(svptrue_b64(), acc1_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q1))));
+            acc2_0 = svadd_u64_x(svptrue_b64(), acc2_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q2))));
+            acc3_0 = svadd_u64_x(svptrue_b64(), acc3_0, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v0, q3))));
 
-                acc0_0 = svadd_u64_z(all_vec, acc0_0, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v0, q0)));
-                acc1_0 = svadd_u64_z(all_vec, acc1_0, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v0, q1)));
-                acc2_0 = svadd_u64_z(all_vec, acc2_0, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v0, q2)));
-                acc3_0 = svadd_u64_z(all_vec, acc3_0, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v0, q3)));
+            acc0_1 = svadd_u64_x(svptrue_b64(), acc0_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q0))));
+            acc1_1 = svadd_u64_x(svptrue_b64(), acc1_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q1))));
+            acc2_1 = svadd_u64_x(svptrue_b64(), acc2_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q2))));
+            acc3_1 = svadd_u64_x(svptrue_b64(), acc3_1, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v1, q3))));
 
-                acc0_1 = svadd_u64_z(all_vec, acc0_1, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v1, q0)));
-                acc1_1 = svadd_u64_z(all_vec, acc1_1, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v1, q1)));
-                acc2_1 = svadd_u64_z(all_vec, acc2_1, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v1, q2)));
-                acc3_1 = svadd_u64_z(all_vec, acc3_1, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v1, q3)));
+            acc0_2 = svadd_u64_x(svptrue_b64(), acc0_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q0))));
+            acc1_2 = svadd_u64_x(svptrue_b64(), acc1_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q1))));
+            acc2_2 = svadd_u64_x(svptrue_b64(), acc2_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q2))));
+            acc3_2 = svadd_u64_x(svptrue_b64(), acc3_2, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v2, q3))));
 
-                acc0_2 = svadd_u64_z(all_vec, acc0_2, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v2, q0)));
-                acc1_2 = svadd_u64_z(all_vec, acc1_2, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v2, q1)));
-                acc2_2 = svadd_u64_z(all_vec, acc2_2, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v2, q2)));
-                acc3_2 = svadd_u64_z(all_vec, acc3_2, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v2, q3)));
+            acc0_3 = svadd_u64_x(svptrue_b64(), acc0_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q0))));
+            acc1_3 = svadd_u64_x(svptrue_b64(), acc1_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q1))));
+            acc2_3 = svadd_u64_x(svptrue_b64(), acc2_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q2))));
+            acc3_3 = svadd_u64_x(svptrue_b64(), acc3_3, svcnt_u64_x(svptrue_b64(), svreinterpret_u64(svand_u8_z(pg, v3, q3))));
 
-                acc0_3 = svadd_u64_z(all_vec, acc0_3, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v3, q0)));
-                acc1_3 = svadd_u64_z(all_vec, acc1_3, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v3, q1)));
-                acc2_3 = svadd_u64_z(all_vec, acc2_3, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v3, q2)));
-                acc3_3 = svadd_u64_z(all_vec, acc3_3, svcnt_u64_x(all_vec, svand_u64_m(all_vec, v3, q3)));
-            }
-
-            subRet0_0 += svaddv_u64(all_vec, acc0_0);
-            subRet1_0 += svaddv_u64(all_vec, acc1_0);
-            subRet2_0 += svaddv_u64(all_vec, acc2_0);
-            subRet3_0 += svaddv_u64(all_vec, acc3_0);
-
-            subRet0_1 += svaddv_u64(all_vec, acc0_1);
-            subRet1_1 += svaddv_u64(all_vec, acc1_1);
-            subRet2_1 += svaddv_u64(all_vec, acc2_1);
-            subRet3_1 += svaddv_u64(all_vec, acc3_1);
-
-            subRet0_2 += svaddv_u64(all_vec, acc0_2);
-            subRet1_2 += svaddv_u64(all_vec, acc1_2);
-            subRet2_2 += svaddv_u64(all_vec, acc2_2);
-            subRet3_2 += svaddv_u64(all_vec, acc3_2);
-
-            subRet0_3 += svaddv_u64(all_vec, acc0_3);
-            subRet1_3 += svaddv_u64(all_vec, acc1_3);
-            subRet2_3 += svaddv_u64(all_vec, acc2_3);
-            subRet3_3 += svaddv_u64(all_vec, acc3_3);
+            r += svcntb();
         }
 
-        const int rem = length - r;
-        if (rem > 0) {
-            const svbool_t pg = svwhilelt_b64_u64(r, length);
+        int64_t subRet0_0 = svaddv_u64(svptrue_b64(), acc0_0);
+        int64_t subRet1_0 = svaddv_u64(svptrue_b64(), acc1_0);
+        int64_t subRet2_0 = svaddv_u64(svptrue_b64(), acc2_0);
+        int64_t subRet3_0 = svaddv_u64(svptrue_b64(), acc3_0);
 
-            const svuint64_t q0 = svld1_u64(pg, (const uint64_t*)(query + r));
-            const svuint64_t q1 = svld1_u64(pg, (const uint64_t*)(query + r + length));
-            const svuint64_t q2 = svld1_u64(pg, (const uint64_t*)(query + r + 2 * length));
-            const svuint64_t q3 = svld1_u64(pg, (const uint64_t*)(query + r + 3 * length));
+        int64_t subRet0_1 = svaddv_u64(svptrue_b64(), acc0_1);
+        int64_t subRet1_1 = svaddv_u64(svptrue_b64(), acc1_1);
+        int64_t subRet2_1 = svaddv_u64(svptrue_b64(), acc2_1);
+        int64_t subRet3_1 = svaddv_u64(svptrue_b64(), acc3_1);
 
-            const svuint64_t v0 = svld1_u64(pg, (const uint64_t*)(a0 + r));
-            const svuint64_t v1 = svld1_u64(pg, (const uint64_t*)(a1 + r));
-            const svuint64_t v2 = svld1_u64(pg, (const uint64_t*)(a2 + r));
-            const svuint64_t v3 = svld1_u64(pg, (const uint64_t*)(a3 + r));
+        int64_t subRet0_2 = svaddv_u64(svptrue_b64(), acc0_2);
+        int64_t subRet1_2 = svaddv_u64(svptrue_b64(), acc1_2);
+        int64_t subRet2_2 = svaddv_u64(svptrue_b64(), acc2_2);
+        int64_t subRet3_2 = svaddv_u64(svptrue_b64(), acc3_2);
 
-            subRet0_0 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v0, q0)));
-            subRet1_0 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v0, q1)));
-            subRet2_0 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v0, q2)));
-            subRet3_0 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v0, q3)));
-
-            subRet0_1 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v1, q0)));
-            subRet1_1 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v1, q1)));
-            subRet2_1 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v1, q2)));
-            subRet3_1 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v1, q3)));
-
-            subRet0_2 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v2, q0)));
-            subRet1_2 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v2, q1)));
-            subRet2_2 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v2, q2)));
-            subRet3_2 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v2, q3)));
-
-            subRet0_3 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v3, q0)));
-            subRet1_3 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v3, q1)));
-            subRet2_3 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v3, q2)));
-            subRet3_3 += svaddv_u64(pg, svcnt_u64_x(pg, svand_u64_m(pg, v3, q3)));
-        }
+        int64_t subRet0_3 = svaddv_u64(svptrue_b64(), acc0_3);
+        int64_t subRet1_3 = svaddv_u64(svptrue_b64(), acc1_3);
+        int64_t subRet2_3 = svaddv_u64(svptrue_b64(), acc2_3);
+        int64_t subRet3_3 = svaddv_u64(svptrue_b64(), acc3_3);
 
         results[c] = subRet0_0 + (subRet1_0 << 1) + (subRet2_0 << 2) + (subRet3_0 << 3);
         results[c + 1] = subRet0_1 + (subRet1_1 << 1) + (subRet2_1 << 2) + (subRet3_1 << 3);
@@ -226,6 +155,7 @@ static inline void dotd1q4_inner_bulk(
         results[c + 3] = subRet0_3 + (subRet1_3 << 1) + (subRet2_3 << 2) + (subRet3_3 << 3);
     }
 
+    // handle the vectors tail
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
         results[c] = (f32_t)dotd1q4_inner(a0, query, length);

@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Avoid using WindowsFS and ExtraFS since they cause occasional failures due to file deletion or unexpected extra files.
- * See e.g. https://github.com/elastic/elasticsearch-serverless/issues/1998
  */
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessPluginIntegTestCase {

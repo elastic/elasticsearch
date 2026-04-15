@@ -1884,10 +1884,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * The search node is mocked via canned TransportAction responses. Some coordination between threads is necessary so that the index
      * thread can generate new commits and the search thread can respond correctly to each {@link TransportNewCommitNotificationAction}.
      */
-    @TestIssueLogging(
-        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2175"
-    )
     public void testConcurrentIndexingAndSearchShardRecoveries() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();

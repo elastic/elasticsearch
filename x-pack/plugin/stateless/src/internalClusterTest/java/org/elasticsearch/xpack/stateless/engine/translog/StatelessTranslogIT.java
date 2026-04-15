@@ -468,14 +468,6 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
         return measurements.stream().filter(m -> m.attributes().get(attributeName).equals(attributeValue)).collect(Collectors.toList());
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.xpack.stateless.engine:debug,"
-            + "org.elasticsearch.xpack.stateless.recovery:trace,"
-            + "org.elasticsearch.xpack.stateless.commits:debug,"
-            + "org.elasticsearch.xpack.stateless.objectstore:trace,"
-            + "org.elasticsearch.xpack.stateless.StatelessIndexEventListener:trace",
-        reason = "to debug elasticsearch-serverless issue 2908"
-    )
     public void testTranslogStressRecoveryTest() throws Exception {
         Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
         runStressTest(

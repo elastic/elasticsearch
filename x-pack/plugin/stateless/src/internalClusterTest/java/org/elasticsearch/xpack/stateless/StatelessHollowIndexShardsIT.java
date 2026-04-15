@@ -97,7 +97,6 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -2506,7 +2505,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                                     : Map.of(OperationPurpose.TRANSLOG, ".*");
                                 // Do not fail in snapshot thread to avoid uncaught assertion error in
                                 // BlobStoreRepository#assertFileContentsMatchHash
-                                // Context in https://github.com/elastic/elasticsearch-serverless/issues/4783
                                 setNodeRepositoryFailureStrategy(
                                     sourceNode,
                                     failReads,
@@ -2800,13 +2798,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         doTestStress(false, false);
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch-serverless/issues/4715",
-        value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:trace,"
-            + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
-            + "org.elasticsearch.index.shard.IndexShard:trace,"
-            + "org.elasticsearch.index.engine.InternalEngine:trace"
-    )
+    // Test can very rarely fail due to version conflict during update caused by version map behavior. This is benign. See ES-13330.
     public void testStressWithRelocationFailures() throws Exception {
         doTestStress(true, false);
     }

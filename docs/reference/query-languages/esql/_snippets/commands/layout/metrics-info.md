@@ -39,17 +39,20 @@ The output contains the following columns, all of type `keyword`:
 :   The name of the metric field (single-valued).
 
 `data_stream`
-:   The data stream(s) that contain this metric (multi-valued when the metric spans multiple data streams).
+:   The data stream(s) that contain this metric (multi-valued when the metric is included in multiple data streams
+    which align on the unit, metric type, and field type).
 
 `unit`
-:   The unit declared in the field mapping, such as `bytes` or `packets` (multi-valued when backing indices
-    differ; may be `null` if no unit is declared).
+:   The [unit](/reference/elasticsearch/mapping-reference/mapping-field-meta.md) declared in the field mapping,
+    such as `bytes` or `packets` (multi-valued when definitions differ across backing indices;
+    may be `null` if no unit is declared).
 
 `metric_type`
 :   The metric type, for example `counter` or `gauge` (multi-valued when definitions differ across backing indices).
 
 `field_type`
-:   The Elasticsearch field type, for example `long`, `double`, or `integer` (multi-valued when definitions differ).
+:   The Elasticsearch field type, for example `long`, `double`, or `integer` (multi-valued when definitions differ
+    across backing indices).
 
 `dimension_fields`
 :   The dimension field names associated with this metric (multi-valued). The union of dimension

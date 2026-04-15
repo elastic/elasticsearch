@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.TaskType;
 
 import java.net.URI;
 
@@ -33,6 +34,11 @@ public interface Request {
      * @return the unique identifier for the inference entity configuration
      */
     String getInferenceEntityId();
+
+    /**
+     * @return the {@link TaskType} of the request
+     */
+    TaskType getTaskType();
 
     /**
      * Streams the result in bytes to the {@link org.elasticsearch.inference.InferenceServiceResults}.

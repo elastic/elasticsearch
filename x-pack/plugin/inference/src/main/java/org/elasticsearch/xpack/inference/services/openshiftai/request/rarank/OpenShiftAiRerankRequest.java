@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModel;
 
 import java.net.URI;
@@ -40,7 +41,7 @@ public record OpenShiftAiRerankRequest(
     @Nullable Boolean returnDocuments,
     @Nullable Integer topN,
     OpenShiftAiRerankModel model
-) implements Request {
+) implements RerankRequest {
 
     public OpenShiftAiRerankRequest {
         Objects.requireNonNull(input);

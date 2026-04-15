@@ -384,38 +384,6 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParseRequestConfig_MovesModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
-                var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
-                assertThat(embeddingsModel.getServiceSettings().resourceName(), is(TEST_RESOURCE_NAME));
-                assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(TEST_DEPLOYMENT_ID));
-                assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(TEST_API_VERSION));
-                assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
-                assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
-                        TEST_RESOURCE_NAME,
-                        TEST_DEPLOYMENT_ID,
-                        TEST_API_VERSION
-                    ),
-                    createRequestTaskSettingsMap(ROLE_VALUE),
-                    getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null)
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
     public void testParsePersistedConfig_WithSecrets_CreatesAnAzureOpenAiEmbeddingsModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(

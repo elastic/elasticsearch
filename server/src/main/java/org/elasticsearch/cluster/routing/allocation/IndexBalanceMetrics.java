@@ -151,6 +151,7 @@ public enum IndexBalanceMetrics {
     }
 
     static int bucketIndex(double balance) {
+        assert balance >= 0.0 && balance <= 1.0;
         if (balance == 0.0) {
             return 0;
         }

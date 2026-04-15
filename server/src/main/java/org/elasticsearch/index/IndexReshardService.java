@@ -71,11 +71,9 @@ public class IndexReshardService {
     /// As such it is intended to be called in scope of the realtime read operation on the _index_ shard.
     public static boolean isRealtimeReadPossiblyStale(IndexShard indexShard, SplitShardCountSummary splitShardCountSummary) {
         if (splitShardCountSummary.isUnset()) {
-            // Be conservative if the coordinator didn't send the summary.
-            // This only matters during deployments that happen during resharding
-            // and contain resharding-related changes in actions which is basically never.
-            // But if it does matter retrying is correct.
-            return true;
+            // If the coordinator didn't provide the summary it won't know how to perform retries either.
+            // So we don't retry.
+            return false;
         }
 
         IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();

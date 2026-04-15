@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -75,6 +76,9 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     private List<DeleteByQueryRequest> capturedDeleteModelSnapshotRequests;
     private TestListener listener;
 
+    /** Mock search responses registered in {@link #givenClientRequests}; entries removed when passed to the listener. */
+    private final List<SearchResponse> mockSearchResponsesPendingDecRef = new ArrayList<>();
+
     @Before
     public void setUpTests() {
         capturedJobIds = new ArrayList<>();
@@ -84,6 +88,14 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         resultsProvider = mock(JobResultsProvider.class);
         listener = new TestListener();
+    }
+
+    @After
+    public void decRefMockSearchResponsesNeverPassedToListener() {
+        for (SearchResponse r : mockSearchResponsesPendingDecRef) {
+            r.decRef();
+        }
+        mockSearchResponsesPendingDecRef.clear();
     }
 
     public void testRemove_GivenJobWithoutActiveSnapshot() throws IOException {
@@ -375,6 +387,9 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         Map<String, List<ModelSnapshot>> snapshots
     ) {
 
+        mockSearchResponsesPendingDecRef.clear();
+        mockSearchResponsesPendingDecRef.addAll(searchResponses);
+
         doAnswer(new Answer<Void>() {
             final AtomicInteger callCount = new AtomicInteger();
 
@@ -385,7 +400,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 // Only the last search request should fail
                 if (shouldSearchRequestsSucceed || callCount.get() < (searchResponses.size() + snapshots.size())) {
                     SearchResponse response = searchResponses.get(callCount.getAndIncrement());
-                    listener.onResponse(response);
+                    mockSearchResponsesPendingDecRef.remove(response);
+                    ActionListener.respondAndRelease(listener, response);
                 } else {
                     listener.onFailure(new RuntimeException("search failed"));
                 }

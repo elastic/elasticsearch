@@ -184,12 +184,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(thrownException.isExecutorShutdown());
     }
 
-    public void testExecute_Throws_WhenRateLimitedQueueIsFull() {
+    public void testExecute_Throws_WhenRateLimitedQueueIsFull() throws InterruptedException {
         var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
-        service.start();
 
+        // Enqueue before start() so the poller cannot drain the queue between submits (avoids rate-limit delay + timeout).
         service.execute(
-            RequestManagerTests.createMockWithRateLimitingEnabled(),
+            RequestManagerTests.createMockWithRateLimitingEnabled("id"),
             new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             new PlainActionFuture<>()
@@ -211,6 +211,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
             )
         );
         assertFalse(thrownException.isExecutorShutdown());
+
+        service.shutdown();
+        service.start();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {

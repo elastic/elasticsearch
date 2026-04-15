@@ -133,7 +133,9 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         throws IOException {
         InferenceAction.Request.Builder inferenceActionRequestBuilder;
         try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
-            inferenceActionRequestBuilder = InferenceAction.Request.parseRequest(
+            // Use parseRequestInternal so that internally-produced input types (INTERNAL_SEARCH, INTERNAL_INGEST)
+            // are accepted; parseRequest delegates to InputType.fromRestString() which rejects them.
+            inferenceActionRequestBuilder = InferenceAction.Request.parseRequestInternal(
                 request.getInferenceEntityId(),
                 request.getTaskType(),
                 request.getContext(),

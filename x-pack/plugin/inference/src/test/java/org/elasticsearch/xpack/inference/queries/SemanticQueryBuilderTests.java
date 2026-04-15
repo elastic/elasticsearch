@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -65,6 +66,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -309,18 +311,20 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         return method.equals(Client.class.getMethod("execute", ActionType.class, ActionRequest.class, ActionListener.class))
-            && (args[0] instanceof InferenceAction);
+            && (args[0] instanceof InferenceActionProxy);
     }
 
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
-        InferenceAction.Request request = (InferenceAction.Request) args[1];
+        InferenceActionProxy.Request request = (InferenceActionProxy.Request) args[1];
         assertThat(request.getTaskType(), equalTo(TaskType.ANY));
-        assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
         assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
-        List<String> input = request.getInput();
+        Map<String, Object> contentMap = XContentHelper.convertToMap(request.getContent(), false, request.getContentType()).v2();
+        @SuppressWarnings("unchecked")
+        List<String> input = (List<String>) contentMap.get("input");
         assertThat(input.size(), equalTo(1));
+        assertThat(contentMap.get("input_type"), equalTo(InputType.INTERNAL_SEARCH.toString()));
         String query = input.get(0);
 
         InferenceAction.Response response = switch (inferenceResultType) {

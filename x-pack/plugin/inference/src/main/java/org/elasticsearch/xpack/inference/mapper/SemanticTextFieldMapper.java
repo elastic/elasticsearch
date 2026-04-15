@@ -405,7 +405,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         @Override
         protected void validateTaskType(MinimalServiceSettings modelSettings) {
             switch (modelSettings.taskType()) {
-                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["

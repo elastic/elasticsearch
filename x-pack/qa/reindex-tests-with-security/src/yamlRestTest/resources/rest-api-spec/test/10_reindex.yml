@@ -362,8 +362,8 @@ setup:
 ---
 "Reindex wait_for_completion=false as minimal with reindex get API":
   - requires:
-      test_runner_features: [capabilities, allowed_warnings]
-      reason: Dedicated reindex GET requires reindex management API; allowed_warnings for task-get deprecation
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex GET requires reindex management API
       capabilities:
         - method: GET
           path: /_reindex/{task_id}
@@ -390,8 +390,6 @@ setup:
   - set: {task: task}
 
   - do:
-      allowed_warnings:
-        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       headers: {es-security-runas-user: minimal_with_reindex_get_user}
       reindex_get:
         task_id: $task

@@ -54,7 +54,6 @@ minimal_with_task:
 minimal_with_reindex_get:
   cluster:
     - cluster:monitor/main
-    - cluster:monitor/task/get
     - cluster:monitor/reindex/get
   indices:
     - names: source

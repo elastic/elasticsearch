@@ -13,7 +13,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -163,11 +162,10 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         final DataType type = field().dataType();
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
-        Temporality foldedTemporality = maybeFoldTemporality(temporality, Temporality.CUMULATIVE);
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, foldedTemporality);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, foldedTemporality);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos, foldedTemporality);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,12 +25,7 @@ public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSe
         TimeSeriesAggregate transformed;
         transformed = (TimeSeriesAggregate) tsAgg.transformExpressionsOnly(AggregateFunction.class, agg -> {
             if (agg instanceof TemporalityAware temporalityAware && temporalityAware.temporality() == null) {
-                if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-                    return temporalityAware.withTemporality(new TemporalityAttribute(agg.source()));
-                } else {
-                    // inject a placeholder so that the aggregators are always invoked with the expected number of arguments
-                    return temporalityAware.withTemporality(Literal.NULL);
-                }
+                return temporalityAware.withTemporality(new TemporalityAttribute(agg.source()));
             }
             return agg;
         });

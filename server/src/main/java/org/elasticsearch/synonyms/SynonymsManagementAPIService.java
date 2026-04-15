@@ -112,6 +112,23 @@ public class SynonymsManagementAPIService {
     private static final int MAX_SYNONYM_RULES = 100_000;
     // Maximum number of synonym sets that can be listed by GET /_synonyms
     private static final int MAX_SYNONYMS_SETS = 10_000;
+    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
+    static final int PIT_BATCH_SIZE = 10_000;
+    static final int BULK_CHUNK_SIZE = 5_000;
+    private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
+    private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
+    private static final String RULE_COUNT_AGG_NAME = "rule_count";
+    private static final String RULE_COUNT_FILTER_KEY = "synonym_rules";
+    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
+
+
+    // Gate writes above PRE_LARGE_SETS_LIMIT behind this version to prevent silent truncation on
+    // old nodes during rolling upgrades
+    static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
+    // Limit enforced by nodes that do not support large synonym sets
+    static final int PRE_LARGE_SETS_LIMIT = 10_000;
+
     public static final Setting<Integer> MAX_SYNONYM_RULES_SETTING = Setting.intSetting(
         "synonyms.max_synonym_rules",
         MAX_SYNONYM_RULES,
@@ -119,20 +136,6 @@ public class SynonymsManagementAPIService {
         Property.Dynamic,
         Property.NodeScope
     );
-    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
-    static final int PIT_BATCH_SIZE = 10_000;
-    static final int BULK_CHUNK_SIZE = 5_000;
-    // The limit enforced by older nodes that do not support large synonym sets
-    static final int PRE_LARGE_SETS_LIMIT = 10_000;
-    // Gate writes above PRE_LARGE_SETS_LIMIT behind this version to prevent silent truncation on
-    // old nodes during rolling upgrades
-    static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
-    private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
-    private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
-    private static final String RULE_COUNT_AGG_NAME = "rule_count";
-    private static final String RULE_COUNT_FILTER_KEY = "synonym_rules";
-    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
-    public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
 
     private volatile int maxSynonymRules;
     private final int pitBatchSize;
@@ -447,18 +450,7 @@ public class SynonymsManagementAPIService {
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        if (synonymsSet.length > maxSynonymRules) {
-            listener.onFailure(
-                new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
-            );
-            return;
-        }
-        if (clusterSupportsSynonymSetSize(synonymsSet.length) == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
-                )
-            );
+        if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
             return;
         }
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
@@ -557,19 +549,7 @@ public class SynonymsManagementAPIService {
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
                     long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
-                    if (synonymsSetSize >= maxSynonymRules) {
-                        listener.onFailure(
-                            new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
-                        );
-                    } else if (clusterSupportsSynonymSetSize(synonymsSetSize + 1) == false) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "Cannot write more than "
-                                    + PRE_LARGE_SETS_LIMIT
-                                    + " synonym rules until all nodes in the cluster have been upgraded"
-                            )
-                        );
-                    } else {
+                    if (checkSynonymRuleCount(synonymsSetSize + 1, listener)) {
                         indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
                     }
                 }));
@@ -694,11 +674,27 @@ public class SynonymsManagementAPIService {
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
     }
 
-    private boolean clusterSupportsSynonymSetSize(long resultingCount) {
-        if (resultingCount <= PRE_LARGE_SETS_LIMIT) {
-            return true;
+    /**
+     * Returns {@code true} if {@code resultingCount} is within write limits; returns {@code false} and
+     * fails the listener if a limit would be exceeded.
+     */
+    private boolean checkSynonymRuleCount(long resultingCount, ActionListener<?> listener) {
+        if (resultingCount > maxSynonymRules) {
+            listener.onFailure(
+                new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
+            );
+            return false;
         }
-        return clusterService == null || clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS);
+        if (resultingCount > PRE_LARGE_SETS_LIMIT
+            && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
+                )
+            );
+            return false;
+        }
+        return true;
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {

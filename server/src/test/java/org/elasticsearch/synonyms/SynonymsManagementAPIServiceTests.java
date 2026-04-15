@@ -22,6 +22,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -48,8 +49,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
-    private static SynonymsManagementAPIService buildService(Client client, int maxRules, int chunkSize) {
-        return new SynonymsManagementAPIService(client, null, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
+    private static SynonymsManagementAPIService buildService(Client client, ClusterService clusterService, int maxRules, int chunkSize) {
+        return new SynonymsManagementAPIService(client, clusterService, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
     }
 
     private static SynonymsManagementAPIService buildService(Client client, ClusterService clusterService) {
@@ -73,15 +74,20 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         SynonymRule[] rules = randomSynonymsSet(numRules);
 
         try (var threadPool = createThreadPool()) {
-            var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-            var service = buildService(countingClient, numRules, chunkSize);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            try {
+                var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
+                var service = buildService(countingClient, clusterService, numRules, chunkSize);
 
-            var future = new PlainActionFuture<Void>();
-            service.bulkUpdateSynonymsSet("my-set", rules, future);
-            future.actionGet();
+                var future = new PlainActionFuture<Void>();
+                service.bulkUpdateSynonymsSet("my-set", rules, future);
+                future.actionGet();
 
-            // +1 for the synonym set document written in the first chunk
-            assertThat(countingClient.totalDocCount.get(), equalTo(numRules + 1));
+                // +1 for the synonym set document written in the first chunk
+                assertThat(countingClient.totalDocCount.get(), equalTo(numRules + 1));
+            } finally {
+                clusterService.close();
+            }
         }
     }
 
@@ -90,19 +96,25 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      */
     public void testBulkUpdateEmptySet() throws Exception {
         try (var threadPool = createThreadPool()) {
-            var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
-            var service = buildService(
-                countingClient,
-                SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
-                SynonymsManagementAPIService.BULK_CHUNK_SIZE
-            );
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            try {
+                var countingClient = new BulkCountingClient(new NoOpNodeClient(threadPool));
+                var service = buildService(
+                    countingClient,
+                    clusterService,
+                    SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT,
+                    SynonymsManagementAPIService.BULK_CHUNK_SIZE
+                );
 
-            var future = new PlainActionFuture<Void>();
-            service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], future);
-            future.actionGet();
+                var future = new PlainActionFuture<Void>();
+                service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], future);
+                future.actionGet();
 
-            assertThat(countingClient.bulkRequestCount.get(), equalTo(1));
-            assertThat(countingClient.totalDocCount.get(), equalTo(1)); // just the set doc
+                assertThat(countingClient.bulkRequestCount.get(), equalTo(1));
+                assertThat(countingClient.totalDocCount.get(), equalTo(1)); // just the set doc
+            } finally {
+                clusterService.close();
+            }
         }
     }
 
@@ -135,7 +147,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 }));
 
                 assertTrue("expected listener.onFailure to be called synchronously", failed[0]);
-                assertThat(exceptionHolder[0], instanceOf(IllegalStateException.class));
+                assertThat(exceptionHolder[0], instanceOf(ElasticsearchException.class));
                 assertThat(exceptionHolder[0].getMessage(), containsString("all nodes in the cluster have been upgraded"));
                 assertThat(countingClient.bulkRequestCount.get(), equalTo(0));
             } finally {
@@ -181,7 +193,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 );
 
                 assertTrue("expected listener.onFailure to be called synchronously", failed[0]);
-                assertThat(exceptionHolder[0], instanceOf(IllegalStateException.class));
+                assertThat(exceptionHolder[0], instanceOf(ElasticsearchException.class));
                 assertThat(exceptionHolder[0].getMessage(), containsString("all nodes in the cluster have been upgraded"));
                 assertThat("no index request should have been issued", client.indexRequestCount.get(), equalTo(0));
             } finally {
@@ -246,15 +258,20 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         SynonymRule[] rules = randomSynonymsSet(numRules);
 
         try (var threadPool = createThreadPool()) {
-            var failingClient = new FailOnChunkClient(new NoOpNodeClient(threadPool), 1);
-            var service = buildService(failingClient, numRules, chunkSize);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            try {
+                var failingClient = new FailOnChunkClient(new NoOpNodeClient(threadPool), 1);
+                var service = buildService(failingClient, clusterService, numRules, chunkSize);
 
-            var future = new PlainActionFuture<Void>();
-            service.bulkUpdateSynonymsSet("my-set", rules, future);
+                var future = new PlainActionFuture<Void>();
+                service.bulkUpdateSynonymsSet("my-set", rules, future);
 
-            Exception ex = expectThrows(Exception.class, future::actionGet);
-            assertThat(ex.getMessage(), containsString("Error updating synonyms"));
-            assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
+                Exception ex = expectThrows(Exception.class, future::actionGet);
+                assertThat(ex.getMessage(), containsString("Error updating synonyms"));
+                assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
+            } finally {
+                clusterService.close();
+            }
         }
     }
 

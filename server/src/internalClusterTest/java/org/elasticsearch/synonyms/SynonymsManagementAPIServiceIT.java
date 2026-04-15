@@ -48,7 +48,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         maxSynonymRules = randomIntBetween(100, 1000);
         synonymsManagementAPIService = new SynonymsManagementAPIService(
             client(),
-            null,
+            clusterService(),
             maxSynonymRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -82,7 +82,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int maxRules = randomBoolean() ? rulesNumber : Integer.MAX_VALUE;
         SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
             client(),
-            null,
+            clusterService(),
             maxRules,
             pitBatchSize,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -108,7 +108,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int rulesNumber = maxRules + randomIntBetween(1, pitBatchSize);
         SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
             client(),
-            null,
+            clusterService(),
             maxRules,
             pitBatchSize,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE
@@ -259,7 +259,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Override health method check to simulate a timeout in checking the synonyms index
         synonymsManagementAPIService = new SynonymsManagementAPIService(
             client(),
-            null,
+            clusterService(),
             100_000,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 
 public class FlightStorageProviderTests extends ESTestCase {
@@ -36,7 +37,7 @@ public class FlightStorageProviderTests extends ESTestCase {
 
     public void testExistsThrowsWhenPortNotListening() throws IOException {
         final int freePort;
-        try (ServerSocket ss = new ServerSocket(0)) {
+        try (ServerSocket ss = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             freePort = ss.getLocalPort();
         }
         try (StorageProvider provider = new FlightStorageProvider()) {

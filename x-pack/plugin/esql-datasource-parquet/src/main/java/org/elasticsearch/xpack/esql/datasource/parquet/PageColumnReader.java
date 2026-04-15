@@ -21,6 +21,11 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 
@@ -104,6 +109,149 @@ final class PageColumnReader {
                 yield blockFactory.newConstantNullBlock(maxRows);
             }
         };
+    }
+
+    /**
+     * Reads a batch and filters it using the survivor mask from late materialization. When no rows
+     * survive, the column values are skipped without decode. When all rows survive, this is
+     * equivalent to {@link #readBatch}. For partial survival, the full batch is decoded and then
+     * compacted to contain only surviving rows.
+     *
+     * @param maxRows total rows in this batch (including eliminated rows)
+     * @param blockFactory factory for building output Blocks
+     * @param survivorMask boolean array where true = row survives; length must equal maxRows
+     * @param survivorCount number of true entries in survivorMask (pre-computed for efficiency)
+     * @return a Block containing only the surviving rows
+     */
+    Block readBatchFiltered(int maxRows, BlockFactory blockFactory, boolean[] survivorMask, int survivorCount) {
+        if (survivorCount == maxRows) {
+            return readBatch(maxRows, blockFactory);
+        }
+        if (survivorCount == 0) {
+            skipRows(maxRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        Block fullBlock = readBatch(maxRows, blockFactory);
+        try {
+            return filterBlock(fullBlock, survivorMask, survivorCount, blockFactory);
+        } finally {
+            fullBlock.close();
+        }
+    }
+
+    static Block filterBlock(Block source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        if (source instanceof LongBlock lb) {
+            return filterLongBlock(lb, mask, survivorCount, blockFactory);
+        } else if (source instanceof IntBlock ib) {
+            return filterIntBlock(ib, mask, survivorCount, blockFactory);
+        } else if (source instanceof DoubleBlock db) {
+            return filterDoubleBlock(db, mask, survivorCount, blockFactory);
+        } else if (source instanceof BytesRefBlock bb) {
+            return filterBytesRefBlock(bb, mask, survivorCount, blockFactory);
+        } else if (source instanceof BooleanBlock boolBlock) {
+            return filterBooleanBlock(boolBlock, mask, survivorCount, blockFactory);
+        }
+        return blockFactory.newConstantNullBlock(survivorCount);
+    }
+
+    private static Block filterLongBlock(LongBlock source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        long[] values = new long[survivorCount];
+        BitSet nulls = null;
+        int out = 0;
+        for (int i = 0; i < mask.length; i++) {
+            if (mask[i]) {
+                if (source.isNull(i)) {
+                    if (nulls == null) nulls = new BitSet(survivorCount);
+                    nulls.set(out);
+                } else {
+                    values[out] = source.getLong(source.getFirstValueIndex(i));
+                }
+                out++;
+            }
+        }
+        if (nulls == null) {
+            return blockFactory.newLongArrayVector(values, survivorCount).asBlock();
+        }
+        return blockFactory.newLongArrayBlock(values, survivorCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private static Block filterIntBlock(IntBlock source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        int[] values = new int[survivorCount];
+        BitSet nulls = null;
+        int out = 0;
+        for (int i = 0; i < mask.length; i++) {
+            if (mask[i]) {
+                if (source.isNull(i)) {
+                    if (nulls == null) nulls = new BitSet(survivorCount);
+                    nulls.set(out);
+                } else {
+                    values[out] = source.getInt(source.getFirstValueIndex(i));
+                }
+                out++;
+            }
+        }
+        if (nulls == null) {
+            return blockFactory.newIntArrayVector(values, survivorCount).asBlock();
+        }
+        return blockFactory.newIntArrayBlock(values, survivorCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private static Block filterDoubleBlock(DoubleBlock source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        double[] values = new double[survivorCount];
+        BitSet nulls = null;
+        int out = 0;
+        for (int i = 0; i < mask.length; i++) {
+            if (mask[i]) {
+                if (source.isNull(i)) {
+                    if (nulls == null) nulls = new BitSet(survivorCount);
+                    nulls.set(out);
+                } else {
+                    values[out] = source.getDouble(source.getFirstValueIndex(i));
+                }
+                out++;
+            }
+        }
+        if (nulls == null) {
+            return blockFactory.newDoubleArrayVector(values, survivorCount).asBlock();
+        }
+        return blockFactory.newDoubleArrayBlock(values, survivorCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private static Block filterBytesRefBlock(BytesRefBlock source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(survivorCount)) {
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < mask.length; i++) {
+                if (mask[i]) {
+                    if (source.isNull(i)) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendBytesRef(source.getBytesRef(source.getFirstValueIndex(i), scratch));
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block filterBooleanBlock(BooleanBlock source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
+        boolean[] values = new boolean[survivorCount];
+        BitSet nulls = null;
+        int out = 0;
+        for (int i = 0; i < mask.length; i++) {
+            if (mask[i]) {
+                if (source.isNull(i)) {
+                    if (nulls == null) nulls = new BitSet(survivorCount);
+                    nulls.set(out);
+                } else {
+                    values[out] = source.getBoolean(source.getFirstValueIndex(i));
+                }
+                out++;
+            }
+        }
+        if (nulls == null) {
+            return blockFactory.newBooleanArrayVector(values, survivorCount).asBlock();
+        }
+        return blockFactory.newBooleanArrayBlock(values, survivorCount, null, nulls, Block.MvOrdering.UNORDERED);
     }
 
     private void loadDictionaryIfNeeded() {
@@ -213,7 +361,7 @@ final class PageColumnReader {
         rowPositionInRowGroup += count;
     }
 
-    private void skipRows(int count) {
+    void skipRows(int count) {
         int remaining = count;
         while (remaining > 0) {
             if (ensurePage() == false) {

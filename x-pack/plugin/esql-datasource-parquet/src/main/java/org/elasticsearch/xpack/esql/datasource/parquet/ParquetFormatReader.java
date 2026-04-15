@@ -98,21 +98,27 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     private final ParquetPushedExpressions pushedExpressions;
     private final boolean optimizedReader;
     private final boolean pageLevelReader;
+    private final boolean lateMaterialization;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
     static final String OPTIMIZED_READER_CONFIG_KEY = "optimized_reader";
     static final String PAGE_LEVEL_READER_CONFIG_KEY = "page_level_reader";
+    static final String LATE_MATERIALIZATION_CONFIG_KEY = "late_materialization";
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, false);
+        this(blockFactory, FilterCompat.NOOP, null, false, false, false);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, false);
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, false, false);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader, boolean pageLevelReader) {
-        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, pageLevelReader);
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, pageLevelReader, false);
+    }
+
+    ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader, boolean pageLevelReader, boolean lateMaterialization) {
+        this(blockFactory, FilterCompat.NOOP, null, optimizedReader, pageLevelReader, lateMaterialization);
     }
 
     private ParquetFormatReader(
@@ -120,22 +126,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         FilterCompat.Filter pushedFilter,
         ParquetPushedExpressions pushedExpressions,
         boolean optimizedReader,
-        boolean pageLevelReader
+        boolean pageLevelReader,
+        boolean lateMaterialization
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
         this.optimizedReader = optimizedReader;
         this.pageLevelReader = pageLevelReader;
+        this.lateMaterialization = lateMaterialization;
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, optimizedReader, pageLevelReader);
+            return new ParquetFormatReader(blockFactory, filter, null, optimizedReader, pageLevelReader, lateMaterialization);
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
-            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, optimizedReader, pageLevelReader);
+            return new ParquetFormatReader(blockFactory, FilterCompat.NOOP, exprs, optimizedReader, pageLevelReader, lateMaterialization);
         }
         return this;
     }
@@ -147,6 +155,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
         boolean newOptimized = this.optimizedReader;
         boolean newPageLevel = this.pageLevelReader;
+        boolean newLateMat = this.lateMaterialization;
         Object optValue = config.get(OPTIMIZED_READER_CONFIG_KEY);
         if (optValue != null) {
             newOptimized = optValue instanceof Boolean b ? b : Booleans.parseBoolean(optValue.toString());
@@ -155,10 +164,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         if (pageValue != null) {
             newPageLevel = pageValue instanceof Boolean b ? b : Booleans.parseBoolean(pageValue.toString());
         }
-        if (newOptimized == this.optimizedReader && newPageLevel == this.pageLevelReader) {
+        Object lateMatValue = config.get(LATE_MATERIALIZATION_CONFIG_KEY);
+        if (lateMatValue != null) {
+            newLateMat = lateMatValue instanceof Boolean b ? b : Booleans.parseBoolean(lateMatValue.toString());
+        }
+        if (newOptimized == this.optimizedReader && newPageLevel == this.pageLevelReader && newLateMat == this.lateMaterialization) {
             return this;
         }
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, newOptimized, newPageLevel);
+        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, newOptimized, newPageLevel, newLateMat);
     }
 
     @Override
@@ -397,7 +410,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 columnInfos,
                 preloadedMetadata,
                 pushedExpressions,
-                pageLevelReader
+                pageLevelReader,
+                lateMaterialization
             );
         }
         return new ParquetColumnIterator(
@@ -578,7 +592,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 columnInfos,
                 preloadedMetadata,
                 pushedExpressions,
-                pageLevelReader
+                pageLevelReader,
+                lateMaterialization
             );
         }
         return new ParquetColumnIterator(

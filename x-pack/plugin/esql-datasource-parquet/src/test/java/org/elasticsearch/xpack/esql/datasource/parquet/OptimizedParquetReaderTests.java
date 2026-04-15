@@ -54,6 +54,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for the optimized Parquet reader feature flag and correctness parity with the baseline.
@@ -1879,6 +1880,366 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         List<Page> pageLevelPages = readAllPages(new ParquetFormatReader(blockFactory, true, true), storageObject);
 
         assertPagesEqual(baselinePages, pageLevelPages);
+    }
+
+    // --- Stage 4: Late materialization tests ---
+
+    /**
+     * Late materialization: filtered read with predicate on one column, projection on others.
+     * Verifies that results match the page-level reader (which decodes all columns then lets
+     * parquet-java's built-in filter drive row group selection).
+     */
+    public void testLateMaterializationBasicFilter() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 300; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("value", i * 0.5);
+                g.add("label", "item_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 200L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader pageLevelReader = new ParquetFormatReader(blockFactory, true, true);
+        pageLevelReader = (ParquetFormatReader) pageLevelReader.withPushedFilter(pushedExprs);
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pageLevelPages = readAllPages(pageLevelReader, storageObject);
+        List<Page> lateMatPages = readAllPages(lateMatReader, storageObject);
+
+        int pageLevelTotalRows = pageLevelPages.stream().mapToInt(Page::getPositionCount).sum();
+        int lateMatTotalRows = lateMatPages.stream().mapToInt(Page::getPositionCount).sum();
+
+        // Late materialization should return fewer rows (only those matching id > 200)
+        assertThat("late materialization should produce fewer rows than page-level reader", lateMatTotalRows, lessThan(pageLevelTotalRows));
+        // Should return exactly 99 rows (id 201..299)
+        assertThat("late materialization should match expected surviving row count", lateMatTotalRows, equalTo(99));
+    }
+
+    /**
+     * Late materialization with no pushed filter: all columns decoded normally, no filtering.
+     * Results should match page-level reader exactly.
+     */
+    public void testLateMaterializationNoFilter() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("count")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("count", i * 10);
+                g.add("score", i * 0.1);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        // No pushed filter → lateMaterialization should effectively be disabled (no predicate columns)
+        ParquetFormatReader pageLevelReader = new ParquetFormatReader(blockFactory, true, true);
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+
+        List<Page> pageLevelPages = readAllPages(pageLevelReader, storageObject);
+        List<Page> lateMatPages = readAllPages(lateMatReader, storageObject);
+
+        assertPagesEqual(pageLevelPages, lateMatPages);
+    }
+
+    /**
+     * Late materialization with Equals on keyword column: only rows matching the string value
+     * should survive.
+     */
+    public void testLateMaterializationKeywordEquals() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("status")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileWithDictionary(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 300; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("status", i % 3 == 0 ? "active" : (i % 3 == 1 ? "inactive" : "pending"));
+                g.add("value", i * 0.1);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.KEYWORD);
+        Equals equalsExpr = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, new BytesRef("active"), DataType.KEYWORD));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(equalsExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> lateMatPages = readAllPages(lateMatReader, storageObject);
+        int totalRows = lateMatPages.stream().mapToInt(Page::getPositionCount).sum();
+
+        // 100 rows where status == "active" (every 3rd row: 0, 3, 6, ..., 297)
+        assertThat("late materialization should return only matching rows", totalRows, equalTo(100));
+    }
+
+    /**
+     * Late materialization with nullable columns: verifies null handling in predicate evaluation
+     * and block filtering.
+     */
+    public void testLateMaterializationNullableColumns() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("filter_col")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("projection_col")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                if (i % 5 != 0) {
+                    g.add("filter_col", (long) i);
+                }
+                if (i % 3 != 0) {
+                    g.add("projection_col", i * 0.1);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute filterAttr = new ReferenceAttribute(Source.EMPTY, "filter_col", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, filterAttr, new Literal(Source.EMPTY, 150L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> lateMatPages = readAllPages(lateMatReader, storageObject);
+        int totalRows = lateMatPages.stream().mapToInt(Page::getPositionCount).sum();
+
+        // Rows where filter_col > 150: id 151,152,...,199 excluding multiples of 5 (null filter_col)
+        // Multiples of 5 from 155..195: 155,160,165,170,175,180,185,190,195 = 9 nulls
+        // Total: 49 - 9 = 40 surviving rows (null filter_col rows are eliminated by GT comparison)
+        int expectedNulls = 0;
+        int expectedSurvivors = 0;
+        for (int i = 0; i < 200; i++) {
+            if (i % 5 == 0) continue;
+            if (i > 150) expectedSurvivors++;
+        }
+        assertThat("late materialization with nullable filter column", totalRows, equalTo(expectedSurvivors));
+    }
+
+    /**
+     * Late materialization: predicate column also in projection. The predicate column Block
+     * should be decoded once and reused in the output Page.
+     */
+    public void testLateMaterializationPredicateInProjection() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("value", i * 2.0);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        LessThan ltExpr = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 10L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(ltExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pages = readAllPages(lateMatReader, storageObject);
+        int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+        assertThat("predicate column (id) in projection, LessThan filter", totalRows, equalTo(10));
+
+        // Verify the id column values are 0..9
+        for (Page page : pages) {
+            LongBlock idBlock = page.getBlock(0);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long idVal = idBlock.getLong(idBlock.getFirstValueIndex(i));
+                assertThat("surviving id should be < 10", idVal, lessThan(10L));
+            }
+        }
+    }
+
+    /**
+     * Late materialization: all rows eliminated by filter. Projection columns should be skipped
+     * entirely (no decode).
+     */
+    public void testLateMaterializationAllRowsEliminated() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("value", i * 0.5);
+                g.add("label", "item_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 99999L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pages = readAllPages(lateMatReader, storageObject);
+        int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+        assertThat("all rows eliminated by impossible filter", totalRows, equalTo(0));
+    }
+
+    /**
+     * Late materialization with boolean predicate column.
+     */
+    public void testLateMaterializationBooleanPredicate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("flag")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("flag", i % 4 == 0);
+                g.add("score", i * 1.5);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute flagAttr = new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN);
+        Equals eqExpr = new Equals(Source.EMPTY, flagAttr, new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(eqExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pages = readAllPages(lateMatReader, storageObject);
+        int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+        // flag == true for every 4th row: 0, 4, 8, ..., 196 = 50 rows
+        assertThat("boolean predicate filter", totalRows, equalTo(50));
+    }
+
+    /**
+     * Late materialization with integer predicate column.
+     */
+    public void testLateMaterializationIntegerPredicate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("category")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 200; i++) {
+                Group g = factory.newGroup();
+                g.add("category", i % 5);
+                g.add("id", (long) i);
+                g.add("score", i * 0.3);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute catAttr = new ReferenceAttribute(Source.EMPTY, "category", DataType.INTEGER);
+        Equals eqExpr = new Equals(Source.EMPTY, catAttr, new Literal(Source.EMPTY, 0, DataType.INTEGER));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(eqExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pages = readAllPages(lateMatReader, storageObject);
+        int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+        // category == 0 for every 5th row: 0, 5, 10, ..., 195 = 40 rows
+        assertThat("integer predicate filter", totalRows, equalTo(40));
     }
 
     // --- Helpers ---

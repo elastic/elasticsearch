@@ -17,6 +17,12 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,8 +47,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -417,6 +425,42 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return ne.name().equals(columnName);
         }
         return false;
+    }
+
+    /**
+     * Returns the set of column names referenced by any pushed expression. Used by late materialization
+     * (Stage 4) to classify columns into predicate (referenced in filter) vs projection-only.
+     */
+    Set<String> predicateColumnNames() {
+        Set<String> result = new HashSet<>();
+        for (Expression expr : expressions) {
+            collectColumnNames(expr, result);
+        }
+        return result;
+    }
+
+    private static void collectColumnNames(Expression expr, Set<String> names) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof And and) {
+            collectColumnNames(and.left(), names);
+            collectColumnNames(and.right(), names);
+        } else if (expr instanceof Or or) {
+            collectColumnNames(or.left(), names);
+            collectColumnNames(or.right(), names);
+        } else if (expr instanceof Not not) {
+            collectColumnNames(not.field(), names);
+        } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        }
     }
 
     /**
@@ -988,5 +1032,381 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             }
         }
         return Integer.compare(aLen, bLen);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Block-level predicate evaluation (Stage 4: late materialization)
+    // -----------------------------------------------------------------------------------
+
+    /**
+     * Evaluates all pushed expressions against decoded predicate Blocks, producing a boolean mask
+     * of surviving rows. All expressions are AND-combined. RECHECK semantics: conservative
+     * evaluation — if an expression cannot be evaluated (unsupported type or structure), all rows
+     * are treated as surviving for that expression.
+     *
+     * @param predicateBlocks map of column name to decoded Block for predicate columns
+     * @param rowCount number of rows in the batch
+     * @return boolean array where {@code true} = row survives all predicates, or null if all rows survive
+     */
+    boolean[] evaluateFilter(Map<String, Block> predicateBlocks, int rowCount) {
+        boolean[] survivors = null;
+        for (Expression expr : expressions) {
+            boolean[] exprResult = evaluateExpression(expr, predicateBlocks, rowCount);
+            if (exprResult == null) {
+                continue;
+            }
+            if (survivors == null) {
+                survivors = exprResult;
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    survivors[i] = survivors[i] && exprResult[i];
+                }
+            }
+        }
+        return survivors;
+    }
+
+    private boolean[] evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            Object literal = literalValueOf(bc.right());
+            if (literal == null) {
+                return null;
+            }
+            return evaluateComparison(bc, block, literal, rowCount);
+        }
+        if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateIn(inExpr, block, rowCount);
+        }
+        if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            boolean[] result = new boolean[rowCount];
+            for (int i = 0; i < rowCount; i++) {
+                result[i] = block.isNull(i);
+            }
+            return result;
+        }
+        if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            boolean[] result = new boolean[rowCount];
+            for (int i = 0; i < rowCount; i++) {
+                result[i] = block.isNull(i) == false;
+            }
+            return result;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateRange(range, block, rowCount);
+        }
+        if (expr instanceof And and) {
+            boolean[] left = evaluateExpression(and.left(), blocks, rowCount);
+            boolean[] right = evaluateExpression(and.right(), blocks, rowCount);
+            if (left == null) return right;
+            if (right == null) return left;
+            for (int i = 0; i < rowCount; i++) {
+                left[i] = left[i] && right[i];
+            }
+            return left;
+        }
+        if (expr instanceof Or or) {
+            boolean[] left = evaluateExpression(or.left(), blocks, rowCount);
+            boolean[] right = evaluateExpression(or.right(), blocks, rowCount);
+            if (left == null || right == null) return null;
+            for (int i = 0; i < rowCount; i++) {
+                left[i] = left[i] || right[i];
+            }
+            return left;
+        }
+        if (expr instanceof Not not) {
+            boolean[] inner = evaluateExpression(not.field(), blocks, rowCount);
+            if (inner == null) return null;
+            for (int i = 0; i < rowCount; i++) {
+                inner[i] = !inner[i];
+            }
+            return inner;
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateStartsWith(sw, block, rowCount);
+        }
+        return null;
+    }
+
+    private boolean[] evaluateComparison(EsqlBinaryComparison bc, Block block, Object literal, int rowCount) {
+        boolean[] result = new boolean[rowCount];
+        DataType dt = bc.left().dataType();
+
+        if (block instanceof LongBlock lb) {
+            long litVal = toLongValue(literal, dt);
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    result[i] = compareResult(Long.compare(lb.getLong(lb.getFirstValueIndex(i)), litVal), bc);
+                }
+            }
+        } else if (block instanceof IntBlock ib) {
+            int litVal = ((Number) literal).intValue();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    result[i] = compareResult(Integer.compare(ib.getInt(ib.getFirstValueIndex(i)), litVal), bc);
+                }
+            }
+        } else if (block instanceof DoubleBlock db) {
+            double litVal = ((Number) literal).doubleValue();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    result[i] = compareResult(Double.compare(db.getDouble(db.getFirstValueIndex(i)), litVal), bc);
+                }
+            }
+        } else if (block instanceof BytesRefBlock bb) {
+            BytesRef litBytes = toByteRef(literal);
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    result[i] = compareResult(bb.getBytesRef(bb.getFirstValueIndex(i), scratch).compareTo(litBytes), bc);
+                }
+            }
+        } else if (block instanceof BooleanBlock boolBlock) {
+            boolean litVal = (Boolean) literal;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    result[i] = compareResult(Boolean.compare(boolBlock.getBoolean(boolBlock.getFirstValueIndex(i)), litVal), bc);
+                }
+            }
+        } else {
+            Arrays.fill(result, true);
+        }
+        return result;
+    }
+
+    private static long toLongValue(Object literal, DataType dt) {
+        if (literal instanceof Number n) {
+            return n.longValue();
+        }
+        return 0L;
+    }
+
+    private static BytesRef toByteRef(Object literal) {
+        if (literal instanceof BytesRef br) {
+            return br;
+        }
+        if (literal instanceof String s) {
+            return new BytesRef(s);
+        }
+        return new BytesRef(literal.toString());
+    }
+
+    private static boolean compareResult(int cmp, EsqlBinaryComparison bc) {
+        if (bc instanceof Equals) return cmp == 0;
+        if (bc instanceof NotEquals) return cmp != 0;
+        if (bc instanceof LessThan) return cmp < 0;
+        if (bc instanceof LessThanOrEqual) return cmp <= 0;
+        if (bc instanceof GreaterThan) return cmp > 0;
+        if (bc instanceof GreaterThanOrEqual) return cmp >= 0;
+        return true;
+    }
+
+    private boolean[] evaluateIn(In inExpr, Block block, int rowCount) {
+        boolean[] result = new boolean[rowCount];
+        List<Object> litValues = new ArrayList<>();
+        for (Expression option : inExpr.list()) {
+            if (option.foldable()) {
+                Object v = literalValueOf(option);
+                if (v != null) {
+                    litValues.add(v);
+                }
+            }
+        }
+        if (litValues.isEmpty()) {
+            Arrays.fill(result, true);
+            return result;
+        }
+
+        if (block instanceof LongBlock lb) {
+            DataType dt = inExpr.value().dataType();
+            long[] litLongs = new long[litValues.size()];
+            for (int j = 0; j < litValues.size(); j++) {
+                litLongs[j] = toLongValue(litValues.get(j), dt);
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    long val = lb.getLong(lb.getFirstValueIndex(i));
+                    boolean match = false;
+                    for (long lv : litLongs) {
+                        if (val == lv) {
+                            match = true;
+                            break;
+                        }
+                    }
+                    result[i] = match;
+                }
+            }
+        } else if (block instanceof IntBlock ib) {
+            int[] litInts = new int[litValues.size()];
+            for (int j = 0; j < litValues.size(); j++) {
+                litInts[j] = ((Number) litValues.get(j)).intValue();
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    int val = ib.getInt(ib.getFirstValueIndex(i));
+                    boolean match = false;
+                    for (int lv : litInts) {
+                        if (val == lv) {
+                            match = true;
+                            break;
+                        }
+                    }
+                    result[i] = match;
+                }
+            }
+        } else if (block instanceof BytesRefBlock bb) {
+            BytesRef[] litBytes = new BytesRef[litValues.size()];
+            for (int j = 0; j < litValues.size(); j++) {
+                litBytes[j] = toByteRef(litValues.get(j));
+            }
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    BytesRef val = bb.getBytesRef(bb.getFirstValueIndex(i), scratch);
+                    boolean match = false;
+                    for (BytesRef lv : litBytes) {
+                        if (val.bytesEquals(lv)) {
+                            match = true;
+                            break;
+                        }
+                    }
+                    result[i] = match;
+                }
+            }
+        } else {
+            Arrays.fill(result, true);
+        }
+        return result;
+    }
+
+    private boolean[] evaluateRange(Range range, Block block, int rowCount) {
+        boolean[] result = new boolean[rowCount];
+        Object lowerVal = range.lower().foldable() ? literalValueOf(range.lower()) : null;
+        Object upperVal = range.upper().foldable() ? literalValueOf(range.upper()) : null;
+        if (lowerVal == null && upperVal == null) {
+            Arrays.fill(result, true);
+            return result;
+        }
+
+        if (block instanceof LongBlock lb) {
+            DataType dt = range.value().dataType();
+            long lower = lowerVal != null ? toLongValue(lowerVal, dt) : Long.MIN_VALUE;
+            long upper = upperVal != null ? toLongValue(upperVal, dt) : Long.MAX_VALUE;
+            boolean includeLower = range.includeLower();
+            boolean includeUpper = range.includeUpper();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    long val = lb.getLong(lb.getFirstValueIndex(i));
+                    result[i] = (includeLower ? val >= lower : val > lower) && (includeUpper ? val <= upper : val < upper);
+                }
+            }
+        } else if (block instanceof IntBlock ib) {
+            int lower = lowerVal != null ? ((Number) lowerVal).intValue() : Integer.MIN_VALUE;
+            int upper = upperVal != null ? ((Number) upperVal).intValue() : Integer.MAX_VALUE;
+            boolean includeLower = range.includeLower();
+            boolean includeUpper = range.includeUpper();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    int val = ib.getInt(ib.getFirstValueIndex(i));
+                    result[i] = (includeLower ? val >= lower : val > lower) && (includeUpper ? val <= upper : val < upper);
+                }
+            }
+        } else if (block instanceof DoubleBlock db) {
+            double lower = lowerVal != null ? ((Number) lowerVal).doubleValue() : Double.NEGATIVE_INFINITY;
+            double upper = upperVal != null ? ((Number) upperVal).doubleValue() : Double.POSITIVE_INFINITY;
+            boolean includeLower = range.includeLower();
+            boolean includeUpper = range.includeUpper();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    double val = db.getDouble(db.getFirstValueIndex(i));
+                    result[i] = (includeLower ? val >= lower : val > lower) && (includeUpper ? val <= upper : val < upper);
+                }
+            }
+        } else {
+            Arrays.fill(result, true);
+        }
+        return result;
+    }
+
+    private boolean[] evaluateStartsWith(StartsWith sw, Block block, int rowCount) {
+        boolean[] result = new boolean[rowCount];
+        if (sw.prefix().foldable() == false) {
+            Arrays.fill(result, true);
+            return result;
+        }
+        Object prefixObj = literalValueOf(sw.prefix());
+        BytesRef prefix = prefixObj instanceof BytesRef br ? br : null;
+        if (prefix == null) {
+            Arrays.fill(result, true);
+            return result;
+        }
+
+        if (block instanceof BytesRefBlock bb) {
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    result[i] = false;
+                } else {
+                    BytesRef val = bb.getBytesRef(bb.getFirstValueIndex(i), scratch);
+                    result[i] = val.length >= prefix.length
+                        && Arrays.equals(
+                            val.bytes,
+                            val.offset,
+                            val.offset + prefix.length,
+                            prefix.bytes,
+                            prefix.offset,
+                            prefix.offset + prefix.length
+                        );
+                }
+            }
+        } else {
+            Arrays.fill(result, true);
+        }
+        return result;
     }
 }

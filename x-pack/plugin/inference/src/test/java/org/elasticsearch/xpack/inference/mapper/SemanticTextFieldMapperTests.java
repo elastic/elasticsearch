@@ -109,6 +109,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
@@ -296,6 +297,27 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
         }
         return super.getIndexSettings();
+    }
+
+    /**
+     * Restricts the set of index versions tested by {@link #testSupportedIndexVersions()} to those
+     * that are compatible with the current {@code useLegacyFormat} value.  When the legacy format
+     * is enabled the index version must be strictly before
+     * {@link IndexVersions#SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN}; all released versions are
+     * valid when the legacy format is disabled.
+     */
+    @Override
+    protected Set<IndexVersion> getSupportedVersions() {
+        if (useLegacyFormat) {
+            return IndexVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(
+                    v -> v.onOrAfter(IndexVersions.SEMANTIC_TEXT_FIELD_TYPE)
+                        && v.before(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                )
+                .collect(Collectors.toSet());
+        }
+        return super.getSupportedVersions();
     }
 
     @Override

@@ -2,4 +2,4 @@ area: Search
 issues: []
 pr: 146087
 summary: Make synonym rule limit configurable at the cluster level
-type: feature
+type: enhancement

@@ -219,7 +219,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
         long postingListOffset = -1;
-        long postingListLength = -1;
+        long postingListLength = 0;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
             postingListOffset = input.readLong();
@@ -302,8 +302,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+        if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
+            return;
+        }
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
+            return;
+        }
+        FieldEntry entry = fields.get(fieldInfo.number);
+        if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -399,6 +406,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
+    }
+
+    private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
+        return fieldInfo.getVectorDimension() == 0
+            || fieldEntry == null
+            || (fieldEntry.numCentroids() == 0 && fieldEntry.postingListLength == 0L && fieldEntry.centroidLength == 0L);
     }
 
     /**

@@ -418,6 +418,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected static Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
+        var request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        return entityAsMap(client().performRequest(request));
+    }
+
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
         return inferInternal(endpoint, input, null, Map.of());

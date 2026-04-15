@@ -18,25 +18,6 @@ public class WildcardQuery extends Query {
     private final boolean caseInsensitive;
     private final boolean forceStringMatch;
 
-    /**
-     * Escapes characters that have special meaning in wildcard query syntax ({@code *}, {@code ?}, {@code \}).
-     * This is different from {@link org.apache.lucene.queryparser.classic.QueryParser#escape} which escapes
-     * Lucene query parser syntax characters - a superset of the wildcard-special characters.
-     */
-    public static String escapeWildcardSyntax(String term) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < term.length();) {
-            final int c = term.codePointAt(i);
-            int length = Character.charCount(c);
-            if (c == '*' || c == '?' || c == '\\') {
-                result.append("\\");
-            }
-            result.appendCodePoint(c);
-            i += length;
-        }
-        return result.toString();
-    }
-
     public WildcardQuery(Source source, String field, String query, boolean caseInsensitive, boolean forceStringMatch) {
         super(source);
         this.field = field;

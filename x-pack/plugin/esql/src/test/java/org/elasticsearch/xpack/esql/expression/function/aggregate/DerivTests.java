@@ -11,10 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -22,13 +24,14 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class DerivTests extends AbstractFunctionTestCase {
+public class DerivTests extends AbstractAggregationTestCase {
     public DerivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -49,22 +52,18 @@ public class DerivTests extends AbstractFunctionTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        List<Object[]> parameters = new ArrayList<>(suppliers.size());
-        for (TestCaseSupplier supplier : suppliers) {
-            parameters.add(new Object[] { supplier });
-        }
-        return parameters;
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Deriv(source, args.get(0), args.get(1), args.get(2), args.get(3));
+        return new Deriv(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1));
     }
 
     @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         DataType type = fieldSupplier.type();
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
             if (randomBoolean()) {
@@ -80,49 +79,44 @@ public class DerivTests extends AbstractFunctionTestCase {
             }
             fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
             List<Long> timestamps = new ArrayList<>();
-            List<Integer> slices = new ArrayList<>();
-            List<Long> maxTimestamps = new ArrayList<>();
             long lastTimestamp = randomLongBetween(0, 1_000_000);
             for (int row = 0; row < dataRows.size(); row++) {
                 lastTimestamp += randomLongBetween(1, 10_000);
                 timestamps.add(lastTimestamp);
-                slices.add(0);
-                maxTimestamps.add(Long.MAX_VALUE);
             }
-            TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
-                timestamps.reversed(),
-                DataType.DATETIME,
-                "timestamps"
-            );
-            TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
-            TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
-                maxTimestamps,
-                DataType.LONG,
-                "_max_timestamp"
-            );
-
-            List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
+            timestamps = timestamps.reversed();
+            double sumVal = 0d;
+            double sumTs = 0d;
+            double sumTsVal = 0d;
+            double sumTsSquare = 0d;
+            int count = 0;
+            for (int i = 0; i < dataRows.size(); i++) {
+                Object row = dataRows.get(i);
+                if (row == null) {
+                    continue;
+                }
+                double val = ((Number) row).doubleValue();
+                long ts = timestamps.get(i);
+                count++;
+                sumVal += val;
+                sumTs += ts;
+                sumTsVal += ts * val;
+                sumTsSquare += ts * ts;
+            }
+            double numerator = count * sumTsVal - sumTs * sumVal;
+            double denominator = count * sumTsSquare - sumTs * sumTs;
             Matcher<?> matcher;
-            if (nonNullDataRows.size() < 2) {
+            if (count < 2 || denominator == 0d) {
                 matcher = Matchers.nullValue();
             } else {
-                var lastValue = ((Number) nonNullDataRows.getFirst()).doubleValue();
-                var secondLastValue = ((Number) nonNullDataRows.get(1)).doubleValue();
-                var increase = lastValue >= secondLastValue ? lastValue - secondLastValue : lastValue;
-                var largestTimestamp = timestamps.get(0);
-                var secondLargestTimestamp = timestamps.get(1);
-                var smallestTimestamp = timestamps.getLast();
-                matcher = Matchers.allOf(
-                    Matchers.greaterThanOrEqualTo(increase / (largestTimestamp - smallestTimestamp) * 1000 * 0.9),
-                    Matchers.lessThanOrEqualTo(
-                        increase / (largestTimestamp - secondLargestTimestamp) * (largestTimestamp - smallestTimestamp) * 1000
-                    )
-                );
+                double slope = numerator / denominator * 1000.0;
+                double tolerance = Math.max(0.001, Math.abs(slope) * 1e-6);
+                matcher = closeTo(slope, tolerance);
             }
-
+            TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(timestamps, DataType.DATETIME, "timestamps");
             return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
-                Matchers.stringContainsInOrder("GroupingAggregator", "Deriv", "GroupingAggregatorFunction"),
+                List.of(fieldTypedData, timestampsField),
+                standardAggregatorName("Deriv", fieldTypedData.type()),
                 DataType.DOUBLE,
                 matcher
             );
@@ -130,10 +124,10 @@ public class DerivTests extends AbstractFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(4));
+        assertThat(params, hasSize(2));
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
-        assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
-        assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
-        return List.of(params.get(0));
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        return List.of(params.get(0), window);
     }
 }

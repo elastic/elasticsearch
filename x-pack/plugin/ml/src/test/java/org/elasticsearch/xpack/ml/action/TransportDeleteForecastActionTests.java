@@ -33,12 +33,18 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 )
             ).limit(randomInt(10)).collect(Collectors.toList());
 
-            // This should not throw.
-            TransportDeleteForecastAction.extractForecastIds(
-                forecastRequestStatsHits.toArray(SearchHits.EMPTY),
-                randomFrom(JobState.values()),
-                randomAlphaOfLength(10)
-            );
+            try {
+                // This should not throw.
+                TransportDeleteForecastAction.extractForecastIds(
+                    forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                    randomFrom(JobState.values()),
+                    randomAlphaOfLength(10)
+                );
+            } finally {
+                for (SearchHit hit : forecastRequestStatsHits) {
+                    hit.decRef();
+                }
+            }
         }
     }
 
@@ -50,28 +56,34 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
 
             forecastRequestStatsHits.add(createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus.STARTED));
 
-            {
-                JobState jobState = randomFrom(JobState.CLOSED, JobState.CLOSING, JobState.FAILED);
-                try {
-                    TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(SearchHits.EMPTY),
-                        jobState,
-                        randomAlphaOfLength(10)
-                    );
-                } catch (Exception ex) {
-                    fail("Should not have thrown: " + ex.getMessage());
+            try {
+                {
+                    JobState jobState = randomFrom(JobState.CLOSED, JobState.CLOSING, JobState.FAILED);
+                    try {
+                        TransportDeleteForecastAction.extractForecastIds(
+                            forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                            jobState,
+                            randomAlphaOfLength(10)
+                        );
+                    } catch (Exception ex) {
+                        fail("Should not have thrown: " + ex.getMessage());
+                    }
                 }
-            }
-            {
-                JobState jobState = JobState.OPENED;
-                expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(SearchHits.EMPTY),
-                        jobState,
-                        randomAlphaOfLength(10)
-                    )
-                );
+                {
+                    JobState jobState = JobState.OPENED;
+                    expectThrows(
+                        ElasticsearchStatusException.class,
+                        () -> TransportDeleteForecastAction.extractForecastIds(
+                            forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                            jobState,
+                            randomAlphaOfLength(10)
+                        )
+                    );
+                }
+            } finally {
+                for (SearchHit hit : forecastRequestStatsHits) {
+                    hit.decRef();
+                }
             }
         }
     }
@@ -86,7 +98,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
             ForecastRequestStats.STATUS.getPreferredName(),
             new DocumentField(ForecastRequestStats.STATUS.getPreferredName(), Collections.singletonList(status.toString()))
         );
-        SearchHit hit = SearchHit.unpooled(0, "");
+        SearchHit hit = new SearchHit(0, "");
         hit.addDocumentFields(documentFields, Map.of());
         return hit;
     }

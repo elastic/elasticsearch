@@ -17,8 +17,14 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardInformationNodeResponseTests extends AbstractWireSerializingTestCase<
     TransportFetchSearchShardInformationAction.Response> {
@@ -34,21 +40,26 @@ public class ShardInformationNodeResponseTests extends AbstractWireSerializingTe
     }
 
     public static TransportFetchSearchShardInformationAction.Response createLabeledTestInstance(String label) {
-        return new TransportFetchSearchShardInformationAction.Response(randomNonNegativeLong());
+        return new TransportFetchSearchShardInformationAction.Response(randomLong());
     }
 
     @Override
     protected TransportFetchSearchShardInformationAction.Response mutateInstance(
         TransportFetchSearchShardInformationAction.Response instance
     ) {
-        return switch (between(0, 1)) {
-            case 0 -> new TransportFetchSearchShardInformationAction.Response(-instance.getLastSearcherAcquiredTime());
-            case 1 -> new TransportFetchSearchShardInformationAction.Response(randomNonNegativeLong());
-            default -> throw new AssertionError("option is out of range");
-        };
+        return new TransportFetchSearchShardInformationAction.Response(
+            randomValueOtherThan(instance.getLastSearcherAcquiredTime(), ESTestCase::randomLong)
+        );
     }
 
-    public void testTest() {
-        assertTrue(true);
+    public void testNegativeLongSerialization() throws IOException {
+        try (BytesStreamOutput bos = new BytesStreamOutput()) {
+            TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE.writeTo(bos);
+            assertThat(bos.size(), greaterThan(0));
+        }
+        try (BytesStreamOutput bos = new BytesStreamOutput()) {
+            TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE.writeTo(bos);
+            assertThat(bos.size(), greaterThan(0));
+        }
     }
 }

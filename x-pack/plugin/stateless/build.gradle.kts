@@ -77,6 +77,7 @@ dependencies {
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")
     testImplementation(testArtifact("org.elasticsearch:server"))
+    testRuntimeOnly(project(":libs:serverless-shared-constants"))
 }
 
 restResources {

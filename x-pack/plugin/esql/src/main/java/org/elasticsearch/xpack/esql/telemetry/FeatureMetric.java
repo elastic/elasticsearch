@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedCatRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -112,7 +113,8 @@ public enum FeatureMetric {
     METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
-    USER_AGENT(UserAgent.class::isInstance);
+    USER_AGENT(UserAgent.class::isInstance),
+    CAT(UnresolvedCatRelation.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

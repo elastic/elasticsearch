@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.cat.CatTableConverter;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -143,6 +144,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedCatRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -234,6 +236,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),
+            new ResolveCatRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -524,6 +527,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return value.toString();
             }
             return null;
+        }
+    }
+
+    /**
+     * Converts {@link UnresolvedCatRelation} nodes into {@link LocalRelation} nodes using
+     * pre-fetched CAT data stored in {@link AnalyzerContext#catDataResolution()}.
+     */
+    private static class ResolveCatRelations extends ParameterizedAnalyzerRule<UnresolvedCatRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedCatRelation plan, AnalyzerContext context) {
+            String endpoint = plan.endpoint();
+            var table = context.catDataResolution().get(endpoint);
+            if (table == null) {
+                // Unknown endpoint or data not pre-fetched — leave unresolved so the Verifier can produce a clear error
+                return plan;
+            }
+            var attributes = CatTableConverter.inferSchema(table);
+            var page = CatTableConverter.toPage(table, attributes);
+            return new LocalRelation(plan.source(), attributes, LocalSupplier.of(page));
         }
     }
 

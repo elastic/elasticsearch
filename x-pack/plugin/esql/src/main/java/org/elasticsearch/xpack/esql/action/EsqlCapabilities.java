@@ -2497,6 +2497,12 @@ public class EsqlCapabilities {
          */
         EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
+        /**
+         * Support for the CAT source command — queries cluster metadata via the CAT transport actions.
+         * Example: {@code CAT indices | WHERE health == "red"}
+         */
+        CAT_COMMAND(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

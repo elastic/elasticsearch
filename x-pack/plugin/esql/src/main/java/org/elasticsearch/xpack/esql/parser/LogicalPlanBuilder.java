@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedCatRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -862,6 +863,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitCatCommand(EsqlBaseParser.CatCommandContext ctx) {
+        return new UnresolvedCatRelation(source(ctx), ctx.UNQUOTED_SOURCE().getText().toLowerCase(java.util.Locale.ROOT));
+    }
+
     public LogicalPlan visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) {
         Source source = source(ctx);
         Expression tablePath = expression(ctx.stringOrParameter());

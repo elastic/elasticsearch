@@ -181,6 +181,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCatCommand(EsqlBaseParser.CatCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCatCommand(EsqlBaseParser.CatCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) { }
   /**
    * {@inheritDoc}

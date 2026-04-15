@@ -106,7 +106,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             UserAgentParserRegistry.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            CrossProjectModeDecider.NOOP
+            CrossProjectModeDecider.NOOP,
+            mock(Client.class)
         );
     }
 

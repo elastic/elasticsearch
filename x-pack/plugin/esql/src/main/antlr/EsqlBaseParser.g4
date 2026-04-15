@@ -44,6 +44,7 @@ sourceCommand
     | timeSeriesCommand
     | promqlCommand
     // in development
+    | {this.isDevVersion()}? catCommand
     | {this.isDevVersion()}? explainCommand
     | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
@@ -106,6 +107,10 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
+    ;
+
+catCommand
+    : DEV_CAT UNQUOTED_SOURCE
     ;
 
 externalCommand

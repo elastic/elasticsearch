@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1372,6 +1373,14 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
+        ActionListener<PreAnalysisResult> indexNotFoundListener = listener.delegateResponse((l, e) -> {
+            var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+            if (infe != null) {
+                l.onFailure(new VerificationException("Unknown index [" + infe.getIndex().getName() + "]"));
+            } else {
+                l.onFailure(e);
+            }
+        });
         indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
@@ -1384,10 +1393,8 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
-            listener.delegateFailureAndWrap((l, indexResolution) -> {
-                if (indexResolution.inner().isValid()) {
-                    EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
-                }
+            indexNotFoundListener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);

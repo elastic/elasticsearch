@@ -191,6 +191,27 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("Unknown index [no-such-index]"),
             () -> run(syncEsqlQueryRequest("FROM no-such-index"))
         );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
+        );
+    }
+
+    public void testDoesNotResolveUnknownLookupIndex() {
+        assertAcked(client().admin().indices().prepareCreate("index-1").setMapping("join_field", "type=keyword"));
+        indexRandom(true, "index-1", 1);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-lookup]"),
+            () -> run(syncEsqlQueryRequest("FROM index-1 | LOOKUP JOIN no-such-lookup ON join_field"))
+        );
     }
 
     public void testDoesNotResolveClosedIndex() {

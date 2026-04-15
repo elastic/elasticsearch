@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -219,14 +217,7 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        ActionListener<Versioned<IndexResolution>> notFoundListener = listener.delegateResponse((l, e) -> {
-            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                l.onResponse(new Versioned<>(IndexResolution.notFound(indexPattern), minimumVersion));
-            } else {
-                l.onFailure(e);
-            }
-        });
-        client.execute(EsqlResolveFieldsAction.TYPE, request, notFoundListener.delegateFailureAndWrap((l, response) -> {
+        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
             TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
             // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
             // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.

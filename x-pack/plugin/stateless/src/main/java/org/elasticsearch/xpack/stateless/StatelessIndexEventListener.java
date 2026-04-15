@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -82,7 +83,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
-import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
@@ -105,6 +105,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final Executor bccHeaderReadExecutor;
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
+    private final ClusterService clusterService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -120,7 +121,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         Executor bccHeaderReadExecutor,
         ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
-        SnapshotsCommitService snapshotsCommitService
+        SnapshotsCommitService snapshotsCommitService,
+        ClusterService clusterService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -138,6 +140,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
         );
         this.snapshotsCommitService = snapshotsCommitService;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -328,7 +331,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         recoveryCommit,
                         warmingDirectory,
                         null,
-                        hasRecentIdLookup
+                        hasRecentIdLookup,
+                        ActionListener.noop()
                     );
                 }
             }
@@ -473,22 +477,33 @@ class StatelessIndexEventListener implements IndexEventListener {
                         l2.onResponse(null);
                     }
                 }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                    final var resumeRecovery = new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            assert indexShard.store().refCount() > 0 : indexShard.shardId();
+                            l3.onResponse(null);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("warming failed: " + e.getMessage(), e);
+                            onResponse(null);
+                        }
+                    };
+
                     if (blobFileRangesAndOffsetsToWarm != null) {
                         searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
-                        warmingService.warmCacheForShardRecoveryOrUnhollowing(
-                            SEARCH,
-                            indexShard,
-                            compoundCommit,
-                            searchDirectory,
-                            blobFileRangesAndOffsetsToWarm.v2()
-                        );
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
-                        warmingService.warmCacheForShardRecoveryOrUnhollowing(SEARCH, indexShard, compoundCommit, searchDirectory, null);
                     }
-                    // this goes async (aka "offline warming")
-                    assert indexShard.store().refCount() > 0 : indexShard.shardId();
-                    l3.onResponse(null);
+                    warmingService.warmCacheForSearchShardRecovery(
+                        clusterService.state(),
+                        indexShard,
+                        compoundCommit,
+                        searchDirectory,
+                        blobFileRangesAndOffsetsToWarm != null ? blobFileRangesAndOffsetsToWarm.v2() : null,
+                        resumeRecovery
+                    );
                 }));
             })
         );

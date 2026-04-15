@@ -146,7 +146,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvide
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
-import org.elasticsearch.xpack.stateless.cache.NoWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -772,7 +772,7 @@ public class StatelessPlugin extends Plugin
 
         final WarmingRatioProviderFactory warmingRatioProviderFactory = warmingRatioProviderFactoryRef.get() != null
             ? warmingRatioProviderFactoryRef.get()
-            : new NoWarmingRatioProviderFactory();
+            : new DefaultWarmingRatioProviderFactory();
         final WarmingRatioProvider warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
         var cacheWarmingService = createSharedBlobCacheWarmingService(
             cacheService,
@@ -1250,6 +1250,11 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
+            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
@@ -1499,7 +1504,8 @@ public class StatelessPlugin extends Plugin
                 bccHeaderReadExecutor.get(),
                 clusterService.get().getClusterSettings(),
                 getStatelessSharedBlobCacheService(),
-                snapshotsCommitService
+                snapshotsCommitService,
+                clusterService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

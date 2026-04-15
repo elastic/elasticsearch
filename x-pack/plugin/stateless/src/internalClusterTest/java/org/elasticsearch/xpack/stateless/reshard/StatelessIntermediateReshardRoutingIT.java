@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -51,11 +51,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
-import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
-import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
-import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
-import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Locale;
 import java.util.Map;

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Optional;
 import java.util.stream.Collectors;

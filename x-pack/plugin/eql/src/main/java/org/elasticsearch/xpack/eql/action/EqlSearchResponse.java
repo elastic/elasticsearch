@@ -349,10 +349,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (src == null) {
                 return ReleasableBytesReference.wrap(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)));
             }
-            if (src instanceof ReleasableBytesReference r) {
-                return r.retain();
-            }
-            return ReleasableBytesReference.wrap(src);
+            // Retain refcount on pooled / composite _source bytes (CCS, fetch) without copying the buffer payload.
+            return ReleasableBytesReference.adopt(src);
         }
 
         private Event(StreamInput in) throws IOException {

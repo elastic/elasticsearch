@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -103,7 +104,7 @@ public final class GeoIpTestUtils {
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         for (String db : additionalDatabases) {
-            String fileName = Path.of(db).getFileName().toString();
+            String fileName = PathUtils.get(db).getFileName().toString();
             Path target = geoIpConfigDir.resolve(fileName);
             copyDatabase(db, target);
             configDatabases.updateDatabase(target, true);

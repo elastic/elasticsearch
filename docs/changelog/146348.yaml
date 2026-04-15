@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146348
+summary: Fix starts_with/ends_with with special chars
+type: bug

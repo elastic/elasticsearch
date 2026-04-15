@@ -295,9 +295,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=delete/70_tsdb/basic tsdb delete}
   issue: https://github.com/elastic/elasticsearch/issues/146177
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/80_dense_vector_indexed_by_default/*}
-  issue: https://github.com/elastic/elasticsearch/issues/146177
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900

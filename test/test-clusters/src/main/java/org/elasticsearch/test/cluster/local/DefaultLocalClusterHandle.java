@@ -16,7 +16,6 @@ import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -363,7 +362,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         }
         if (areAllNodesAlive() == false) {
             LOGGER.warn("Elasticsearch cluster [{}] node process(es) have died. Cluster is no longer available.", name);
-            throw new AssumptionViolatedException(
+            throw new IllegalStateException(
                 "Elasticsearch cluster [" + name + "] node process(es) have died. Cluster is no longer available."
             );
         }
@@ -384,9 +383,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
             } catch (Exception e) {
                 if (areAllNodesAlive() == false) {
                     LOGGER.warn("Elasticsearch cluster [{}] node process(es) died during health checks.", name);
-                    throw new AssumptionViolatedException(
-                        "Elasticsearch cluster [" + name + "] node process(es) died during health checks."
-                    );
+                    throw new IllegalStateException("Elasticsearch cluster [" + name + "] node process(es) died during health checks.");
                 }
                 // Nodes are still alive, but the cluster is unresponsive; fail to surface the unhealthy state.
                 throw new IllegalStateException(

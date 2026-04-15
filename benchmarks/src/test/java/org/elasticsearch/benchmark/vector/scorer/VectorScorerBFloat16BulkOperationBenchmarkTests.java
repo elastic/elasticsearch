@@ -17,7 +17,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryTyp
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
@@ -81,7 +80,7 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends ESTestCase 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         var dims = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class, "dims");
-        var functions = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class,"function");
+        var functions = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class, "function");
         return () -> dims.stream()
             .map(Integer::parseInt)
             .flatMap(

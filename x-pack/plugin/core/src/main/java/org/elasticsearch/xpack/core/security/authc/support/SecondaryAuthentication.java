@@ -31,10 +31,14 @@ public class SecondaryAuthentication {
     public static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
     private static final AuthenticationContextSerializer serializer = new AuthenticationContextSerializer(THREAD_CTX_KEY);
 
-    static final ThreadContextTransient<CapturedTransientHeaders> CAPTURED_TRANSIENT_HEADERS = ThreadContextTransient.transientValue(
-        "_security_secondary_authc_captured_transient_headers",
-        CapturedTransientHeaders.class
+    static final ThreadContextTransient<Map<String, Object>> CAPTURED_TRANSIENT_HEADERS = mapTransientValue(
+        "_security_secondary_authc_captured_transient_headers"
     );
+
+    @SuppressWarnings("unchecked")
+    private static <K, V> ThreadContextTransient<Map<K, V>> mapTransientValue(String key) {
+        return (ThreadContextTransient<Map<K, V>>) (ThreadContextTransient<?>) ThreadContextTransient.transientValue(key, Map.class);
+    }
 
     private final SecurityContext securityContext;
     private final Authentication authentication;
@@ -54,15 +58,14 @@ public class SecondaryAuthentication {
                 : "captured transient headers present without secondary authentication";
             return null;
         }
-        final CapturedTransientHeaders holder = CAPTURED_TRANSIENT_HEADERS.get(securityContext.getThreadContext());
-        final Map<String, Object> captured = holder != null ? holder.headers() : Map.of();
-        return new SecondaryAuthentication(securityContext, authentication, captured);
+        final Map<String, Object> captured = CAPTURED_TRANSIENT_HEADERS.get(securityContext.getThreadContext());
+        return new SecondaryAuthentication(securityContext, authentication, captured != null ? captured : Map.of());
     }
 
     public void writeToContext(ThreadContext threadContext) throws IOException {
         serializer.writeToContext(this.authentication, threadContext);
         if (!transientHeaders.isEmpty()) {
-            CAPTURED_TRANSIENT_HEADERS.set(threadContext, new CapturedTransientHeaders(transientHeaders));
+            CAPTURED_TRANSIENT_HEADERS.set(threadContext, transientHeaders);
         }
     }
 
@@ -107,5 +110,4 @@ public class SecondaryAuthentication {
         return Objects.hash(authentication, transientHeaders);
     }
 
-    private record CapturedTransientHeaders(Map<String, Object> headers) {}
 }

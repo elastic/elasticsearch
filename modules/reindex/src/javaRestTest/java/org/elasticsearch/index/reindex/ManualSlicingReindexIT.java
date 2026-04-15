@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
@@ -68,23 +70,23 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
         bulkIndexSource(sourceIndex, docCount, 0);
         assertDocCount(client(), sourceIndex, docCount);
 
-        Map<String, Object> r0 = performReindex(sourceIndex, dest1, 0, 2);
-        assertNoReindexConflicts("slice 0 to dest1", r0);
-        assertTrue("slice 0 to dest1 should index some docs", reindexCreated(r0) > 0);
+        Map<String, Object> response0 = performReindex(sourceIndex, dest1, 0, 2);
+        assertNoReindexConflicts("slice 0 to dest1", response0);
+        assertTrue("slice 0 to dest1 should index some docs", reindexCreated(response0) > 0);
 
-        Map<String, Object> r1 = performReindex(sourceIndex, dest2, 1, 2);
-        assertNoReindexConflicts("slice 1 to dest2", r1);
-        assertTrue("slice 1 to dest2 should index some docs", reindexCreated(r1) > 0);
+        Map<String, Object> response1 = performReindex(sourceIndex, dest2, 1, 2);
+        assertNoReindexConflicts("slice 1 to dest2", response1);
+        assertTrue("slice 1 to dest2 should index some docs", reindexCreated(response1) > 0);
 
         bulkIndexSource(sourceIndex, docCount, 1);
 
-        Map<String, Object> r2 = performReindex(sourceIndex, dest1, 1, 2);
-        assertNoReindexConflicts("slice 1 to dest1 after bulk", r2);
-        assertTrue("slice 1 to dest1 should index some docs", reindexCreated(r2) > 0);
+        Map<String, Object> response2 = performReindex(sourceIndex, dest1, 1, 2);
+        assertNoReindexConflicts("slice 1 to dest1 after bulk", response2);
+        assertTrue("slice 1 to dest1 should index some docs", reindexCreated(response2) > 0);
 
-        Map<String, Object> r3 = performReindex(sourceIndex, dest2, 0, 2);
-        assertNoReindexConflicts("slice 0 to dest2 after bulk", r3);
-        assertTrue("slice 0 to dest2 should index some docs", reindexCreated(r3) > 0);
+        Map<String, Object> response3 = performReindex(sourceIndex, dest2, 0, 2);
+        assertNoReindexConflicts("slice 0 to dest2 after bulk", response3);
+        assertTrue("slice 0 to dest2 should index some docs", reindexCreated(response3) > 0);
 
         assertDestinationHasAllDocIds("dest1", dest1, docCount);
         assertDestinationHasAllDocIds("dest2", dest2, docCount);
@@ -98,25 +100,22 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
      */
     public void testReindexManualSlicesRandomOrderToSameDestination() throws IOException {
         int numShards = randomIntBetween(2, 5);
-        int numSlices = randomIntBetween(4, Math.max(4, numShards + 2));
+        int numSlices = randomIntBetween(3, 7);
         int docCount = randomIntBetween(150, 400);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String destIndex = randomValueOtherThan(sourceIndex, () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT));
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);
         assertDocCount(client(), sourceIndex, docCount);
 
-        List<Integer> order = new ArrayList<>();
-        for (int i = 0; i < numSlices; i++) {
-            order.add(i);
-        }
+        List<Integer> order = IntStream.range(0, numSlices).boxed().collect(toCollection(ArrayList::new));
         Collections.shuffle(order, random());
         long totalCreated = 0;
         for (int sliceId : order) {
-            Map<String, Object> r = performReindex(sourceIndex, destIndex, sliceId, numSlices);
-            assertNoReindexConflicts("slice " + sliceId + " (shuffled) to " + destIndex, r);
-            totalCreated += reindexCreated(r);
+            Map<String, Object> response = performReindex(sourceIndex, destIndex, sliceId, numSlices);
+            assertNoReindexConflicts("slice " + sliceId + " (shuffled) to " + destIndex, response);
+            totalCreated += reindexCreated(response);
         }
         assertEquals("sum of created across manual slices should equal source doc count", docCount, totalCreated);
         assertDestinationHasAllDocIds("random order same-dest", destIndex, docCount);

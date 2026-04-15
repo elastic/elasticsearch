@@ -109,6 +109,51 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runGoldenTest(query, STAGES);
     }
 
+    public void testLikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeSingleCharOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE "sample_dat?"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testLikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index LIKE ("sample*", "no_match*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE "sample_.*"
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testRlikeListOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE _index RLIKE ("sample_.*", "no_match.*")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     private void runUnmappedTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
     }

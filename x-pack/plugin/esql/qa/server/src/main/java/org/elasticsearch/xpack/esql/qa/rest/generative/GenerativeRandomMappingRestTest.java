@@ -48,16 +48,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     private static final String DEFAULT_METRIC_DEPRECATION = "Parameter [default_metric] is deprecated and will be removed in a future "
         + "version";
 
-    private static final RequestOptions MAPPING_DEPRECATION_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(warnings -> {
-            for (String warning : warnings) {
-                if (DEFAULT_METRIC_DEPRECATION.equals(warning) == false) {
-                    return true;
-                }
+    private static final RequestOptions MAPPING_DEPRECATION_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        for (String warning : warnings) {
+            if (DEFAULT_METRIC_DEPRECATION.equals(warning) == false) {
+                return true;
             }
-            return false;
-        })
-        .build();
+        }
+        return false;
+    }).build();
 
     private static volatile List<GeneratedIndex> generatedIndices;
 

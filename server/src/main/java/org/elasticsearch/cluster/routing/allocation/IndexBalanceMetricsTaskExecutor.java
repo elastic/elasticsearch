@@ -9,38 +9,30 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -111,27 +103,18 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     }
 
     private final ClusterService clusterService;
-    private final PersistentTasksService persistentTasksService;
     private final IndexBalanceMetrics indexBalanceMetrics;
-    private final FrequencyCappedAction failedToStartMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
     private final AtomicReference<Task> executorNodeTask = new AtomicReference<>();
-    private volatile boolean enabled;
     private volatile TimeValue refreshInterval;
 
     /**
      * Creates the executor instance, registers pull-based gauges on the given {@link MeterRegistry},
      * and starts listening for cluster state changes to auto-create the persistent task.
      */
-    private IndexBalanceMetricsTaskExecutor(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        MeterRegistry meterRegistry
-    ) {
+    public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        this.persistentTasksService = persistentTasksService;
         this.indexBalanceMetrics = new IndexBalanceMetrics();
-        this.failedToStartMessage.setMinInterval(TimeValue.timeValueSeconds(30));
         for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
             final int bucket = i;
             meterRegistry.registerLongsGauge(
@@ -149,24 +132,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         }
         final var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING, this::updateRefreshInterval);
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_ENABLED_SETTING, this::setEnabled);
-    }
-
-    /**
-     * Create the executor, and if this is a master-eligible node, schedule checks to ensure there's always a task running
-     */
-    public static IndexBalanceMetricsTaskExecutor create(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        Settings settings,
-        MeterRegistry meterRegistry
-    ) {
-        final var executor = new IndexBalanceMetricsTaskExecutor(clusterService, persistentTasksService, meterRegistry);
-        // Master nodes are responsible for creating the task if it doesn't exist
-        if (DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addListener(executor::startTask);
-        }
-        return executor;
     }
 
     private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
@@ -188,17 +153,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return NAMED_WRITEABLES;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        // If the metrics are disabled, complete any running tasks
-        if (enabled == false) {
-            final var task = executorNodeTask.getAndSet(null);
-            if (task != null) {
-                task.markAsCompleted();
-            }
-        }
     }
 
     @Override
@@ -246,31 +200,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         if (task != null) {
             task.requestReschedule();
         }
-    }
-
-    private boolean shouldStartTask(ClusterChangedEvent event) {
-        return enabled && event.localNodeMaster() && event.state().clusterRecovered() && Task.findTask(event.state()) == null;
-    }
-
-    void startTask(ClusterChangedEvent event) {
-        if (shouldStartTask(event) == false) {
-            return;
-        }
-        persistentTasksService.sendStartRequest(
-            TASK_NAME,
-            TASK_NAME,
-            TaskParams.INSTANCE,
-            TimeValue.timeValueSeconds(30),
-            ActionListener.wrap(r -> {}, e -> {
-                if (e instanceof NodeClosedException) {
-                    return;
-                }
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                if (t instanceof ResourceAlreadyExistsException == false) {
-                    failedToStartMessage.maybeExecute(() -> logger.warn("Failed to start index balance metrics task", t));
-                }
-            })
-        );
     }
 
     /**

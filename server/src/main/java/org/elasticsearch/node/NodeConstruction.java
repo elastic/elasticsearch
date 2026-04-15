@@ -1860,10 +1860,16 @@ class NodeConstruction {
             HealthNodeTaskExecutor.ENABLED_SETTING,
             () -> HealthNodeTaskParams.INSTANCE
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(
-            healthNodeTaskExecutor,
-            IndexBalanceMetricsTaskExecutor.create(clusterService, persistentTasksService, clusterService.getSettings(), meterRegistry)
+        IndexBalanceMetricsTaskExecutor indexBalanceMetricsTaskExecutor = new IndexBalanceMetricsTaskExecutor(
+            clusterService,
+            meterRegistry
         );
+        persistentTaskLifecycleManager.registerClusterTask(
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING,
+            () -> IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE
+        );
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor, indexBalanceMetricsTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

@@ -127,7 +127,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
 
     @Override
     public String toString() {
-        return "GetReindexResponse{taskResult=" + taskResult + '}';
+        return "GetReindexResponse{result=" + taskResult + '}';
     }
 
     @Override

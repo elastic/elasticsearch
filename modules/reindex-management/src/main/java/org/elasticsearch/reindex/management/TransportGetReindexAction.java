@@ -52,7 +52,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         final GetTaskRequest probeRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false).setFollowRelocations(false);
 
         getTask(probeRequest, taskId, listener.delegateFailureAndWrap((l, probeResult) -> {
-            // Reject if the specified task is not a reindex parent task
+            // Reject if the specified task is not a reindex parent task, to hide task or slicing implementation details
             if (ReindexAction.NAME.equals(probeResult.getTask().action()) == false) {
                 logger.debug("task [{}] requested as reindex but is [{}], returning not found", taskId, probeResult.getTask().action());
                 l.onFailure(notFoundException(taskId));
@@ -84,6 +84,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
             public void onFailure(final Exception e) {
                 if (e instanceof ResourceNotFoundException) {
                     logger.debug("task [{}] not found, returning as reindex not found", originalTaskId);
+                    // Wraps the task not found exception to hide task details
                     listener.onFailure(notFoundException(originalTaskId));
                 } else {
                     listener.onFailure(e);

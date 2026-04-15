@@ -13,13 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
-public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
+public class VectorScorerFloat32BulkBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final float delta = 1e-3f;
     private final int dims;
 
-    public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+    public VectorScorerFloat32BulkBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
     }
@@ -36,13 +36,13 @@ public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
         testQueryRandom(this::createData, this::createBenchmark, delta);
     }
 
-    private VectorScorerInt7uBulkBenchmark.VectorData createData() {
-        return new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200, random());
+    private VectorScorerFloat32BulkBenchmark.VectorData createData() {
+        return new VectorScorerFloat32BulkBenchmark.VectorData(dims, 1000, 200, random());
     }
 
-    private VectorScorerInt7uBulkBenchmark createBenchmark(VectorScorerInt7uBulkBenchmark.VectorData d, VectorImplementation impl)
+    private VectorScorerFloat32BulkBenchmark createBenchmark(VectorScorerFloat32BulkBenchmark.VectorData d, VectorImplementation impl)
         throws java.io.IOException {
-        var bench = new VectorScorerInt7uBulkBenchmark();
+        var bench = new VectorScorerFloat32BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
         bench.dims = dims;
@@ -56,8 +56,8 @@ public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
         return generateParameters(
-            VectorScorerInt7uBulkBenchmark.class.getField("function"),
-            VectorScorerInt7uBulkBenchmark.class.getField("dims")
+            VectorScorerFloat32BulkBenchmark.class.getField("function"),
+            VectorScorerFloat32BulkBenchmark.class.getField("dims")
         );
     }
 }

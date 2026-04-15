@@ -90,15 +90,17 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         // For mid-file blocks, we position at blockStart. The BYBLOCK constructor
         // scans forward to find the next block magic from that byte position.
         long streamStart;
-        int positionOffset;
+        long initialCompressedPosition;
         if (blockStart <= BZIP2_HEADER_SIZE) {
             streamStart = 0;
             // The 'BZ' prefix (2 bytes) is skipped before passing to CBZip2InputStream,
             // so the decompressor's internal byte counter starts 2 bytes behind the file position
-            positionOffset = 2;
+            initialCompressedPosition = 2;
         } else {
             streamStart = blockStart;
-            positionOffset = (int) blockStart;
+            // Must remain a long: compressed offsets exceed 2^31-1 for multi-GB files; casting to int corrupts the
+            // BlockBoundedDecompressStream limit check and terminates splits far too early.
+            initialCompressedPosition = blockStart;
         }
 
         InputStream rawStream = object.newStream(streamStart, fileLength - streamStart);
@@ -107,7 +109,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         }
 
         CBZip2InputStream decompressor = new CBZip2InputStream(rawStream, CBZip2InputStream.ReadMode.BYBLOCK);
-        decompressor.updateReportedByteCount(positionOffset);
+        decompressor.updateReportedByteCount(initialCompressedPosition);
         return new BlockBoundedDecompressStream(decompressor, nextBlockStart);
     }
 

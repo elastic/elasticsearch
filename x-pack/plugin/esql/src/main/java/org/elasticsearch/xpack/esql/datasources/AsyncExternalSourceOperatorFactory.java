@@ -574,13 +574,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     errorPolicy
                                 );
                             } else {
-                                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                                boolean firstSplit = true;
+                                // Always bound reads to this split's byte range (see ExternalSourceOperatorFactory).
+                                StorageObject obj = new RangeStorageObject(
+                                    storageProvider.newObject(fileSplit.path()),
+                                    fileSplit.offset(),
+                                    fileSplit.length()
+                                );
+                                boolean firstSplit = fileSplit.offset() == 0
+                                    || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                                if (fileSplit.offset() > 0) {
-                                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                }
                                 FormatReadContext ctx = FormatReadContext.builder()
                                     .projectedColumns(cols)
                                     .batchSize(batchSize)

@@ -444,7 +444,6 @@ dependencies = [
  "arrow",
  "jni",
  "parquet",
- "regex",
 ]
 
 [[package]]

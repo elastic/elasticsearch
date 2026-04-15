@@ -514,22 +514,15 @@ fn eval_like(
 ) -> arrow::error::Result<BooleanArray> {
     if let FilterExpr::Column(name) = col_expr {
         if let Some(col) = find_column(batch, name) {
-            let regex = like_pattern_to_regex(pattern);
-            let re = regex::Regex::new(&regex).unwrap_or_else(|_| regex::Regex::new(".*").unwrap());
-            let mut results = Vec::with_capacity(num_rows);
-            let str_arr = col.as_any().downcast_ref::<StringArray>();
-            let bin_arr = col.as_any().downcast_ref::<BinaryArray>();
-            for i in 0..num_rows {
-                if col.is_null(i) {
-                    results.push(Some(false));
+            if let Some(str_arr) = col.as_any().downcast_ref::<StringArray>() {
+                let pattern_scalar = StringArray::new_scalar(pattern);
+                let result = if negate {
+                    arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?
                 } else {
-                    let val: Option<&str> = str_arr.map(|a| a.value(i))
-                        .or_else(|| bin_arr.and_then(|a| std::str::from_utf8(a.value(i)).ok()));
-                    let m = val.map(|v| re.is_match(v)).unwrap_or(false);
-                    results.push(Some(if negate { m == false } else { m }));
-                }
+                    arrow::compute::kernels::comparison::like(str_arr, &pattern_scalar)?
+                };
+                return Ok(result);
             }
-            return Ok(BooleanArray::from(results));
         }
     }
     Ok(BooleanArray::from(vec![true; num_rows]))
@@ -563,25 +556,6 @@ fn eval_starts_with(
     Ok(BooleanArray::from(vec![true; num_rows]))
 }
 
-fn like_pattern_to_regex(pattern: &str) -> String {
-    let mut regex = String::from("^");
-    let mut escaped = false;
-    for c in pattern.chars() {
-        if escaped {
-            regex.push_str(&regex::escape(&c.to_string()));
-            escaped = false;
-            continue;
-        }
-        match c {
-            '\\' => escaped = true,
-            '%' => regex.push_str(".*"),
-            '_' => regex.push('.'),
-            _ => regex.push_str(&regex::escape(&c.to_string())),
-        }
-    }
-    regex.push('$');
-    regex
-}
 
 // ---------------------------------------------------------------------------
 // JNI entry points for building FilterExpr trees

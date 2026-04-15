@@ -10,7 +10,6 @@ crate-type = ["cdylib"]
 arrow = { version = "58", features = ["ffi"] }
 parquet = { version = "58", features = ["arrow"] }
 jni = "0.22"
-regex = "1"
 
 [profile.release]
 opt-level = 3

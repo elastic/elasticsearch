@@ -38,14 +38,17 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlo
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.SortedBinaryDocValuesIpFieldScript;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -388,29 +391,43 @@ public class IpFieldMapper extends FieldMapper {
             }
             if (hasPoints) {
                 if (hasDocValues()) {
-                    return convertToIndexOrDocValuesQuery(query);
+                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, context);
                 }
                 return query;
             } else {
-                return convertToDocValuesQuery(query);
+                return convertToDocValuesQuery(query, usesBinaryDocValues, context);
             }
         }
 
-        static Query convertToIndexOrDocValuesQuery(Query query) {
+        static Query convertToIndexOrDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
             assert query instanceof PointRangeQuery;
-            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
         }
 
-        static Query convertToDocValuesQuery(Query query) {
+        static Query convertToDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
             assert query instanceof PointRangeQuery;
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
-            return SortedSetDocValuesField.newSlowRangeQuery(
-                pointRangeQuery.getField(),
-                new BytesRef(pointRangeQuery.getLowerPoint()),
-                new BytesRef(pointRangeQuery.getUpperPoint()),
-                true,
-                true
-            );
+
+            final String field = pointRangeQuery.getField();
+            final BytesRef lower = new BytesRef(pointRangeQuery.getLowerPoint());
+            final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
+
+            if (usesBinaryDocValues) {
+                if (lower.bytesEquals(upper)) {
+                    return new SlowCustomBinaryDocValuesTermQuery(field, lower);
+                } else {
+                    // TODO: This is likely very slow
+                    return new IpScriptFieldRangeQuery(
+                        new Script(""),
+                        ctx -> new SortedBinaryDocValuesIpFieldScript(pointRangeQuery.getField(), context.lookup(), ctx),
+                        field,
+                        lower,
+                        upper
+                    );
+                }
+            } else {
+                return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
+            }
         }
 
         @Override
@@ -454,12 +471,12 @@ public class IpFieldMapper extends FieldMapper {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (hasPoints) {
                     if (hasDocValues()) {
-                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
                     } else {
                         return query;
                     }
                 } else {
-                    return convertToDocValuesQuery(query);
+                    return convertToDocValuesQuery(query, usesBinaryDocValues, context);
                 }
             });
         }

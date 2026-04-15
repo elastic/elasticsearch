@@ -25,10 +25,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToDocValuesQuery;
-import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery;
-
 public class IpFieldTypeTests extends FieldTypeTestCase {
+
+    private static Query convertToDocValuesQuery(Query query) {
+        return IpFieldMapper.IpFieldType.convertToDocValuesQuery(query, false, MOCK_CONTEXT);
+    }
+
+    private static Query convertToIndexOrDocValuesQuery(Query query) {
+        return IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery(query, false, MOCK_CONTEXT);
+    }
 
     public void testValueFormat() throws Exception {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");

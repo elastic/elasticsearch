@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 146113
+pr: 146353
+summary: Fix `testConcurrentEquals` for TDigest-based aggregations
+type: bug

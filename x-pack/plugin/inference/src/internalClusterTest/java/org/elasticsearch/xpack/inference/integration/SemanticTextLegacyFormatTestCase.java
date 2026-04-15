@@ -76,6 +76,7 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
+        // Allows setting index.version.created to a legacy-compatible version in order to create legacy-format indices
         return false;
     }
 

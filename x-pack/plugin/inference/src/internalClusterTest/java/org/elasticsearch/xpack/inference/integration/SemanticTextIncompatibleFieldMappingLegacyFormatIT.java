@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.index.mapper.DocumentParsingException;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Integration tests ported from {@code 20_semantic_text_field_mapping_incompatible_field_mapping_bwc.yml},
@@ -35,7 +39,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -56,7 +64,17 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The configured inference_id [a-different-inference-id] for field [dense_field]"
+                    + " doesn't match the inference_id [dense-inference-id]"
+            )
+        );
     }
 
     /**
@@ -77,7 +95,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -98,7 +120,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "byte",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -117,7 +143,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "sparse_embedding",
             Map.of("feature_0", 1.0f, "feature_1", 2.0f, "feature_2", 3.0f, "feature_3", 4.0f)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -138,7 +168,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4)
         );
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("Incompatible model settings for field [sparse_field]"));
     }
 
     /**
@@ -166,7 +200,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
         fieldMap.put("inference", inference);
 
         Map<String, Object> source = Map.of(DENSE_FIELD, fieldMap);
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [dense_field] of type [semantic_text]"));
     }
 
     /**
@@ -191,7 +229,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
         fieldMap.put("inference", inference);
 
         Map<String, Object> source = Map.of(SPARSE_FIELD, fieldMap);
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [sparse_field] of type [semantic_text]"));
     }
 
     /**
@@ -220,6 +262,10 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
         fieldMap.put("inference", inference);
 
         Map<String, Object> source = Map.of(DENSE_FIELD, fieldMap);
-        assertThrows(Exception.class, () -> client().prepareIndex(indexName).setSource(source).get());
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [dense_field] of type [semantic_text]"));
     }
 }

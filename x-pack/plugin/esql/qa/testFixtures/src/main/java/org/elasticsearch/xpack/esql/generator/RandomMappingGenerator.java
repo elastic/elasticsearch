@@ -233,7 +233,8 @@ public final class RandomMappingGenerator {
             case "geo_point" -> optionalPut(s, "ignore_malformed", randomBoolean());
             case "geo_shape" -> optionalPut(s, "orientation", randomFrom("right", "left"));
             case "flattened" -> optionalPut(s, "depth_limit", randomIntBetween(5, 50));
-            default -> {}
+            default -> {
+            }
         }
     }
 
@@ -284,7 +285,8 @@ public final class RandomMappingGenerator {
                 optionalSet(s, 1, "eager_global_ordinals", true);
                 optionalSet(s, 1, "fielddata", true);
             }
-            case "match_only_text" -> {}
+            case "match_only_text" -> {
+            }
             case "boolean" -> {
                 optionalSet(s, 2, "doc_values", randomBoolean());
                 optionalSet(s, 2, "store", true);
@@ -338,7 +340,8 @@ public final class RandomMappingGenerator {
                 optionalSet(s, 1, "index", randomBoolean());
                 optionalSet(s, 1, "null_value", "0.0.0.0");
             }
-            case "version" -> {}
+            case "version" -> {
+            }
             case "binary" -> {
                 optionalSet(s, 2, "doc_values", true);
                 optionalSet(s, 2, "store", true);
@@ -423,7 +426,8 @@ public final class RandomMappingGenerator {
                 optionalSet(s, 1, "term_vector", randomFrom("no", "yes", "with_positions"));
             }
             case "rank_feature" -> optionalSet(s, 3, "positive_score_impact", randomBoolean());
-            case "rank_features" -> {}
+            case "rank_features" -> {
+            }
             case "aggregate_metric_double" -> {
                 List<String> allMetrics = List.of("min", "max", "sum", "value_count");
                 int count = randomIntBetween(1, 4);
@@ -436,7 +440,8 @@ public final class RandomMappingGenerator {
                 s.put("metrics", metrics);
                 s.put("default_metric", metrics.get(randomIntBetween(0, metrics.size() - 1)));
             }
-            case "histogram" -> {}
+            case "histogram" -> {
+            }
             case "dense_vector" -> {
                 int dims = randomFrom(3, 8, 16, 32, 64, 128);
                 s.put("dims", dims);
@@ -447,7 +452,8 @@ public final class RandomMappingGenerator {
                     optionalSet(s, 2, "similarity", randomFrom("l2_norm", "dot_product", "cosine", "max_inner_product"));
                 }
             }
-            default -> {}
+            default -> {
+            }
         }
         return s;
     }
@@ -475,7 +481,8 @@ public final class RandomMappingGenerator {
             case "search_as_you_type" -> {
                 // auto-generated sub-fields; no custom sub-fields needed
             }
-            default -> { /* no sub-fields */ }
+            default -> {
+                /* no sub-fields */ }
         }
         return subFields;
     }

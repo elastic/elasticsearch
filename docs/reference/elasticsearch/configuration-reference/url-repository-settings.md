@@ -14,7 +14,7 @@ For setup and examples, refer to [Read-only URL repository](docs-content://deplo
 
 There are two categories of settings:
 
-- [Node settings](#repository-url-node-settings) apply to the URL repository plugin. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node (they are not [repository settings](#repository-url-repository-settings) passed in the snapshot repository API).
+- [{{es}} settings](#repository-url-node-settings) that apply to the URL repository plugin. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node.
 - [Repository settings](#repository-url-repository-settings) control per-repository behavior. You pass them in the `settings` object when you create or update a repository.
 
 ## {{es}} settings [repository-url-node-settings]

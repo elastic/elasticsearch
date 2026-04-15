@@ -12,7 +12,7 @@ You can use a shared file system as a repository for [Snapshot and restore](docs
 
 There are two categories of settings:
 
-- [{{es}} settings](#repository-fs-node-settings) control which filesystem paths nodes may use for `fs` repositories. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node (they are not [repository settings](#repository-fs-repository-settings) passed in the snapshot repository API).
+- [{{es}} settings](#repository-fs-node-settings) control which filesystem paths `fs` repositories can use. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node.
 - [Repository settings](#repository-fs-repository-settings) control each registered repository. You pass them in the `settings` object when you create or update a repository.
 
 ## {{es}} settings [repository-fs-node-settings]
@@ -20,7 +20,9 @@ There are two categories of settings:
 $$$path-repo$$$
 
 `path.repo`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of filesystem paths that {{es}} may use for `fs` snapshot repositories. Each repository `location` must resolve to a path under one of these entries on every master and data node. Defaults to an empty list. To register a shared filesystem repository, mount the storage at the same location on each node, add that path (or a parent directory) to `path.repo`, and apply the change according to your deployment. For step-by-step setup, mount paths, and platform-specific examples, refer to [Shared file system repository](docs-content://deploy-manage/tools/snapshot-and-restore/shared-file-system-repository.md).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of filesystem paths that {{es}} can use for `fs` snapshot repositories. Each repository `location` must resolve to a path under one of these entries on every master and data node. Defaults to an empty list.
+
+    To register a shared filesystem repository, mount the storage at the same location on each node and add that path (or a parent directory) to `path.repo`. For step-by-step setup, mount paths, and platform-specific examples, refer to [Shared file system repository](docs-content://deploy-manage/tools/snapshot-and-restore/shared-file-system-repository.md).
 
 ## Repository settings [repository-fs-repository-settings]
 

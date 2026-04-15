@@ -88,7 +88,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * Creates a 3 node cluster with a master node, data node and coordinating node (that will hold the reindexing request).
      * By shutting down the coordination node, the reindexing task is forced to relocate to the data node. Since the data node is not
      * shutting down, then pit relocation is guaranteed to succeed. We then assert that the destination index eventually contains
-     * all documents, whether the coordinator finished first or the task relocated and the client received {@link TaskRelocatedException}.
+     * all documents.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
         assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
@@ -156,7 +156,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
         // Removes the throttle so the task completes quickly once relocated to the new node
-        rethrottleRunningRootReindexToUnlimited();
+        rethrottleRunningRootReindex(numDocs);
         internalCluster().stopNode(coordNodeName);
 
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
@@ -215,6 +215,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         prepareCreate(SOURCE).setSettings(
             Settings.builder()
+                // Forces one primary on each node, so that there is a primary on the node shutting down
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.routing.allocation.total_shards_per_node", 1)
@@ -274,7 +275,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         shutdownPrepareService.prepareForShutdown();
         // The reindexing task still uses the extreme throttle. This removes it so the task completes quickly on the new node
-        rethrottleRunningRootReindexToUnlimited();
+        rethrottleRunningRootReindex(numDocs);
 
         // We wait until the reindexing task has been relocated before actually stopping the node
         assertBusy(() -> {
@@ -460,7 +461,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
         NodeShutdownTestUtils.putShutdownForRemovalMetadata(dataNodeName, clusterService);
         // Remove the heavy rethrottle so the task can complete in time
-        rethrottleRunningRootReindexToUnlimited();
+        rethrottleRunningRootReindex(numDocs);
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
 
@@ -632,7 +633,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     /**
      * After relocation the resumed task keeps the original requests_per_second; set it unbounded so assertBusy on dest can finish.
      */
-    private void rethrottleRunningRootReindexToUnlimited() throws Exception {
+    private void rethrottleRunningRootReindex(int numDocs) throws Exception {
         assertBusy(() -> {
             ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(ReindexAction.INSTANCE.name()).setDetailed(true).get();
             tasks.rethrowFailures("list reindex tasks for rethrottle");
@@ -642,7 +643,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 }
                 try {
                     ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(taskInfo.taskId())
-                        .setRequestsPerSecond(Float.POSITIVE_INFINITY)
+                        // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
+                        .setRequestsPerSecond((float) numDocs / 2)
                         .get();
                     rethrottleResponse.rethrowFailures("rethrottle after relocation");
                     return;

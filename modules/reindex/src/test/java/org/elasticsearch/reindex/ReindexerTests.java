@@ -637,7 +637,6 @@ public class ReindexerTests extends ESTestCase {
 
     /**
      * When shutdown requested relocation but the task completes in place (empty resume info), the PIT must still close.
-     * Matches {@code shouldNotClosePitOnResponse}: only slice workers skip close on response, not {@code isRelocationRequested}.
      */
     public void testWrapListenerWithClosePitClosesOnNormalCompletionWhileRelocationRequested() {
         final AtomicInteger closeCount = new AtomicInteger(0);

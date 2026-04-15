@@ -68,7 +68,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
     }
 
     /**
-     * Tests reindex relocation when the source destination is a searchable snapshot. Reindex resilience is built upon point-in-time
+     * Tests reindex relocation when the source index is a searchable snapshot. Reindex resilience is built upon point-in-time
      * search relocation, which we guarantee to succeed by shutting down the coordinating node containing the reindexing task
      * and not the data node holding the search shards needed by PIT.
      */
@@ -111,8 +111,8 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
         createSnapshot(repoName, snapshotName, List.of(backingIndex));
         assertAcked(indicesAdmin().prepareDelete(backingIndex));
 
-        // Do not pass index.number_of_shards (or full indexSettings) here — restore/mount forbids changing shard count; it comes from the
-        // snapshot.
+        // Do not pass index.number_of_shards (or full indexSettings) here since restore/mount forbids changing shard count.
+        // Shard counts comes from the snapshot.
         mountSnapshot(repoName, snapshotName, backingIndex, mountedSource, Settings.EMPTY, Storage.FULL_COPY);
         ensureGreen(mountedSource);
         assertHitCount(prepareSearch(mountedSource).setSize(0).setTrackTotalHits(true), numDocs);
@@ -148,7 +148,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
-        rethrottleRunningRootReindexToUnlimited();
+        rethrottleRunningRootReindex(numDocs);
         internalCluster().stopNode(coordNodeName);
 
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
@@ -182,7 +182,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void rethrottleRunningRootReindexToUnlimited() throws Exception {
+    private void rethrottleRunningRootReindex(int numDocs) throws Exception {
         assertBusy(() -> {
             ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(ReindexAction.INSTANCE.name()).setDetailed(true).get();
             tasks.rethrowFailures("list reindex tasks for rethrottle");
@@ -192,7 +192,8 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
                 }
                 try {
                     ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(taskInfo.taskId())
-                        .setRequestsPerSecond(Float.POSITIVE_INFINITY)
+                        // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
+                        .setRequestsPerSecond((float) numDocs / 2)
                         .get();
                     rethrottleResponse.rethrowFailures("rethrottle after relocation");
                     return;

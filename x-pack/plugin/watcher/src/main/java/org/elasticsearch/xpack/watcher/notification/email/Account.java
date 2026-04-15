@@ -254,14 +254,14 @@ public class Account {
             }
 
             static void replace(Settings.Builder settings, String currentKey, String newKey) {
-                String value = settings.remove(currentKey);
+                String value = settings.removeAndGet(currentKey);
                 if (value != null) {
                     settings.put(newKey, value);
                 }
             }
 
             static void replaceTimeValue(Settings.Builder settings, String currentKey, String newKey) {
-                String value = settings.remove(currentKey);
+                String value = settings.removeAndGet(currentKey);
                 if (value != null) {
                     settings.put(newKey, TimeValue.parseTimeValue(value, currentKey).millis());
                 }

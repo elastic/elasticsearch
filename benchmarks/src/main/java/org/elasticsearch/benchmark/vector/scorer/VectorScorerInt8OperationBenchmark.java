@@ -62,12 +62,7 @@ public class VectorScorerInt8OperationBenchmark {
     @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(byte[] vec1, byte[] vec2);
-    }
-
-    private LuceneFunction luceneImpl;
+    private LuceneFunction<byte[]> luceneImpl;
     private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
@@ -84,9 +79,9 @@ public class VectorScorerInt8OperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(bytesA.length);
-        MemorySegment.copy(MemorySegment.ofArray(bytesA), JAVA_BYTE, 0L, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
+        MemorySegment.copy(bytesA, 0, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
         nativeSegB = arena.allocate(bytesB.length);
-        MemorySegment.copy(MemorySegment.ofArray(bytesB), JAVA_BYTE, 0L, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
+        MemorySegment.copy(bytesB, 0, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
 
         luceneImpl = switch (function) {
             case COSINE -> VectorUtil::cosine;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -265,14 +264,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return Strings.format(
-            "%s<%s,%s,%s>",
-            nodeName() + NodeUtils.toString(attributesToExtract, format),
-            docValuesAttributes,
-            boundsAttributes,
-            centroidAttributes
-        );
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName());
+        NodeUtils.toString(sb, attributesToExtract, format);
+        sb.append("<").append(docValuesAttributes).append(",").append(boundsAttributes).append(",").append(centroidAttributes).append(">");
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {

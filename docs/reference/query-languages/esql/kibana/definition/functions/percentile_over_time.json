@@ -278,6 +278,6 @@
   "examples" : [
     "TS k8s\n| STATS p95_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 95)), p99_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 99)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

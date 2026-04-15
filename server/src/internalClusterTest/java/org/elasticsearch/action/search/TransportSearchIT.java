@@ -40,6 +40,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -541,10 +542,25 @@ public class TransportSearchIT extends ESIntegTestCase {
                 );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(MockSearchService::assertNoInFlightContext);
         } finally {
             updateClusterSettings(
                 Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
             );
+        }
+    }
+
+    public void testReaderContextFreedOnSerializationFailure() throws Exception {
+        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        indexSomeDocs("test", 1, 3);
+        ensureGreen("test");
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
+        try {
+            expectThrows(Exception.class, client(coordinatingNode).prepareSearch("test")::get);
+            assertBusy(MockSearchService::assertNoInFlightContext);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 

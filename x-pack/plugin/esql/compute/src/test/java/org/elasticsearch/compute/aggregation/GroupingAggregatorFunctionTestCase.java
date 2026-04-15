@@ -738,12 +738,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                     @Override
                     public AddInput prepareProcessRawInputPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
+                        final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
+                            BitArray seen = new BitArray(0, bigArrays);
+                            seen.or(seenGroupIds);
+                            return seen;
+                        }, page);
+                        if (delegateAddInput == null) {
+                            return null;
+                        }
                         return new AddInput() {
-                            final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
-                                BitArray seen = new BitArray(0, bigArrays);
-                                seen.or(seenGroupIds);
-                                return seen;
-                            }, page);
 
                             private void addBlock(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
@@ -865,18 +868,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-                        delegate.evaluateIntermediate(blocks, offset, selected);
+                    public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+                        return delegate.prepareEvaluateIntermediate(selected, ctx);
                     }
 
                     @Override
-                    public void evaluateFinal(
-                        Block[] blocks,
-                        int offset,
-                        IntVector selected,
-                        GroupingAggregatorEvaluationContext evaluationContext
-                    ) {
-                        delegate.evaluateFinal(blocks, offset, selected, evaluationContext);
+                    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+                        return delegate.prepareEvaluateFinal(selected, ctx);
                     }
 
                     @Override

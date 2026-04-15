@@ -151,13 +151,13 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
 
                     assertTrue(values.advanceExact(0));
                     assertEquals(2, values.docValueCount());
-                    assertEquals(new BytesRef("x"), values.nextValue());
-                    assertEquals(new BytesRef("y"), values.nextValue());
+                    List<String> doc0 = List.of(values.nextValue().utf8ToString(), values.nextValue().utf8ToString());
 
                     assertTrue(values.advanceExact(1));
                     assertEquals(2, values.docValueCount());
-                    assertEquals(new BytesRef("y"), values.nextValue());
-                    assertEquals(new BytesRef("z"), values.nextValue());
+                    List<String> doc1 = List.of(values.nextValue().utf8ToString(), values.nextValue().utf8ToString());
+
+                    assertEquals(Set.of(List.of("x", "y"), List.of("y", "z")), Set.of(doc0, doc1));
                 }
             }
         }
@@ -169,7 +169,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
 
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                List<Set<String>> expectedValuesPerDoc = new ArrayList<>();
+                Set<List<String>> expectedValuesPerDoc = new HashSet<>();
                 for (int d = 0; d < docCount; d++) {
                     int fieldCount = randomIntBetween(1, 10);
                     String[] keyedValues = new String[fieldCount];
@@ -181,21 +181,27 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                         uniqueValues.add(value);
                     }
                     addDoc(writer, binary, keyedValues);
-                    expectedValuesPerDoc.add(uniqueValues);
+
+                    // values should be sorted lexicographically
+                    expectedValuesPerDoc.add(uniqueValues.stream().sorted().toList());
                 }
 
                 try (IndexReader reader = openReader(writer)) {
                     SortedBinaryDocValues values = loadRootValues(reader, binary);
+
+                    // Merge policies may reorder documents, so collect values
+                    // as a set of sorted lists without assuming document order.
+                    Set<List<String>> actualValuesPerDoc = new HashSet<>();
                     for (int d = 0; d < docCount; d++) {
                         assertTrue("doc " + d + " should have values", values.advanceExact(d));
-                        Set<String> expected = expectedValuesPerDoc.get(d);
-                        assertEquals("doc " + d + " value count", expected.size(), values.docValueCount());
-                        Set<String> actual = new HashSet<>();
+                        List<String> actual = new ArrayList<>();
                         for (int i = 0; i < values.docValueCount(); i++) {
                             actual.add(values.nextValue().utf8ToString());
                         }
-                        assertEquals("doc " + d + " values", expected, actual);
+                        actualValuesPerDoc.add(actual);
                     }
+
+                    assertEquals(expectedValuesPerDoc, actualValuesPerDoc);
                 }
             }
         }
@@ -213,7 +219,10 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     private static void addDoc(RandomIndexWriter writer, boolean binary, String... keyedValues) throws IOException {
         Document doc = new Document();
         if (binary) {
-            var field = new MultiValuedBinaryDocValuesField.SeparateCount(KEYED_FIELD, false);
+            var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                KEYED_FIELD,
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+            );
             for (String kv : keyedValues) {
                 field.add(new BytesRef(kv));
             }
@@ -228,6 +237,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     private static IndexReader openReader(RandomIndexWriter writer) throws IOException {
+        writer.forceMerge(1);
         return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
     }
 

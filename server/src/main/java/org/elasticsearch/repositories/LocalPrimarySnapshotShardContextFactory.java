@@ -25,7 +25,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
-import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
 /**
  * A factory implementation for creating {@link LocalPrimarySnapshotShardContext} instance from the primary shard
@@ -54,7 +53,7 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
         ActionListener<ShardSnapshotResult> listener
     ) throws IOException {
         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        final var snapshotIndexCommit = acquireSnapshotIndexCommit(
+        final var snapshotIndexCommitAndShardStateId = acquireSnapshotIndexCommit(
             clusterService,
             indexShard,
             snapshot,
@@ -62,15 +61,14 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
             snapshotStatus
         );
         try {
-            final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
             return SubscribableListener.newSucceeded(
                 new LocalPrimarySnapshotShardContext(
                     indexShard.store(),
                     indexShard.mapperService(),
                     snapshot.getSnapshotId(),
                     indexId,
-                    snapshotIndexCommit,
-                    shardStateId,
+                    snapshotIndexCommitAndShardStateId.snapshotIndexCommit(),
+                    snapshotIndexCommitAndShardStateId.shardStateId(),
                     snapshotStatus,
                     repositoryMetaVersion,
                     snapshotStartTime,
@@ -78,7 +76,7 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
                 )
             );
         } catch (Exception e) {
-            closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
+            closeSnapshotIndexCommit(snapshotIndexCommitAndShardStateId.snapshotIndexCommit(), shardId, snapshot);
             throw e;
         }
     }

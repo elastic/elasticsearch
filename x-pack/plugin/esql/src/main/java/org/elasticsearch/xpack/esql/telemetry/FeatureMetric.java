@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -104,12 +105,14 @@ public enum FeatureMetric {
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
+    VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
     METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
-    TS_INFO(TsInfo.class::isInstance);
+    TS_INFO(TsInfo.class::isInstance),
+    USER_AGENT(UserAgent.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

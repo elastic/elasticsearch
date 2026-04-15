@@ -271,7 +271,9 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
+                searchRequest.pointInTimeBuilder().getEncodedId(),
+                null,
+                null
             );
 
             ActionListener.respondAndRelease(listener, (Response) response);

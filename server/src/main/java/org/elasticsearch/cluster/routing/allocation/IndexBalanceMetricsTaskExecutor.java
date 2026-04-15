@@ -187,7 +187,8 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             headers,
             clusterService.threadPool(),
             clusterService,
-            () -> refreshInterval
+            () -> refreshInterval,
+            executorNodeTask
         );
     }
 
@@ -253,6 +254,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         private final Object lifecycleLock = new Object();
         /** Set when routing table changes; consumed by the refresh runnable. */
         private final AtomicBoolean needRefresh;
+        private final AtomicReference<Task> executorNodeTask;
         private Scheduler.Cancellable scheduledRefresh;
         private volatile boolean stopped;
 
@@ -265,7 +267,8 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             Map<String, String> headers,
             ThreadPool threadPool,
             ClusterService clusterService,
-            Supplier<TimeValue> pollIntervalSupplier
+            Supplier<TimeValue> pollIntervalSupplier,
+            AtomicReference<Task> executorNodeTask
         ) {
             super(id, type, action, description, parentTask, headers);
             this.threadPool = threadPool;
@@ -274,6 +277,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             this.routingTableChangedListener = this::onRoutingTableChanged;
             this.pollIntervalSupplier = pollIntervalSupplier;
             this.needRefresh = new AtomicBoolean(false);
+            this.executorNodeTask = executorNodeTask;
         }
 
         private void onRoutingTableChanged(ClusterChangedEvent event) {
@@ -347,6 +351,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 stopped = true;
                 clusterService.removeListener(routingTableChangedListener);
                 cancelScheduledRefresh();
+                executorNodeTask.compareAndSet(this, null);
             }
         }
 

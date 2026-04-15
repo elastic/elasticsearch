@@ -102,7 +102,8 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
             Map.of(),
             threadPool,
             clusterService,
-            currentInterval::get
+            currentInterval::get,
+            new AtomicReference<>()
         );
         task.startScheduledRefresh();
         final var cancellableBefore = task.getScheduledRefresh();

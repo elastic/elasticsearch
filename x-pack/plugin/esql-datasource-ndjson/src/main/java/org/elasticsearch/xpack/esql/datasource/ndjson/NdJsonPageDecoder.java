@@ -42,7 +42,14 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+/**
+ * Parses NDJSON into {@link Page}s for a single input stream.
+ * <p>
+ * <strong>Not thread-safe:</strong> each instance is intended for use by a single consumer (one
+ * {@link NdJsonPageIterator}); do not call {@link #decodePage()} concurrently from multiple threads.
+ */
 public class NdJsonPageDecoder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
@@ -60,6 +67,19 @@ public class NdJsonPageDecoder implements Closeable {
     private final ErrorPolicy errorPolicy;
     private long totalRowCount;
     private long errorCount;
+
+    /**
+     * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
+     * (avoids per-row {@code new Block.Builder[n]}).
+     */
+    @Nullable
+    private Block.Builder[] lenientScratchBuilders;
+
+    /**
+     * Reused buffer for {@link #appendDecodedScratchRow}; paired with {@link #lenientScratchBuilders}.
+     */
+    @Nullable
+    private Block[] lenientScratchRowBlocks;
 
     NdJsonPageDecoder(
         InputStream input,
@@ -180,6 +200,9 @@ public class NdJsonPageDecoder implements Closeable {
      * are never committed to the page.
      */
     private Page decodePageLenient(Block.Builder[] blockBuilders) throws IOException {
+        ensureLenientScratchBuffers();
+        final Block.Builder[] rowScratch = Objects.requireNonNull(lenientScratchBuilders);
+
         int lineCount = 0;
         while (lineCount < batchSize) {
             try {
@@ -196,7 +219,6 @@ public class NdJsonPageDecoder implements Closeable {
             totalRowCount++;
             this.blockTracker.clear();
 
-            var rowScratch = new Block.Builder[blockBuilders.length];
             try {
                 decoder.setupBuilders(rowScratch);
                 try {
@@ -219,6 +241,13 @@ public class NdJsonPageDecoder implements Closeable {
             lineCount++;
         }
         return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    private void ensureLenientScratchBuffers() {
+        if (lenientScratchBuilders == null) {
+            lenientScratchBuilders = new Block.Builder[projectedAttributes.size()];
+            lenientScratchRowBlocks = new Block[projectedAttributes.size()];
+        }
     }
 
     private Page buildPageFromBuildersOrNull(Block.Builder[] blockBuilders, int lineCount) {
@@ -246,9 +275,9 @@ public class NdJsonPageDecoder implements Closeable {
      * Scratch builders are {@link Block.Builder#build() built} and released; callers still close
      * any non-built scratch builders via {@link Releasables#close}.
      */
-    private static void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
+    private void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
         final int columns = scratchBuilders.length;
-        Block[] rowBlocks = new Block[columns];
+        Block[] rowBlocks = Objects.requireNonNull(lenientScratchRowBlocks);
         try {
             for (int i = 0; i < columns; i++) {
                 rowBlocks[i] = scratchBuilders[i].build();
@@ -257,7 +286,10 @@ public class NdJsonPageDecoder implements Closeable {
                 pageBuilders[i].copyFrom(rowBlocks[i], 0, 1);
             }
         } finally {
-            Releasables.close(rowBlocks);
+            for (int i = 0; i < columns; i++) {
+                Releasables.close(rowBlocks[i]);
+                rowBlocks[i] = null;
+            }
         }
     }
 

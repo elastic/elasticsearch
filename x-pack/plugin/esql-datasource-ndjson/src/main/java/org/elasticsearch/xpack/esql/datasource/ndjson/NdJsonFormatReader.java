@@ -99,15 +99,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /**
-     * NDJSON is often log- or pipeline-produced; skipping malformed lines is the natural default
-     * unless a query overrides the policy (for example {@code WITH {"error_mode":"fail_fast"}}).
-     */
-    @Override
-    public ErrorPolicy defaultErrorPolicy() {
-        return ErrorPolicy.LENIENT;
-    }
-
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;

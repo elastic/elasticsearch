@@ -195,7 +195,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
 
         List<Page> pages = new ArrayList<>();
-        try (var iterator = reader.read(object, List.of(), 100)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 pages.add(iterator.next());
             }
@@ -223,7 +228,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             """;
         var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
-        try (var iterator = reader.read(object, List.of("id"), 100)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
@@ -354,7 +364,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("memory://trunc.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         int totalRows = 0;
-        try (var iterator = reader.read(object, List.of("id", "name"), 50)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(50).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 checkBlockSizes(page);
@@ -742,6 +757,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         assertSame(reader, reader.withConfig(null));
         assertSame(reader, reader.withConfig(Map.of()));
+    }
+
+    public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
+        assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
     }
 
     private static DataType dataType(Block block) {

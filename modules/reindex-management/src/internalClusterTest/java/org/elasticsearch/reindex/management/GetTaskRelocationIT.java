@@ -158,6 +158,42 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertCompletedReindexResponse(completedResult);
     }
 
+    /**
+     * Tests that {@code GET _tasks/{originalTaskId}?follow_relocations=false} returns the raw task result
+     * with the {@code task_relocated_exception} error instead of transparently following the relocation chain.
+     */
+    public void testGetTaskWithFollowRelocationsFalse() throws Exception {
+        final ClusterSetup setup = startClusterAndReindex();
+
+        shutdownAndRelocate(setup.reindexNodeName);
+        final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
+
+        // While the relocated task is still running, follow_relocations=false should return the original's raw result
+        assertRawRelocatedTask(setup.originalTaskId, relocatedTaskId);
+
+        // Let the relocated task complete, then verify the stored result is unchanged
+        unthrottleReindex(relocatedTaskId);
+        getTask(relocatedTaskId, true);
+        assertRawRelocatedTask(setup.originalTaskId, relocatedTaskId);
+    }
+
+    private void assertRawRelocatedTask(TaskId originalTaskId, TaskId expectedRelocatedTaskId) throws IOException {
+        final Request request = new Request("GET", "/_tasks/" + originalTaskId);
+        request.addParameter("follow_relocations", "false");
+        final Response response = getRestClient().performRequest(request);
+        final Map<String, Object> body = ESRestTestCase.entityAsMap(response);
+
+        assertThat("task is completed", body.get("completed"), is(true));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> task = (Map<String, Object>) body.get("task");
+        assertThat("task node is the original", task.get("node"), equalTo(originalTaskId.getNodeId()));
+        assertThat("task id is the original", task.get("id"), equalTo((int) originalTaskId.getId()));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> error = (Map<String, Object>) body.get("error");
+        assertThat("error type is task_relocated_exception", error.get("type"), equalTo("task_relocated_exception"));
+        assertThat("relocated_task_id is present", error.get("relocated_task_id"), equalTo(expectedRelocatedTaskId.toString()));
+    }
+
     // --- Setup ---
 
     private record ClusterSetup(

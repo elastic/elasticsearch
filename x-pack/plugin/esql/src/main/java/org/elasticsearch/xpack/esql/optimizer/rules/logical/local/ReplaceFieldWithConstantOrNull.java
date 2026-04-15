@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -74,7 +75,10 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
-            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
+            // Don't retain it even if the field physically exists (e.g. flattened subfields are mapped in Lucene
+            // but absent from field caps).
+            || (f.field() instanceof MissingEsField == false && localLogicalOptimizerContext.searchStats().exists(f.fieldName()))
             || lookupFields.contains(f);
 
         return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));

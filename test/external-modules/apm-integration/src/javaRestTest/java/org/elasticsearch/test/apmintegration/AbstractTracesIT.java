@@ -193,7 +193,8 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         final String traceParentValue = "00-" + traceIdValue + "-abcdef1234567890-01";
 
         CountDownLatch rootSpanReceived = new CountDownLatch(1);
-        // CopyOnWriteArrayList is required: the consumer thread writes while the main thread reads after await().
+        // CopyOnWriteArrayList is required: the consumer thread may add spans at any time, including during
+        // the grace period after the latch fires, while the main thread reads the count after the sleep.
         List<ReceivedTelemetry.ReceivedSpan> receivedSpans = new CopyOnWriteArrayList<>();
 
         Consumer<ReceivedTelemetry> messageConsumer = msg -> {
@@ -213,8 +214,10 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
         assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
-        Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
 
+        Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
+        // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans
+        // that arrive during the grace period above are guaranteed to be visible here.
         assertEquals("Only the root span should be exported; received: " + receivedSpans, 1, receivedSpans.size());
     }
 }

@@ -3,6 +3,7 @@ navigation_title: Shared file system repository
 applies_to:
   deployment:
     self:
+    eck:
 ---
 
 # Shared file system repository settings [repository-fs-settings]

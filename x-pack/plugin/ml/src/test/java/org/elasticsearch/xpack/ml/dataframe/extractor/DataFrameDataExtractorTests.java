@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -664,6 +666,20 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         }
     }
 
+    /**
+     * If advancing {@code lastSortKey} fails after {@code SearchHits} was retained for the caller,
+     * {@link DataFrameDataExtractor#next()} must release that ref so the batch is not leaked.
+     */
+    public void testNextReleasesSearchHitsWhenSortKeyExtractionThrows() throws IOException {
+        TestExtractor dataExtractor = createExtractor(true, false);
+
+        SearchResponse response = createSearchResponseWithLastHitEmptySortValues(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> dataExtractor.next());
+    }
+
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
             JOB_ID,
@@ -703,6 +719,32 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchHitBuilder.setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
             searchHitBuilder.setLongSortValue(searchHitCounter++);
             hits.add(searchHitBuilder.build());
+        }
+        SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
+        return searchResponse;
+    }
+
+    /** Last document has no sort values, so {@code getSortValues()[0]} throws when advancing the batch cursor. */
+    private SearchResponse createSearchResponseWithLastHitEmptySortValues(List<Object> field1Values, List<Object> field2Values) {
+        assertThat(field1Values.size(), equalTo(field2Values.size()));
+        assertThat(field1Values.size(), greaterThan(0));
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        List<SearchHit> hits = new ArrayList<>();
+        for (int i = 0; i < field1Values.size(); i++) {
+            SearchHitBuilder searchHitBuilder = new SearchHitBuilder(randomInt());
+            addField(searchHitBuilder, "field_1", field1Values.get(i));
+            addField(searchHitBuilder, "field_2", field2Values.get(i));
+            searchHitBuilder.setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
+            if (i < field1Values.size() - 1) {
+                searchHitBuilder.setLongSortValue(searchHitCounter++);
+                hits.add(searchHitBuilder.build());
+            } else {
+                SearchHit lastHit = searchHitBuilder.build();
+                lastHit.sortValues(new Object[0], new DocValueFormat[0]);
+                hits.add(lastHit);
+            }
         }
         SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);

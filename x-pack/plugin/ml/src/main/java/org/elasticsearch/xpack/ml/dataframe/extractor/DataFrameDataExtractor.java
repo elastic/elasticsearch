@@ -123,11 +123,16 @@ public class DataFrameDataExtractor {
         }
 
         Optional<SearchHits> hits = Optional.ofNullable(nextSearch());
-        if (hits.isPresent() && hits.get().getHits().length > 0) {
-            SearchHit[] batchHits = hits.get().getHits();
-            lastSortKey = (long) batchHits[batchHits.length - 1].getSortValues()[0];
-        } else {
-            hasNext = false;
+        try {
+            if (hits.isPresent() && hits.get().getHits().length > 0) {
+                SearchHit[] batchHits = hits.get().getHits();
+                lastSortKey = (long) batchHits[batchHits.length - 1].getSortValues()[0];
+            } else {
+                hasNext = false;
+            }
+        } catch (Exception e) {
+            hits.ifPresent(SearchHits::decRef);
+            throw e;
         }
         return hits;
     }

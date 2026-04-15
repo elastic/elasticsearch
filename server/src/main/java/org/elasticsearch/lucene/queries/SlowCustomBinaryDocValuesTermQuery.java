@@ -47,7 +47,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
+        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.toString() + ")";
     }
 
     @Override

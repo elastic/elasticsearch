@@ -108,7 +108,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     private volatile TimeValue refreshInterval;
 
     /**
-     * Creates the executor instance, registers pull-based gauges on the given {@link MeterRegistry}
+     * Creates the executor instance, registers pull-based gauges on the given {@link MeterRegistry}.
      */
     public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));

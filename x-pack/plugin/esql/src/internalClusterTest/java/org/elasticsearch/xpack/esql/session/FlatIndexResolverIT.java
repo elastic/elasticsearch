@@ -65,6 +65,14 @@ public class FlatIndexResolverIT extends AbstractEsqlIntegTestCase {
             containsString("no such index [index-3]"),
             () -> resolveFlatIndices("index-3", "index-2")
         );
+
+        // exclusions are retained
+        {
+            var result = resolveFlatIndices("*,-*2", "index-2");
+            assertThat(result.isValid(), equalTo(true));
+            assertThat(result.resolvedIndices(), containsInAnyOrder("index-1"));
+            assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1"));
+        }
     }
 
     private IndexResolution resolveFlatIndices(String required, String optional) {
@@ -77,6 +85,7 @@ public class FlatIndexResolverIT extends AbstractEsqlIntegTestCase {
                 null,
                 false,
                 TransportVersion.current(),
+                false,
                 false,
                 false,
                 false,

@@ -58,6 +58,7 @@ import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -232,39 +233,46 @@ public class IndexResolver {
                 );
             })
         );
-        maybeResolveIndices(
-            requiredIndexPattern,
-            createFieldCapsRequest(
-                FLAT_OPTIONS,
-                requiredIndexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
-            mergeResponseListener
-        );
-        maybeResolveIndices(
-            optionalIndexPattern,
-            createFieldCapsRequest(
-                LENIENT_FLAT_OPTIONS,
-                optionalIndexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
-            mergeResponseListener
-        );
-    }
-
-    private void maybeResolveIndices(String pattern, FieldCapabilitiesRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
-        if (pattern.isEmpty()) {
-            listener.onResponse(null);
+        if (requiredIndexPattern.isEmpty()) {
+            mergeResponseListener.onResponse(null);
         } else {
-            client.execute(EsqlResolveFieldsAction.TYPE, request, listener);
+            client.execute(
+                EsqlResolveFieldsAction.TYPE,
+                createFieldCapsRequest(
+                    FLAT_OPTIONS,
+                    requiredIndexPattern,
+                    projectRouting,
+                    fieldNames,
+                    requestFilter,
+                    includeAllDimensions,
+                    true
+                ),
+                mergeResponseListener
+            );
+        }
+        if (optionalIndexPattern.isEmpty()) {
+            mergeResponseListener.onResponse(null);
+        } else {
+            // retain main pattern exclusions
+            // it is required to avoid introducing excluded indices via optional pattern
+            var effectiveOptionalIndexPattern = Stream.concat(
+                Stream.of(optionalIndexPattern),
+                Stream.of(Strings.splitStringByCommaToArray(requiredIndexPattern))
+                    .filter(expression -> expression.startsWith("-") || expression.contains(":-"))
+            ).collect(joining(","));
+            client.execute(
+                EsqlResolveFieldsAction.TYPE,
+                createFieldCapsRequest(
+                    LENIENT_FLAT_OPTIONS,
+                    effectiveOptionalIndexPattern,
+                    projectRouting,
+                    fieldNames,
+                    requestFilter,
+                    includeAllDimensions,
+                    true
+                ),
+                mergeResponseListener
+            );
         }
     }
 

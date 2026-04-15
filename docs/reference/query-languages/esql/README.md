@@ -1,6 +1,6 @@
 # ES|QL documentation
 
-> [!NOTE] 
+> [!NOTE]
 > This directory contains the source files for the [ES|QL documentation](https://www.elastic.co/docs/reference/query-languages/esql).
 
 This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
@@ -193,7 +193,43 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
 )
 ```
 
-We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+You can also use `applies_to` for `Param`, `MapParam`, and `MapParamEntry`. In this case `applies_to` is a plain text field that accepts the same format used in [inline](https://elastic.github.io/docs-builder/syntax/applies/#inline-examples-by-product) `applies_to` metadata.
+For example, to mark a specific parameter as preview:
+
+```java
+@Param(name = "query", type = { "keyword" }, description = "The query.", applies_to = "stack: preview 9.4.0")
+```
+
+To mark a whole map parameter as preview:
+
+```java
+@MapParam(
+    name = "options",
+    description = "Optional parameters.",
+    optional = true,
+    applies_to = "stack: preview 9.5.0",
+    params = { ... }
+)
+```
+
+To mark a specific map entry as preview:
+
+```java
+@MapParam(
+    name = "options",
+    description = "Optional parameters.",
+    params = {
+        @MapParamEntry(
+            name = "my_option",
+            type = "keyword",
+            description = "Description of my_option.",
+            applies_to = "stack: preview 9.2"
+        )
+    }
+)
+```
+
+We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
 
 ### Use inline applies_to metadata
 

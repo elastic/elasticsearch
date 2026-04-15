@@ -474,7 +474,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         Releasables.close(lastAcquiredGenerationalFilesTermAndGen);
         if (Assertions.ENABLED) {
             synchronized (generationalFilesTermAndGens) {
-                assert generationalFilesTermAndGens.isEmpty() : "expect all inputs to be closed at the time the directory is closed";
+                assert generationalFilesTermAndGens.isEmpty()
+                    : "expect all inputs to be closed at the time the directory is closed but found that shard "
+                        + shardId
+                        + " has open generational files "
+                        + String.join(", ", generationalFilesTermAndGens.keySet().toArray(new String[0]));
             }
         }
         super.close();

@@ -113,7 +113,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 0,
                 // TODO: projectsUnderDeletedGeneration in the cluster state is ephemeral and is lost on a full cluster restart.
                 // we need to either reset projectsUnderDeletedGeneration too upon master election or persist it in the cluster metadata.
-                // https://elasticco.atlassian.net/browse/ES-12451
+                // ES-12451
                 currentLease.projectsUnderDeletedGeneration()
             );
 

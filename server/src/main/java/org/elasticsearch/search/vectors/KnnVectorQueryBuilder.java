@@ -547,9 +547,10 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         if (vectorFieldType.getInferenceId() != null) {
             return;
         }
-        if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
-            return;
-        }
+        // TODO: Re-enable index version gate before moving out of POC
+        // if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
+        //     return;
+        // }
         if (queryVector != null && vectorFieldType.getDims() != null && vectorFieldType.getDims() != queryVector.asFloatVector().length) {
             return;
         }

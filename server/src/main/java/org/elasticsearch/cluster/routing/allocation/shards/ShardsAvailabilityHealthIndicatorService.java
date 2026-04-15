@@ -99,7 +99,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
         TimeValue.timeValueSeconds(0),
-        TimeValue.timeValueSeconds(20),
+        TimeValue.timeValueSeconds(60),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -110,7 +110,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
         TimeValue.timeValueSeconds(0),
-        TimeValue.timeValueSeconds(20),
+        TimeValue.timeValueSeconds(60),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

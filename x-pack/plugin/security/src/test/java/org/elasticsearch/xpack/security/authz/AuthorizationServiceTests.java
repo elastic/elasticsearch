@@ -372,7 +372,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
     }
 
@@ -1354,7 +1355,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1418,7 +1420,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1965,7 +1968,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2019,7 +2023,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3561,7 +3566,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3725,7 +3731,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            ActionRestrictionRulesChecker.noop()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

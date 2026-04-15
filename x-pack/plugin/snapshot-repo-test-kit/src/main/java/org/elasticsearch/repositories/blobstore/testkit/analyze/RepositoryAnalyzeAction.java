@@ -67,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -857,6 +858,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
                     if (missingBlobs.isEmpty()) {
                         logger.trace("all expected blobs found, cleaning up [{}:{}]", request.getRepositoryName(), blobPath);
+                        verifyPrefixListing(blobContainer, blobsMap);
                     } else {
                         final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                             request.repositoryName,
@@ -870,6 +872,80 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     fail(e);
                 }
             }
+        }
+
+        /**
+         * Verify that {@link BlobContainer#listBlobsByPrefix} correctly filters blobs by prefix. Uses the full listing from
+         * {@link BlobContainer#listBlobs} as the ground truth.
+         */
+        private void verifyPrefixListing(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
+            // Verify that listing with the common prefix "test-blob-" returns all matching blobs with correct metadata
+            final String commonPrefix = "test-blob-";
+            final Map<String, BlobMetadata> prefixResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                commonPrefix
+            );
+            final Map<String, BlobMetadata> expectedFromPrefix = new HashMap<>();
+            for (Map.Entry<String, BlobMetadata> entry : allBlobs.entrySet()) {
+                if (entry.getKey().startsWith(commonPrefix)) {
+                    expectedFromPrefix.put(entry.getKey(), entry.getValue());
+                }
+            }
+            if (prefixResults.keySet().equals(expectedFromPrefix.keySet()) == false) {
+                final Set<String> missing = new HashSet<>(expectedFromPrefix.keySet());
+                missing.removeAll(prefixResults.keySet());
+                final Set<String> extra = new HashSet<>(prefixResults.keySet());
+                extra.removeAll(expectedFromPrefix.keySet());
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\""
+                            + commonPrefix
+                            + "\") returned incorrect results: missing="
+                            + missing
+                            + ", unexpected="
+                            + extra
+                    )
+                );
+                return;
+            }
+            for (Map.Entry<String, BlobMetadata> entry : expectedFromPrefix.entrySet()) {
+                final BlobMetadata actual = prefixResults.get(entry.getKey());
+                if (actual.length() != entry.getValue().length()) {
+                    fail(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "listBlobsByPrefix(\""
+                                + commonPrefix
+                                + "\") returned incorrect size for blob ["
+                                + entry.getKey()
+                                + "]: expected "
+                                + entry.getValue().length()
+                                + " but got "
+                                + actual.length()
+                        )
+                    );
+                    return;
+                }
+            }
+
+            // Verify that listing with a prefix matching no blobs returns empty results
+            final String noMatchPrefix = "nonexistent-prefix-";
+            final Map<String, BlobMetadata> noMatchResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                noMatchPrefix
+            );
+            if (noMatchResults.isEmpty() == false) {
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\"" + noMatchPrefix + "\") should return empty results but returned " + noMatchResults.keySet()
+                    )
+                );
+                return;
+            }
+
+            logger.trace("prefix-based listing verified for [{}:{}]", request.getRepositoryName(), blobPath);
         }
 
         private void deleteContainer() {

@@ -208,11 +208,24 @@ public final class SequenceNumbersTestUtils {
      *
      * Uses the default {@link ESIntegTestCase#internalCluster()}.
      */
-    public static void persistGlobalCheckpointOnPrimaryShards(String index) throws IOException {
+    public static void persistGlobalCheckpointOnPrimaryShards(String index) {
+        persistGlobalCheckpointOnPrimaryShards(internalCluster(), index);
+    }
+
+    /**
+     * Persist the global checkpoint on all primary shards of the given index into disk.
+     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
+     *
+     * This helper method is useful if you do not use replicas in your test setup.
+     *
+     * @param cluster the cluster containing the index
+     * @param index   the name of the index
+     */
+    public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String index) {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
-            for (String node : internalCluster().nodesInclude(index)) {
-                for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
+            for (String node : cluster.nodesInclude(index)) {
+                for (IndexService indexService : cluster.getInstance(IndicesService.class, node)) {
                     for (IndexShard indexShard : indexService) {
                         if (indexShard.routingEntry().primary() == false) {
                             continue;

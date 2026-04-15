@@ -723,12 +723,57 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Lucene.writeTopDocsIncludingShardIndex(out, reducedTopDocs);
-            out.writeOptionalWriteable(
-                reducedAggs == null
-                    ? null
-                    : (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE) ? reducedAggs : reducedAggs.expand())
-            );
+            if (reducedAggs == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                if (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
+                    if (reducedAggs instanceof DelayableWriteable.Serialized<?> s
+                        && out.getTransportVersion() != s.getSerializedAtVersion()) {
+                        // Version mismatch: the generic Serialized.writeTo mismatch branch would expand
+                        // the aggs and discard the result without releasing pooled SearchHits in any
+                        // top-hits aggregations. Expand here instead so we control the lifecycle.
+                        writeExpandedAndRelease(out, reducedAggs.expand(), true);
+                    } else {
+                        reducedAggs.writeTo(out);
+                    }
+                } else {
+                    // Pre-BATCHED receivers require raw InternalAggregations on the wire.
+                    if (reducedAggs.isSerialized()) {
+                        // Expansion produces freshly deserialized objects; release pooled SearchHits after writing.
+                        writeExpandedAndRelease(out, reducedAggs.expand(), false);
+                    } else {
+                        // Referencing wraps a live object; caller owns the lifecycle — do not release.
+                        reducedAggs.expand().writeTo(out);
+                    }
+                }
+            }
             out.writeVLong(estimatedSize);
+        }
+
+        /**
+         * Writes {@code expanded} and releases any pooled {@link SearchHits} held by top-hits
+         * aggregations inside it after the write completes (or fails).
+         *
+         * @param delayableWireFormat {@code true} to write in {@link DelayableWriteable} size-prefixed
+         *                            format (BATCHED path); {@code false} to write {@link InternalAggregations}
+         *                            directly (pre-BATCHED path).
+         */
+        private static void writeExpandedAndRelease(StreamOutput out, InternalAggregations expanded, boolean delayableWireFormat)
+            throws IOException {
+            List<SearchHits> toRelease = new ArrayList<>();
+            InternalAggregations.addTopHitsToReleaseList(expanded, toRelease, false);
+            try {
+                if (delayableWireFormat) {
+                    DelayableWriteable.referencing(expanded).writeTo(out);
+                } else {
+                    expanded.writeTo(out);
+                }
+            } finally {
+                for (SearchHits h : toRelease) {
+                    h.decRef();
+                }
+            }
         }
     }
 

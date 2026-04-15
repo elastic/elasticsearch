@@ -352,7 +352,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(
             fieldInfo,
-            numVectors,
+            values,
             postListSlice,
             target,
             acceptDocsBits,
@@ -539,7 +539,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
-        int numVectors,
+        FloatVectorValues values,
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,

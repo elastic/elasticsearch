@@ -225,57 +225,39 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
 // before multiply, because both operands can be negative. Each iteration loads 32 bytes
 // (into __m256i), sign-extends to __m512i, then uses signed madd_epi16.
 
-// Uses the algebraic identity: a*b = (a+128)*b - 128*sum(b), where (a+128) is
-// unsigned. This is to work around x64 asymmetric dot-product ops (DPBUSD computes
-// unsigned*signed multiply-accumulate)
-// Accumulates acc_ab += dpbusd(a^0x80, b) and acc_b_bias += sad(b^0x80, 0) for
-// signed int8 dot product using AVX-512 VNNI, 64 bytes/step.
+// Accumulates acc += dot(pa, pb) for signed int8. Loads 32 bytes at compile-time
+// offset, sign-extends to 16-bit, then signed multiply-accumulate.
 template<int offsetRegs>
-inline void fmai8(__m512i& acc_ab, __m512i& acc_b_bias, const int8_t* pa, const int8_t* pb) {
-    constexpr int lanes = offsetRegs * sizeof(__m512i);  // 64 bytes per step
-    const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
-    const __m512i zeros = _mm512_setzero_si512();
-
-    const __m512i a = _mm512_loadu_si512(pa + lanes);
-    const __m512i b = _mm512_loadu_si512(pb + lanes);
-
-    // Convert a to unsigned: a' = a XOR 0x80 = a + 128
-    const __m512i a_biased = _mm512_xor_si512(a, xor_mask);
-
-    // DPBUSD: acc += (a+128) * b  (unsigned × signed → i32)
-    acc_ab = _mm512_dpbusd_epi32(acc_ab, a_biased, b);
-
-    // Accumulate sum(b+128) via SAD for the correction term
-    const __m512i b_biased = _mm512_xor_si512(b, xor_mask);
-    acc_b_bias = _mm512_add_epi64(acc_b_bias, _mm512_sad_epu8(b_biased, zeros));
+inline void fmai8(__m512i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m256i);  // 32 bytes per step
+    const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pa + lanes)));
+    const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pb + lanes)));
+    acc = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), acc);
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int i = 0;
-    __m512i total_ab = _mm512_setzero_si512();
-    __m512i total_b_bias = _mm512_setzero_si512();
-    if (dims >= sizeof(__m512i)) {
-        i = dims & ~(sizeof(__m512i) - 1);
+    __m512i total_sum = _mm512_setzero_si512();
+    if (dims >= sizeof(__m256i)) {
+        i = dims & ~(sizeof(__m256i) - 1);
 
         constexpr int batches = 4;
         static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
         constexpr int half_batches = batches / 2;
-        constexpr int batch_stride = batches * sizeof(__m512i);
-        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        constexpr int batch_stride = batches * sizeof(__m256i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m256i);
         const int8_t* pa = a;
         const int8_t* pb = b;
 
-        __m512i acc_ab[batches];
-        __m512i acc_b_bias[batches];
+        __m512i acc[batches];
         apply_indexed<batches>([&](auto I) {
-            acc_ab[I] = _mm512_setzero_si512();
-            acc_b_bias[I] = _mm512_setzero_si512();
+            acc[I] = _mm512_setzero_si512();
         });
 
         const int8_t* pa_end = a + (i & ~(batch_stride - 1));
         while (pa < pa_end) {
             apply_indexed<batches>([&](auto I) {
-                fmai8<I>(acc_ab[I], acc_b_bias[I], pa, pb);
+                fmai8<I>(acc[I], pa, pb);
             });
             pa += batch_stride;
             pb += batch_stride;
@@ -284,7 +266,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
         pa_end = a + (i & ~(half_batch_stride - 1));
         while (pa < pa_end) {
             apply_indexed<half_batches>([&](auto I) {
-                fmai8<I>(acc_ab[I], acc_b_bias[I], pa, pb);
+                fmai8<I>(acc[I], pa, pb);
             });
             pa += half_batch_stride;
             pb += half_batch_stride;
@@ -292,43 +274,34 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
 
         pa_end = a + i;
         while (pa < pa_end) {
-            fmai8<0>(acc_ab[0], acc_b_bias[0], pa, pb);
-            pa += sizeof(__m512i);
-            pb += sizeof(__m512i);
+            fmai8<0>(acc[0], pa, pb);
+            pa += sizeof(__m256i);
+            pb += sizeof(__m256i);
         }
 
-        total_ab = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc_ab);
-        total_b_bias = tree_reduce<batches, __m512i, _mm512_add_epi64>(acc_b_bias);
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
-    // Masked tail: remaining elements (< 64) with a single masked DPBUSD iteration.
-    // Zeroed lanes from maskz_loadu contribute nothing to DPBUSD or SAD.
+    // Masked tail: sign-extend remaining elements (< 32) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in madd_epi16, contributing nothing to the sum.
     const int remaining = dims - i;
     if (remaining > 0) {
-        const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
-        const __m512i zeros = _mm512_setzero_si512();
-        const __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFFULL, remaining);
-        const __m512i a_raw = _mm512_maskz_loadu_epi8(mask, a + i);
-        const __m512i b_raw = _mm512_maskz_loadu_epi8(mask, b + i);
-        const __m512i a_biased = _mm512_xor_si512(a_raw, xor_mask);
-        total_ab = _mm512_dpbusd_epi32(total_ab, a_biased, b_raw);
-        // Only bias the masked b elements (zeroed lanes XOR 0x80 = 0x80, not zero!)
-        // So we must use the masked b_raw directly, where zeroed lanes stay zero.
-        const __m512i b_biased = _mm512_xor_si512(b_raw, _mm512_maskz_set1_epi8(mask, (char)0x80));
-        total_b_bias = _mm512_add_epi64(total_b_bias, _mm512_sad_epu8(b_biased, zeros));
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(a16, b16));
     }
-    // Correction: a*b = (a+128)*b - 128*sum(b)
-    // sum(b) = sum(b+128) - 128*dims
-    int32_t ab_sum = _mm512_reduce_add_epi32(total_ab);
-    int64_t sum_b_biased = _mm512_reduce_add_epi64(total_b_bias);
-    int64_t correction = 128LL * sum_b_biased - 16384LL * dims;
-    return (int32_t)(ab_sum - correction);
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT f32_t vec_doti8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t)doti8_inner(a, b, dims);
 }
 
-// Bulk-optimized dot i8: precompute the query correction once, then each document
+// Bulk-optimized dot i8
+// Uses the algebraic identity: a*b = (a+128)*b - 128*sum(b), where (a+128) is
+// unsigned. This is to work around x64 asymmetric dot-product ops (DPBUSD computes
+// unsigned*signed multiply-accumulate).
+// Precompute the query correction once, then each document
 // vector only needs XOR + DPBUSD (no SAD per vector).
 
 // Lean fmai8 for bulk: only XOR on a + DPBUSD, no b-side correction work.

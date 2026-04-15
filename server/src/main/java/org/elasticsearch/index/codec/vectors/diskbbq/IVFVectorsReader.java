@@ -309,7 +309,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
-        FieldEntry entry = fields.get(fieldInfo.number);
+        final E entry = fields.get(fieldInfo.number);
         if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
@@ -326,7 +326,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
-        final E entry = fields.get(fieldInfo.number);
         final FloatVectorValues values = getFloatVectorValues(field);
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);

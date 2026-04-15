@@ -146,6 +146,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         ).actionGet();
         BytesReference pitId = openPitResponse.getPointInTimeId();
 
+        // Manually initiate a pit search to get a pit ID
         SearchRequest firstPitSearch = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
                 .sort(SortBuilders.pitTiebreaker())
@@ -166,10 +167,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             searchResponse.decRef();
         }
 
+        // Resume reindexing
         int remainingDocs = totalDocs - batchSize;
         BulkByScrollTask.Status randomStats = randomStats();
+        // Random start time in the past to ensure that "took" is updated
         long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        // PIT searches must not set explicit indices on SearchRequest (same as ReindexRequest#convertSearchRequestToUsePit)
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setDestIndex(destIndex)
@@ -184,8 +186,9 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                     .sort(SortBuilders.pitTiebreaker())
                     .size(batchSize)
             );
-        // ReindexRequest defaults enable scroll; PIT and scroll are mutually exclusive (see ReindexRequest#convertSearchRequestToUsePit).
+        // ReindexRequest by default enable scroll, but PIT and scroll are mutually exclusive
         request.getSearchRequest().scroll(null);
+        // PIT searches must not set explicit indices on SearchRequest (see ReindexRequest#convertSearchRequestToUsePit)
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
@@ -195,7 +198,9 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .get();
 
         assertStatus(getTaskResponse.getTask(), randomStats, totalDocs, batchSize, remainingDocs);
+        // Ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
+        // Sanity check since point-in-time search shouldn't open any scroll contexts
         assertEquals(0, currentNumberOfScrollContexts());
     }
 
@@ -277,6 +282,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
         final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
 
+        // Manually create pit slices and pass their pit IDs in resume info
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
@@ -286,6 +292,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             try {
+                // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
@@ -309,8 +316,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 searchResponse.decRef();
             }
         }
+        // Each manual sliced PIT search prefetched a page of hits to build resume state. Those hits are not written to the
+        // destination, so the resumed job only indexes the remaining documents across slices.
         final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
 
+        // Resume reindexing from the manual pit search slices
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setDestIndex(destIndex)
@@ -423,6 +433,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
         Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
+        // Complete some slices with manual slicing and pass their results as completed slices in resume info
         for (int sliceId = 0; sliceId < numCompletedSlices; sliceId++) {
             ReindexRequest sliceRequest = new ReindexRequest().setSourceIndices(sourceIndex)
                 .setDestIndex(destIndex)
@@ -441,6 +452,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         ).actionGet();
         BytesReference pitId = openPitResponse.getPointInTimeId();
 
+        // Manually create pit slices for the remaining slices that are not completed, and pass their pit IDs in resume info
         final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         for (int sliceId = numCompletedSlices; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest().source(
@@ -451,6 +463,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             try {
+                // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
@@ -474,6 +487,8 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 searchResponse.decRef();
             }
         }
+        // Each manual sliced PIT search prefetched a page of hits to build resume state. Those hits are not written to the
+        // destination, so the resumed job only indexes the remaining documents across slices.
         final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
 
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
@@ -577,7 +592,9 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final int totalDocs = randomIntBetween(200, 300);
         final int batchSize = randomIntBetween(5, 10);
+        // At least 2 shards to ensure auto-slicing creates multiple slices
         int numSourceShards = randomIntBetween(2, 10);
+        // Slice count differs from shard count to ensure slicing is from resume info
         int numSlices = numSourceShards + 1;
 
         createIndex(sourceIndex, numSourceShards, 0);
@@ -602,6 +619,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             try {
+                // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
@@ -625,6 +643,8 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 searchResponse.decRef();
             }
         }
+        // Each manual sliced PIT search prefetched a page of hits to build resume state. Those hits are not written to the
+        // destination, so the resumed job only indexes the remaining documents across slices.
         final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
 
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
@@ -654,6 +674,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertEquals(0, currentNumberOfScrollContexts());
         assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
 
+        // response must have same number of slices as resume info, not auto-resolved from shard count
         Map<String, Object> response = getTaskResponse.getTask().getResponseAsMap();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> slices = (List<Map<String, Object>>) response.get("slices");
@@ -760,6 +781,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             final BulkByScrollTask.Status sliceStats;
             final long totalHits;
             try {
+                // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
                 int firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 firstBatchDocsTotal += firstBatchDocs;
@@ -812,6 +834,8 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             assertStatus(getTaskResponse.getTask(), sliceStats, totalHits, batchSize, remainingDocs);
         }
 
+        // Each manual sliced PIT search prefetched a page of hits to build resume state. Those hits are not written to the
+        // destination, so the resumed job only indexes the remaining documents across slices.
         final long expectedDocsDest = totalDocs - firstBatchDocsTotal;
         assertHitCount(expectedDocsDest, prepareSearch(destIndex));
         assertEquals(0, currentNumberOfScrollContexts());
@@ -898,7 +922,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
-        telemetryPlugin.resetMeter();
+        telemetryPlugin.resetMeter(); // reset previous test metrics
 
         final String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
@@ -958,6 +982,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
+        // Execute resume on data node because that's where we'll check the metrics
         final ResumeBulkByScrollResponse resumeResponse = client(dataNodeName).execute(
             ResumeReindexAction.INSTANCE,
             new ResumeBulkByScrollRequest(request)

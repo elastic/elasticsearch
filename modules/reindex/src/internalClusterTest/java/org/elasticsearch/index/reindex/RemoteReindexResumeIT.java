@@ -109,7 +109,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
      * The remote URL is this cluster's HTTP endpoint (real Elasticsearch), matching the scroll id obtained locally.
      */
     public void testResumeReindexFromScroll() {
-        assumeFalse("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         int totalDocs = randomIntBetween(20, 100);
@@ -507,7 +507,9 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
     }
 
     private static String mockScrollSearchHitsEmptyJson(int totalHitsValue) {
-        return "{\"timed_out\":false,\"hits\":{\"total\":{\"value\":"
+        return "{\"timed_out\":false,\"_scroll_id\":\""
+            + MOCK_SCROLL_SESSION_ID
+            + "\",\"hits\":{\"total\":{\"value\":"
             + totalHitsValue
             + ",\"relation\":\"eq\"},\"hits\":[]},\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0}}";
     }

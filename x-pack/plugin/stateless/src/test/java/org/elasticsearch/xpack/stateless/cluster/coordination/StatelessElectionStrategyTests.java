@@ -51,8 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessLease.LEGACY_FORMAT_VERSION;
-import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessLease.V1_FORMAT_VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -339,35 +337,15 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         final var term = randomNonNegativeLong();
         assertThat(
             StatelessLease.compare(
-                new StatelessLease(
-                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
-                    term,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                ),
-                new StatelessLease(
-                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
-                    term + 1,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                )
+                new StatelessLease(term, randomNonNegativeLong(), randomNonNegativeLong()),
+                new StatelessLease(term + 1, randomNonNegativeLong(), randomNonNegativeLong())
             ),
             lessThan(0)
         );
         assertThat(
             StatelessLease.compare(
-                new StatelessLease(
-                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
-                    term,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                ),
-                new StatelessLease(
-                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
-                    term - 1,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                )
+                new StatelessLease(term, randomNonNegativeLong(), randomNonNegativeLong()),
+                new StatelessLease(term - 1, randomNonNegativeLong(), randomNonNegativeLong())
             ),
             greaterThan(0)
         );
@@ -375,15 +353,15 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         final var nodeLeftGen = randomNonNegativeLong();
         assertThat(
             StatelessLease.compare(
-                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen, randomNonNegativeLong()),
-                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen + 1, randomNonNegativeLong())
+                new StatelessLease(term, nodeLeftGen, randomNonNegativeLong()),
+                new StatelessLease(term, nodeLeftGen + 1, randomNonNegativeLong())
             ),
             lessThan(0)
         );
         assertThat(
             StatelessLease.compare(
-                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen, randomNonNegativeLong()),
-                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen - 1, randomNonNegativeLong())
+                new StatelessLease(term, nodeLeftGen, randomNonNegativeLong()),
+                new StatelessLease(term, nodeLeftGen - 1, randomNonNegativeLong())
             ),
             greaterThan(0)
         );
@@ -402,13 +380,6 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen - 1)
             ),
             greaterThan(0)
-        );
-        assertThat(
-            StatelessLease.compare(
-                new StatelessLease(LEGACY_FORMAT_VERSION, term, nodeLeftGen, randomNonNegativeLong()),
-                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen)
-            ),
-            equalTo(0)
         );
     }
 

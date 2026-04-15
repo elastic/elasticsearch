@@ -1385,7 +1385,9 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
+                if (indexResolution.inner().isValid()) {
+                    EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
+                }
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);

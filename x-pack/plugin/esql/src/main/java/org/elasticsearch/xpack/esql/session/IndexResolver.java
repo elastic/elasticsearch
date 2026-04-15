@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -28,6 +30,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -217,38 +220,54 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
-        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
-            TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
-            // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
-            // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
-            TransportVersion overallMinimumVersion = responseMinimumVersion == null
-                ? TransportVersion.minimumCompatible()
-                : TransportVersion.min(minimumVersion, responseMinimumVersion);
+        client.execute(EsqlResolveFieldsAction.TYPE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlResolveFieldsResponse response) {
+                try {
+                    TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+                    // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
+                    // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
+                    TransportVersion overallMinimumVersion = responseMinimumVersion == null
+                        ? TransportVersion.minimumCompatible()
+                        : TransportVersion.min(minimumVersion, responseMinimumVersion);
 
-            FieldsInfo info = new FieldsInfo(
-                response.caps(),
-                overallMinimumVersion,
-                Build.current().isSnapshot(),
-                useAggregateMetricDoubleWhenNotSupported,
-                useDenseVectorWhenNotSupported,
-                hasTimeSeriesAggregation
-            );
-            LOGGER.debug(
-                "previously assumed minimum transport version [{}] updated to effective version [{}]"
-                    + " using field caps response version [{}] for index pattern [{}]",
-                minimumVersion,
-                info.minTransportVersion(),
-                responseMinimumVersion,
-                indexPattern
-            );
+                    FieldsInfo info = new FieldsInfo(
+                        response.caps(),
+                        overallMinimumVersion,
+                        Build.current().isSnapshot(),
+                        useAggregateMetricDoubleWhenNotSupported,
+                        useDenseVectorWhenNotSupported,
+                        hasTimeSeriesAggregation
+                    );
+                    LOGGER.debug(
+                        "previously assumed minimum transport version [{}] updated to effective version [{}]"
+                            + " using field caps response version [{}] for index pattern [{}]",
+                        minimumVersion,
+                        info.minTransportVersion(),
+                        responseMinimumVersion,
+                        indexPattern
+                    );
 
-            l.onResponse(
-                new Versioned<>(
-                    mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
-                    info.minTransportVersion()
-                )
-            );
-        }));
+                    listener.onResponse(
+                        new Versioned<>(
+                            mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
+                            info.minTransportVersion()
+                        )
+                    );
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
+                    listener.onResponse(new Versioned<>(IndexResolution.notFound(indexPattern), minimumVersion));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     /**

@@ -21,9 +21,9 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Load {@code _source} fields from {@link MultiValuedSortedBinaryDocValues} and associated {@link BinaryDocValues}. The former contains the unique values
- * in sorted order and the latter the offsets for each instance of the values. This allows synthesizing array elements in order as was
- * specified at index time. Note that this works only for leaf arrays.
+ * Load {@code _source} fields from {@link MultiValuedSortedBinaryDocValues} and associated {@link BinaryDocValues}.
+ * The former contains the unique values in sorted order and the latter the offsets for each instance of the values. This allows
+ * synthesizing array elements in order as was specified at index time. Note that this works only for leaf arrays.
  */
 final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 

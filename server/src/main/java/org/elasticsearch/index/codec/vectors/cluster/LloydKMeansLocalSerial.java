@@ -38,9 +38,7 @@ class LloydKMeansLocalSerial extends LloydKMeansLocal {
         NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        return stepLloydSlice(
-            vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size()
-        );
+        return stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
 
     @Override

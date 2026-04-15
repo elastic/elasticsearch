@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 
 import java.net.URI;
@@ -32,7 +33,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * @param input the list of input documents to be reranked
  * @param model the Nvidia rerank model configuration
  */
-public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerankModel model) implements Request {
+public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerankModel model) implements RerankRequest {
 
     public NvidiaRerankRequest {
         Objects.requireNonNull(input);

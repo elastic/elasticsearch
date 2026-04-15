@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexBalanceMetricsTests extends ESTestCase {
 
     public void testComputeHistogramCounts() {
-        final int numIndices = randomCount();
+        final int numIndices = randomIndexCount();
         final int numIndexNodes = randomNodeCount();
         final int numSearchNodes = randomNodeCount();
         final int maxShards = between(0, 40);
@@ -262,8 +262,8 @@ public class IndexBalanceMetricsTests extends ESTestCase {
             .build();
     }
 
-    private static int randomCount() {
-        return between(1, rarely() ? 1000 : 10);
+    private static int randomIndexCount() {
+        return between(0, rarely() ? 1000 : 10);
     }
 
     private static int randomNodeCount() {

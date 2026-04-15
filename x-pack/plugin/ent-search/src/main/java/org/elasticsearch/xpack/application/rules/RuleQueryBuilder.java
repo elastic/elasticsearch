@@ -275,7 +275,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
         ).queryName(this.queryName);
     }
 
-    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
+    QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
         QueryBuilder excludedDocsQueryBuilder;
         if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
             // Easy case - just add an ids query
@@ -291,7 +291,7 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
                     excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
                 }
                 return excludeQueryBuilder;
-            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).should(excludeQueryBuilder));
         }
         return excludedDocsQueryBuilder;
     }

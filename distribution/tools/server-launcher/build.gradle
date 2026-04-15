@@ -34,7 +34,7 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 }
 
 // --- GraalVM native-image build (Linux only, Docker-based) ---
-def graalVmMajor = VersionProperties.getBundledJdkMajorVersion()
+def graalVmMajor = "25" // A relatively recent LTS version
 def nativeImageImage = "ghcr.io/graalvm/native-image-community:${graalVmMajor}-ol8"
 def launcherMainClass = 'org.elasticsearch.server.launcher.ServerLauncher'
 

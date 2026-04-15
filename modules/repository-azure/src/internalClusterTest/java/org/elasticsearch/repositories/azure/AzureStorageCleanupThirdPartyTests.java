@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -47,11 +48,13 @@ import java.io.BufferedOutputStream;
 import java.net.HttpURLConnection;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.limitStream;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -265,5 +268,33 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             e -> asInstanceOf(BlobStorageException.class, ExceptionsHelper.unwrap(e, HttpResponseException.class))
                 .getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
         );
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBlobName = randomIdentifier();
+        final var repository = getRepository();
+        final var destinationBlobName = randomIdentifier();
+        final var blobStore = repository.blobStore();
+        final var sourceBlobContainer = blobStore.blobContainer(repository.basePath());
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
+        sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+        assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
+
+        final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        assertThat(Streams.readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
+
+        sourceBlobContainer.delete(randomPurpose());
+        assertThrows(
+            NoSuchFileException.class,
+            () -> destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            )
+        );
+        destinationBlobContainer.delete(randomPurpose());
     }
 }

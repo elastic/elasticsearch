@@ -41,8 +41,8 @@ public final class Expressions {
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
      * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
-     * converted to an {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute} via
-     * {@link FieldAttribute#checkUnresolved()}, so the analyzer can surface a clear user-facing error.
+     * converted to an {@link UnsupportedAttribute} via
+     * {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a clear user-facing error.
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(
         List<? extends NamedExpression> named,
@@ -60,7 +60,7 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.checkUnresolved();
+                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.flagTypeConflicts();
                 case ReferenceAttribute ra -> ra.withId(id);
                 default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
             };

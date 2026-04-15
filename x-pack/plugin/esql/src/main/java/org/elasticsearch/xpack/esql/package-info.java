@@ -12,13 +12,13 @@
  * ES|QL is a typed query language which consists of many small languages separated by the {@code |}
  * character. Like this:
  *
- * <pre>{@code
+ * {@snippet lang="esql" :
  *   FROM foo
  * | WHERE a > 1
  * | STATS m=MAX(j)
  * | SORT m ASC
  * | LIMIT 10
- * }</pre>
+ * }
  *
  * <p>
  *    Here the {@code FROM}, {@code WHERE}, {@code STATS}, {@code SORT}, and {@code LIMIT} keywords

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
 
 public class StBuffer extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).binary(StBuffer::new).name("st_buffer");
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(UNSPECIFIED, StBuffer::bufferOp);
     private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(GEO, StBuffer::bufferOp);
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
@@ -75,7 +77,8 @@ public class StBuffer extends SpatialDocValuesFunction {
         description = "Computes a buffer area around the input geometry at the specified distance. "
             + "The distance is in the units of the input spatial reference system. "
             + "Positive distances expand the geometry, negative distances shrink it. "
-            + "Points and lines become polygons when buffered.",
+            + "A distance of zero will return the input geometry unchanged. "
+            + "Points and lines become polygons when buffered, unless a zero distance is provided.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_buffer"),

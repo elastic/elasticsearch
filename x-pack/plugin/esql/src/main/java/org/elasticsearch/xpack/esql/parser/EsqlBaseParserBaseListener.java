@@ -769,18 +769,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterForkCommand(EsqlBaseParser.ForkCommandContext ctx) { }
   /**
    * {@inheritDoc}

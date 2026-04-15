@@ -97,6 +97,8 @@ public enum DatabaseProperty {
             }
             return property;
         } catch (IllegalArgumentException e) {
+            // put the properties in natural order before throwing so that we have reliable error messages -- this is a little
+            // bit inefficient, but we only do this validation at processor construction time so the cost is practically immaterial
             DatabaseProperty[] properties = validProperties.toArray(new DatabaseProperty[0]);
             Arrays.sort(properties);
             throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " + Arrays.toString(properties));

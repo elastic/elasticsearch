@@ -130,6 +130,13 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         return false;
     }
 
+    /**
+     * Retrieve the set of pipeline ids that have at least one geoip processor.
+     * @param projectMetadata project metadata
+     * @param downloadDatabaseOnPipelineCreation Filter the list to include only pipeline with the download_database_on_pipeline_creation
+     *                                           matching the param.
+     * @return A set of pipeline ids matching criteria.
+     */
     @SuppressWarnings("unchecked")
     private static Set<String> pipelinesWithGeoIpProcessor(ProjectMetadata projectMetadata, boolean downloadDatabaseOnPipelineCreation) {
         List<PipelineConfiguration> configurations = IngestService.getPipelines(projectMetadata);
@@ -137,8 +144,10 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         for (PipelineConfiguration configuration : configurations) {
             pipelineConfigById.put(configuration.getId(), configuration);
         }
+        // this map is used to keep track of pipelines that have already been checked
         Map<String, Boolean> pipelineHasGeoProcessorById = HashMap.newHashMap(configurations.size());
         Set<String> ids = new HashSet<>();
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
         for (PipelineConfiguration configuration : configurations) {
             List<Map<String, Object>> processors = (List<Map<String, Object>>) configuration.getConfig().get(Pipeline.PROCESSORS_KEY);
             String pipelineName = configuration.getId();
@@ -156,6 +165,16 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         return Collections.unmodifiableSet(ids);
     }
 
+    /**
+     * Check if a list of processor contains at least a geoip processor.
+     * @param processors List of processors.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @param pipelineConfigById A Map of pipeline id to PipelineConfiguration
+     * @param pipelineHasGeoProcessorById A Map of pipeline id to Boolean, indicating whether the pipeline references a geoip processor
+     *                                    (true), does not reference a geoip processor (false), or we are currently trying to figure that
+     *                                    out (null).
+     * @return true if a geoip processor is found in the processor list.
+     */
     private static boolean hasAtLeastOneGeoipProcessor(
         List<Map<String, Object>> processors,
         boolean downloadDatabaseOnPipelineCreation,
@@ -163,6 +182,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         Map<String, Boolean> pipelineHasGeoProcessorById
     ) {
         if (processors != null) {
+            // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
             for (Map<String, Object> processor : processors) {
                 if (hasAtLeastOneGeoipProcessor(
                     processor,
@@ -177,6 +197,16 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         return false;
     }
 
+    /**
+     * Check if a processor config is a geoip processor or contains at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @param pipelineConfigById A Map of pipeline id to PipelineConfiguration
+     * @param pipelineHasGeoProcessorById A Map of pipeline id to Boolean, indicating whether the pipeline references a geoip processor
+     *                                    (true), does not reference a geoip processor (false), or we are currently trying to figure that
+     *                                    out (null).
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean hasAtLeastOneGeoipProcessor(
         Map<String, Object> processor,
@@ -188,18 +218,14 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             return false;
         }
 
-        {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
-            if (processorConfig != null) {
-                return GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
-            }
+        Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
+        if (processorConfig != null) {
+            return GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
         }
 
-        {
-            Map<String, Object> processorConfig = (Map<String, Object>) processor.get(IP_LOCATION_TYPE);
-            if (processorConfig != null) {
-                return GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
-            }
+        processorConfig = (Map<String, Object>) processor.get(IP_LOCATION_TYPE);
+        if (processorConfig != null) {
+            return GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
         }
 
         return isProcessorWithOnFailureGeoIpProcessor(
@@ -222,6 +248,16 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             );
     }
 
+    /**
+     * Check if a processor config has an on_failure clause containing at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @param pipelineConfigById A Map of pipeline id to PipelineConfiguration
+     * @param pipelineHasGeoProcessorById A Map of pipeline id to Boolean, indicating whether the pipeline references a geoip processor
+     *                                    (true), does not reference a geoip processor (false), or we are currently trying to figure that
+     *                                    out (null).
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean isProcessorWithOnFailureGeoIpProcessor(
         Map<String, Object> processor,
@@ -229,6 +265,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         Map<String, PipelineConfiguration> pipelineConfigById,
         Map<String, Boolean> pipelineHasGeoProcessorById
     ) {
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
         for (Object value : processor.values()) {
             if (value instanceof Map
                 && hasAtLeastOneGeoipProcessor(
@@ -243,6 +280,16 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         return false;
     }
 
+    /**
+     * Check if a processor is a foreach processor containing at least a geoip processor.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @param pipelineConfigById A Map of pipeline id to PipelineConfiguration
+     * @param pipelineHasGeoProcessorById A Map of pipeline id to Boolean, indicating whether the pipeline references a geoip processor
+     *                                    (true), does not reference a geoip processor (false), or we are currently trying to figure that
+     *                                    out (null).
+     * @return true if a geoip processor is found in the processor list.
+     */
     @SuppressWarnings("unchecked")
     private static boolean isForeachProcessorWithGeoipProcessor(
         Map<String, Object> processor,
@@ -260,6 +307,17 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             );
     }
 
+    /**
+     * Check if a processor is a pipeline processor containing at least a geoip processor. This method also updates
+     * pipelineHasGeoProcessorById with a result for any pipelines it looks at.
+     * @param processor Processor config.
+     * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
+     * @param pipelineConfigById A Map of pipeline id to PipelineConfiguration
+     * @param pipelineHasGeoProcessorById A Map of pipeline id to Boolean, indicating whether the pipeline references a geoip processor
+     *                                    (true), does not reference a geoip processor (false), or we are currently trying to figure that
+     *                                    out (null).
+     * @return true if a geoip processor is found in the processors of this processor if this processor is a pipeline processor.
+     */
     @SuppressWarnings("unchecked")
     private static boolean isPipelineProcessorWithGeoIpProcessor(
         Map<String, Object> processor,
@@ -272,9 +330,14 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             String pipelineName = (String) processorConfig.get("name");
             if (pipelineName != null) {
                 if (pipelineHasGeoProcessorById.containsKey(pipelineName)) {
-                    // A null value means we're currently resolving this pipeline (cycle detected); treat as false.
-                    // noinspection Java8MapApi - cannot replace with putIfAbsent, null has a meaningful value in this case
                     if (pipelineHasGeoProcessorById.get(pipelineName) == null) {
+                        /*
+                         * If the value is null here, it indicates that this method has been called recursively with the same pipeline name.
+                         * This will cause a runtime error when the pipeline is executed, but we're avoiding changing existing behavior at
+                         * server startup time. Instead, we just bail out as quickly as possible. It is possible that this could lead to a
+                         * geo database not being downloaded for the pipeline, but it doesn't really matter since the pipeline was going to
+                         * fail anyway.
+                         */
                         pipelineHasGeoProcessorById.put(pipelineName, false);
                     }
                 } else {
@@ -283,7 +346,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                     if (config != null) {
                         childProcessors = (List<Map<String, Object>>) config.getConfig().get(Pipeline.PROCESSORS_KEY);
                     }
-                    // Mark as "currently resolving" before recursing, so cycles are detected above.
+                    // We initialize this to null so that we know it's in progress and can use it to avoid stack overflow errors:
                     pipelineHasGeoProcessorById.put(pipelineName, null);
                     pipelineHasGeoProcessorById.put(
                         pipelineName,

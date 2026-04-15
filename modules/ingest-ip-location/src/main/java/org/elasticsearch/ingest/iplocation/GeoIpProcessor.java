@@ -50,6 +50,18 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final boolean firstOnly;
     private final String databaseFile;
 
+    /**
+     * Construct a geo-IP processor.
+     * @param type          the processor type (geoip or ip_location)
+     * @param tag           the processor tag
+     * @param description   the processor description
+     * @param field         the source field to geo-IP map
+     * @param ipDataLookup  a live lookup handle that encapsulates database loading, validity, and data extraction
+     * @param targetField   the target field
+     * @param ignoreMissing true if documents with a missing value for the field should be ignored
+     * @param firstOnly     true if only first result should be returned in case of array
+     * @param databaseFile  the name of the database file being queried; used only for tagging documents if the database is unavailable
+     */
     GeoIpProcessor(
         String type,
         String tag,
@@ -159,15 +171,21 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
      * (e.g., "my.field.city", "my.field.country") instead of a single nested object. The "location" field
      * is written as an array [lon, lat] for better compatibility with geo_point fields in flexible mode.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param data the GeoIP data to write
      */
     private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
         if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+            // In flexible mode, write each property as a separate dotted field
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 String key = entry.getKey();
                 Object value = transformValueForFlexibleMode(key, entry.getValue());
                 document.setFieldValue(targetField + "." + key, value);
             }
         } else {
+            // In classic mode, write as a single nested object
             document.setFieldValue(targetField, data);
         }
     }
@@ -176,15 +194,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * Writes a list of GeoIP data to the document. In flexible field access mode, writes each property
      * as a separate list (e.g., "my.field.city" contains a list of cities, one per IP).
      * In classic mode, writes as a single list of maps.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param dataList the list of GeoIP data to write
      */
     private void writeGeoIpDataList(IngestDocument document, String targetField, List<Map<String, Object>> dataList) {
         if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+            // In flexible mode, transpose the list of maps into separate lists per property
+            // Collect all unique keys across all maps
             Set<String> allKeys = new java.util.HashSet<>();
             for (Map<String, Object> data : dataList) {
                 if (data != null) {
                     allKeys.addAll(data.keySet());
                 }
             }
+            // For each key, build a list of values
             for (String key : allKeys) {
                 List<Object> valuesList = new ArrayList<>(dataList.size());
                 for (Map<String, Object> data : dataList) {
@@ -198,6 +223,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 document.setFieldValue(targetField + "." + key, valuesList);
             }
         } else {
+            // In classic mode, write as a single list of maps
             document.setFieldValue(targetField, dataList);
         }
     }
@@ -205,15 +231,21 @@ public final class GeoIpProcessor extends AbstractProcessor {
     /**
      * Transforms a GeoIP value for flexible field access mode.
      * Converts location maps to [lon, lat] arrays and validates that only location fields contain Maps.
+     *
+     * @param key the property key
+     * @param value the property value
+     * @return the transformed value suitable for flexible mode
      */
     @SuppressWarnings("unchecked")
     private static Object transformValueForFlexibleMode(String key, Object value) {
+        // Convert location from map {lat, lon} to array [lon, lat] in flexible mode
         if ("location".equals(key) && value instanceof Map) {
             Map<String, Object> locationMap = (Map<String, Object>) value;
             Double lat = (Double) locationMap.get("lat");
             Double lon = (Double) locationMap.get("lon");
             return newMutableLocationList(lon, lat);
         } else {
+            // Assert that we don't have any unexpected Map values (only location should be a Map)
             assert value instanceof Map == false : "unexpected Map value for key [" + key + "]";
         }
         return value;
@@ -221,7 +253,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Creates a mutable list containing [lon, lat] coordinates.
-     * Uses ArrayList instead of List.of() to allow modification by downstream processors.
+     * Using ArrayList instead of List.of() to allow users to modify the location field later
+     * with other processors (e.g., script processor).
+     * @param lon the longitude
+     * @param lat the latitude
+     * @return a mutable ArrayList containing [lon, lat]
      */
     private static List<Double> newMutableLocationList(double lon, double lat) {
         List<Double> location = new ArrayList<>(2);
@@ -270,6 +306,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 throw newConfigurationException(type, processorTag, "properties", msg);
             }
             if (lookup == null) {
+                // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
+                // then the processor will continue to tag documents with a warning until it is remediated by providing a database
+                // or changing the pipeline.
                 return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
             }
 
@@ -282,8 +322,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     Strings.format("Unsupported database type [null] for file [%s]", databaseFile)
                 );
             }
+            // the "geoip" processor type does additional validation of the database_type
             if (GEOIP_TYPE.equals(type)) {
+                // type sniffing is done with the lowercased type
                 String lower = databaseType.toLowerCase(Locale.ROOT);
+                // start with a strict positive rejection check -- as we support addition database providers,
+                // we should expand these checks when possible
                 if (lower.startsWith("ipinfo ")) {
                     throw newConfigurationException(
                         type,
@@ -292,6 +336,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         Strings.format("Unsupported database type [%s] for file [%s]", databaseType, databaseFile)
                     );
                 }
+                // end with a lax negative rejection check -- if we aren't *certain* it's a maxmind database, then we'll warn --
+                // it's possible for example that somebody cooked up a custom database of their own that happened to work with
+                // our preexisting code, they should migrate to the new processor, but we're not going to break them right now
                 if (lower.startsWith("geoip2") == false && lower.startsWith("geolite2") == false) {
                     deprecationLogger.warn(
                         DeprecationCategory.OTHER,
@@ -317,6 +364,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         /**
          * Get the value of the "download_database_on_pipeline_creation" property from a processor's config map.
+         * <p>
+         * As with the actual property definition, the default value of the property is 'true'. Unlike the actual
+         * property definition, this method doesn't consume (that is, <code>config.remove</code>) the property from
+         * the config map.
          */
         public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
             return (boolean) config.getOrDefault("download_database_on_pipeline_creation", true);

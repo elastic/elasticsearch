@@ -495,6 +495,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             if (existing != null) {
                 existing.shutdown();
             } else {
+                // Loaded a database for the first time, notify listeners so they can reload
+                // pipelines for which a database was not available:
                 for (var listener : listeners) {
                     listener.onDatabaseAvailable(projectId.id(), databaseFileName);
                 }

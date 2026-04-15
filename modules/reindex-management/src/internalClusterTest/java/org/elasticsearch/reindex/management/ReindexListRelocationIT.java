@@ -100,7 +100,7 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
 
         // Capture the original start time via GET _reindex/{id}
         final GetReindexResponse getResponse = getReindexWithWaitForCompletion(originalTaskId, false);
-        final long originalStartTimeMillis = getResponse.getOriginalTask().getTask().startTime();
+        final long originalStartTimeMillis = getResponse.getTaskResult().getTask().startTime();
 
         // Verify listing before relocation shows the task on nodeB with expected ID
         final Map<String, Object> beforeTask = getSingleListedReindexTask();

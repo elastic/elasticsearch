@@ -34,7 +34,12 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 class BenchmarkUtils {
 
@@ -181,5 +186,11 @@ class BenchmarkUtils {
             throw err;
         }
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    }
+
+    static int[] generateRandomOrdinals(int numVectors, int numVectorsToScore, Random random) {
+        List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
+        Collections.shuffle(list, random);
+        return list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
     }
 }

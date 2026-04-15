@@ -288,6 +288,14 @@ public class Task implements Traceable {
         return headers;
     }
 
+    /**
+     * Whether result storage should use create-if-absent semantics instead of unconditional overwrite. Subclasses override this to
+     * prevent overwriting a result that was already stored.
+     */
+    public boolean useCreateSemanticsForResultStorage() {
+        return false;
+    }
+
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         return new TaskResult(taskInfo(node.getId(), true), error);
     }

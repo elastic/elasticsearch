@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.xpack.ml.integration.InferenceIT
-  method: testInferClassificationModel
-  issue: https://github.com/elastic/elasticsearch/issues/133448
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
@@ -76,9 +73,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/139654
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -106,9 +100,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_Throws_WhenRateLimitedQueueIsFull
   issue: https://github.com/elastic/elasticsearch/issues/141231
-- class: org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingServiceTests
-  method: testExpiredModelsAreEvictedBeforeLoading
-  issue: https://github.com/elastic/elasticsearch/issues/141589
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -214,9 +205,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/145877
 - class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
   method: testStCentroidAggregationWithShapes
   issue: https://github.com/elastic/elasticsearch/issues/145883
@@ -369,6 +357,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
   issue: https://github.com/elastic/elasticsearch/issues/146342
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats.sumAsSurrogateWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/146376
 
 # Examples:
 #

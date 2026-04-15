@@ -92,8 +92,8 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * An IT aiming at reproducing corruption-related issues such as:
- * - https://elasticco.atlassian.net/browse/ES-7154
- * - https://elasticco.atlassian.net/browse/ES-7210
+ * - ES-7154
+ * - ES-7210
  *
  * The test run can be adjusted by using `-Dtests.harder=true` which:
  * - Increases the number and size of the indexing bulk requests
@@ -106,7 +106,7 @@ import static org.hamcrest.Matchers.is;
  *
  * TODO: Should we have a test for data streams or randomly use an index or a data stream?
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
- * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
+ * TODO: Add random object store failures beyond max retries (ES-6453)
  */
 public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
 

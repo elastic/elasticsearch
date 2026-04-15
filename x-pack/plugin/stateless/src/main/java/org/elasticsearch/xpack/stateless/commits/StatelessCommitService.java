@@ -871,7 +871,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
                 } catch (Exception e) {
-                    // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
+                    // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
                         () -> format(
                             "%s failed to send new uploaded BCC [%s] notification",

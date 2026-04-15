@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -25,6 +26,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -44,11 +46,11 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
  * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerInt8BulkOperationBenchmark'}
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+@Warmup(iterations = 3, time = 3)
+@Measurement(iterations = 5, time = 3)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
-@Warmup(iterations = 3, time = 3)
-@Measurement(iterations = 5, time = 3)
 public class VectorScorerInt8BulkOperationBenchmark {
 
     static {
@@ -92,26 +94,29 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private MethodHandle singleImpl;
     private MethodHandle bulkOffsetsImpl;
 
-    record VectorData(int numVectorsToScore, byte[][] vectors, int[] ordinals, int targetOrd) {
+    // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
+    static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
+        private final byte[][] vectors;
 
-        static VectorData create(int dims, int numVectors, int numVectorsToScore, Random random) {
-            var vectors = new byte[numVectors][];
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
+            super(numVectors, numVectorsToScore, random);
 
+            vectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
                 vectors[v] = new byte[dims];
                 random.nextBytes(vectors[v]);
             }
+        }
 
-            var ordinals = BenchmarkUtils.generateRandomOrdinals(numVectors, numVectorsToScore, random);
-            var targetOrd = random.nextInt(numVectors);
-
-            return new VectorData(numVectorsToScore, vectors, ordinals, targetOrd);
+        @Override
+        void writeVectorData(Directory directory) throws IOException {
+            // doesn't use directories
         }
     }
 
     @Setup
     public void setup() {
-        setup(VectorData.create(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
     }
 
     void setup(VectorData vectorData) {

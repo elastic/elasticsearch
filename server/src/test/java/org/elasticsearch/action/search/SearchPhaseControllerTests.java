@@ -288,8 +288,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     true,
                     null,
                     null,
-                    null,
-                    null
+                    SearchCoordinatorContext.none()
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -378,8 +377,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 true,
                 null,
                 new ArrayList<>(),
-                expectedSource,
-                expectedIndices
+                new SearchCoordinatorContext(expectedSource, expectedIndices)
             );
             List<SearchShardTarget> shards = queryResults.asList().stream().map(SearchPhaseResult::getSearchShardTarget).collect(toList());
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
@@ -445,8 +443,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         }
                     },
                     null,
-                    null,
-                    null
+                    SearchCoordinatorContext.none()
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -1515,8 +1512,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 false,
                 null,
                 null,
-                null,
-                null
+                SearchCoordinatorContext.none()
             );
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             assertThat(scoreDocs.length, greaterThan(0));

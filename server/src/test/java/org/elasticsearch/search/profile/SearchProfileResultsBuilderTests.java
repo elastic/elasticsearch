@@ -89,7 +89,7 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(1);
         SearchSourceBuilder originalSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(3);
         String[] requestIndices = new String[] { "coord-*" };
-        SearchProfileResultsBuilder profileBuilder = builderWithRequestMetadata(searchPhase, originalSource, requestIndices);
+        SearchProfileResultsBuilder profileBuilder = builder(searchPhase);
         FetchSearchResult fetchPhase = searchPhase.keySet()
             .stream()
             .map(k -> fetchResult(k, new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
@@ -97,6 +97,8 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             .orElseThrow();
         try {
             SearchProfileResults built = profileBuilder.build(List.of(fetchPhase));
+            built.setOriginalSource(originalSource);
+            built.setRequestIndices(requestIndices);
             assertEquals(originalSource, built.getOriginalSource());
             assertArrayEquals(requestIndices, built.getRequestIndices());
         } finally {
@@ -115,18 +117,6 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
     private static SearchProfileResultsBuilder builder(Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase) {
         return new SearchProfileResultsBuilder(
             searchPhase.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
-        );
-    }
-
-    private static SearchProfileResultsBuilder builderWithRequestMetadata(
-        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase,
-        SearchSourceBuilder originalSource,
-        String[] requestIndices
-    ) {
-        return new SearchProfileResultsBuilder(
-            searchPhase.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue)),
-            originalSource,
-            requestIndices
         );
     }
 

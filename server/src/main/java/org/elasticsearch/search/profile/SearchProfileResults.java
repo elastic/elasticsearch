@@ -57,22 +57,12 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     private final Map<String, SearchProfileShardResult> shardResults;
 
     @Nullable
-    private final SearchSourceBuilder originalSource;
+    private SearchSourceBuilder originalSource;
     @Nullable
-    private final String[] requestIndices;
+    private String[] requestIndices;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
-        this(shardResults, null, null);
-    }
-
-    public SearchProfileResults(
-        Map<String, SearchProfileShardResult> shardResults,
-        @Nullable SearchSourceBuilder originalSource,
-        @Nullable String[] requestIndices
-    ) {
         this.shardResults = Collections.unmodifiableMap(shardResults);
-        this.originalSource = originalSource;
-        this.requestIndices = requestIndices;
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
@@ -108,6 +98,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         return originalSource;
     }
 
+    public void setOriginalSource(@Nullable SearchSourceBuilder originalSource) {
+        this.originalSource = originalSource;
+    }
+
     /**
      * The {@link SearchRequest#indices()} from the originating coordinator request when included with profile
      * results; otherwise {@code null}.
@@ -115,6 +109,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     @Nullable
     public String[] getRequestIndices() {
         return requestIndices;
+    }
+
+    public void setRequestIndices(@Nullable String[] requestIndices) {
+        this.requestIndices = requestIndices;
     }
 
     @Override

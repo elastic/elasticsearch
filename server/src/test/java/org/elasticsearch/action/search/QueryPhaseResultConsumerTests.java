@@ -148,8 +148,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
-            assertNull(consumer.getOriginalSearchSource());
-            assertNull(consumer.getOriginalIndices());
+            assertNull(consumer.getSearchCoordinatorContext().originalSource());
+            assertNull(consumer.getSearchCoordinatorContext().requestIndices());
         }
     }
 
@@ -171,8 +171,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
-            assertNull(consumer.getOriginalSearchSource());
-            assertNull(consumer.getOriginalIndices());
+            assertNull(consumer.getSearchCoordinatorContext().originalSource());
+            assertNull(consumer.getSearchCoordinatorContext().requestIndices());
         }
     }
 
@@ -193,16 +193,16 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
-            SearchSourceBuilder snapshot = consumer.getOriginalSearchSource();
+            SearchSourceBuilder snapshot = consumer.getSearchCoordinatorContext().originalSource();
             assertNotNull(snapshot);
             assertThat(snapshot, equalTo(expectedSnapshot));
             assertNotSame(source, snapshot);
-            assertArrayEquals(new String[] { "wildcard-*", "alias" }, consumer.getOriginalIndices());
+            assertArrayEquals(new String[] { "wildcard-*", "alias" }, consumer.getSearchCoordinatorContext().requestIndices());
             source.query(QueryBuilders.matchAllQuery());
             assertThat(snapshot, equalTo(expectedSnapshot));
             String[] indices = request.indices();
             indices[0] = "mutated";
-            assertThat(consumer.getOriginalIndices()[0], equalTo("wildcard-*"));
+            assertThat(consumer.getSearchCoordinatorContext().requestIndices()[0], equalTo("wildcard-*"));
         }
     }
 

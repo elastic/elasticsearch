@@ -89,8 +89,7 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
             results.isEmpty(),
             null,
             null,
-            null,
-            null
+            SearchCoordinatorContext.none()
         );
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(

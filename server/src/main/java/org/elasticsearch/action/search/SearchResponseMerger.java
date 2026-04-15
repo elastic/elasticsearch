@@ -21,7 +21,6 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -30,7 +29,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -75,15 +73,7 @@ public final class SearchResponseMerger implements Releasable {
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
-    /**
-     * Coordinator-side profile.request metadata from the originating CCS search (mirrors {@link QueryPhaseResultConsumer}).
-     */
-    @Nullable
-    private final SearchSourceBuilder profileCoordinatorOriginalSource;
-
-    @Nullable
-    private final String[] profileCoordinatorRequestIndices;
-
+    private final SearchCoordinatorContext searchCoordinatorContext;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     private final Releasable releasable = LeakTracker.wrap(() -> {
@@ -97,27 +87,15 @@ public final class SearchResponseMerger implements Releasable {
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
-    ) {
-        this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, null, null);
-    }
-
-    SearchResponseMerger(
-        int from,
-        int size,
-        int trackTotalHitsUpTo,
-        SearchTimeProvider searchTimeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        @Nullable SearchSourceBuilder profileCoordinatorOriginalSource,
-        @Nullable String[] profileCoordinatorRequestIndices
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
-        this.profileCoordinatorOriginalSource = profileCoordinatorOriginalSource;
-        this.profileCoordinatorRequestIndices = profileCoordinatorRequestIndices;
+        this.searchCoordinatorContext = searchCoordinatorContext;
     }
 
     /**
@@ -154,7 +132,7 @@ public final class SearchResponseMerger implements Releasable {
         // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
+        Map<String, SearchProfileShardResult> shardProfileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
@@ -171,7 +149,7 @@ public final class SearchResponseMerger implements Releasable {
 
             Collections.addAll(failures, searchResponse.getShardFailures());
 
-            profileResults.putAll(searchResponse.getProfileResults());
+            shardProfileResults.putAll(searchResponse.getProfileResults());
 
             if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = searchResponse.getAggregations();
@@ -239,9 +217,14 @@ public final class SearchResponseMerger implements Releasable {
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-            SearchProfileResults profileShardResults = profileResults.isEmpty()
+            SearchProfileResults searchProfileResults = shardProfileResults.isEmpty()
                 ? null
-                : new SearchProfileResults(profileResults, profileCoordinatorOriginalSource, profileCoordinatorRequestIndices);
+                : new SearchProfileResults(shardProfileResults);
+            if (searchProfileResults != null) {
+                searchProfileResults.setOriginalSource(searchCoordinatorContext.originalSource());
+                searchProfileResults.setRequestIndices(searchCoordinatorContext.requestIndices());
+            }
+
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
@@ -251,7 +234,7 @@ public final class SearchResponseMerger implements Releasable {
                 suggest,
                 topDocsStats.timedOut,
                 topDocsStats.terminatedEarly,
-                profileShardResults,
+                searchProfileResults,
                 numReducePhases,
                 null,
                 totalShards,

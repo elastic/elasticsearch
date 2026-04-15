@@ -71,7 +71,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
@@ -867,27 +866,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Shallow snapshot of coordinator search source and indices for {@code profile.request}, taken before CCS mutates
-     * {@link SearchSourceBuilder#from(int)} / {@link SearchSourceBuilder#size(int)} for sub-requests.
-     */
-    private record ProfileCoordinatorMetadata(@Nullable SearchSourceBuilder originalSource, @Nullable String[] requestIndices) {
-        private static ProfileCoordinatorMetadata none() {
-            return new ProfileCoordinatorMetadata(null, null);
-        }
-    }
-
-    private static ProfileCoordinatorMetadata snapshotProfileCoordinatorMetadata(SearchRequest searchRequest) {
-        SearchSourceBuilder source = searchRequest.source();
-        if (source == null || source.profile() == false) {
-            return ProfileCoordinatorMetadata.none();
-        }
-        return new ProfileCoordinatorMetadata(
-            SearchSourceBuilder.shallowCopyForProfileCoordinatorMetadata(source),
-            searchRequest.indices() == null ? null : Arrays.copyOf(searchRequest.indices(), searchRequest.indices().length)
-        );
-    }
-
-    /**
      * Handles ccs_minimize_roundtrips=true
      */
     static void ccsRemoteReduce(
@@ -907,7 +885,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
-            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(searchRequest);
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
             Map.Entry<String, OriginalIndices> entry = resolvedIndices.getRemoteClusterIndices().entrySet().iterator().next();
@@ -930,14 +908,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                    Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
-                    SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
-                        ? null
-                        : new SearchProfileResults(
-                            profileResults,
-                            profileCoordinatorMetadata.originalSource(),
-                            profileCoordinatorMetadata.requestIndices()
-                        );
+                    SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
                     ActionListener.respondAndRelease(
                         listener,
@@ -994,22 +965,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 connectionListener
             );
         } else {
-            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(searchRequest);
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
                 aggReduceContextBuilder,
-                profileCoordinatorMetadata.originalSource(),
-                profileCoordinatorMetadata.requestIndices()
+                searchCoordinatorContext
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    aggReduceContextBuilder,
-                    profileCoordinatorMetadata.originalSource(),
-                    profileCoordinatorMetadata.requestIndices()
-                )
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchCoordinatorContext)
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);
@@ -1090,20 +1054,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    static SearchResponseMerger createSearchResponseMerger(
-        SearchSourceBuilder source,
-        SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+    private static SearchProfileResults getSearchProfileResults(
+        SearchResponse searchResponse,
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
-        return createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder, null, null);
+        Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
+        SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+
+        if (profile != null) {
+            profile.setOriginalSource(searchCoordinatorContext.originalSource());
+            profile.setRequestIndices(searchCoordinatorContext.requestIndices());
+        }
+        return profile;
     }
 
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        @Nullable SearchSourceBuilder profileCoordinatorOriginalSource,
-        @Nullable String[] profileCoordinatorRequestIndices
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
         final int from;
         final int size;
@@ -1122,15 +1091,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(
-            from,
-            size,
-            trackTotalHitsUpTo,
-            timeProvider,
-            aggReduceContextBuilder,
-            profileCoordinatorOriginalSource,
-            profileCoordinatorRequestIndices
-        );
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchCoordinatorContext);
     }
 
     /**

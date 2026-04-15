@@ -41,7 +41,7 @@ public class SearchProfileResultsTests extends AbstractXContentSerializingTestCa
             );
             shards.put(target.toString(), new SearchProfileShardResult(searchResult, fetchResult));
         }
-        return new SearchProfileResults(shards, null, null);
+        return new SearchProfileResults(shards);
     }
 
     public void testParseCompositeProfileShardId() {

@@ -10,12 +10,9 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -27,23 +24,8 @@ import java.util.Objects;
 public class SearchProfileResultsBuilder {
     private final Map<String, SearchProfileQueryPhaseResult> queryPhaseResults;
 
-    @Nullable
-    private final SearchSourceBuilder originalSource;
-    @Nullable
-    private final String[] requestIndices;
-
     public SearchProfileResultsBuilder(Map<String, SearchProfileQueryPhaseResult> queryPhaseResults) {
-        this(queryPhaseResults, null, null);
-    }
-
-    public SearchProfileResultsBuilder(
-        Map<String, SearchProfileQueryPhaseResult> queryPhaseResults,
-        SearchSourceBuilder originalSource,
-        String[] requestIndices
-    ) {
         this.queryPhaseResults = Collections.unmodifiableMap(queryPhaseResults);
-        this.originalSource = originalSource;
-        this.requestIndices = requestIndices;
     }
 
     /**
@@ -71,7 +53,7 @@ public class SearchProfileResultsBuilder {
                 mergedShardResults.put(e.getKey(), new SearchProfileShardResult(e.getValue(), null));
             }
         }
-        return new SearchProfileResults(mergedShardResults, originalSource, requestIndices);
+        return new SearchProfileResults(mergedShardResults);
     }
 
     @Override
@@ -80,13 +62,11 @@ public class SearchProfileResultsBuilder {
             return false;
         }
         SearchProfileResultsBuilder other = (SearchProfileResultsBuilder) obj;
-        return queryPhaseResults.equals(other.queryPhaseResults)
-            && Objects.equals(originalSource, other.originalSource)
-            && Arrays.equals(requestIndices, other.requestIndices);
+        return queryPhaseResults.equals(other.queryPhaseResults);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryPhaseResults, originalSource, Arrays.hashCode(requestIndices));
+        return Objects.hash(queryPhaseResults);
     }
 }

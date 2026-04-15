@@ -2243,7 +2243,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * (for example {@code rank_docs_query}). Prefer restoring a safe deep copy once XContent parsing
      * covers all query types that can appear after rewrite.
      */
-    public static SearchSourceBuilder shallowCopyForProfileCoordinatorMetadata(SearchSourceBuilder source) {
+    public static SearchSourceBuilder shallowCopyForSearchCoordinatorContext(SearchSourceBuilder source) {
         Objects.requireNonNull(source, "source");
         SearchSourceBuilder copy = source.shallowCopy();
         if (source.retriever() != null) {

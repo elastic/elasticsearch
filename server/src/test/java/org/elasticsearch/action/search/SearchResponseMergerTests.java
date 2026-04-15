@@ -106,7 +106,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 randomIntBetween(0, 10000),
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -143,7 +144,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             PriorityQueue<Tuple<SearchShardTarget, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(
@@ -215,7 +217,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
@@ -276,7 +279,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
@@ -325,7 +329,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
@@ -381,7 +386,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -468,7 +474,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -573,7 +580,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
+                emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))),
+                SearchCoordinatorContext.none()
             )
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
@@ -623,7 +631,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder(
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                )
+                ),
+                SearchCoordinatorContext.none()
             )
         ) {
             int totalCount = 0;
@@ -734,7 +743,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 size,
                 trackTotalHitsUpTo,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
             )
         ) {
 
@@ -897,7 +907,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeNoResponsesAdded() {
         long currentRelativeTime = randomNonNegativeLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                Integer.MAX_VALUE,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
+            )
+        ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             assertEquals(0, merger.numResponses());
             SearchResponse response = merger.getMergedResponse(clusters);
@@ -929,7 +948,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeEmptySearchHitsWithNonEmpty() {
         long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                Integer.MAX_VALUE,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
+            )
+        ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             int numFields = randomIntBetween(1, 3);
             SortField[] sortFields = new SortField[numFields];
@@ -1026,7 +1054,16 @@ public class SearchResponseMergerTests extends ESTestCase {
         Tuple<Integer, TotalHits.Relation> randomTrackTotalHits = randomTrackTotalHits();
         int trackTotalHitsUpTo = randomTrackTotalHits.v1();
         TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, trackTotalHitsUpTo, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                trackTotalHitsUpTo,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none()
+            )
+        ) {
             int numResponses = randomIntBetween(1, 5);
             TotalHits expectedTotalHits = null;
             for (int i = 0; i < numResponses; i++) {
@@ -1225,7 +1262,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                     emptyReduceContextBuilder(
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                    )
+                    ),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 searchResponseMerger.add(searchResponsePartialAggs);
@@ -1345,7 +1383,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                     emptyReduceContextBuilder(
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                    )
+                    ),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 searchResponseMerger.add(searchResponseRemote2);

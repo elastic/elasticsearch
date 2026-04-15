@@ -1322,7 +1322,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1338,7 +1339,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     null,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1358,7 +1360,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, source.from());

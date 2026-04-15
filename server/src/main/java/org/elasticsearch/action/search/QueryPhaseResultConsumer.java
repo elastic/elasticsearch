@@ -102,11 +102,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     // Note: at this time, numReducePhases does not count reductions that occur on the data node as part of batched query execution.
     private volatile int numReducePhases;
 
-    @Nullable
-    private final SearchSourceBuilder originalSearchSource;
-
-    @Nullable
-    private final String[] originalIndices;
+    private SearchCoordinatorContext searchCoordinatorContext;
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
@@ -144,31 +140,22 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
 
         if (source != null && source.profile()) {
-            this.originalSearchSource = SearchSourceBuilder.shallowCopyForProfileCoordinatorMetadata(source);
+            var originalSearchSource = SearchSourceBuilder.shallowCopyForSearchCoordinatorContext(source);
             String[] indices = request.indices();
-            this.originalIndices = indices == null ? null : Arrays.copyOf(indices, indices.length);
+            var originalIndices = indices == null ? null : Arrays.copyOf(indices, indices.length);
+            this.searchCoordinatorContext = new SearchCoordinatorContext(originalSearchSource, originalIndices);
+
         } else {
-            this.originalSearchSource = null;
-            this.originalIndices = null;
+            this.searchCoordinatorContext = SearchCoordinatorContext.none();
         }
     }
 
     /**
-     * Shallow snapshot of {@link SearchRequest#source()} when {@link SearchSourceBuilder#profile()} was {@code true} at construction;
-     * otherwise {@code null}. Uses {@link SearchSourceBuilder#shallowCopyForProfileCoordinatorMetadata} (temporary; avoids XContent
-     * round-trip).
+     * Contains the original search source and unresolved target indices
+     * @return
      */
-    @Nullable
-    public SearchSourceBuilder getOriginalSearchSource() {
-        return originalSearchSource;
-    }
-
-    /**
-     * Copy of {@link SearchRequest#indices()} when profiling was enabled at construction; otherwise {@code null}.
-     */
-    @Nullable
-    public String[] getOriginalIndices() {
-        return originalIndices;
+    public SearchCoordinatorContext getSearchCoordinatorContext() {
+        return searchCoordinatorContext;
     }
 
     @Override
@@ -317,8 +304,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 false,
                 queryPhaseRankCoordinatorContext,
                 topHitsToRelease,
-                originalSearchSource,
-                originalIndices
+                searchCoordinatorContext
             );
             topHitsOwnershipTransferred = true;
             buffer = null;

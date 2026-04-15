@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Map;
 
@@ -63,6 +64,40 @@ public class StartsWithStaticTests extends ESTestCase {
 
         var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "a\\*b\\?c\\\\*", false, false)));
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "a\\*b\\?c\\\\*", false, true)));
+    }
+
+    public void testLuceneQuery_OnlyEscapesWildcardChars() {
+        var function = new StartsWith(
+            Source.EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("prefix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Literal.keyword(Source.EMPTY, ".hidden+special")
+        );
+
+        var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        // '+' is not a wildcard-special character and must not be escaped
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", ".hidden+special*", false, true)));
+    }
+
+    public void testLuceneQuery_StringLikeOnIndexFalse() {
+        var function = new StartsWith(
+            Source.EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("prefix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Literal.keyword(Source.EMPTY, "test")
+        );
+
+        var predicates = LucenePushdownPredicates.forCanMatch(null, new EsqlFlags(false));
+        var query = function.asQuery(predicates, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "test*", false, false)));
     }
 }

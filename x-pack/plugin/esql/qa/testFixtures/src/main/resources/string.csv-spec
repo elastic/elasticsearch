@@ -1560,6 +1560,106 @@ GTF            | Great Falls Int'l | 8                 | airports
 LUH            | Sahnewal          | 9                 | airports
 ;
 
+startsWithOnDotPrefixedIndexWhere
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| WHERE STARTS_WITH(_index, ".")
+| KEEP message
+| SORT message;
+
+message:keyword
+hello
+world
+;
+
+startsWithOnDotPrefixedIndexEval
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| EVAL is_there = STARTS_WITH(_index, ".")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+endsWithOnDotPrefixedIndexWhere
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| WHERE ENDS_WITH(_index, "hidden_idx")
+| KEEP message
+| SORT message;
+
+message:keyword
+hello
+world
+;
+
+endsWithOnDotPrefixedIndexEval
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| EVAL is_there = ENDS_WITH(_index, "hidden_idx")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeOnDotPrefixedIndexWhere
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| WHERE _index LIKE ".hidden*"
+| KEEP message
+| SORT message;
+
+message:keyword
+hello
+world
+;
+
+likeOnDotPrefixedIndexEval
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| EVAL is_there = _index LIKE ".hidden*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeOnDotPrefixedIndexWhere
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| WHERE _index RLIKE ".hidden_.*"
+| KEEP message
+| SORT message;
+
+message:keyword
+hello
+world
+;
+
+rlikeOnDotPrefixedIndexEval
+required_capability: index_metadata_field
+
+FROM .hidden_idx METADATA _index
+| EVAL is_there = _index RLIKE ".hidden_.*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
 toLowerRow#[skip:-8.12.99]
 // tag::to_lower[]
 ROW message = "Some Text"

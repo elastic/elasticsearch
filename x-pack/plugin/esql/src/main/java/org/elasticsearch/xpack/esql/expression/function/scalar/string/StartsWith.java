@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -150,9 +149,9 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
-        var wildcardQuery = QueryParser.escape(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
+        var wildcardQuery = WildcardQuery.escapeWildcardSyntax(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override

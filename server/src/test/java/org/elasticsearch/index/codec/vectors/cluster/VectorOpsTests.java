@@ -10,10 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Arrays;
 
 public class VectorOpsTests extends ESTestCase {
     static final float LOG_2 = (float) Math.log(2);
@@ -28,12 +25,12 @@ public class VectorOpsTests extends ESTestCase {
         assertEquals(logSumExpBase2(x), ESVectorUtil.logSumExpNQT(x), 1e-1);
 
         // Example with large numbers prone to overflow in naive implementation
-        float[] largeX = {1000.0f, 1000.1f, 1000.2f};
+        float[] largeX = { 1000.0f, 1000.1f, 1000.2f };
         // A naive implementation like Math.log(Math.exp(1000.0) + ...) would overflow
         assertEquals(logSumExpBase2(largeX), ESVectorUtil.logSumExpNQT(largeX), 1e-1);
 
         // Example with very small numbers prone to underflow
-        float[] smallX = {-800.0f, -801.0f, -802.0f};
+        float[] smallX = { -800.0f, -801.0f, -802.0f };
         // A naive implementation would likely underflow to 0 inside the exp() and return -Infinity
         assertEquals(logSumExpBase2(smallX), ESVectorUtil.logSumExpNQT(smallX), 1e-1);
     }

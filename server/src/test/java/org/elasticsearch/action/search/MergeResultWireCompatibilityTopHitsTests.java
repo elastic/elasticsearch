@@ -64,9 +64,10 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
      * <p>The test intercepts the {@link InternalAggregations} reader used by {@code expand()} and
      * takes an extra reference on each {@link SearchHits} via
      * {@link InternalAggregations#addTopHitsToReleaseList} with {@code takeRef=true}.  After
-     * {@link QueryPhaseResultConsumer.MergeResult#writeTo} returns the transient hits must have
-     * refcount&nbsp;==&nbsp;1 (only our extra ref remains, meaning the original was released).
-     * Without the fix the original ref is never released and the refcount stays at 2.
+     * {@link QueryPhaseResultConsumer.MergeResult#writeTo} returns, releasing our extra ref must
+     * fully close the object (i.e. {@link SearchHits#decRef()} returns {@code true}), meaning the
+     * original transient reference was already released by the fix.  Without the fix the original
+     * ref leaks and our {@code decRef()} returns {@code false}.
      */
     public void testMergeResultWriteToDoesNotLeakPooledTopHitsOnSerializedVersionMismatch() throws Exception {
         TransportVersion serializedVersion = TransportVersion.current();
@@ -76,68 +77,40 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
             "MergeResult uses DelayableWriteable path only when BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE is supported on out",
             outVersion.supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)
         );
-
-        InternalAggregations pooledAggs = roundTripToPooledTopHits(createUnpooledAggregationsWithTopHits(), serializedVersion);
-        SearchHits pooledHits = pooledAggs.<InternalTopHits>get("th").getHits();
-        assertTrue("round-trip must yield pooled SearchHits (hit with _source)", pooledHits.isPooled());
-
-        // Capture the SearchHits that expand() will materialise inside Serialized.writeTo().
-        // takeRef=true: we take an extra reference so we can inspect the refcount after writeTo.
-        List<SearchHits> transientHits = new ArrayList<>();
-        Writeable.Reader<InternalAggregations> capturingReader = in -> {
-            InternalAggregations aggs = InternalAggregations.readFrom(in);
-            InternalAggregations.addTopHitsToReleaseList(aggs, transientHits, true);
-            return aggs;
-        };
-
-        try (
-            DelayableWriteable<InternalAggregations> serialized = DelayableWriteable.referencing(pooledAggs)
-                .asSerialized(capturingReader, writableRegistry())
-        ) {
-            assertTrue(serialized.isSerialized());
-
-            QueryPhaseResultConsumer.MergeResult mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, serialized, 0L);
-
-            BytesStreamOutput out = new BytesStreamOutput();
-            out.setTransportVersion(outVersion);
-            mergeResult.writeTo(out);
-
-            assertFalse("version mismatch must have triggered expand() — no transient hits were captured", transientHits.isEmpty());
-
-            // Without fix: decRef returns false (original ref leaked; our extra ref was not the last).
-            // With fix: decRef returns true (original was released; our extra ref is the last → count hits 0).
-            // Remove before decRef to prevent double-release in the finally block.
-            for (var it = transientHits.iterator(); it.hasNext();) {
-                SearchHits h = it.next();
-                it.remove();
-                assertTrue("transient SearchHits must be released after Serialized wire rewrite (expand + re-serialize)", h.decRef());
-            }
-        } finally {
-            // Release any extra refs not yet consumed above (e.g. when writeTo threw before the assertion).
-            for (SearchHits h : transientHits) {
-                h.decRef();
-            }
-            pooledHits.decRef();
-        }
+        assertNoLeakOnWriteTo(serializedVersion, outVersion);
     }
 
     /**
-     * Regression test for Site B: pooled {@link SearchHits} expanded via {@code reducedAggs.expand()} in the
+     * Regression test: pooled {@link SearchHits} expanded via {@code reducedAggs.expand()} in the
      * pre-{@code BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE} fallback path of
      * {@link QueryPhaseResultConsumer.MergeResult#writeTo} must be released after writing.
      *
-     * <p>Uses the same {@code capturingReader} / {@code takeRef=true} / refcount-delta technique as the
-     * Site A test: we take an extra reference on each captured {@link SearchHits} before {@code writeTo},
-     * then assert refcount&nbsp;==&nbsp;1 afterwards (only our ref remains — the original was released).
-     * Without the fix the original ref leaks and the refcount stays at 2.
+     * <p>The test intercepts the {@link InternalAggregations} reader used by {@code expand()} and
+     * takes an extra reference on each {@link SearchHits} via
+     * {@link InternalAggregations#addTopHitsToReleaseList} with {@code takeRef=true}.  After
+     * {@link QueryPhaseResultConsumer.MergeResult#writeTo} returns, releasing our extra ref must
+     * fully close the object (i.e. {@link SearchHits#decRef()} returns {@code true}), meaning the
+     * original transient reference was already released by the fix.  Without the fix the original
+     * ref leaks and our {@code decRef()} returns {@code false}.
      */
     public void testMergeResultWriteToDoesNotLeakPooledTopHitsOnPreBatchedPath() throws Exception {
         TransportVersion outVersion = TransportVersionUtils.randomVersionNotSupporting(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE);
+        assertNoLeakOnWriteTo(TransportVersion.current(), outVersion);
+    }
 
-        InternalAggregations pooledAggs = roundTripToPooledTopHits(createUnpooledAggregationsWithTopHits(), TransportVersion.current());
+    /**
+     * Serializes {@code pooledAggs} into a {@link DelayableWriteable.Serialized} at
+     * {@code serializedVersion}, then writes it out at {@code outVersion} via
+     * {@link QueryPhaseResultConsumer.MergeResult#writeTo}.  Asserts that any pooled
+     * {@link SearchHits} expanded during the write are released afterwards.
+     */
+    private void assertNoLeakOnWriteTo(TransportVersion serializedVersion, TransportVersion outVersion) throws Exception {
+        InternalAggregations pooledAggs = roundTripToPooledTopHits(createAggregationsWithTopHits(), serializedVersion);
         SearchHits pooledHits = pooledAggs.<InternalTopHits>get("th").getHits();
         assertTrue("round-trip must yield pooled SearchHits (hit with _source)", pooledHits.isPooled());
 
+        // Capture the SearchHits that expand() will materialise during writeTo().
+        // takeRef=true: we take an extra reference so we can verify release after writeTo.
         List<SearchHits> transientHits = new ArrayList<>();
         Writeable.Reader<InternalAggregations> capturingReader = in -> {
             InternalAggregations aggs = InternalAggregations.readFrom(in);
@@ -149,15 +122,13 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
             DelayableWriteable<InternalAggregations> serialized = DelayableWriteable.referencing(pooledAggs)
                 .asSerialized(capturingReader, writableRegistry())
         ) {
-            assertTrue(serialized.isSerialized());
-
             QueryPhaseResultConsumer.MergeResult mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, serialized, 0L);
 
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(outVersion);
             mergeResult.writeTo(out);
 
-            assertFalse("pre-BATCHED path must have triggered expand() — no transient hits were captured", transientHits.isEmpty());
+            assertFalse("expand() must have been triggered — no transient hits were captured", transientHits.isEmpty());
 
             // Without fix: decRef returns false (original ref leaked; our extra ref was not the last).
             // With fix: decRef returns true (original was released; our extra ref is the last → count hits 0).
@@ -165,7 +136,7 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
             for (var it = transientHits.iterator(); it.hasNext();) {
                 SearchHits h = it.next();
                 it.remove();
-                assertTrue("transient SearchHits must be released after pre-BATCHED expand + write", h.decRef());
+                assertTrue("transient SearchHits must be released after writeTo", h.decRef());
             }
         } finally {
             // Release any extra refs not yet consumed above (e.g. when writeTo threw before the assertion).
@@ -176,7 +147,7 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
         }
     }
 
-    private static InternalAggregations createUnpooledAggregationsWithTopHits() {
+    private static InternalAggregations createAggregationsWithTopHits() {
         TopDocsAndMaxScore topDocs = new TopDocsAndMaxScore(
             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
             Float.NaN

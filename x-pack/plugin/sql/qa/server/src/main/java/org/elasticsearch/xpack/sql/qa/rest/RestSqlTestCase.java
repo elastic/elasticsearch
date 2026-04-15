@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -107,7 +108,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @After
-    private void cleanup() throws IOException {
+    public void cleanup() throws Exception {
+        // Avoid spillover between tests: a prior test can leave async SQL fetch tasks running; deleting
+        // indices before they finish leads to search_context_missing / 404 flakiness (#80089).
+        ESRestTestCase.waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("indices:data/read/sql/async/get"));
         try {
             deleteTestIndex();
         } catch (ResponseException e) {
@@ -1533,7 +1537,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
         final Map<String, String> acceptMap = Map.of("txt", "text/plain", "csv", "text/csv", "tsv", "text/tab-separated-values");
         final int fetchSize = randomIntBetween(1, 10);

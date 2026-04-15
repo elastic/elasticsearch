@@ -19,7 +19,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Current task information
@@ -155,8 +158,10 @@ public class Task implements Traceable {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
+        TaskId taskId = new TaskId(localNodeId, getId());
+        Optional<OriginalTaskInfo> originalTaskInfo = getOriginalTaskInfo();
         return new TaskInfo(
-            new TaskId(localNodeId, getId()),
+            taskId,
             getType(),
             localNodeId,
             getAction(),
@@ -167,7 +172,9 @@ public class Task implements Traceable {
             this instanceof CancellableTask,
             this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
             parentTask,
-            headers
+            headers,
+            originalTaskInfo.map(OriginalTaskInfo::originalTaskId).orElse(taskId),
+            originalTaskInfo.map(OriginalTaskInfo::originalStartTimeMillis).orElse(startTime)
         );
     }
 
@@ -296,5 +303,18 @@ public class Task implements Traceable {
     @Override
     public String getSpanId() {
         return "task-" + getId();
+    }
+
+    protected record OriginalTaskInfo(TaskId originalTaskId, long originalStartTimeMillis) {
+
+        public OriginalTaskInfo {
+            requireNonNull(originalTaskId);
+        }
+    }
+
+    /// If this task is continuing the work of another task on a node that was shut down, returns basic information about the original task.
+    /// Otherwise, returns [Optional#empty()].
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        return Optional.empty();
     }
 }

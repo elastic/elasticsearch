@@ -11,20 +11,14 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
-
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
-public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt7uOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final double delta = 1e-3;
@@ -33,11 +27,6 @@ public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
     public VectorScorerInt7uOperationBenchmarkTests(VectorSimilarityType function, int size) {
         this.function = function;
         this.size = size;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void test() {
@@ -64,12 +53,10 @@ public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        String[] size = Utils.possibleValues(VectorScorerInt7uOperationBenchmark.class, "size").toArray(new String[0]);
-        String[] functions = Utils.possibleValues(VectorScorerInt7uOperationBenchmark.class, "function").toArray(new String[0]);
-        return () -> Arrays.stream(size)
-            .map(Integer::parseInt)
-            .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-            .iterator();
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt7uOperationBenchmark.class.getField("function"),
+            VectorScorerInt7uOperationBenchmark.class.getField("size")
+        );
     }
 }

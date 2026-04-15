@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
@@ -45,6 +47,10 @@ public abstract class PaginatedHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
+    /// Each cycle must be executed in the root thread context and not in a descendant context of the previous task, so that the tracing
+    /// subsystem does not form a deeply-nested linked list of spans.
+    private final Supplier<ThreadContext.StoredContext> rootStoredContextSupplier;
+
     public PaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -59,10 +65,11 @@ public abstract class PaginatedHitSource {
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
+        this.rootStoredContextSupplier = threadPool.getThreadContext().newRestorableContext(true);
     }
 
     public final void start() {
-        doFirstSearch(createRetryListener(this::doFirstSearch));
+        doFirstSearchInRootContext(createRetryListener(this::doFirstSearchInRootContext));
     }
 
     /**
@@ -95,7 +102,9 @@ public abstract class PaginatedHitSource {
             fail.accept(new IllegalStateException("No pagination cursor available for next batch"));
             return;
         }
-        doNextSearch(cursor, extraKeepAlive, searchListener);
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doNextSearch(cursor, extraKeepAlive, searchListener);
+        }
     }
 
     private void onResponse(Response response) {
@@ -141,6 +150,12 @@ public abstract class PaginatedHitSource {
      * Whether there are more batches to fetch.
      */
     public abstract boolean hasMoreBatches();
+
+    private void doFirstSearchInRootContext(RejectAwareActionListener<Response> searchListener) {
+        try (var ignored = rootStoredContextSupplier.get()) {
+            doFirstSearch(searchListener);
+        }
+    }
 
     // following is the SPI to be implemented.
     protected abstract void doFirstSearch(RejectAwareActionListener<Response> searchListener);

@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -921,31 +922,37 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
-        preAnalysisProfile.start();
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        preAnalysisProfile.stop();
-        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
-        // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
-        // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-            parsed,
-            preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution == UnmappedResolution.LOAD
-        ).withMinimumTransportVersion(localClusterMinimumVersion);
-        String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // Resolve InSubquery expressions to SemiJoin/AntiJoin before PreAnalyzer,
+        // so that subquery plans are visible to standard plan tree traversals.
+        // If any InSubquery expressions remain (unsupported usage), the listener receives a VerificationException.
+        InSubqueryResolver.resolve(parsed, logicalPlanListener.delegateFailureAndWrap((l, resolved) -> {
+            TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
+            preAnalysisProfile.start();
+            PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(resolved);
+            preAnalysisProfile.stop();
+            // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
+            // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
+            // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
+            // cause bugs.
+            PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+                resolved,
+                preAnalysis.enriches().isEmpty() == false,
+                unmappedResolution == UnmappedResolution.LOAD
+            ).withMinimumTransportVersion(localClusterMinimumVersion);
+            String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
-        resolveIndicesAndAnalyze(
-            parsed,
-            unmappedResolution,
-            configuration,
-            executionInfo,
-            description,
-            requestFilter,
-            preAnalysis,
-            result,
-            logicalPlanListener
-        );
+            resolveIndicesAndAnalyze(
+                resolved,
+                unmappedResolution,
+                configuration,
+                executionInfo,
+                description,
+                requestFilter,
+                preAnalysis,
+                result,
+                l
+            );
+        }));
     }
 
     private void resolveIndicesAndAnalyze(

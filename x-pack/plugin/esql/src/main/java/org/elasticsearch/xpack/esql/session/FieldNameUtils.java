@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -51,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
@@ -73,37 +73,6 @@ public class FieldNameUtils {
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
-        // Resolve field names for the main plan, then recursively for any IN subquery plans
-        // which are embedded inside expressions and not reachable by the standard plan tree walk.
-        PreAnalysisResult mainResult = resolveFieldNamesForPlan(parsed, hasEnriches, includePrefixFields);
-        if (mainResult.fieldNames().equals(IndexResolver.ALL_FIELDS)) {
-            return mainResult;
-        }
-
-        List<PreAnalysisResult> subResults = new ArrayList<>();
-        parsed.forEachDown(p -> p.forEachExpression(InSubquery.class, inSub -> {
-            subResults.add(resolveFieldNames(inSub.subquery(), hasEnriches, includePrefixFields));
-        }));
-
-        if (subResults.isEmpty()) {
-            return mainResult;
-        }
-
-        // Merge field names from the main plan and all subquery plans
-        Set<String> mergedFields = new HashSet<>(mainResult.fieldNames());
-        Set<String> mergedWildcardJoinIndices = new HashSet<>(mainResult.wildcardJoinIndices());
-        for (PreAnalysisResult sub : subResults) {
-            if (sub.fieldNames().equals(IndexResolver.ALL_FIELDS)) {
-                return new PreAnalysisResult(IndexResolver.ALL_FIELDS, mergedWildcardJoinIndices);
-            }
-            mergedFields.addAll(sub.fieldNames());
-            mergedWildcardJoinIndices.addAll(sub.wildcardJoinIndices());
-        }
-        return new PreAnalysisResult(mergedFields, mergedWildcardJoinIndices);
-    }
-
-    private static PreAnalysisResult resolveFieldNamesForPlan(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
-
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
         Set<Aggregate> inlinestatsAggs = new HashSet<>();
@@ -111,7 +80,7 @@ public class FieldNameUtils {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
-        if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
+        if (false == mainPipelineRequiresFieldCollection(parsed, inlinestatsAggs)) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
@@ -378,6 +347,29 @@ public class FieldNameUtils {
         }
 
         return prefixes;
+    }
+
+    /**
+     * Checks whether the main pipeline (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
+     * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
+     * for the main query — the main query may still need all fields.
+     */
+    private static boolean mainPipelineRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
+            return true;
+        }
+        // Skip the right (subquery) child of SemiJoin/AntiJoin — its KEEP/STATS should not
+        // force the main pipeline into explicit field collection.
+        if (plan instanceof SemiJoin semiJoin) {
+            return mainPipelineRequiresFieldCollection(semiJoin.left(), inlinestatsAggs);
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (mainPipelineRequiresFieldCollection(child, inlinestatsAggs)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

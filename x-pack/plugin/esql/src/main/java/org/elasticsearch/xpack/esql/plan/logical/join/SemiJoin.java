@@ -107,6 +107,13 @@ public class SemiJoin extends Join implements SortPreserving {
         return new ArrayList<>(left);
     }
 
+    @Override
+    public boolean expressionsResolved() {
+        // A SemiJoin with empty rightFields is not yet fully resolved — the right field
+        // is determined during ResolveRefs from the subquery's single output column.
+        return config().rightFields().isEmpty() == false && super.expressionsResolved();
+    }
+
     public boolean isAntiJoin() {
         return false;
     }

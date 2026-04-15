@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -469,7 +470,7 @@ public class TestAnalyzer {
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
-        return buildAnalyzer().analyze(parseQuery(query, params));
+        return buildAnalyzer().analyze(InSubqueryResolver.resolve(parseQuery(query, params)));
     }
 
     private LogicalPlan parseQuery(String query, QueryParams params) {
@@ -570,7 +571,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
-        var analyzed = buildAnalyzer().analyze(statement.plan());
+        var analyzed = buildAnalyzer().analyze(InSubqueryResolver.resolve(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {

@@ -12,6 +12,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -841,13 +842,15 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testInSubquery() {
         assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        // After InSubqueryResolver, the WHERE IN subquery is converted to a SemiJoin,
+        // and the subquery's stats is visible in the plan tree.
         Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
+        assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
@@ -875,7 +878,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, grok(c));
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
+        assertEquals(1L, stats(c));
         assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
@@ -904,6 +907,7 @@ public class VerifierMetricsTests extends ESTestCase {
             """);
         assertEquals(1L, inSubquery(c));
         assertEquals(1L, from(c));
+        assertEquals(1L, stats(c));
         assertEquals(1L, where(c));
         assertEquals(1L, function("max", c));
         assertEquals(1L, function("min", c));
@@ -918,6 +922,7 @@ public class VerifierMetricsTests extends ESTestCase {
             """);
         assertEquals(1L, inSubquery(c));
         assertEquals(1L, from(c));
+        assertEquals(1L, stats(c));
         assertEquals(1L, where(c));
         assertEquals(1L, function("max", c));
         assertEquals(1L, function("min", c));
@@ -932,6 +937,7 @@ public class VerifierMetricsTests extends ESTestCase {
             """);
         assertEquals(1L, inSubquery(c));
         assertEquals(1L, from(c));
+        assertEquals(1L, stats(c));
         assertEquals(1L, where(c));
         assertEquals(1L, function("max", c));
         assertEquals(1L, function("min", c));
@@ -1059,7 +1065,7 @@ public class VerifierMetricsTests extends ESTestCase {
             .addAnalysisTestsEnrichResolution()
             .addLanguagesLookup()
             .buildAnalyzer(verifier)
-            .analyze(TEST_PARSER.parseQuery(esql));
+            .analyze(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(esql)));
 
         return metrics == null ? null : metrics.stats();
     }

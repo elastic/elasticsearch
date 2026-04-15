@@ -114,6 +114,7 @@ public enum FeatureMetric {
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
     USER_AGENT(UserAgent.class::isInstance),
+    // SemiJoin/AntiJoin originate from WHERE ... IN (subquery); set() also counts WHERE for these
     IN_SUBQUERY(SemiJoin.class::isInstance);
 
     /**
@@ -159,6 +160,10 @@ public enum FeatureMetric {
         var isMatch = metric.planCheck.test(plan);
         if (isMatch) {
             bitset.set(metric.ordinal());
+            // SemiJoin/AntiJoin originate from a WHERE clause (converted by InSubqueryResolver), so also count WHERE
+            if (metric == IN_SUBQUERY) {
+                bitset.set(WHERE.ordinal());
+            }
         }
         return isMatch;
     }

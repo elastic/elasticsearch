@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,17 +16,17 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Unresolved expression for {@code field IN (subquery)} where the subquery is a full ES|QL query.
- * This node will be resolved during analysis into a concrete logical plan. InSubquery serves
- * as the clean boundary between parsing and analysis, LogicalPlanBuilder creates an expression,
- * Analyzer transform it into a logical plan.
+ * This node will be resolved by {@code InSubqueryResolver} into a concrete logical plan. InSubquery serves
+ * as the clean boundary between parsing and pre analysis, LogicalPlanBuilder creates an expression,
+ * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver InSubqueryResolver} transforms it into a logical plan.
+ * <p>
+ * If any {@code InSubquery} expressions remain after {@code InSubqueryResolver} runs (i.e. they were used
+ * outside a WHERE clause), {@code InSubqueryResolver} raises a {@link org.elasticsearch.xpack.esql.VerificationException}.
  */
-public class InSubquery extends Expression implements PostAnalysisPlanVerificationAware {
+public class InSubquery extends Expression {
 
     private final Expression value;
     private final LogicalPlan subquery;
@@ -67,13 +65,6 @@ public class InSubquery extends Expression implements PostAnalysisPlanVerificati
         throw new UnsupportedOperationException("InSubquery is not serializable; it should be resolved during analysis");
     }
 
-    /*
-    @Override
-    public boolean resolved() {
-        return false;
-    }
-     */
-
     @Override
     protected NodeInfo<InSubquery> info() {
         return NodeInfo.create(this, InSubquery::new, value, subquery);
@@ -99,18 +90,5 @@ public class InSubquery extends Expression implements PostAnalysisPlanVerificati
         }
         InSubquery other = (InSubquery) obj;
         return Objects.equals(value, other.value) && Objects.equals(subquery, other.subquery);
-    }
-
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return (plan, failures) -> {
-            // Only report the error for the plan node that directly contains this InSubquery expression,
-            // not for every plan node in the tree.
-            plan.forEachExpression(InSubquery.class, inSub -> {
-                if (inSub == this) {
-                    failures.add(fail(this, "IN/NOT IN subquery is not supported in {} [{}]", plan.nodeName(), plan.sourceText()));
-                }
-            });
-        };
     }
 }

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 
 import java.util.HashSet;
 import java.util.List;
@@ -3445,6 +3446,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testNestedInSubqueries() {
         assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
+        // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
         assertFieldNames(
             """
                 FROM employees
@@ -3454,7 +3456,19 @@ public class FieldNameUtilsTests extends ESTestCase {
                     | KEEP emp_no
                   )
                 | KEEP emp_no, first_name""",
-            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*")
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "salary",
+                "salary.*",
+                "languages",
+                "languages.*",
+                "max_sal",
+                "max_sal.*"
+            )
         );
     }
 
@@ -3468,7 +3482,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testInSubqueryNoFieldReduction() {
         assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
-        // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of subquery
+        // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of the subquery's KEEP
         assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
     }
 
@@ -3496,7 +3510,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(TEST_PARSER.parseQuery(query), hasEnriches, includePrefixFields);
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, hasEnriches, includePrefixFields);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

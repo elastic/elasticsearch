@@ -553,6 +553,31 @@ emp_no:integer | languages:integer | salary:integer
 10024          | null              | 64675
 ;
 
+multipleDisjunctiveInSubqueriesMixedWithConjunctivePredicates
+required_capability: where_in_subquery
+
+FROM employees
+| WHERE (emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no) AND salary > 70000 )
+     OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) 
+     OR languages is null
+| SORT emp_no
+| KEEP emp_no, languages, salary
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | salary:integer
+10007          | 4                 | 74572
+10019          | 1                 | 73717
+10020          | null              | 40031
+10021          | null              | 60408
+10022          | null              | 48233
+10023          | null              | 47896
+10024          | null              | 64675
+10025          | null              | 47411
+10026          | null              | 28336
+10027          | null              | 73851
+;
+
 lookupJoinInsideInSubquery
 required_capability: where_in_subquery
 required_capability: join_lookup_v12

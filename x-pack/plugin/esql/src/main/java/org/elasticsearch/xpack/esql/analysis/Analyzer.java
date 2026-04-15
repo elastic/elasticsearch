@@ -110,13 +110,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -130,7 +128,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -146,7 +143,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAllFromDisjunctiveInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -237,7 +233,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
-            new ResolveInSubqueryToJoin(),
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),
@@ -252,7 +247,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
-            new ResolveSemiAntiJoinRightField(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new InsertDefaultInnerTimeSeriesAggregate(),
@@ -1035,23 +1029,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Resolves the leftFields of a SemiJoin against the left child's output only, avoiding
-         * ambiguity with fields from the right (subquery) side.
+         * Resolves both sides of a SEMI/ANTI join created by {@link InSubqueryResolver}:
+         * <ul>
+         *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
+         *   <li>Right fields: set to the subquery's single output column, or an error attribute if the
+         *       subquery returns zero or more than one column. Stale right fields (e.g. after
+         *       {@link ImplicitCasting} recreated the right subtree) are re-resolved.</li>
+         * </ul>
          */
         private SemiJoin resolveSemiAntiJoin(SemiJoin semiJoin) {
+            // --- resolve left fields ---
             List<Attribute> leftFields = semiJoin.config().leftFields();
-            boolean allResolved = leftFields.stream().noneMatch(UnresolvedAttribute.class::isInstance);
-            List<Attribute> leftKeys = allResolved ? leftFields : resolveUsingColumns(leftFields, semiJoin.left().output(), "left");
-            JoinConfig resolved = new JoinConfig(
-                semiJoin.config().type(),
-                leftKeys,
-                semiJoin.config().rightFields(),
-                semiJoin.config().joinOnConditions()
-            );
+            boolean leftResolved = leftFields.stream().noneMatch(UnresolvedAttribute.class::isInstance);
+            List<Attribute> leftKeys = leftResolved ? leftFields : resolveUsingColumns(leftFields, semiJoin.left().output(), "left");
+
+            // --- resolve right fields ---
+            List<Attribute> rightFields = resolveRightFields(semiJoin);
+
+            JoinConfig resolved = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
             if (semiJoin instanceof AntiJoin) {
                 return new AntiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), resolved);
             }
             return new SemiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), resolved);
+        }
+
+        private static List<Attribute> resolveRightFields(SemiJoin semiJoin) {
+            List<Attribute> rightFields = semiJoin.config().rightFields();
+            if (rightFields.isEmpty() == false) {
+                // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
+                if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
+                    List<Attribute> rightOutput = semiJoin.right().output();
+                    if (rightOutput.size() == 1) {
+                        return singletonList(rightOutput.get(0));
+                    }
+                }
+                return rightFields;
+            }
+            List<Attribute> rightOutput = semiJoin.right().output();
+            if (rightOutput.isEmpty()) {
+                return rightFields;
+            }
+            if (rightOutput.size() != 1) {
+                return singletonList(
+                    new UnresolvedAttribute(
+                        semiJoin.source(),
+                        "*",
+                        "IN subquery must return exactly one column, found ["
+                            + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
+                            + "]"
+                    )
+                );
+            }
+            return singletonList(rightOutput.get(0));
         }
 
         private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
@@ -3572,246 +3601,4 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    /**
-     * Extracts {@code InSubquery} expressions from {@code Filter} conditions and rewrites them into
-     * {@code Join} nodes with SEMI or ANTI type. This runs early in the Initialize batch so that
-     * the subquery plan becomes a child of the Join and is visible to subsequent rules (ResolveTable, etc.).
-     * <p>
-     * The join's rightFields are left empty at this stage because the subquery output is not yet resolved.
-     * {@link ResolveSemiAntiJoinRightField} fills them in during the Resolution batch.
-     */
-    static class ResolveInSubqueryToJoin extends AnalyzerRules.AnalyzerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition();
-
-            // Handle OR disjuncts containing IN subqueries by rewriting to exclusive UnionAll branches.
-            // Each branch gets AND-conjunct conditions that the existing SemiJoin extraction can handle.
-            List<Expression> disjuncts = Predicates.splitOr(condition);
-            if (disjuncts.size() > 1 && disjuncts.stream().anyMatch(ResolveInSubqueryToJoin::containsInSubquery)) {
-                return rewriteDisjunctiveInSubquery(filter, disjuncts);
-            }
-
-            List<Expression> conjuncts = Predicates.splitAnd(condition);
-
-            List<Expression> remaining = new ArrayList<>();
-            // Collect subquery joins to be placed on top
-            record SubqueryJoin(Source source, LogicalPlan subquery, JoinConfig config, boolean anti) {}
-            List<SubqueryJoin> subqueryJoins = new ArrayList<>();
-            // Synthetic Eval aliases for constant left-hand side expressions (e.g. WHERE 10001 IN (subquery))
-            List<Alias> syntheticEvals = new ArrayList<>();
-
-            for (Expression conjunct : conjuncts) {
-                boolean negated = false;
-                Expression expr = conjunct;
-                while (expr instanceof Not not) {
-                    expr = not.field();
-                    negated = !negated;
-                }
-
-                if (expr instanceof InSubquery inSubquery) {
-                    Expression leftValue = inSubquery.value();
-
-                    List<Attribute> leftFields;
-                    if (leftValue instanceof Attribute leftAttr) {
-                        leftFields = singletonList(leftAttr);
-                    } else if (leftValue.foldable()) {
-                        // Constant expression: wrap in a synthetic Eval so it can be used as a join key.
-                        // The synthetic Eval and its attribute are removed after the join by a Project.
-                        var syntheticAlias = new Alias(
-                            leftValue.source(),
-                            syntheticName(leftValue, inSubquery.subquery()),
-                            leftValue,
-                            null,
-                            true
-                        );
-                        syntheticEvals.add(syntheticAlias);
-                        leftFields = singletonList(syntheticAlias.toAttribute());
-                    } else {
-                        remaining.add(conjunct);
-                        continue;
-                    }
-
-                    // Recursively resolve any nested IN subqueries within the subquery plan
-                    LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
-
-                    if (negated) {
-                        JoinConfig config = new JoinConfig(JoinTypes.ANTI, leftFields, emptyList(), null);
-                        subqueryJoins.add(new SubqueryJoin(inSubquery.source(), subquery, config, true));
-                    } else {
-                        JoinConfig config = new JoinConfig(JoinTypes.SEMI, leftFields, emptyList(), null);
-                        subqueryJoins.add(new SubqueryJoin(inSubquery.source(), subquery, config, false));
-                    }
-                } else {
-                    remaining.add(conjunct);
-                }
-            }
-
-            if (subqueryJoins.isEmpty()) {
-                return filter;
-            }
-
-            // Build the left side: remaining filter conditions on top of the original child, or just the child
-            LogicalPlan current = remaining.isEmpty()
-                ? filter.child()
-                : new Filter(filter.source(), filter.child(), Predicates.combineAnd(remaining));
-
-            // If any constants need materialization, insert an Eval to create the synthetic attributes
-            if (syntheticEvals.isEmpty() == false) {
-                current = new Eval(filter.source(), current, syntheticEvals);
-            }
-
-            // Stack SemiJoin/AntiJoin on top
-            for (SubqueryJoin sj : subqueryJoins) {
-                current = sj.anti
-                    ? new AntiJoin(sj.source, current, sj.subquery, sj.config)
-                    : new SemiJoin(sj.source, current, sj.subquery, sj.config);
-            }
-
-            return current;
-        }
-
-        /**
-         * Recursively transforms a subquery plan, converting any nested IN/NOT IN subquery expressions
-         * into SemiJoin/AntiJoin nodes. This is needed because nested subquery plans are embedded inside
-         * InSubquery expressions and not reachable by the top-level transformUp.
-         */
-        private LogicalPlan resolveNestedInSubqueries(LogicalPlan subqueryPlan) {
-            return subqueryPlan.transformUp(Filter.class, f -> f.analyzed() ? f : rule(f));
-        }
-
-        /**
-         * Rewrites a Filter with OR disjuncts containing InSubquery into an exclusive UnionAll.
-         * For {@code WHERE d1 OR d2 OR d3}, produces:
-         * <pre>
-         * UnionAll(
-         *   Filter(d1, child),
-         *   Filter(NOT(d1) AND d2, child),
-         *   Filter(NOT(d1) AND NOT(d2) AND d3, child)
-         * )
-         * </pre>
-         * Each branch has only AND-conjunct conditions, which the existing SemiJoin extraction handles.
-         * The exclusive partitioning ensures no duplicate rows across branches.
-         */
-        private LogicalPlan rewriteDisjunctiveInSubquery(Filter filter, List<Expression> disjuncts) {
-            LogicalPlan child = filter.child();
-            Source source = filter.source();
-            List<LogicalPlan> branches = new ArrayList<>();
-            List<Expression> exclusions = new ArrayList<>();
-
-            for (Expression disjunct : disjuncts) {
-                Expression branchCondition;
-                if (exclusions.isEmpty()) {
-                    branchCondition = disjunct;
-                } else {
-                    List<Expression> parts = new ArrayList<>();
-                    for (Expression ex : exclusions) {
-                        parts.add(negate(ex));
-                    }
-                    parts.add(disjunct);
-                    branchCondition = Predicates.combineAnd(parts);
-                }
-                // Each branch's Filter may contain InSubquery in AND position — resolve them now
-                LogicalPlan branch = rule(new Filter(source, child, branchCondition));
-                branches.add(branch);
-                exclusions.add(disjunct);
-            }
-
-            return new UnionAllFromDisjunctiveInSubquery(source, branches, List.of());
-        }
-
-        /**
-         * Negates an expression, simplifying double negation: NOT(NOT(x)) → x.
-         */
-        private static Expression negate(Expression expr) {
-            if (expr instanceof Not not) {
-                return not.field();
-            }
-            return new Not(expr.source(), expr);
-        }
-
-        /**
-         * Generates a unique synthetic name for a constant left-hand side of IN subquery.
-         */
-        private static String syntheticName(Expression value, LogicalPlan subquery) {
-            return "$$in_subquery_const$" + System.identityHashCode(value) + "$" + System.identityHashCode(subquery);
-        }
-
-        private static boolean containsInSubquery(Expression expr) {
-            if (expr instanceof InSubquery) {
-                return true;
-            }
-            if (expr instanceof Not not) {
-                return containsInSubquery(not.field());
-            }
-            return expr.children().stream().anyMatch(ResolveInSubqueryToJoin::containsInSubquery);
-        }
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-    }
-
-    /**
-     * Resolves the rightFields of SEMI/ANTI joins that were created by {@link ResolveInSubqueryToJoin} with
-     * empty rightFields. Once the subquery (right child) is resolved enough to expose its output,
-     * this rule sets rightFields to the subquery's single output column.
-     */
-    static class ResolveSemiAntiJoinRightField extends AnalyzerRules.AnalyzerRule<SemiJoin> {
-
-        @Override
-        protected LogicalPlan rule(SemiJoin join) {
-            if (join.config().rightFields().isEmpty() == false) {
-                // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
-                List<Attribute> rightFields = join.config().rightFields();
-                if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
-                    List<Attribute> rightOutput = join.right().output();
-                    if (rightOutput.size() == 1) {
-                        Attribute rightField = rightOutput.get(0);
-                        JoinConfig resolvedConfig = new JoinConfig(
-                            join.config().type(),
-                            join.config().leftFields(),
-                            singletonList(rightField),
-                            join.config().joinOnConditions()
-                        );
-                        return makeSemiOrAntiJoin(join, resolvedConfig);
-                    }
-                }
-                return join;
-            }
-            List<Attribute> rightOutput = join.right().output();
-            if (rightOutput.isEmpty()) {
-                return join;
-            }
-            JoinType type = join.config().type();
-            if (rightOutput.size() != 1) {
-                UnresolvedAttribute errorAttr = new UnresolvedAttribute(
-                    join.source(),
-                    "*",
-                    "IN subquery must return exactly one column, found ["
-                        + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
-                        + "]"
-                );
-                JoinConfig errorConfig = new JoinConfig(type, join.config().leftFields(), singletonList(errorAttr), null);
-                return makeSemiOrAntiJoin(join, errorConfig);
-            }
-            Attribute rightField = rightOutput.get(0);
-            JoinConfig resolvedConfig = new JoinConfig(type, join.config().leftFields(), singletonList(rightField), null);
-            return makeSemiOrAntiJoin(join, resolvedConfig);
-        }
-
-        private static SemiJoin makeSemiOrAntiJoin(SemiJoin join, JoinConfig config) {
-            if (join instanceof AntiJoin) {
-                return new AntiJoin(join.source(), join.left(), join.right(), config);
-            }
-            return new SemiJoin(join.source(), join.left(), join.right(), config);
-        }
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-    }
 }

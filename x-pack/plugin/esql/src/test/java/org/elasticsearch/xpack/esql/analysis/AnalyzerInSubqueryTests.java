@@ -11,10 +11,19 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -52,255 +61,369 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
     }
 
-    // -- analyzer integration tests --
+    // basic IN subqueries
 
-    /**
-     * Verifies that {@code FROM test | WHERE emp_no IN (FROM employees | KEEP emp_no)} produces a SemiJoin
-     * with SEMI type after analysis.
-     */
-    public void testAnalyzerProducesSemiJoinForWhereIn() {
-        var plan = analyzeInSubquery("""
+    public void testInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertFalse(semiJoin.isAntiJoin());
-
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(semiJoin.config().rightFields().size(), equalTo(1));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
 
-        as(semiJoin.left(), EsRelation.class);
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
 
-        var rightProject = as(semiJoin.right(), Project.class);
-        as(rightProject.child(), EsRelation.class);
-
-        assertThat(semiJoin.output().size(), equalTo(semiJoin.left().output().size()));
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that {@code WHERE emp_no NOT IN (FROM employees | KEEP emp_no)} produces an AntiJoin.
-     */
-    public void testAnalyzerProducesAntiJoinForWhereNotIn() {
-        var plan = analyzeInSubquery("""
+    public void testNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
         assertTrue(antiJoin.isAntiJoin());
-
         assertThat(antiJoin.config().leftFields().size(), equalTo(1));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(antiJoin.config().rightFields().size(), equalTo(1));
         assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
 
-        as(antiJoin.left(), EsRelation.class);
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
 
-        var rightProject = as(antiJoin.right(), Project.class);
-        as(rightProject.child(), EsRelation.class);
-
-        assertThat(antiJoin.output().size(), equalTo(antiJoin.left().output().size()));
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery combined with another filter condition produces a SemiJoin on top of the Filter.
-     */
-    public void testSemiJoinWithRemainingFilterCondition() {
-        var plan = analyzeInSubquery("""
+    public void testInSubqueryAndOneMorePredicate() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
               AND salary > 50000
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        var filter = as(semiJoin.left(), Filter.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertFalse(semiJoin.isAntiJoin());
 
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        Filter filter = as(semiJoin.left(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(50000, literal.value());
+
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that the SemiJoin output only includes left-side columns.
-     */
-    public void testSemiJoinOutputIsLeftOnly() {
-        var plan = analyzeInSubquery("""
+    public void testInSubqueryAndManyOtherPredicates() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
-            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+            | WHERE salary > 50000 AND emp_no IN (FROM employees | KEEP emp_no) AND salary < 100000
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
 
-        var leftOutput = semiJoin.left().output();
-        assertThat(semiJoin.output(), equalTo(leftOutput));
+        // Remaining filters (salary > 50000 AND salary < 100000) are below the SemiJoin
+        Filter filter = as(semiJoin.left(), Filter.class);
+        And and = as(filter.condition(), And.class);
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(50000, literal.value());
+        LessThan lessThan = as(and.right(), LessThan.class);
+        salary = as(lessThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        literal = as(lessThan.right(), Literal.class);
+        assertEquals(100000, literal.value());
+
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an EVAL alias used as the left side of IN subquery produces a SemiJoin
-     * with the alias as the left join field.
-     */
-    public void testSemiJoinWithEvalAlias() {
-        var plan = analyzeInSubquery("""
+    public void testInSubqueryAndInPredicate() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND languages IN (1, 2, 3)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // The IN value-list is a remaining filter below the SemiJoin
+        Filter filter = as(semiJoin.left(), Filter.class);
+        In inValueList = as(filter.condition(), In.class);
+        FieldAttribute languages = as(inValueList.value(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testInSubqueryAfterEval() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | EVAL x = emp_no + 1
             | WHERE x IN (FROM employees | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
 
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("x"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
 
-        var eval = as(semiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        Add add = as(alias.child(), Add.class);
+        FieldAttribute empNo = as(add.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        assertEquals("x", alias.name());
+
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an EVAL alias used as the left side of NOT IN subquery produces an AntiJoin
-     * with the alias as the left join field.
-     */
-    public void testAntiJoinWithEvalAlias() {
-        var plan = analyzeInSubquery("""
+    public void testNotInSubqueryAfterEval() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | EVAL x = emp_no + 1
             | WHERE x NOT IN (FROM employees | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
 
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
         assertThat(antiJoin.config().leftFields().size(), equalTo(1));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("x"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
 
-        var eval = as(antiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        Eval eval = as(antiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        Add add = as(alias.child(), Add.class);
+        FieldAttribute empNo = as(add.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        assertEquals("x", alias.name());
+
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an EVAL alias combined with a remaining filter produces a SemiJoin on top
-     * of the Filter, with the Eval below the Filter.
-     */
-    public void testSemiJoinWithEvalAliasAndRemainingFilter() {
-        var plan = analyzeInSubquery("""
+    public void testInSubqueryAndOtherPredicateAfterEval() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | EVAL x = emp_no + 1
             | WHERE x IN (FROM employees | KEEP emp_no)
               AND salary > 50000
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
 
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("x"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
 
-        var filter = as(semiJoin.left(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        Filter filter = as(semiJoin.left(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(50000, literal.value());
+
+        Eval eval = as(filter.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        Add add = as(alias.child(), Add.class);
+        FieldAttribute empNo = as(add.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        assertEquals("x", alias.name());
+
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that multiple EVAL aliases can be used as left sides of IN and NOT IN subqueries.
-     */
-    public void testMixedSemiAndAntiJoinWithEvalAliases() {
-        var plan = analyzeInSubquery("""
+    public void testInAndNotInSubqueryAfterEval() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | EVAL x = emp_no + 1, y = salary * 2
             | WHERE x IN (FROM employees | KEEP emp_no)
               AND y NOT IN (FROM employees | KEEP salary)
             """);
 
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("y"));
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("salary"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
 
-        var semiJoin = as(antiJoin.left(), SemiJoin.class);
+        Project project = as(antiJoin.right(), Project.class);
+        EsRelation antiJoinRightRelation = as(project.child(), EsRelation.class);
+        assertEquals("employees", antiJoinRightRelation.indexPattern());
+
+        SemiJoin semiJoin = as(antiJoin.left(), SemiJoin.class);
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("x"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
 
-        var eval = as(semiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        project = as(antiJoin.right(), Project.class);
+        EsRelation semiJoinRightRelation = as(project.child(), EsRelation.class);
+        assertEquals("employees", semiJoinRightRelation.indexPattern());
+
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(2, eval.fields().size());
+        Alias x = as(eval.fields().get(0), Alias.class);
+        assertEquals("x", x.name());
+        Add add = as(x.child(), Add.class);
+        FieldAttribute empNo = as(add.left(), FieldAttribute.class);
+        assertEquals("emp_no", empNo.name());
+        Literal literal = as(add.right(), Literal.class);
+        assertEquals(1, literal.value());
+        Alias y = as(eval.fields().get(1), Alias.class);
+        assertEquals("y", y.name());
+        Mul mul = as(y.child(), Mul.class);
+        FieldAttribute salary = as(mul.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        literal = as(mul.right(), Literal.class);
+        assertEquals(2, literal.value());
+
+        EsRelation test = as(eval.child(), EsRelation.class);
+        assertEquals("test", test.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery with STATS produces a SemiJoin whose right side contains an Aggregate.
-     */
-    public void testSemiJoinWithStatsInSubquery() {
-        var plan = analyzeInSubquery("""
+    public void testStatsInsideInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | STATS max_emp = max(emp_no))
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("max_emp"));
 
-        as(semiJoin.left(), EsRelation.class);
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
 
-        var aggregate = as(semiJoin.right(), Aggregate.class);
-        as(aggregate.child(), EsRelation.class);
+        Aggregate aggregate = as(semiJoin.right(), Aggregate.class);
+        EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that a NOT IN subquery with STATS produces an AntiJoin whose right side contains an Aggregate.
-     */
-    public void testAntiJoinWithStatsInSubquery() {
-        var plan = analyzeInSubquery("""
+    public void testStatsInsideNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (FROM employees | STATS min_emp = min(emp_no))
             """);
 
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("min_emp"));
 
-        as(antiJoin.left(), EsRelation.class);
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
 
-        var aggregate = as(antiJoin.right(), Aggregate.class);
-        as(aggregate.child(), EsRelation.class);
+        Aggregate aggregate = as(antiJoin.right(), Aggregate.class);
+        EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery with STATS ... BY and KEEP produces a SemiJoin
-     * whose right side is a Project over an Aggregate with grouping.
-     */
-    public void testSemiJoinWithStatsByInSubquery() {
-        var plan = analyzeInSubquery("""
+    public void testStatsByInsideInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees
                               | STATS max_emp = max(emp_no) BY languages
                               | KEEP max_emp)
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("max_emp"));
 
-        var project = as(semiJoin.right(), Project.class);
-        var aggregate = as(project.child(), Aggregate.class);
-        as(aggregate.child(), EsRelation.class);
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(semiJoin.right(), Project.class);
+        Aggregate aggregate = as(project.child(), Aggregate.class);
         assertThat(aggregate.groupings().size(), equalTo(1));
+        EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery with STATS, SORT and LIMIT produces a SemiJoin
-     * whose right side is Limit -> OrderBy -> Aggregate.
-     */
-    public void testSemiJoinWithStatsSortLimitInSubquery() {
-        var plan = analyzeInSubquery("""
+    public void testMultipleCommandsInsideInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees
                               | STATS m = max(emp_no) BY y = date_trunc(1 year, hire_date)
@@ -309,28 +432,26 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                               | KEEP m)
             """);
 
-        var outerLimit = as(plan, Limit.class);
-        var semiJoin = as(outerLimit.child(), SemiJoin.class);
-
+        Limit outerLimit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(outerLimit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("m"));
 
-        var project = as(semiJoin.right(), Project.class);
-        var innerLimit = as(project.child(), Limit.class);
-        var orderBy = as(innerLimit.child(), OrderBy.class);
-        var aggregate = as(orderBy.child(), Aggregate.class);
-        as(aggregate.child(), EsRelation.class);
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(semiJoin.right(), Project.class);
+        Limit innerLimit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(innerLimit.child(), OrderBy.class);
+        Aggregate aggregate = as(orderBy.child(), Aggregate.class);
         assertThat(aggregate.groupings().size(), equalTo(1));
+        EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    // -- tests with commands after the WHERE IN subquery --
-
-    /**
-     * Verifies that commands after the WHERE IN subquery are placed on top of the SemiJoin.
-     */
-    public void testCommandsAfterSemiJoin() {
-        var plan = analyzeInSubquery("""
+    public void testMultipleCommandsAfterInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
             | EVAL doubled = salary * 2
@@ -340,23 +461,26 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | KEEP emp_no, doubled
             """);
 
-        var outerLimit = as(plan, Limit.class);
-        var project = as(outerLimit.child(), Project.class);
-        var innerLimit = as(project.child(), Limit.class);
-        var orderBy = as(innerLimit.child(), OrderBy.class);
-        var filter = as(orderBy.child(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        var semiJoin = as(eval.child(), SemiJoin.class);
-
+        Limit outerLimit = as(plan, Limit.class);
+        Project project = as(outerLimit.child(), Project.class);
+        Limit innerLimit = as(project.child(), Limit.class);
+        OrderBy orderBy = as(innerLimit.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        Eval eval = as(filter.child(), Eval.class);
+        SemiJoin semiJoin = as(eval.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that commands after the WHERE NOT IN subquery are placed on top of the AntiJoin.
-     */
-    public void testCommandsAfterAntiJoin() {
-        var plan = analyzeInSubquery("""
+    public void testCommandsAfterNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
             | EVAL doubled = salary * 2
@@ -364,163 +488,344 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | LIMIT 5
             """);
 
-        var outerLimit = as(plan, Limit.class);
-        var innerLimit = as(outerLimit.child(), Limit.class);
-        var orderBy = as(innerLimit.child(), OrderBy.class);
-        var eval = as(orderBy.child(), Eval.class);
-        var antiJoin = as(eval.child(), AntiJoin.class);
-
+        Limit outerLimit = as(plan, Limit.class);
+        Limit innerLimit = as(outerLimit.child(), Limit.class);
+        OrderBy orderBy = as(innerLimit.child(), OrderBy.class);
+        Eval eval = as(orderBy.child(), Eval.class);
+        AntiJoin antiJoin = as(eval.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        as(antiJoin.left(), EsRelation.class);
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that a second WHERE after the IN subquery is separate from the join.
-     */
-    public void testSecondWhereAfterSemiJoin() {
-        var plan = analyzeInSubquery("""
+    public void testTwoWhereCommands() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
             | WHERE salary > 50000
             """);
 
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var semiJoin = as(filter.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
 
+        SemiJoin semiJoin = as(filter.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that STATS after the IN subquery aggregates over the joined result.
-     */
-    public void testStatsAfterSemiJoin() {
-        var plan = analyzeInSubquery("""
+    public void testStatsAfterInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
             | STATS avg_salary = avg(salary) BY languages
             """);
 
-        var limit = as(plan, Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var semiJoin = as(aggregate.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings().size(), equalTo(1));
 
+        SemiJoin semiJoin = as(aggregate.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
     }
 
-    // -- tests with FROM subquery inside the IN subquery --
+    public void testExtraParenthesizedInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) AND salary > 50000
+            """);
 
-    /**
-     * Verifies that a FROM subquery inside the IN subquery produces a SemiJoin
-     * whose right side contains a UnionAll.
-     */
-    public void testSemiJoinWithFromSubqueryInsideInSubquery() {
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        Filter filter = as(semiJoin.left(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    // -- constant left-hand side IN subquery tests --
+
+    public void testConstantInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 IN (FROM employees | KEEP emp_no)
+            """);
+
+        // Project on top strips the synthetic constant column from the output
+        Project topProject = as(plan, Project.class);
+        Limit limit = as(topProject.child(), Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        Literal literal = as(alias.child(), Literal.class);
+        assertEquals(10001, literal.value());
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testConstantNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
+            """);
+
+        Project topProject = as(plan, Project.class);
+        Limit limit = as(topProject.child(), Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        Eval eval = as(antiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        Literal literal = as(alias.child(), Literal.class);
+        assertEquals(10001, literal.value());
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testConstantInSubqueryWithRemainingFilter() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE 10001 IN (FROM employees | KEEP emp_no) AND salary > 50000
+            """);
+
+        Project topProject = as(plan, Project.class);
+        Limit limit = as(topProject.child(), Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        Eval eval = as(semiJoin.left(), Eval.class);
+        Filter filter = as(eval.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testStringConstantInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE "Georgi" IN (FROM employees | KEEP first_name)
+            """);
+
+        Project topProject = as(plan, Project.class);
+        Limit limit = as(topProject.child(), Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("first_name"));
+
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    // -- date comparison inside IN subquery --
+
+    public void testInSubqueryWithImplicitDateCast() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                | KEEP emp_no
+              )
+            | KEEP emp_no
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Right side: Project[emp_no] -> Filter[hire_date >= <date>] -> EsRelation[employees]
+        Project rightProject = as(semiJoin.right(), Project.class);
+        Filter filter = as(rightProject.child(), Filter.class);
+        GreaterThanOrEqual gte = as(filter.condition(), GreaterThanOrEqual.class);
+        FieldAttribute hireDateField = as(gte.left(), FieldAttribute.class);
+        assertEquals("hire_date", hireDateField.name());
+        // The string literal is implicitly cast to a date
+        Literal dateLiteral = as(gte.right(), Literal.class);
+        assertEquals(DataType.DATETIME, dateLiteral.dataType());
+
+        EsRelation rightRelation = as(filter.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    // -- tests with FROM subquery and IN subquery --
+
+    public void testFromSubqueryInsideInSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees, (FROM test | KEEP emp_no) | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project = as(semiJoin.right(), Project.class);
-        var unionAll = as(project.child(), UnionAll.class);
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(semiJoin.right(), Project.class);
+        UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
     }
 
-    /**
-     * Verifies that a NOT IN subquery containing a FROM subquery produces an AntiJoin
-     * whose right side contains a UnionAll.
-     */
-    public void testAntiJoinWithFromSubqueryInsideInSubquery() {
+    public void testFromSubqueryInsideNotInSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (FROM employees, (FROM test | KEEP emp_no) | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
-
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        as(antiJoin.left(), EsRelation.class);
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project = as(antiJoin.right(), Project.class);
-        var unionAll = as(project.child(), UnionAll.class);
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(antiJoin.right(), Project.class);
+        UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
     }
 
-    /**
-     * Verifies that a FROM subquery containing a WHERE IN subquery produces a UnionAll
-     * with a SemiJoin inside the subquery branch.
-     */
-    public void testFromSubqueryWithInSubqueryInside() {
+    public void testInSubqueryInsideFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test,
                  (FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // main query: Project -> EsRelation (Project added for field alignment in UnionAll)
-        var mainProject = as(unionAll.children().get(0), Project.class);
-        as(mainProject.child(), EsRelation.class);
+        Project mainProject = as(unionAll.children().get(0), Project.class);
+        EsRelation mainRelation = as(mainProject.child(), EsRelation.class);
+        assertEquals("test", mainRelation.indexPattern());
 
-        // FROM subquery: Project -> SemiJoin
         // FROM subquery: Project (alignment) -> Eval (null columns) -> Subquery -> Project -> SemiJoin
-        var alignProject = as(unionAll.children().get(1), Project.class);
-        var subEval = as(alignProject.child(), Eval.class);
-        var subquery = as(subEval.child(), Subquery.class);
-        var subProject = as(subquery.child(), Project.class);
-        var semiJoin = as(subProject.child(), SemiJoin.class);
+        Project alignProject = as(unionAll.children().get(1), Project.class);
+        Eval subEval = as(alignProject.child(), Eval.class);
+        Subquery subquery = as(subEval.child(), Subquery.class);
+        Project subProject = as(subquery.child(), Project.class);
+        SemiJoin semiJoin = as(subProject.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(semiJoin.left(), EsRelation.class);
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation semiLeft = as(semiJoin.left(), EsRelation.class);
+        assertEquals("employees", semiLeft.indexPattern());
+        Project semiRight = as(semiJoin.right(), Project.class);
+        EsRelation semiRightRel = as(semiRight.child(), EsRelation.class);
+        assertEquals("test", semiRightRel.indexPattern());
     }
 
-    /**
-     * Verifies that a FROM subquery containing a WHERE NOT IN subquery produces a UnionAll
-     * with an AntiJoin inside the subquery branch.
-     */
-    public void testFromSubqueryWithNotInSubqueryInside() {
+    public void testNotInSubqueryInsideFromSubquery() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test,
                  (FROM employees | WHERE emp_no NOT IN (FROM test | KEEP emp_no) | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        var mainProject = as(unionAll.children().get(0), Project.class);
-        as(mainProject.child(), EsRelation.class);
+        Project mainProject = as(unionAll.children().get(0), Project.class);
+        EsRelation mainRelation = as(mainProject.child(), EsRelation.class);
+        assertEquals("test", mainRelation.indexPattern());
 
-        var alignProject = as(unionAll.children().get(1), Project.class);
-        var subEval = as(alignProject.child(), Eval.class);
-        var subquery = as(subEval.child(), Subquery.class);
-        var subProject = as(subquery.child(), Project.class);
-        var antiJoin = as(subProject.child(), AntiJoin.class);
+        Project alignProject = as(unionAll.children().get(1), Project.class);
+        Eval subEval = as(alignProject.child(), Eval.class);
+        Subquery subquery = as(subEval.child(), Subquery.class);
+        Project subProject = as(subquery.child(), Project.class);
+        AntiJoin antiJoin = as(subProject.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        as(antiJoin.left(), EsRelation.class);
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation antiLeft = as(antiJoin.left(), EsRelation.class);
+        assertEquals("employees", antiLeft.indexPattern());
+        Project antiRight = as(antiJoin.right(), Project.class);
+        EsRelation antiRightRel = as(antiRight.child(), EsRelation.class);
+        assertEquals("test", antiRightRel.indexPattern());
     }
 
     // -- nested IN/NOT IN subquery tests --
 
-    /**
-     * Verifies that a nested IN subquery (IN inside IN) produces a SemiJoin whose right side
-     * contains another SemiJoin.
-     */
     public void testNestedInSubquery() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (
                 FROM employees
@@ -529,28 +834,31 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
               )
             """);
 
-        var limit = as(plan, Limit.class);
-        var outerSemiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
         assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        as(outerSemiJoin.left(), EsRelation.class);
+        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(outerSemiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
 
         // Right side: Project -> SemiJoin (the inner IN subquery)
-        var project = as(outerSemiJoin.right(), Project.class);
-        var innerSemiJoin = as(project.child(), SemiJoin.class);
+        Project project = as(outerSemiJoin.right(), Project.class);
+        SemiJoin innerSemiJoin = as(project.child(), SemiJoin.class);
         assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-        as(innerSemiJoin.left(), EsRelation.class);
+        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("salary"));
 
-        var innerProject = as(innerSemiJoin.right(), Project.class);
-        as(innerProject.child(), EsRelation.class);
+        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
+        assertEquals("employees", innerLeft.indexPattern());
+        Project innerProject = as(innerSemiJoin.right(), Project.class);
+        EsRelation innerRight = as(innerProject.child(), EsRelation.class);
+        assertEquals("test", innerRight.indexPattern());
     }
 
-    /**
-     * Verifies that a nested NOT IN inside IN produces a SemiJoin whose right side contains an AntiJoin.
-     */
     public void testNestedNotInInsideInSubquery() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (
                 FROM employees
@@ -559,23 +867,30 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
               )
             """);
 
-        var limit = as(plan, Limit.class);
-        var outerSemiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
         assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        as(outerSemiJoin.left(), EsRelation.class);
+        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project = as(outerSemiJoin.right(), Project.class);
-        var innerAntiJoin = as(project.child(), AntiJoin.class);
+        EsRelation leftRelation = as(outerSemiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(outerSemiJoin.right(), Project.class);
+        AntiJoin innerAntiJoin = as(project.child(), AntiJoin.class);
         assertThat(innerAntiJoin.config().type(), equalTo(JoinTypes.ANTI));
         assertThat(innerAntiJoin.config().leftFields().get(0).name(), equalTo("salary"));
-        as(innerAntiJoin.left(), EsRelation.class);
+        assertThat(innerAntiJoin.config().rightFields().get(0).name(), equalTo("salary"));
+
+        EsRelation innerLeft = as(innerAntiJoin.left(), EsRelation.class);
+        assertEquals("employees", innerLeft.indexPattern());
+        Project innerProject = as(innerAntiJoin.right(), Project.class);
+        EsRelation innerRight = as(innerProject.child(), EsRelation.class);
+        assertEquals("test", innerRight.indexPattern());
     }
 
-    /**
-     * Verifies that a nested IN inside NOT IN produces an AntiJoin whose right side contains a SemiJoin.
-     */
     public void testNestedInInsideNotInSubquery() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (
                 FROM employees
@@ -584,22 +899,30 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
               )
             """);
 
-        var limit = as(plan, Limit.class);
-        var outerAntiJoin = as(limit.child(), AntiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        AntiJoin outerAntiJoin = as(limit.child(), AntiJoin.class);
         assertThat(outerAntiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        as(outerAntiJoin.left(), EsRelation.class);
+        assertThat(outerAntiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(outerAntiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project = as(outerAntiJoin.right(), Project.class);
-        var innerSemiJoin = as(project.child(), SemiJoin.class);
+        EsRelation leftRelation = as(outerAntiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project project = as(outerAntiJoin.right(), Project.class);
+        SemiJoin innerSemiJoin = as(project.child(), SemiJoin.class);
         assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("salary"));
+
+        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
+        assertEquals("employees", innerLeft.indexPattern());
+        Project innerProject = as(innerSemiJoin.right(), Project.class);
+        EsRelation innerRight = as(innerProject.child(), EsRelation.class);
+        assertEquals("test", innerRight.indexPattern());
     }
 
-    /**
-     * Verifies that a 3 levels deep nested IN subquery is resolved correctly.
-     */
     public void testThreeNestedInSubquery() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (
                 FROM employees
@@ -612,24 +935,39 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
               )
             """);
 
-        var limit = as(plan, Limit.class);
-        var outerSemiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project1 = as(outerSemiJoin.right(), Project.class);
-        var middleSemiJoin = as(project1.child(), SemiJoin.class);
+        EsRelation outerLeft = as(outerSemiJoin.left(), EsRelation.class);
+        assertEquals("test", outerLeft.indexPattern());
+
+        Project project1 = as(outerSemiJoin.right(), Project.class);
+        SemiJoin middleSemiJoin = as(project1.child(), SemiJoin.class);
+        assertThat(middleSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(middleSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(middleSemiJoin.config().rightFields().get(0).name(), equalTo("salary"));
 
-        var project2 = as(middleSemiJoin.right(), Project.class);
-        var innerSemiJoin = as(project2.child(), SemiJoin.class);
+        EsRelation middleLeft = as(middleSemiJoin.left(), EsRelation.class);
+        assertEquals("employees", middleLeft.indexPattern());
+
+        Project project2 = as(middleSemiJoin.right(), Project.class);
+        SemiJoin innerSemiJoin = as(project2.child(), SemiJoin.class);
+        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("languages"));
+        assertThat(innerSemiJoin.config().rightFields().get(0).name(), equalTo("languages"));
+
+        EsRelation innerLeft = as(innerSemiJoin.left(), EsRelation.class);
+        assertEquals("test", innerLeft.indexPattern());
+        Project innerProject = as(innerSemiJoin.right(), Project.class);
+        EsRelation innerRight = as(innerProject.child(), EsRelation.class);
+        assertEquals("employees", innerRight.indexPattern());
     }
 
-    /**
-     * Verifies that a nested IN subquery with additional filter conditions resolves correctly.
-     */
-    public void testNestedInSubqueryWithFilter() {
-        var plan = analyzeInSubquery("""
+    public void testNestedInSubqueryAndOtherPredicate() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (
                 FROM employees
@@ -639,120 +977,670 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
               )
             """);
 
-        var limit = as(plan, Limit.class);
-        var outerSemiJoin = as(limit.child(), SemiJoin.class);
+        Limit limit = as(plan, Limit.class);
+        SemiJoin outerSemiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(outerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(outerSemiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(outerSemiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        var project = as(outerSemiJoin.right(), Project.class);
-        var innerSemiJoin = as(project.child(), SemiJoin.class);
+        EsRelation outerLeft = as(outerSemiJoin.left(), EsRelation.class);
+        assertEquals("test", outerLeft.indexPattern());
+
+        Project project = as(outerSemiJoin.right(), Project.class);
+        SemiJoin innerSemiJoin = as(project.child(), SemiJoin.class);
+        assertThat(innerSemiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(innerSemiJoin.config().leftFields().get(0).name(), equalTo("salary"));
+
         // The remaining filter (languages > 2) should be below the inner SemiJoin
-        var filter = as(innerSemiJoin.left(), Filter.class);
-        as(filter.child(), EsRelation.class);
+        Filter filter = as(innerSemiJoin.left(), Filter.class);
+        EsRelation innerLeft = as(filter.child(), EsRelation.class);
+        assertEquals("employees", innerLeft.indexPattern());
+    }
+
+    public void testDoubleNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testTripleNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (NOT (emp_no NOT IN (FROM employees | KEEP emp_no)))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testDoubleNotInSubqueryOrOneMorePredicate() {
+        // Reordered: [salary > 50000, NOT(NOT IN emp_no)] (complexity 0, 1)
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               OR salary > 50000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Branch 1: salary > 50000 → Project -> Filter
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        Filter branch1Filter = as(branch1Project.child(), Filter.class);
+        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
+        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
+        assertEquals("salary", branch1Salary.name());
+        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
+
+        // Branch 2: NOT(salary > 50000) AND NOT(NOT IN emp_no) → Project -> SemiJoin with exclusion filter
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
+        assertThat(branch2Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Filter branch2Filter = as(branch2Semi.left(), Filter.class);
+        EsRelation branch2Left = as(branch2Filter.child(), EsRelation.class);
+        assertEquals("test", branch2Left.indexPattern());
+    }
+
+    public void testDoubleNotInSubqueryOrInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               OR salary IN (FROM employees | KEEP salary)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Branch 1: Project -> SemiJoin (double NOT → IN)
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        SemiJoin branch1Semi = as(branch1Project.child(), SemiJoin.class);
+        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch1Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation branch1Left = as(branch1Semi.left(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
+
+        // Branch 2: Project -> SemiJoin for salary IN sub2, with AntiJoin exclusion (NOT IN sub1) below
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Outer = as(branch2Project.child(), SemiJoin.class);
+        assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(branch2Outer.config().rightFields().get(0).name(), equalTo("salary"));
+        AntiJoin branch2Inner = as(branch2Outer.left(), AntiJoin.class);
+        assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
+        EsRelation branch2Left = as(branch2Inner.left(), EsRelation.class);
+        assertEquals("test", branch2Left.indexPattern());
+    }
+
+    public void testDoubleNotInSubqueryAndOneMorePredicate() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               AND salary > 50000
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        Filter filter = as(semiJoin.left(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    public void testDoubleNotInSubqueryAndInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
+               AND salary IN (FROM employees | KEEP salary)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        // Two SemiJoins are stacked: the last one extracted is on top
+        SemiJoin outerSemi = as(limit.child(), SemiJoin.class);
+        assertThat(outerSemi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(outerSemi.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(outerSemi.config().rightFields().get(0).name(), equalTo("salary"));
+
+        SemiJoin innerSemi = as(outerSemi.left(), SemiJoin.class);
+        assertThat(innerSemi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(innerSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(innerSemi.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        EsRelation leftRelation = as(innerSemi.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
     }
 
     // -- disjunctive IN/NOT IN subquery tests --
 
-    /**
-     * Verifies that an OR of two IN subqueries is rewritten to a UnionAll with exclusive branches.
-     * Each branch contains a SemiJoin for the IN subquery.
-     */
     public void testDisjunctiveInSubqueries() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
                OR salary IN (FROM employees | KEEP salary)
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // Branch 1: Project -> SemiJoin for emp_no IN (...)
-        var branch1Project = as(unionAll.children().get(0), Project.class);
-        var branch1 = as(branch1Project.child(), SemiJoin.class);
-        assertThat(branch1.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch1.config().leftFields().get(0).name(), equalTo("emp_no"));
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        SemiJoin branch1Semi = as(branch1Project.child(), SemiJoin.class);
+        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch1Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation branch1Left = as(branch1Semi.left(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
 
         // Branch 2: Project -> SemiJoin for salary IN (...), with AntiJoin exclusion below
-        var branch2Project = as(unionAll.children().get(1), Project.class);
-        var branch2Semi = as(branch2Project.child(), SemiJoin.class);
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
         assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("salary"));
-        var branch2Anti = as(branch2Semi.left(), AntiJoin.class);
+        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("salary"));
+        AntiJoin branch2Anti = as(branch2Semi.left(), AntiJoin.class);
         assertThat(branch2Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
-    /**
-     * Verifies that an OR of IN and NOT IN subqueries is rewritten to a UnionAll.
-     */
     public void testDisjunctiveInAndNotInSubqueries() {
-        var plan = analyzeInSubquery("""
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
                OR emp_no IN (FROM employees | WHERE salary > 50000 | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // Branch 1: Project -> AntiJoin for emp_no NOT IN (...)
-        var branch1Project = as(unionAll.children().get(0), Project.class);
-        var branch1 = as(branch1Project.child(), AntiJoin.class);
-        assertThat(branch1.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch1.config().leftFields().get(0).name(), equalTo("emp_no"));
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        AntiJoin branch1Anti = as(branch1Project.child(), AntiJoin.class);
+        assertThat(branch1Anti.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(branch1Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch1Anti.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation branch1Left = as(branch1Anti.left(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
 
         // Branch 2: Project -> SemiJoin for emp_no IN (sub2), with SemiJoin exclusion below
         // NOT(NOT IN sub1) simplifies to IN sub1, so the exclusion is a SemiJoin
-        var branch2Project = as(unionAll.children().get(1), Project.class);
-        var branch2Outer = as(branch2Project.child(), SemiJoin.class);
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Outer = as(branch2Project.child(), SemiJoin.class);
         assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("emp_no"));
-        var branch2Inner = as(branch2Outer.left(), SemiJoin.class);
+        assertThat(branch2Outer.config().rightFields().get(0).name(), equalTo("emp_no"));
+        SemiJoin branch2Inner = as(branch2Outer.left(), SemiJoin.class);
         assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
+        EsRelation branch2Left = as(branch2Inner.left(), EsRelation.class);
+        assertEquals("test", branch2Left.indexPattern());
     }
 
-    /**
-     * Verifies that an OR with one regular condition and one IN subquery is rewritten to a UnionAll.
-     * The regular condition branch stays as a plain Filter.
-     */
-    public void testDisjunctiveRegularAndInSubquery() {
-        var plan = analyzeInSubquery("""
+    public void testDisjunctiveInSubqueryWithOtherPredicate() {
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE salary > 50000
                OR emp_no IN (FROM employees | KEEP emp_no)
             """);
 
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
         // Branch 1: Project -> Filter for salary > 50000
-        var branch1Project = as(unionAll.children().get(0), Project.class);
-        var branch1 = as(branch1Project.child(), Filter.class);
-        as(branch1.child(), EsRelation.class);
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        Filter branch1Filter = as(branch1Project.child(), Filter.class);
+        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
+        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
+        assertEquals("salary", branch1Salary.name());
+        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
 
         // Branch 2: Project -> SemiJoin for emp_no IN (...) with NOT(salary > 50000) filter below
-        var branch2Project = as(unionAll.children().get(1), Project.class);
-        var branch2Semi = as(branch2Project.child(), SemiJoin.class);
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
         assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        var branch2Filter = as(branch2Semi.left(), Filter.class);
-        as(branch2Filter.child(), EsRelation.class);
+        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Filter branch2Filter = as(branch2Semi.left(), Filter.class);
+        EsRelation branch2Left = as(branch2Filter.child(), EsRelation.class);
+        assertEquals("test", branch2Left.indexPattern());
     }
 
-    // -- date comparison inside IN subquery --
+    // -- disjunctive OR chain with IN/NOT IN subqueries --
 
-    public void testInSubqueryWithImplicitDateCast() {
-        var plan = analyzeInSubquery("""
+    /**
+     * {@code WHERE emp_no IN (FROM employees | KEEP emp_no) OR (salary > 50000 OR (languages < 3 OR gender NOT IN (...)))}
+     * <p>
+     * Nested ORs flatten into four disjuncts. Branch 1 is a SemiJoin for emp_no IN.
+     * Branches 2-4 carry an AntiJoin exclusion for NOT(emp_no IN sub) from the first disjunct.
+     * Branch 4 additionally has an AntiJoin for gender NOT IN.
+     */
+    public void testDisjunctiveOrChainWithNotInSubquery() {
+        // Reordered: [salary > 50000, languages < 3, emp_no IN ..., gender NOT IN ...]
+        LogicalPlan plan = analyzeInSubquery("""
             FROM test
-            | WHERE emp_no IN (
-                FROM employees
-                | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
-                | KEEP emp_no
-              )
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+               OR (salary > 50000 OR (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        // Branch 1: salary > 50000 → Project -> Filter
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        Filter branch1Filter = as(branch1Project.child(), Filter.class);
+        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
+        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
+        assertEquals("salary", branch1Salary.name());
+        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
+        assertEquals("test", branch1Left.indexPattern());
+
+        // Branch 3: ...AND emp_no IN (...) → Project -> SemiJoin
+        Project branch3Project = as(unionAll.children().get(2), Project.class);
+        SemiJoin branch3Semi = as(branch3Project.child(), SemiJoin.class);
+        assertThat(branch3Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch3Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch3Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // Branch 4: ...AND gender NOT IN (...) → Project -> AntiJoin
+        Project branch4Project = as(unionAll.children().get(3), Project.class);
+        AntiJoin branch4Anti = as(branch4Project.child(), AntiJoin.class);
+        assertThat(branch4Anti.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(branch4Anti.config().leftFields().get(0).name(), equalTo("gender"));
+        assertThat(branch4Anti.config().rightFields().get(0).name(), equalTo("gender"));
+        Project branch4Right = as(branch4Anti.right(), Project.class);
+        EsRelation branch4RightRel = as(branch4Right.child(), EsRelation.class);
+        assertEquals("employees", branch4RightRel.indexPattern());
+    }
+
+    /**
+     * Reordered: [salary > 50000, emp_no IN ..., languages &lt; 3 AND gender NOT IN ...] (complexity 0, 1, 2)
+     */
+    public void testDisjunctiveOrChainWithConjunctiveNotInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+               OR (salary > 50000 OR (languages < 3 AND gender NOT IN (FROM employees | KEEP gender)))
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(3, unionAll.children().size());
+
+        // Branch 1: salary > 50000 → Project -> Filter
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        Filter branch1Filter = as(branch1Project.child(), Filter.class);
+        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
+        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
+        assertEquals("salary", branch1Salary.name());
+
+        // Branch 2: NOT(salary > 50000) AND emp_no IN (...) → Project -> SemiJoin
+        Project branch2Project = as(unionAll.children().get(1), Project.class);
+        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
+        assertThat(branch2Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // Branch 3: ...AND languages < 3 AND gender NOT IN (...) → Project -> AntiJoin
+        Project branch3Project = as(unionAll.children().get(2), Project.class);
+        AntiJoin branch3Anti = as(branch3Project.child(), AntiJoin.class);
+        assertThat(branch3Anti.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(branch3Anti.config().leftFields().get(0).name(), equalTo("gender"));
+        assertThat(branch3Anti.config().rightFields().get(0).name(), equalTo("gender"));
+        Project branch3Right = as(branch3Anti.right(), Project.class);
+        EsRelation branch3RightRel = as(branch3Right.child(), EsRelation.class);
+        assertEquals("employees", branch3RightRel.indexPattern());
+    }
+
+    /**
+     * Reordered: [salary > 50000, languages &lt; 3, emp_no IN ..., gender NOT IN ...] (complexity 0, 0, 1, 1)
+     */
+    public void testDisjunctiveOrChainWithNotInSubqueryInMiddle() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+               OR (salary > 50000 OR (gender NOT IN (FROM employees | KEEP gender)) OR languages < 3)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        // Branch 1: salary > 50000 → Project -> Filter
+        Project branch1Project = as(unionAll.children().get(0), Project.class);
+        as(branch1Project.child(), Filter.class);
+
+        // Branch 3: ...AND emp_no IN (...) → Project -> SemiJoin
+        Project branch3Project = as(unionAll.children().get(2), Project.class);
+        SemiJoin branch3Semi = as(branch3Project.child(), SemiJoin.class);
+        assertThat(branch3Semi.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(branch3Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(branch3Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // Branch 4: ...AND gender NOT IN (...) → Project -> AntiJoin
+        Project branch4Project = as(unionAll.children().get(3), Project.class);
+        AntiJoin branch4Anti = as(branch4Project.child(), AntiJoin.class);
+        assertThat(branch4Anti.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(branch4Anti.config().leftFields().get(0).name(), equalTo("gender"));
+        assertThat(branch4Anti.config().rightFields().get(0).name(), equalTo("gender"));
+        Project branch4Right = as(branch4Anti.right(), Project.class);
+        EsRelation branch4RightRel = as(branch4Right.child(), EsRelation.class);
+        assertEquals("employees", branch4RightRel.indexPattern());
+    }
+
+    // data types on join keys related tests
+
+    /**
+     * Verifies that KEYWORD left vs TEXT right is compatible in IN subquery.
+     */
+    public void testKeywordVsTextInSubquery() {
+        LogicalPlan plan = analyzeWithAllTypes("""
+            FROM all_types
+            | WHERE keyword IN (FROM all_types | KEEP text)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("keyword"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("text"));
+        assertEquals(DataType.TEXT, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("all_types", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("all_types", rightRelation.indexPattern());
+    }
+
+    /**
+     * Verifies that TEXT left vs KEYWORD right is compatible in IN subquery.
+     */
+    public void testTextVsKeywordInSubquery() {
+        LogicalPlan plan = analyzeWithAllTypes("""
+            FROM all_types
+            | WHERE text IN (FROM all_types | KEEP keyword)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("text"));
+        assertEquals(DataType.TEXT, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("keyword"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("all_types", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("all_types", rightRelation.indexPattern());
+    }
+
+    /**
+     * Verifies that IP left vs IP right is compatible in IN subquery.
+     */
+    public void testIpVsIpInSubquery() {
+        LogicalPlan plan = analyzeWithAllTypes("""
+            FROM all_types
+            | WHERE ip IN (FROM all_types | KEEP ip)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("ip"));
+        assertEquals(DataType.IP, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("ip"));
+        assertEquals(DataType.IP, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("all_types", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("all_types", rightRelation.indexPattern());
+    }
+
+    /**
+     * Verifies that VERSION left vs VERSION right is compatible in IN subquery.
+     */
+    public void testVersionVsVersionInSubquery() {
+        LogicalPlan plan = analyzeWithAllTypes("""
+            FROM all_types
+            | WHERE version IN (FROM all_types | KEEP version)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("version"));
+        assertEquals(DataType.VERSION, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("version"));
+        assertEquals(DataType.VERSION, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("all_types", leftRelation.indexPattern());
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("all_types", rightRelation.indexPattern());
+    }
+
+    // union types with explicit casting
+
+    /**
+     * Verifies that casting a union type field to a concrete type on the left side resolves the issue.
+     */
+    public void testUnionTypeLeftFieldWithCastInSubquery() {
+        LogicalPlan plan = analyzeWithUnionIndex("""
+            FROM union_index*
+            | EVAL id_kw = id::keyword
+            | WHERE id_kw IN (FROM test | KEEP first_name)
+            | KEEP id_kw
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("id_kw"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("first_name"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().rightFields().get(0).dataType());
+
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("id_kw", alias.name());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    /**
+     * Verifies that casting a union type field to a concrete type on the right side resolves the issue.
+     */
+    public void testUnionTypeRightFieldWithCastInSubquery() {
+        LogicalPlan plan = analyzeWithUnionIndex("""
+            FROM test
+            | WHERE first_name IN (FROM union_index* | EVAL id_kw = id::keyword | KEEP id_kw)
+            | KEEP first_name
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("first_name"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("id_kw"));
+        assertEquals(DataType.KEYWORD, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        Eval eval = as(rightProject.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("id_kw", alias.name());
+    }
+
+    /**
+     * Verifies that NOT IN with a cast union type field on the left succeeds.
+     */
+    public void testUnionTypeLeftFieldWithCastInAntiJoin() {
+        LogicalPlan plan = analyzeWithUnionIndex("""
+            FROM union_index*
+            | EVAL id_kw = id::keyword
+            | WHERE id_kw NOT IN (FROM test | KEEP first_name)
+            | KEEP id_kw
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        AntiJoin antiJoin = as(topProject.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("id_kw"));
+        assertEquals(DataType.KEYWORD, antiJoin.config().leftFields().get(0).dataType());
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("first_name"));
+        assertEquals(DataType.KEYWORD, antiJoin.config().rightFields().get(0).dataType());
+
+        Eval eval = as(antiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("id_kw", alias.name());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    // union types with from subqueries
+
+    /**
+     * Verifies that casting resolves FROM subquery union type on the left side.
+     */
+    public void testFromSubqueryUnionTypeLeftFieldWithCast() {
+        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyzeWithIncompatible("""
+            FROM test, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
+            | EVAL id = emp_no::long
+            | WHERE id IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP id
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("id"));
+        assertEquals(DataType.LONG, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // Left side: Eval[id = emp_no::long] -> UnionAll[EsRelation[test], ...]
+        Eval eval = as(semiJoin.left(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("id", alias.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Right side: Project[emp_no] -> Filter[salary > 70000] -> EsRelation[employees_incompatible]
+        Project rightProject = as(semiJoin.right(), Project.class);
+        Filter filter = as(rightProject.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("salary", salary.name());
+        Literal literal = as(greaterThan.right(), Literal.class);
+        assertEquals(70000, literal.value());
+        EsRelation rightRelation = as(filter.child(), EsRelation.class);
+        assertEquals("employees_incompatible", rightRelation.indexPattern());
+    }
+
+    /**
+     * Verifies that casting resolves FROM subquery union type on the right side.
+     */
+    public void testFromSubqueryUnionTypeRightFieldWithCast() {
+        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyzeWithIncompatible("""
+            FROM test
+            | WHERE emp_no IN (FROM test, (FROM employees_incompatible | KEEP emp_no) | EVAL id = emp_no::integer | KEEP id)
             | KEEP emp_no
             """);
-        assertNotNull(plan);
+
+        Limit limit = as(plan, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertEquals(DataType.INTEGER, semiJoin.config().leftFields().get(0).dataType());
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("id"));
+        assertEquals(DataType.INTEGER, semiJoin.config().rightFields().get(0).dataType());
+
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Right side: Project[id] -> Eval[id = emp_no::integer] -> UnionAll[...]
+        Project rightProject = as(semiJoin.right(), Project.class);
+        Eval eval = as(rightProject.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("id", alias.name());
+        UnionAll unionAll = as(eval.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
     }
 
-    // -- negative: IN subquery in STATS WHERE filter --
+    // -- negative test cases
+
+    /**
+     * {@code WHERE emp_no IN (...) OR (salary > 50000 AND (languages < 3 OR gender NOT IN (...)))}
+     * <p>
+     * The inner OR ({@code languages < 3 OR gender NOT IN (...)}) is an AND-conjunct that is not a bare
+     * InSubquery, so the NOT IN inside it cannot be extracted. This is rejected.
+     */
+    public void testRejectsNestedConjunctiveAndDisjunctiveInSubquery() {
+        errorInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+               OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
+            """, containsString("IN/NOT IN subquery is not supported in Filter [WHERE emp_no IN (FROM employees | KEEP emp_no)"));
+    }
 
     /**
      * Verifies that an IN subquery in STATS WHERE filter is rejected.
@@ -1017,52 +1905,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """, containsString("left field [emp_no] of type [INTEGER] is incompatible with right field [x] of type [LONG]"));
     }
 
-    // -- compatible string-like types in IN subquery: KEYWORD, TEXT, IP, VERSION --
-
-    /**
-     * Verifies that KEYWORD left vs TEXT right is compatible in IN subquery.
-     */
-    public void testKeywordVsTextInSubquery() {
-        var plan = analyzeWithAllTypes("""
-            FROM all_types
-            | WHERE keyword IN (FROM all_types | KEEP text)
-            """);
-        assertNotNull(plan);
-    }
-
-    /**
-     * Verifies that TEXT left vs KEYWORD right is compatible in IN subquery.
-     */
-    public void testTextVsKeywordInSubquery() {
-        var plan = analyzeWithAllTypes("""
-            FROM all_types
-            | WHERE text IN (FROM all_types | KEEP keyword)
-            """);
-        assertNotNull(plan);
-    }
-
-    /**
-     * Verifies that IP left vs IP right is compatible in IN subquery.
-     */
-    public void testIpVsIpInSubquery() {
-        var plan = analyzeWithAllTypes("""
-            FROM all_types
-            | WHERE ip IN (FROM all_types | KEEP ip)
-            """);
-        assertNotNull(plan);
-    }
-
-    /**
-     * Verifies that VERSION left vs VERSION right is compatible in IN subquery.
-     */
-    public void testVersionVsVersionInSubquery() {
-        var plan = analyzeWithAllTypes("""
-            FROM all_types
-            | WHERE version IN (FROM all_types | KEEP version)
-            """);
-        assertNotNull(plan);
-    }
-
     /**
      * Verifies that KEYWORD left vs IP right is compatible in IN subquery.
      */
@@ -1149,71 +1991,51 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * fails without explicit casting.
      */
     public void testRejectsUnionTypeLeftFieldInSubquery() {
-        errorWithUnionIndex("""
-            FROM union_index*
-            | WHERE id IN (FROM test | KEEP emp_no)
-            | KEEP id
-            """, containsString("id"));
+        errorWithUnionIndex(
+            """
+                FROM union_index*
+                | WHERE id IN (FROM test | KEEP emp_no)
+                | KEEP id
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
     }
 
     /**
      * Verifies that a union type field as the right join key of IN subquery fails without explicit casting.
      */
     public void testRejectsUnionTypeRightFieldInSubquery() {
-        errorWithUnionIndex("""
-            FROM test
-            | WHERE first_name IN (FROM union_index* | KEEP id)
-            | KEEP first_name
-            """, containsString("id"));
-    }
-
-    /**
-     * Verifies that casting a union type field to a concrete type on the left side resolves the issue.
-     */
-    public void testUnionTypeLeftFieldWithCastInSubquery() {
-        var plan = analyzeWithUnionIndex("""
-            FROM union_index*
-            | EVAL id_kw = id::keyword
-            | WHERE id_kw IN (FROM test | KEEP first_name)
-            | KEEP id_kw
-            """);
-        assertNotNull(plan);
-    }
-
-    /**
-     * Verifies that casting a union type field to a concrete type on the right side resolves the issue.
-     */
-    public void testUnionTypeRightFieldWithCastInSubquery() {
-        var plan = analyzeWithUnionIndex("""
-            FROM test
-            | WHERE first_name IN (FROM union_index* | EVAL id_kw = id::keyword | KEEP id_kw)
-            | KEEP first_name
-            """);
-        assertNotNull(plan);
+        errorWithUnionIndex(
+            """
+                FROM test
+                | WHERE first_name IN (FROM union_index* | KEEP id)
+                | KEEP first_name
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
     }
 
     /**
      * Verifies that NOT IN with a union type field on the left fails without casting.
      */
     public void testRejectsUnionTypeLeftFieldInAntiJoin() {
-        errorWithUnionIndex("""
-            FROM union_index*
-            | WHERE id NOT IN (FROM test | KEEP emp_no)
-            | KEEP id
-            """, containsString("id"));
-    }
-
-    /**
-     * Verifies that NOT IN with a cast union type field on the left succeeds.
-     */
-    public void testUnionTypeLeftFieldWithCastInAntiJoin() {
-        var plan = analyzeWithUnionIndex("""
-            FROM union_index*
-            | EVAL id_kw = id::keyword
-            | WHERE id_kw NOT IN (FROM test | KEEP first_name)
-            | KEEP id_kw
-            """);
-        assertNotNull(plan);
+        errorWithUnionIndex(
+            """
+                FROM union_index*
+                | WHERE id NOT IN (FROM test | KEEP emp_no)
+                | KEEP id
+                """,
+            containsString(
+                "Cannot use field [id] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [union_index_1], [integer] in [union_index_2]"
+            )
+        );
     }
 
     // -- union type tests with FROM subqueries --
@@ -1240,33 +2062,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | WHERE emp_no IN (FROM test, (FROM employees_incompatible | KEEP emp_no) | KEEP emp_no)
             | KEEP emp_no
             """, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
-    }
-
-    /**
-     * Verifies that casting resolves FROM subquery union type on the left side.
-     */
-    public void testFromSubqueryUnionTypeLeftFieldWithCast() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeWithIncompatible("""
-            FROM test, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
-            | EVAL id = emp_no::long
-            | WHERE id IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
-            | KEEP id
-            """);
-        assertNotNull(plan);
-    }
-
-    /**
-     * Verifies that casting resolves FROM subquery union type on the right side.
-     */
-    public void testFromSubqueryUnionTypeRightFieldWithCast() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        var plan = analyzeWithIncompatible("""
-            FROM test
-            | WHERE emp_no IN (FROM test, (FROM employees_incompatible | KEEP emp_no) | EVAL id = emp_no::integer | KEEP id)
-            | KEEP emp_no
-            """);
-        assertNotNull(plan);
     }
 
     // -- IN subquery in processing commands (rejected by analyzer) --
@@ -1358,206 +2153,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- IN subquery nested in WHERE expressions --
 
     /**
-     * Verifies that WHERE with AND correctly produces SemiJoin with remaining filter for triple AND.
-     * {@code WHERE a > 50000 AND x IN (FROM sub | KEEP x) AND b < 100000}
-     */
-    public void testSemiJoinWithTripleAndCondition() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE salary > 50000 AND emp_no IN (FROM employees | KEEP emp_no) AND salary < 100000
-            """);
-
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        // Remaining filters (salary > 50000 AND salary < 100000) are below the SemiJoin
-        var filter = as(semiJoin.left(), Filter.class);
-        as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that WHERE with double NOT simplifies correctly:
-     * {@code WHERE NOT (emp_no NOT IN (FROM sub))} → equivalent to IN → produces SemiJoin.
-     */
-    public void testDoubleNotInSubqueryProducesSemiJoin() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
-            """);
-
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        as(semiJoin.left(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that triple NOT simplifies to NOT IN → produces AntiJoin.
-     * {@code WHERE NOT (NOT (emp_no NOT IN (FROM sub)))} → NOT IN → AntiJoin.
-     */
-    public void testTripleNotInSubqueryProducesAntiJoin() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (NOT (emp_no NOT IN (FROM employees | KEEP emp_no)))
-            """);
-
-        var limit = as(plan, Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-        as(antiJoin.left(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that double NOT IN subquery OR a regular condition is rewritten to UnionAll.
-     * {@code WHERE NOT (emp_no NOT IN (FROM sub)) OR salary > 50000}
-     * Branch 1: NOT(NOT IN) simplifies to IN → SemiJoin.
-     * Branch 2: exclusion negate(NOT(NOT IN)) = NOT IN → AntiJoin, with remaining filter salary > 50000.
-     */
-    public void testDoubleNotInSubqueryOrRegularCondition() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
-               OR salary > 50000
-            """);
-
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        // Branch 1: Project -> SemiJoin (double NOT unwraps to IN)
-        var branch1Project = as(unionAll.children().get(0), Project.class);
-        var branch1Semi = as(branch1Project.child(), SemiJoin.class);
-        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        // Branch 2: Project -> AntiJoin (exclusion = NOT IN) with remaining filter below
-        var branch2Project = as(unionAll.children().get(1), Project.class);
-        var branch2Anti = as(branch2Project.child(), AntiJoin.class);
-        assertThat(branch2Anti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch2Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
-        var branch2Filter = as(branch2Anti.left(), Filter.class);
-        as(branch2Filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that double NOT IN subquery OR another IN subquery is rewritten to UnionAll.
-     * {@code WHERE NOT (emp_no NOT IN (FROM sub1)) OR salary IN (FROM sub2)}
-     * Branch 1: NOT(NOT IN sub1) → SemiJoin on emp_no.
-     * Branch 2: exclusion NOT IN sub1 (AntiJoin) with salary IN sub2 (SemiJoin) on top.
-     */
-    public void testDoubleNotInSubqueryOrInSubquery() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
-               OR salary IN (FROM employees | KEEP salary)
-            """);
-
-        var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        // Branch 1: Project -> SemiJoin (double NOT → IN)
-        var branch1Project = as(unionAll.children().get(0), Project.class);
-        var branch1Semi = as(branch1Project.child(), SemiJoin.class);
-        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        // Branch 2: Project -> SemiJoin for salary IN sub2, with AntiJoin exclusion (NOT IN sub1) below
-        var branch2Project = as(unionAll.children().get(1), Project.class);
-        var branch2Outer = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("salary"));
-        var branch2Inner = as(branch2Outer.left(), AntiJoin.class);
-        assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
-    }
-
-    /**
-     * Verifies that double NOT IN subquery AND a regular condition produces SemiJoin with remaining filter.
-     * {@code WHERE NOT (emp_no NOT IN (FROM sub)) AND salary > 50000}
-     * The double NOT unwraps to IN → SemiJoin, salary > 50000 is a remaining filter below.
-     */
-    public void testDoubleNotInSubqueryAndRegularCondition() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
-               AND salary > 50000
-            """);
-
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        var filter = as(semiJoin.left(), Filter.class);
-        as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that double NOT IN subquery AND another IN subquery produces stacked joins.
-     * {@code WHERE NOT (emp_no NOT IN (FROM sub1)) AND salary IN (FROM sub2)}
-     * The double NOT unwraps to IN → SemiJoin on emp_no, and salary IN → SemiJoin on salary, stacked.
-     */
-    public void testDoubleNotInSubqueryAndInSubquery() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
-               AND salary IN (FROM employees | KEEP salary)
-            """);
-
-        var limit = as(plan, Limit.class);
-        // Two SemiJoins are stacked: the last one extracted is on top
-        var outerSemi = as(limit.child(), SemiJoin.class);
-        assertThat(outerSemi.config().leftFields().get(0).name(), equalTo("salary"));
-
-        var innerSemi = as(outerSemi.left(), SemiJoin.class);
-        assertThat(innerSemi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        as(innerSemi.left(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that parenthesized IN subquery is handled the same as non-parenthesized:
-     * {@code WHERE (emp_no IN (FROM sub)) AND salary > 50000}
-     */
-    public void testParenthesizedInSubqueryProducesSemiJoin() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) AND salary > 50000
-            """);
-
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        var filter = as(semiJoin.left(), Filter.class);
-        as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that an IN subquery mixed with an IN value-list in the same WHERE clause works.
-     * The IN subquery becomes a SemiJoin and the IN value-list stays as a remaining filter.
-     */
-    public void testInSubqueryMixedWithInValueList() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE emp_no IN (FROM employees | KEEP emp_no) AND languages IN (1, 2, 3)
-            """);
-
-        var limit = as(plan, Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
-
-        // The IN value-list is a remaining filter below the SemiJoin
-        var filter = as(semiJoin.left(), Filter.class);
-        as(filter.condition(), In.class);
-        as(filter.child(), EsRelation.class);
-    }
-
-    /**
      * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
      * The analyzer cannot extract InSubquery from inside a function call.
      */
@@ -1583,90 +2178,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 FROM test
                 | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
                 """,
-            containsString(
-                "IN/NOT IN subquery is not supported in " + "Filter [WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]"
-            )
+            containsString("IN/NOT IN subquery is not supported in Filter [WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
         );
-    }
-
-    // -- constant left-hand side IN subquery tests --
-
-    /**
-     * Verifies that a constant value on the left side of IN subquery is supported.
-     * {@code WHERE 10001 IN (FROM sub | KEEP emp_no)} produces a SemiJoin with a synthetic Eval.
-     */
-    public void testConstantInSubquery() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE 10001 IN (FROM employees | KEEP emp_no)
-            """);
-
-        // Project on top strips the synthetic constant column from the output
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
-
-        var eval = as(semiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that a constant value on the left side of NOT IN subquery is supported.
-     * {@code WHERE 10001 NOT IN (FROM sub | KEEP emp_no)} produces an AntiJoin with a synthetic Eval.
-     */
-    public void testConstantNotInSubquery() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
-            """);
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var antiJoin = as(limit.child(), AntiJoin.class);
-        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-
-        var eval = as(antiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that a constant IN subquery combined with a regular condition works.
-     * {@code WHERE 10001 IN (FROM sub | KEEP emp_no) AND salary > 50000}
-     */
-    public void testConstantInSubqueryWithRemainingFilter() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE 10001 IN (FROM employees | KEEP emp_no) AND salary > 50000
-            """);
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-
-        var eval = as(semiJoin.left(), Eval.class);
-        var filter = as(eval.child(), Filter.class);
-        as(filter.child(), EsRelation.class);
-    }
-
-    /**
-     * Verifies that a string constant IN subquery works.
-     */
-    public void testStringConstantInSubquery() {
-        var plan = analyzeInSubquery("""
-            FROM test
-            | WHERE "Georgi" IN (FROM employees | KEEP first_name)
-            """);
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var semiJoin = as(limit.child(), SemiJoin.class);
-        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-
-        var eval = as(semiJoin.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
@@ -142,13 +141,6 @@ public class InferenceResolver {
      */
     private void collectInferenceIdsFromInferencePlans(LogicalPlan plan, Consumer<String> c) {
         plan.forEachUp(InferencePlan.class, inferencePlan -> c.accept(inferenceId(inferencePlan)));
-        // Collect from IN subquery plans, which are embedded inside expressions
-        plan.forEachDown(
-            p -> p.forEachExpression(
-                InSubquery.class,
-                in -> in.subquery().forEachUp(InferencePlan.class, inferencePlan -> c.accept(inferenceId(inferencePlan)))
-            )
-        );
     }
 
     /**
@@ -159,7 +151,7 @@ public class InferenceResolver {
      */
     private void collectInferenceIdsFromInferenceFunctions(LogicalPlan plan, Consumer<String> c) {
         EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
-        Consumer<UnresolvedFunction> collector = f -> {
+        plan.forEachExpressionUp(UnresolvedFunction.class, f -> {
             String functionName = snapshotRegistry.resolveAlias(f.name());
             if (snapshotRegistry.functionExists(functionName)) {
                 FunctionDefinition def = snapshotRegistry.resolveFunction(functionName);
@@ -170,12 +162,7 @@ public class InferenceResolver {
                     }
                 }
             }
-        };
-        plan.forEachExpressionUp(UnresolvedFunction.class, collector);
-        // Collect from IN subquery plans, which are embedded inside expressions
-        plan.forEachDown(
-            p -> p.forEachExpression(InSubquery.class, in -> in.subquery().forEachExpressionUp(UnresolvedFunction.class, collector))
-        );
+        });
     }
 
     /**

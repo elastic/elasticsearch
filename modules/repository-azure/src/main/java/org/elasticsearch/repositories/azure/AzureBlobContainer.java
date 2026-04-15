@@ -136,6 +136,23 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        if (sourceBlobContainer instanceof AzureBlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a AzureBlobContainer");
+        }
+        AzureBlobContainer azureSourceBlobContainer = (AzureBlobContainer) sourceBlobContainer;
+        blobStore.copyBlob(
+            purpose,
+            azureSourceBlobContainer.buildKey(sourceBlobName),
+            azureSourceBlobContainer.blobStore,
+            buildKey(blobName)
+        );
+    }
+
+    @Override
     public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return blobStore.deleteBlobDirectory(purpose, keyPath);
     }

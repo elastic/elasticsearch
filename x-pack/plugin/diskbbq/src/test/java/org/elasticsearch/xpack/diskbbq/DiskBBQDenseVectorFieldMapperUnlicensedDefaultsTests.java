@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.diskbbq;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -23,7 +24,8 @@ public class DiskBBQDenseVectorFieldMapperUnlicensedDefaultsTests extends Mapper
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new BasicLicenseStateDiskBBQPlugin(Settings.EMPTY));
+        Settings statelessSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        return List.of(new BasicLicenseStateDiskBBQPlugin(statelessSettings));
     }
 
     public void testDoesNotDefaultToBBQDiskWhenUnlicensed() throws IOException {

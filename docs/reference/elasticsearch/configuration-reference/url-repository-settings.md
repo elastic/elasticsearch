@@ -17,7 +17,7 @@ There are two categories of settings:
 - [Node settings](#repository-url-node-settings) apply to the URL repository plugin. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node (they are not [repository settings](#repository-url-repository-settings) passed in the snapshot repository API).
 - [Repository settings](#repository-url-repository-settings) control per-repository behavior. You pass them in the `settings` object when you create or update a repository.
 
-## Node settings [repository-url-node-settings]
+## {{es}} settings [repository-url-node-settings]
 
 $$$repositories-url-allowed$$$
 

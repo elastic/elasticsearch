@@ -7,9 +7,19 @@ applies_to:
 
 # Shared file system repository settings [repository-fs-settings]
 
-You can use a shared file system as a repository for [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). This page lists the repository settings for the `fs` repository type. You specify these settings when creating or updating a repository via the [Create or update a snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository) API.
+You can use a shared file system as a repository for [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). You register repositories via the [Create or update a snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository) API.
 
-Configure the `path.repo` node setting in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) so that {{es}} may access the snapshot location on every master and data node. For step-by-step setup, mount paths, and platform-specific examples, refer to [Shared file system repository](docs-content://deploy-manage/tools/snapshot-and-restore/shared-file-system-repository.md).
+There are two categories of settings:
+
+- [{{es}} settings](#repository-fs-node-settings) control which filesystem paths nodes may use for `fs` repositories. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node (they are not [repository settings](#repository-fs-repository-settings) passed in the snapshot repository API).
+- [Repository settings](#repository-fs-repository-settings) control each registered repository. You pass them in the `settings` object when you create or update a repository.
+
+## {{es}} settings [repository-fs-node-settings]
+
+$$$path-repo$$$
+
+`path.repo`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of filesystem paths that {{es}} may use for `fs` snapshot repositories. Each repository `location` must resolve to a path under one of these entries on every master and data node. Defaults to an empty list. To register a shared filesystem repository, mount the storage at the same location on each node, add that path (or a parent directory) to `path.repo`, and apply the change according to your deployment. For step-by-step setup, mount paths, and platform-specific examples, refer to [Shared file system repository](docs-content://deploy-manage/tools/snapshot-and-restore/shared-file-system-repository.md).
 
 ## Repository settings [repository-fs-repository-settings]
 
@@ -37,7 +47,7 @@ The following settings are supported:
 :   (Optional, Boolean) If `true`, metadata files, such as index mappings and settings, are compressed in snapshots. Data files are not compressed. Defaults to `true`.
 
 `location`
-:   (Required, string) Location of the shared filesystem used to store and retrieve snapshots. This location must be registered in the `path.repo` setting on all master and data nodes in the cluster. Unlike `path.repo`, this setting supports only a single file path.
+:   (Required, string) Location of the shared filesystem used to store and retrieve snapshots. This location must fall under a path allowed by [`path.repo`](#path-repo) on every master and data node. Unlike `path.repo`, the repository `location` setting is a single path.
 
 `max_number_of_snapshots`
 :   (Optional, integer) Maximum number of snapshots the repository can contain. Defaults to `Integer.MAX_VALUE`, which is `2`^`31`^`-1` or `2147483647`.

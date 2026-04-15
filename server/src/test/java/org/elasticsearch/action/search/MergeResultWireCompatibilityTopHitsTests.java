@@ -21,8 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
@@ -34,7 +32,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -107,17 +104,19 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
 
             assertFalse("version mismatch must have triggered expand() — no transient hits were captured", transientHits.isEmpty());
 
-            // Without fix: refcount == 2 (our extra ref + original ref that was never released).
-            // With fix: refcount == 1 (our extra ref only; original was decRef'd by the fix).
-            for (SearchHits h : transientHits) {
-                assertEquals(
+            // Without fix: decRef returns false (original ref leaked; our extra ref was not the last).
+            // With fix: decRef returns true (original was released; our extra ref is the last → count hits 0).
+            // Remove before decRef to prevent double-release in the finally block.
+            for (var it = transientHits.iterator(); it.hasNext();) {
+                SearchHits h = it.next();
+                it.remove();
+                assertTrue(
                     "transient SearchHits must be released after Serialized wire rewrite (expand + re-serialize)",
-                    1,
-                    abstractRefCountUnderlying(h)
+                    h.decRef()
                 );
             }
         } finally {
-            // Release our extra refs taken above.
+            // Release any extra refs not yet consumed above (e.g. when writeTo threw before the assertion).
             for (SearchHits h : transientHits) {
                 h.decRef();
             }
@@ -163,53 +162,21 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
 
             assertFalse("pre-BATCHED path must have triggered expand() — no transient hits were captured", transientHits.isEmpty());
 
-            // Without fix: refcount == 2 (our extra ref + original ref that was never released).
-            // With fix: refcount == 1 (our extra ref only; original was decRef'd by the fix).
-            for (SearchHits h : transientHits) {
-                assertEquals("transient SearchHits must be released after pre-BATCHED expand + write", 1, abstractRefCountUnderlying(h));
+            // Without fix: decRef returns false (original ref leaked; our extra ref was not the last).
+            // With fix: decRef returns true (original was released; our extra ref is the last → count hits 0).
+            // Remove before decRef to prevent double-release in the finally block.
+            for (var it = transientHits.iterator(); it.hasNext();) {
+                SearchHits h = it.next();
+                it.remove();
+                assertTrue("transient SearchHits must be released after pre-BATCHED expand + write", h.decRef());
             }
         } finally {
+            // Release any extra refs not yet consumed above (e.g. when writeTo threw before the assertion).
             for (SearchHits h : transientHits) {
                 h.decRef();
             }
             pooledHits.decRef();
         }
-    }
-
-    /**
-     * Reads {@link AbstractRefCounted#refCount()} for the {@link RefCounted} backing pooled {@link SearchHits},
-     * unwrapping {@code LeakTracker} wrappers iteratively.
-     */
-    private static int abstractRefCountUnderlying(SearchHits hits) throws Exception {
-        Field f = SearchHits.class.getDeclaredField("refCounted");
-        f.setAccessible(true);
-        return peelToAbstractRefCounted((RefCounted) f.get(hits)).refCount();
-    }
-
-    private static AbstractRefCounted peelToAbstractRefCounted(RefCounted layer) throws Exception {
-        RefCounted current = layer;
-        for (int hop = 0; hop < 8; hop++) {
-            if (current instanceof AbstractRefCounted arc) {
-                return arc;
-            }
-            RefCounted next = null;
-            for (Field f : current.getClass().getDeclaredFields()) {
-                if (RefCounted.class.isAssignableFrom(f.getType()) == false) {
-                    continue;
-                }
-                f.setAccessible(true);
-                Object inner = f.get(current);
-                if (inner instanceof RefCounted innerRc && innerRc != current) {
-                    next = innerRc;
-                    break;
-                }
-            }
-            if (next == null) {
-                break;
-            }
-            current = next;
-        }
-        throw new AssertionError("Could not resolve AbstractRefCounted delegate from " + layer.getClass());
     }
 
     private static InternalAggregations createUnpooledAggregationsWithTopHits() {

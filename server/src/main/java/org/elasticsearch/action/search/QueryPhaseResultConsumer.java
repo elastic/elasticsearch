@@ -723,32 +723,39 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Lucene.writeTopDocsIncludingShardIndex(out, reducedTopDocs);
-            if (reducedAggs == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                if (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
-                    if (reducedAggs instanceof DelayableWriteable.Serialized<?> s
-                        && out.getTransportVersion() != s.getSerializedAtVersion()) {
-                        // Version mismatch: the generic Serialized.writeTo mismatch branch would expand
-                        // the aggs and discard the result without releasing pooled SearchHits in any
-                        // top-hits aggregations. Expand here instead so we control the lifecycle.
-                        writeExpandedAndRelease(out, reducedAggs.expand(), true);
-                    } else {
-                        reducedAggs.writeTo(out);
-                    }
+            out.writeOptionalWriteable(reducedAggs == null ? null : aggsOut -> writeAggs(aggsOut, reducedAggs));
+            out.writeVLong(estimatedSize);
+        }
+
+        /**
+         * Writes {@code reducedAggs} to {@code out}, releasing any pooled {@link SearchHits} held by
+         * top-hits aggregations after the write whenever expansion produces freshly deserialized objects.
+         *
+         * <p>Two paths require an explicit expand + release to avoid leaking pooled SearchHits:
+         * <ul>
+         *   <li><b>BATCHED, version mismatch</b>: {@link DelayableWriteable.Serialized#writeTo} would
+         *       expand transiently via {@code referencing(expand()).writeTo(out)} and discard the result.
+         *       We intercept by expanding here where we control the lifecycle.</li>
+         *   <li><b>Pre-BATCHED</b>: receivers expect raw {@link InternalAggregations} on the wire;
+         *       expansion is unavoidable. Only {@link DelayableWriteable.Serialized} produces fresh
+         *       objects that need releasing; a referencing {@link DelayableWriteable} returns the live
+         *       caller-owned reference and must not be released here.</li>
+         * </ul>
+         */
+        private static void writeAggs(StreamOutput out, DelayableWriteable<InternalAggregations> reducedAggs) throws IOException {
+            if (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
+                if (reducedAggs instanceof DelayableWriteable.Serialized<?> s && out.getTransportVersion() != s.getSerializedAtVersion()) {
+                    writeExpandedAndRelease(out, reducedAggs.expand(), true);
                 } else {
-                    // Pre-BATCHED receivers require raw InternalAggregations on the wire.
-                    if (reducedAggs.isSerialized()) {
-                        // Expansion produces freshly deserialized objects; release pooled SearchHits after writing.
-                        writeExpandedAndRelease(out, reducedAggs.expand(), false);
-                    } else {
-                        // Referencing wraps a live object; caller owns the lifecycle — do not release.
-                        reducedAggs.expand().writeTo(out);
-                    }
+                    reducedAggs.writeTo(out);
+                }
+            } else {
+                if (reducedAggs.isSerialized()) {
+                    writeExpandedAndRelease(out, reducedAggs.expand(), false);
+                } else {
+                    reducedAggs.expand().writeTo(out);
                 }
             }
-            out.writeVLong(estimatedSize);
         }
 
         /**

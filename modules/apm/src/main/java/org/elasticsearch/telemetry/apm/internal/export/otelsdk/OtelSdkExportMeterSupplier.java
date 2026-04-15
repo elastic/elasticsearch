@@ -16,8 +16,10 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 
@@ -27,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -41,10 +44,15 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
     private final Settings settings;
     private volatile OTelMetricsResources resources;
+    private volatile Path diskBufferPath;
     private static final Object mutex = new Object();
 
     public OtelSdkExportMeterSupplier(Settings settings) {
         this.settings = settings;
+    }
+
+    public void setDiskBufferPath(Path path) {
+        this.diskBufferPath = path;
     }
 
     @Override
@@ -60,13 +68,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     private OTelMetricsResources createMeteringResources() {
         TimeValue intervalTimeValue = OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL.get(settings);
 
-        // Reader to collect metrics about OTLPExporter
         var metricHealthReader = PeriodicMetricReader.builder(createOTLPExporter(MeterProvider.noop()))
             .setInterval(intervalTimeValue.toDuration())
             .build();
         var metricHealthProvider = sdkMeterProvider(metricHealthReader);
 
-        var reader = PeriodicMetricReader.builder(createOTLPExporter(metricHealthProvider))
+        var reader = PeriodicMetricReader.builder(wrapWithBuffering(createOTLPExporter(metricHealthProvider)))
             .setInterval(intervalTimeValue.toDuration())
             .build();
         var systemMeterProvider = sdkMeterProvider(reader);
@@ -75,6 +82,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
         var runtimeTelemetry = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
         return new OTelMetricsResources(systemMeterProvider, metricHealthProvider, runtimeTelemetry);
+    }
+
+    private MetricExporter wrapWithBuffering(OtlpHttpMetricExporter delegate) {
+        if (OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes() == 0) {
+            return delegate;
+        }
+        return new BufferingMetricExporter(delegate, settings, () -> diskBufferPath);
     }
 
     private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
@@ -95,12 +109,26 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setEndpoint(endpoint)
             .setMeterProvider(() -> healthExportMeterProvider)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
-            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
+            .setRetryPolicy(buildRetryPolicy());
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
+    }
+
+    private RetryPolicy buildRetryPolicy() {
+        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_MAX_ATTEMPTS.get(settings);
+        if (maxAttempts <= 1) {
+            return null;
+        }
+        return RetryPolicy.builder()
+            .setMaxAttempts(maxAttempts)
+            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
+            .setMaxBackoff(OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_MAX_BACKOFF.get(settings).toDuration())
+            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_BACKOFF_MULTIPLIER.get(settings))
+            .build();
     }
 
     /**

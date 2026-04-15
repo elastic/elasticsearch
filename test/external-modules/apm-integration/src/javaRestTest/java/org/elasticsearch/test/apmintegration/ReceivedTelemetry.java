@@ -25,7 +25,9 @@ public sealed interface ReceivedTelemetry {
     /**
      * A set of metrics from a single instrumentation scope (e.g. "elasticsearch").
      */
-    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples) implements ReceivedTelemetry {
+    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples, long collectionTime)
+        implements
+            ReceivedTelemetry {
         public ReceivedMetricSet {
             requireNonNull(instrumentationScopeName);
             requireNonNull(samples);

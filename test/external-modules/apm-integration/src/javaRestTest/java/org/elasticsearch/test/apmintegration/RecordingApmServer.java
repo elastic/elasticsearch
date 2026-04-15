@@ -39,6 +39,7 @@ public class RecordingApmServer extends ExternalResource {
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
+    private volatile int overrideResponseCode = 0;
 
     @Override
     protected void before() throws Throwable {
@@ -85,8 +86,22 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
+    /**
+     * Override the HTTP response code for all subsequent responses. Pass {@code 0} to reset to the default (201).
+     */
+    public void setResponseCode(int code) {
+        this.overrideResponseCode = code;
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            int responseCode = overrideResponseCode;
+            if (responseCode > 0) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.sendResponseHeaders(responseCode, -1);
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath();
             if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {

@@ -23,6 +23,8 @@ import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 
+import java.nio.file.Path;
+
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 public class APMMeterService extends AbstractLifecycleComponent {
@@ -71,6 +73,10 @@ public class APMMeterService extends AbstractLifecycleComponent {
         if (enabled) {
             otelMeterSupplier.attemptFlushMetrics();
         }
+    }
+
+    public void setDiskBufferPath(Path path) {
+        otelMeterSupplier.setDiskBufferPath(path);
     }
 
     /**

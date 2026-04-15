@@ -14,6 +14,8 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.nio.file.Path;
+
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
@@ -30,6 +32,10 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     public APMMeterService getMeterService() {
         return apmMeterService;
+    }
+
+    public void setDiskBufferPath(Path path) {
+        apmMeterService.setDiskBufferPath(path);
     }
 
     @Override

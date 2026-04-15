@@ -1,5 +1,10 @@
 # These can be removed once the APM Agent is fully deprecated
 org.elasticsearch.telemetry.apm:
+  - manage_threads
+  - files:
+      - relative_path: "telemetry-buffer"
+        relative_to: data
+        mode: read_write
   - create_class_loader
   - write_system_properties:
       properties:

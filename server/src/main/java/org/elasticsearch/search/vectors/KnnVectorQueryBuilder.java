@@ -25,7 +25,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -549,7 +548,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         }
         // TODO: Re-enable index version gate before moving out of POC
         // if (context.getIndexSettings().getIndexVersionCreated().before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
-        //     return;
+        // return;
         // }
         if (queryVector != null && vectorFieldType.getDims() != null && vectorFieldType.getDims() != queryVector.asFloatVector().length) {
             return;

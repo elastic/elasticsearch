@@ -37,8 +37,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -63,8 +63,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}}
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -89,8 +89,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "rank_constant": 55 }
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -115,8 +115,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE linear
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -143,8 +143,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE LINEAR WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -170,7 +170,7 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
                 FROM test METADATA _score, _id, _index
                 | WHERE id > 2
                 | FORK
-                   ( WHERE content:"fox" | SORT _score, _id DESC )
+                   ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
                 | FUSE
                 """ + type.name() + """
                 | SORT _score DESC, _id, _index

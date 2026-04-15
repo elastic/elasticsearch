@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -42,11 +44,13 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
+import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
+
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record TestConfiguration(
+public record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
@@ -74,7 +78,8 @@ record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    String directoryType
+    String directoryType,
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -132,7 +137,7 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -199,7 +204,14 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
-            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
+            new ParameterHelp(
+                "dataset",
+                "object",
+                "Optional. {\"gcp\": {\"name\": \"...\"}}, "
+                    + "{\"file\": {\"doc_vectors\": [...], \"query_vectors\": \"...\"}}, "
+                    + "or {\"partition_generated\": {\"num_partitions\": N, "
+                    + "\"partition_distribution\": \"uniform|zipf\", \"generator_seed\": L}}."
+            ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -354,7 +366,7 @@ record TestConfiguration(
     }
 
     static class Builder implements ToXContentObject {
-        private String dataset;
+        private DatasetConfig datasetConfig;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
@@ -400,9 +412,13 @@ record TestConfiguration(
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
-        public Builder setDataset(String dataset) {
-            this.dataset = dataset;
+        public Builder setDatasetConfig(DatasetConfig datasetConfig) {
+            this.datasetConfig = datasetConfig;
             return this;
+        }
+
+        DatasetConfig datasetConfig() {
+            return datasetConfig;
         }
 
         public Builder setDataDir(String dataDir) {
@@ -619,7 +635,7 @@ record TestConfiguration(
              "num_query_vectors": 5000
            }
          */
-        private void resolveDataset() throws Exception {
+        private void resolveDataset(String dataset) throws Exception {
             final String cloudProjectId = "benchmarking";
             final String datasetBucket = "knnindextester";
 
@@ -705,11 +721,19 @@ record TestConfiguration(
                 Path destFile = dest.resolve(id.getName());
                 dataFiles.add(destFile);
                 if (!Files.exists(destFile)) {
-                    KnnIndexTester.logger.info("Downloading {} to {}...", gsFile, destFile);
+                    long totalBytes = blob.getSize();
+                    KnnIndexTester.logger.info(
+                        "Downloading {} to {} ({} MB)...",
+                        gsFile,
+                        destFile,
+                        String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                    );
 
                     // may need to create a subdirectory
                     Files.createDirectories(destFile.getParent());
-                    blob.downloadTo(destFile);
+                    try (OutputStream out = new ProgressOutputStream(Files.newOutputStream(destFile), totalBytes)) {
+                        blob.downloadTo(out);
+                    }
                 } else {
                     KnnIndexTester.logger.info("Checking CRC32C for {}...", destFile.getFileName());
                     // check CRC32
@@ -754,9 +778,16 @@ record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (dataset != null) {
-                // this fills in various options from the dataset
-                resolveDataset();
+            switch (datasetConfig) {
+                case DatasetConfig.GcpDataset gcpDataset -> resolveDataset(gcpDataset.name());
+                case DatasetConfig.FileDataset fileDataset -> {
+                    docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
+                    if (fileDataset.queryVectors() != null) {
+                        queryVectors = PathUtils.get(fileDataset.queryVectors());
+                    }
+                }
+                case null, default -> {
+                }
             }
             // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
@@ -775,8 +806,20 @@ record TestConfiguration(
                 numQueries = 100;
             }
 
-            if (docVectors == null) {
-                throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+            switch (datasetConfig) {
+                case PartitionGenerated pg -> {
+                    if (dimensions <= 0) {
+                        throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                    }
+                    if (docVectors == null) {
+                        docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                    }
+                }
+                case null, default -> {
+                    if (docVectors == null) {
+                        throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+                    }
+                }
             }
             if (dimensions <= 0 && dimensions != -1) {
                 throw new IllegalArgumentException(
@@ -851,15 +894,16 @@ record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                directoryType
+                directoryType,
+                datasetConfig
             );
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (dataset != null) {
-                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            if (datasetConfig != null) {
+                datasetConfig.toXContent(builder, params);
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);
@@ -977,6 +1021,57 @@ record TestConfiguration(
                 result = temp;
             }
             return result;
+        }
+    }
+
+    /** An OutputStream wrapper that logs download progress at every 10% increment. */
+    private static class ProgressOutputStream extends OutputStream {
+        private final OutputStream delegate;
+        private final long totalBytes;
+        private long bytesWritten;
+        private int lastReportedPct = -1;
+
+        ProgressOutputStream(OutputStream delegate, long totalBytes) {
+            this.delegate = delegate;
+            this.totalBytes = totalBytes;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            delegate.write(b);
+            bytesWritten++;
+            reportProgress();
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            delegate.write(b, off, len);
+            bytesWritten += len;
+            reportProgress();
+        }
+
+        private void reportProgress() {
+            if (totalBytes <= 0) return;
+            int pct = (int) (bytesWritten * 100 / totalBytes);
+            if (pct / 10 > lastReportedPct / 10) {
+                lastReportedPct = pct;
+                KnnIndexTester.logger.info(
+                    "  {}% ({} / {} MB)",
+                    pct,
+                    String.format(Locale.ROOT, "%.1f", bytesWritten / (1024.0 * 1024.0)),
+                    String.format(Locale.ROOT, "%.1f", totalBytes / (1024.0 * 1024.0))
+                );
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

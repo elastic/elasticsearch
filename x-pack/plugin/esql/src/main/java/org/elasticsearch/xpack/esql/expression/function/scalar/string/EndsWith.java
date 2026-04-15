@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -150,7 +151,7 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
-        var wildcardQuery = "*" + WildcardQuery.escapeWildcardSyntax(BytesRefs.toString(suffix.fold(FoldContext.small())));
+        var wildcardQuery = "*" + StringUtils.escapeWildcardLiteral(BytesRefs.toString(suffix.fold(FoldContext.small())));
 
         return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
     }

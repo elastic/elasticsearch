@@ -5,12 +5,12 @@
 serverless: preview
 stack: preview 9.3.0
 ```
-This setting determines how unmapped fields are treated. Possible values are:
+Determines how unmapped fields are treated. Possible values are:
 
-- `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+- `DEFAULT` - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
 may treat them differently.
 - `NULLIFY` - Treats unmapped fields as null values.
-- `LOAD` - Attempts to load unmapped fields from the stored JSON
+- `LOAD` - Attempts to load unmapped fields from the stored
 [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`.
 {applies_to}`stack: preview 9.4`
 
@@ -30,15 +30,15 @@ unless referenced in a `KEEP` or `DROP`.
 ## Example
 
 Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
-however, in the stored JSON `_source` of all documents in this index.
+however, in the stored `_source` of all documents in this index.
 
-The `NULLIFY` option should treat this field as `null`.
+The `NULLIFY` option will treat this field as `null`.
 
 
 ```esql
 SET unmapped_fields="nullify";
 FROM partial_mapping_sample_data
-| KEEP event*, unmapped_message
+| KEEP event_duration, unmapped_message
 | SORT event_duration
 | LIMIT 1
 ```
@@ -50,20 +50,20 @@ FROM partial_mapping_sample_data
 ## Example
 
 Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
-however, in the stored JSON `_source` of all documents in this index.
+however, in the stored `_source` of all documents in this index.
 
-The `LOAD` option should load this field from `_source`.
+The `LOAD` option will load this field from `_source` and treat it like a `keyword` type field.
 
 
 ```esql
 SET unmapped_fields="load";
 FROM partial_mapping_sample_data
-| KEEP event*, unmapped_message
+| KEEP event_duration, unmapped_message
 | SORT event_duration
 | LIMIT 1
 ```
 
-| event_duration:long | unmapped_message:null |
+| event_duration:long | unmapped_message:keyword |
 | --- | --- |
-| 725447 | null |
+| 725447 | Disconnection error |
 

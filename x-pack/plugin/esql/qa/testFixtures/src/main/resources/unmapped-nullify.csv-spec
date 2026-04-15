@@ -204,7 +204,7 @@ required_capability: optional_fields_nullify_tech_preview
 // tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_sample_data
-| KEEP event*, unmapped_message
+| KEEP event_duration, unmapped_message
 | SORT event_duration
 | LIMIT 1
 // end::unmapped-nullify-simple-keep[]

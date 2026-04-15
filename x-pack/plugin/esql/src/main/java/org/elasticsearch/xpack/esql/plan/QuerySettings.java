@@ -75,12 +75,12 @@ public class QuerySettings {
     );
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
-        This setting determines how unmapped fields are treated. Possible values are:
+        Determines how unmapped fields are treated. Possible values are:
 
-        - `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+        - `DEFAULT` - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
         may treat them differently.
         - `NULLIFY` - Treats unmapped fields as null values.
-        - `LOAD` - Attempts to load unmapped fields from the stored JSON
+        - `LOAD` - Attempts to load unmapped fields from the stored
         [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`.
         {applies_to}`stack: preview 9.4`
 
@@ -96,15 +96,15 @@ public class QuerySettings {
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
-        however, in the stored JSON `_source` of all documents in this index.
+        however, in the stored `_source` of all documents in this index.
 
-        The `NULLIFY` option should treat this field as `null`.
+        The `NULLIFY` option will treat this field as `null`.
         """)
     @Example(file = "unmapped-load", tag = "unmapped-load-sample", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
-        however, in the stored JSON `_source` of all documents in this index.
+        however, in the stored `_source` of all documents in this index.
 
-        The `LOAD` option should load this field from `_source`.
+        The `LOAD` option will load this field from `_source` and treat it like a `keyword` type field.
         """)
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",

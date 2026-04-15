@@ -61,7 +61,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        return createParameters("xpack");
     }
 
     /**

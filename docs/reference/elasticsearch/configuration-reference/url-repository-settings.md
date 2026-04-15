@@ -2,7 +2,8 @@
 navigation_title: Read-only URL repository
 applies_to:
   deployment:
-    self:
+    self: ga
+    eck: ga
 ---
 
 # Read-only URL repository settings [repository-url-settings]
@@ -10,6 +11,18 @@ applies_to:
 You can use a URL repository to give a cluster read-only access to snapshot data exposed at a URL. You specify settings for the `url` repository type when creating or updating a repository via the [Create or update a snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository) API.
 
 For setup and examples, refer to [Read-only URL repository](docs-content://deploy-manage/tools/snapshot-and-restore/read-only-url-repository.md).
+
+There are two categories of settings:
+
+- [Node settings](#repository-url-node-settings) apply to the URL repository plugin. You configure them in [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) on each node (they are not [repository settings](#repository-url-repository-settings) passed in the snapshot repository API).
+- [Repository settings](#repository-url-repository-settings) control per-repository behavior. You pass them in the `settings` object when you create or update a repository.
+
+## Node settings [repository-url-node-settings]
+
+$$$repositories-url-allowed$$$
+
+`repositories.url.allowed_urls` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the [read-only URL repositories](docs-content://deploy-manage/tools/snapshot-and-restore/read-only-url-repository.md) that snapshots can be restored from. The default value is an empty list.
 
 ## Repository settings [repository-url-repository-settings]
 
@@ -58,6 +71,6 @@ The following settings are supported:
     * `https`
     * `jar`
 
-    URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the [`repositories.url.allowed_urls`](/reference/elasticsearch/configuration-reference/snapshot-restore-settings.md#repositories-url-allowed) cluster setting. This setting supports wildcards in the place of a host, path, query, or fragment in the URL.
+    URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the [`repositories.url.allowed_urls`](#repositories-url-allowed) node setting. This setting supports wildcards in the place of a host, path, query, or fragment in the URL.
 
     URLs using the `file` protocol must point to the location of a shared filesystem accessible to all master and data nodes in the cluster. This location must be registered in the `path.repo` setting, in the same way as when configuring a [shared file system repository](docs-content://deploy-manage/tools/snapshot-and-restore/shared-file-system-repository.md), and it must contain the snapshot data. You don't need to set `path.repo` when using URLs with the `ftp`, `http`, `https`, or `jar` protocols.

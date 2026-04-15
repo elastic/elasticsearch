@@ -3,8 +3,7 @@ navigation_title: GCS repository
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/repository-gcs.html
 applies_to:
-  deployment:
-    self:
+  stack: all
 ---
 
 # Google Cloud Storage repository settings [repository-gcs-settings]

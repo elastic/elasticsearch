@@ -1,8 +1,7 @@
 ---
 navigation_title: Source-only repository
 applies_to:
-  deployment:
-    self:
+  stack: all
 ---
 
 # Source-only repository settings [repository-source-settings]

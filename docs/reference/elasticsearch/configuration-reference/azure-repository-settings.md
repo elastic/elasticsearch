@@ -3,8 +3,7 @@ navigation_title: Azure repository
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/repository-azure.html
 applies_to:
-  deployment:
-    self:
+  stack: all
 ---
 
 # Azure repository settings [repository-azure-settings]

@@ -2,5 +2,5 @@
 
 ## Description
 
-Computes a buffer area around the input geometry at the specified distance. The distance is in the units of the input spatial reference system. Positive distances expand the geometry, negative distances shrink it. Points and lines become polygons when buffered.
+Computes a buffer area around the input geometry at the specified distance. The distance is in the units of the input spatial reference system. Positive distances expand the geometry, negative distances shrink it. A distance of zero will return the input geometry unchanged. Points and lines become polygons when buffered, unless a zero distance is provided.
 

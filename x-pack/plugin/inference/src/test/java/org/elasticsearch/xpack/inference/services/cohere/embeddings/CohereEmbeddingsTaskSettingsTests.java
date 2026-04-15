@@ -19,7 +19,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -54,9 +53,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         if (newSettings.getTruncation() != null) {
             newSettingsMap.put(CohereServiceFields.TRUNCATE, newSettings.getTruncation().toString());
         }
-        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
-        );
+        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
         if (newSettings.getInputType() == null) {
             assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
         } else {

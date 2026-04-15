@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.querylog;
 
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -17,13 +18,18 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-public class EsqlLogContext extends ActivityLoggerContext {
+public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
+    // Cached index names
+    private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
@@ -37,8 +43,9 @@ public class EsqlLogContext extends ActivityLoggerContext {
         this.response = null;
     }
 
-    String getQuery() {
-        return request.query();
+    @Override
+    public String getQuery() {
+        return request.queryDescription();
     }
 
     public Optional<ShardInfo> shardInfo() {
@@ -50,57 +57,56 @@ public class EsqlLogContext extends ActivityLoggerContext {
         AtomicInteger skippedShards = new AtomicInteger(0);
         AtomicInteger failedShards = new AtomicInteger(0);
         info.getClusters().forEach((alias, clusterInfo) -> {
-            successShards.addAndGet(clusterInfo.getSuccessfulShards());
-            skippedShards.addAndGet(clusterInfo.getSkippedShards());
-            failedShards.addAndGet(clusterInfo.getFailedShards());
+            successShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSuccessfulShards(), 0));
+            skippedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSkippedShards(), 0));
+            failedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getFailedShards(), 0));
         });
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
 
-    long getHits() {
+    @Override
+    public int getResultCount() {
         if (response == null) {
             return 0;
         }
-        return response.getRowCount();
+        return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 
-    // CCS stuff
-
-    /**
-     * Does this search refer to other clusters?
-     */
-    public boolean isCrossClusterSearch() {
-        // TODO: this does not account for CCS failures.
-        return response != null && response.getExecutionInfo().isCrossClusterSearch();
-    }
-
-    public long remoteClusterCount() {
-        return response != null
-            ? response.getExecutionInfo()
-                .getClusters()
-                .entrySet()
-                .stream()
-                .filter(alias -> alias.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
-                .count()
-            : 0;
-    }
-
+    @Override
     public String[] getIndices() {
         if (response == null) {
             return null;
         }
-        return response.getExecutionInfo()
+        if (indexNames != null) {
+            return indexNames;
+        }
+        indexNames = response.getExecutionInfo()
             .getClusters()
             .values()
             .stream()
             .flatMap(
-                cluster -> Arrays.stream(cluster.getIndexExpression().split(","))
+                cluster -> Arrays.stream(Strings.splitStringByCommaToArray(cluster.getIndexExpression()))
                     .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
             )
             .toArray(String[]::new);
+        return indexNames;
+    }
+
+    // CCS stuff
+
+    @Override
+    public Map<String, String> getClusters() {
+        if (response == null) {
+            return Map.of();
+        }
+        return response.getExecutionInfo()
+            .getClusters()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
     }
 }

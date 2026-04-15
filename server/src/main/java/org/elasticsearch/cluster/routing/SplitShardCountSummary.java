@@ -91,6 +91,15 @@ import java.io.IOException;
 
 public class SplitShardCountSummary implements Writeable, Comparable<SplitShardCountSummary> {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
+    /// Specifies that the operation being performed can not be affected by an ongoing split
+    /// and therefore doesn't need any special logic like search filters applied.
+    ///
+    /// This placeholder value allows us to skip sending the summary from the coordinator
+    /// to the shard. As such it should only be used locally and is not expected to be serialized.
+    ///
+    /// Some examples are:
+    /// * Operations that don't actually perform any searches but have to use search related APIs.
+    public static final SplitShardCountSummary IRRELEVANT = new SplitShardCountSummary(Integer.MIN_VALUE);
 
     /**
      * Given {@code IndexMetadata} and a {@code shardId}, this method returns the "effective" shard count
@@ -204,6 +213,7 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert shardCountSummary != IRRELEVANT.shardCountSummary;
         out.writeVInt(shardCountSummary);
     }
 

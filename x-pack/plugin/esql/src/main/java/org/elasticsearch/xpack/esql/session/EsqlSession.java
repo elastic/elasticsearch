@@ -54,9 +54,11 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -81,6 +84,8 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -94,6 +99,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
@@ -113,7 +119,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -243,25 +249,27 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
-        LOGGER.debug("ESQL query:\n{}", request.query());
+        LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
+        TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
+        viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
                 SettingsValidationContext.from(remoteClusterService),
-                planTelemetry,
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            listener.delegateFailureAndWrap(
-                (l, viewResolution) -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l)
-            )
+            listener.delegateFailureAndWrap((l, viewResolution) -> {
+                viewResolutionProfile.stop();
+                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
+            })
         );
     }
 
@@ -274,6 +282,13 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+
+        // this is stack telemetry
+        gatherViewMetrics(viewResolution);
+
+        // this is APM
+        gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -390,7 +405,7 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    public void executeOptimizedPlan(
+    private void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -577,7 +592,11 @@ public class EsqlSession {
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
      */
-    private record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
+    private record SubPlanAndCallback(
+        LogicalPlan subPlan,
+        java.util.function.Function<Result, LogicalPlan> newMainPlan,
+        Runnable cleanup
+    ) {};
 
     private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
         if (approximation != null) {
@@ -704,13 +723,42 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return parser.parse(
-            request.query(),
-            request.params(),
-            SettingsValidationContext.from(remoteClusterService),
-            planTelemetry,
-            inferenceService.inferenceSettings()
-        );
+        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+    }
+
+    /**
+     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
+     * and settings from the original statement plus any nodes introduced by view expansion.
+     */
+    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
+        EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
+        // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
+        // should not be counted as standalone STATS commands.
+        Set<LogicalPlan> inlineStatsAggregates = new HashSet<>();
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
+        plan.forEachDown(node -> {
+            if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null && inlineStatsAggregates.contains(node) == false) {
+                // Not all TelemetryAware nodes have a label — e.g. lookup index UnresolvedRelation
+                // nodes introduced by LOOKUP JOIN have a null command name; those are skipped.
+                // Aggregate nodes that are the inner aggregate of INLINE STATS are also skipped —
+                // the INLINE STATS node itself is counted instead.
+                planTelemetry.command(ta);
+            }
+            node.forEachExpression(Function.class, f -> {
+                if (f instanceof UnresolvedFunction uf) {
+                    planTelemetry.function(uf.name());
+                } else if (registry.functionExists(f.getClass())) {
+                    // Concrete Function instances arise from inline cast expressions (e.g. x::long)
+                    // or programmatically-built plans (e.g. Prometheus plan builders).
+                    // Not all Function subclasses are user-callable (e.g. Add, GreaterThan are
+                    // Function subclasses but are never in the registry); those are skipped.
+                    planTelemetry.function(f.getClass());
+                }
+            });
+        });
+        if (settings != null) {
+            settings.forEach(s -> planTelemetry.setting(s.name()));
+        }
     }
 
     private void gatherSettingsMetrics(EsqlStatement statement) {
@@ -723,6 +771,13 @@ public class EsqlSession {
         // (e.g., snapshot-only settings are not registered in non-snapshot builds).
         // incSetting() silently ignores settings that don't have a registered counter.
         statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
+    }
+
+    private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.viewQueries().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.VIEW);
     }
 
     /**
@@ -780,7 +835,7 @@ public class EsqlSession {
         }
     }
 
-    public void analyzedPlan(
+    private void analyzedPlan(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Configuration configuration,
@@ -828,10 +883,12 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        TimeSpanMarker dependencyResolutionProfile = executionInfo.queryProfile().dependencyResolution();
-        dependencyResolutionProfile.start();
+        executionInfo.queryProfile().indicesResolutionMarker().start();
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
         SubscribableListener.<PreAnalysisResult>newForked(
-            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
+            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {
             if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
                 && executionInfo.isCrossClusterSearch()
@@ -879,21 +936,33 @@ public class EsqlSession {
             return r;
         })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .andThenApply(r -> {
+                executionInfo.queryProfile().indicesResolutionMarker().stop();
+                return r;
+            })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                executionInfo.queryProfile().enrichResolutionMarker().start();
                 enrichPolicyResolver.resolvePolicies(
                     preAnalysis.enriches(),
                     executionInfo,
                     r.minimumTransportVersion(),
-                    l.map(r::withEnrichResolution)
+                    l.delegateFailureAndWrap((ll, enrichResolution) -> {
+                        executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        ll.onResponse(r.withEnrichResolution(enrichResolution));
+                    })
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
-                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
+                executionInfo.queryProfile().inferenceResolutionMarker().start();
+                inferenceService.inferenceResolver(functionRegistry)
+                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                        executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                        ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                    }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                dependencyResolutionProfile.stop();
                 analyzeWithRetry(parsed, unmappedResolution, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
             })
             .addListener(logicalPlanListener);
@@ -1135,7 +1204,7 @@ public class EsqlSession {
                 Map.of(indexName, IndexMode.LOOKUP),
                 Map.of(),
                 Map.of(),
-                Set.of()
+                Map.of()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }
@@ -1178,6 +1247,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1199,7 +1269,16 @@ public class EsqlSession {
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
-                (e, r, l) -> preAnalyzeMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                (e, r, l) -> preAnalyzeMainIndices(
+                    e.getKey(),
+                    e.getValue(),
+                    preAnalysis,
+                    executionInfo,
+                    trackUnmappedFieldIndices,
+                    r,
+                    requestFilter,
+                    l
+                ),
                 listener
             );
         } else {
@@ -1212,6 +1291,7 @@ public class EsqlSession {
                     configuration.projectRouting(),
                     preAnalysis,
                     executionInfo,
+                    trackUnmappedFieldIndices,
                     r,
                     requestFilter,
                     l
@@ -1226,6 +1306,7 @@ public class EsqlSession {
         IndexMode indexMode,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1253,14 +1334,27 @@ public class EsqlSession {
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
+                trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
-                    l.onResponse(
-                        result.withIndices(indexPattern, indexResolution.inner())
-                            .withMinimumTransportVersion(indexResolution.minimumVersion())
-                    );
+                    maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
+                        executionInfo.queryProfile().incFieldCapsCalls();
+                        indexResolver.resolveMainIndicesVersioned(
+                            indexPattern.indexPattern(),
+                            result.fieldNames,
+                            requestFilter,
+                            false,
+                            indexResolution.minimumVersion(),
+                            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                            preAnalysis.useDenseVectorWhenNotSupported(),
+                            false,
+                            trackUnmappedFieldIndices,
+                            indicesExpressionGrouper,
+                            retryListener
+                        );
+                    });
                 })
             );
         }
@@ -1272,6 +1366,7 @@ public class EsqlSession {
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -1288,21 +1383,34 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
+            trackUnmappedFieldIndices,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
-                l.onResponse(
-                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
-                );
+                maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
+                    executionInfo.queryProfile().incFieldCapsCalls();
+                    indexResolver.resolveMainFlatWorldIndicesVersioned(
+                        indexPattern.indexPattern(),
+                        projectRouting,
+                        result.fieldNames,
+                        requestFilter,
+                        false,
+                        indexResolution.minimumVersion(),
+                        preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                        preAnalysis.useDenseVectorWhenNotSupported(),
+                        false,
+                        trackUnmappedFieldIndices,
+                        retryListener
+                    );
+                });
             })
         );
     }
 
     private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
-        // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
         return switch (indexMode) {
             case IndexMode.TIME_SERIES -> {
                 var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -1310,6 +1418,58 @@ public class EsqlSession {
             }
             default -> requestFilter;
         };
+    }
+
+    // visible for testing
+    static boolean shouldRetryConcreteTimeSeriesResolution(IndexMode indexMode, IndexResolution resolution, IndexPattern indexPattern) {
+        return indexMode == IndexMode.TIME_SERIES
+            && resolution.isValid()
+            && resolution.resolvedIndices().isEmpty()
+            && EsqlCCSUtils.concreteIndexRequested(indexPattern.indexPattern());
+    }
+
+    // visible for testing
+    static IndexResolution refineConcreteTimeSeriesResolution(
+        IndexPattern indexPattern,
+        IndexResolution originalResolution,
+        IndexResolution retryResolution
+    ) {
+        return resolvedConcreteIndexWithoutTimeSeriesFilter(retryResolution)
+            ? IndexResolution.invalid("[" + indexPattern.indexPattern() + "] is not a time series index. Use FROM command instead")
+            : originalResolution;
+    }
+
+    private static boolean resolvedConcreteIndexWithoutTimeSeriesFilter(IndexResolution retryResolution) {
+        return retryResolution.isValid() && retryResolution.resolvedIndices().isEmpty() == false;
+    }
+
+    private void maybeRetryConcreteTimeSeriesResolution(
+        IndexPattern indexPattern,
+        IndexMode indexMode,
+        PreAnalysisResult result,
+        Versioned<IndexResolution> indexResolution,
+        ActionListener<PreAnalysisResult> listener,
+        Consumer<ActionListener<Versioned<IndexResolution>>> resolveWithoutModeFilter
+    ) {
+        IndexResolution originalResolution = indexResolution.inner();
+        if (shouldRetryConcreteTimeSeriesResolution(indexMode, originalResolution, indexPattern) == false) {
+            listener.onResponse(
+                result.withIndices(indexPattern, originalResolution).withMinimumTransportVersion(indexResolution.minimumVersion())
+            );
+            return;
+        }
+        resolveWithoutModeFilter.accept(ActionListener.wrap(retryResolution -> {
+            IndexResolution finalResolution = refineConcreteTimeSeriesResolution(indexPattern, originalResolution, retryResolution.inner());
+            TransportVersion finalMinimumVersion = finalResolution == originalResolution
+                ? indexResolution.minimumVersion()
+                : retryResolution.minimumVersion();
+            listener.onResponse(result.withIndices(indexPattern, finalResolution).withMinimumTransportVersion(finalMinimumVersion));
+        }, e -> {
+            LOGGER.debug("Retry without TIME_SERIES filter failed for [{}]: {}", indexPattern.indexPattern(), e.getMessage());
+            listener.onResponse(
+                result.withIndices(indexPattern, originalResolution).withMinimumTransportVersion(indexResolution.minimumVersion())
+            );
+        }));
     }
 
     private void analyzeWithRetry(
@@ -1408,7 +1568,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
+    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -1421,7 +1581,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public void preOptimizedPlan(
+    private void preOptimizedPlan(
         LogicalPlan logicalPlan,
         LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         PlanTimeProfile planTimeProfile,

@@ -11,6 +11,27 @@ struct corrections_t {
     const f32_t* additionalCorrections;
 };
 
+struct bbq_correction_t {
+    f32_t lowerInterval;
+    f32_t upperInterval;
+    f32_t additionalCorrection;
+    int32_t targetComponentSum;
+};
+
+static inline bbq_correction_t bbq_read_corrections(
+    const void *const data,
+    int32_t vectorSizeInBytes
+) {
+    const int8_t* base = (const int8_t*)data + vectorSizeInBytes;
+    return bbq_correction_t {
+        *(const f32_t*)base,
+        *(const f32_t*)(base + sizeof(f32_t)),
+        *(const f32_t*)(base + 2 * sizeof(f32_t)),
+        // Read as short (int16), zero-extend to int32
+        (int32_t)(*(const uint16_t*)(base + 3 * sizeof(f32_t)))
+    };
+}
+
 static inline corrections_t unpack_corrections(const int8_t* corrections, const int32_t bulkSize) {
     const f32_t* lowerIntervals = (f32_t*)corrections;
     const f32_t* upperIntervals = (f32_t*)(lowerIntervals + bulkSize);
@@ -44,7 +65,7 @@ static inline f32_t apply_corrections_euclidean_inner(
     // For euclidean, we need to invert the score and apply the additional correction, which is
     // assumed to be the squared l2norm of the centroid centered vectors.
     score = queryAdditionalCorrection + additionalCorrection - 2 * score;
-    return fmax(1.0f / (1.0f + score), 0.0f);
+    return __builtin_fmaxf(1.0f / (1.0f + score), 0.0f);
 }
 
 static inline f32_t apply_corrections_maximum_inner_product_inner(
@@ -104,7 +125,7 @@ static inline f32_t apply_corrections_dot_product_inner(
     // For dot product we need to apply the additional correction, which is
     // assumed to be the non-centered dot-product between the vector and the centroid
     score += queryAdditionalCorrection + additionalCorrection - centroidDp;
-    return fmax((1.0f + score) / 2.0f, 0.0f);
+    return __builtin_fmaxf((1.0f + score) / 2.0f, 0.0f);
 }
 
 #endif //SCORE_COMMON_H

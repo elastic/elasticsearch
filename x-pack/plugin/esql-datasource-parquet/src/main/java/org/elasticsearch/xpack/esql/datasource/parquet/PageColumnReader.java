@@ -406,7 +406,8 @@ final class PageColumnReader {
         boolean[] values = new boolean[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullBooleans(values, 0, maxRows);
-            return blockFactory.newBooleanArrayVector(values, produced).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
+            return constant != null ? constant : blockFactory.newBooleanArrayVector(values, produced).asBlock();
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -420,7 +421,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return blockFactory.newBooleanArrayVector(values, produced).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
+            return constant != null ? constant : blockFactory.newBooleanArrayVector(values, produced).asBlock();
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return blockFactory.newBooleanArrayBlock(values, produced, null, nulls, Block.MvOrdering.UNORDERED);
     }
@@ -469,7 +475,8 @@ final class PageColumnReader {
         int[] values = new int[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullInts(values, 0, maxRows);
-            return blockFactory.newIntArrayVector(values, produced).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
+            return constant != null ? constant : blockFactory.newIntArrayVector(values, produced).asBlock();
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -483,7 +490,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return blockFactory.newIntArrayVector(values, produced).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
+            return constant != null ? constant : blockFactory.newIntArrayVector(values, produced).asBlock();
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return blockFactory.newIntArrayBlock(values, produced, null, nulls, Block.MvOrdering.UNORDERED);
     }
@@ -532,7 +544,8 @@ final class PageColumnReader {
         long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -546,7 +559,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.longColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -595,7 +613,8 @@ final class PageColumnReader {
         long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullInt32AsLong(values, 0, maxRows);
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -609,7 +628,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.longColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -670,7 +694,8 @@ final class PageColumnReader {
         double[] values = new double[maxRows];
         if (maxDefLevel == 0) {
             int produced = readNonNullDoubles(values, 0, maxRows, isFloat);
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -684,7 +709,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -763,7 +793,8 @@ final class PageColumnReader {
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -785,7 +816,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -840,7 +876,8 @@ final class PageColumnReader {
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -862,7 +899,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.doubleColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -886,38 +928,67 @@ final class PageColumnReader {
 
     private Block readBytesBatch(int maxRows, BlockFactory blockFactory) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
-        try (var builder = blockFactory.newBytesRefBlockBuilder(maxRows)) {
+        if (maxDefLevel == 0) {
+            BytesRef[] allValues = new BytesRef[maxRows];
             int produced = 0;
             int remaining = maxRows;
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
-                if (maxDefLevel == 0) {
-                    BytesRef[] vals = readBinaryValues(fromPage);
-                    for (int i = 0; i < fromPage; i++) {
-                        if (isUuid) {
-                            builder.appendBytesRef(new BytesRef(OptimizedParquetColumnIterator.formatUuid(vals[i].bytes)));
-                        } else {
-                            builder.appendBytesRef(vals[i]);
-                        }
-                    }
-                } else {
-                    BitSet nulls = new BitSet(fromPage);
-                    int nonNull = defDecoder.readBatch(fromPage, nulls, 0);
-                    BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-                    int valIdx = 0;
-                    for (int i = 0; i < fromPage; i++) {
-                        if (nulls.get(i)) {
-                            builder.appendNull();
-                        } else if (isUuid) {
-                            builder.appendBytesRef(new BytesRef(OptimizedParquetColumnIterator.formatUuid(vals[valIdx++].bytes)));
-                        } else {
-                            builder.appendBytesRef(vals[valIdx++]);
-                        }
-                    }
+                BytesRef[] vals = readBinaryValues(fromPage);
+                for (int i = 0; i < fromPage; i++) {
+                    allValues[produced + i] = isUuid ? new BytesRef(OptimizedParquetColumnIterator.formatUuid(vals[i].bytes)) : vals[i];
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
+            }
+            Block constant = ConstantBlockDetection.tryConstantBytesRef(allValues, produced, blockFactory);
+            if (constant != null) {
+                return constant;
+            }
+            try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
+                for (int i = 0; i < produced; i++) {
+                    builder.appendBytesRef(allValues[i]);
+                }
+                return builder.build();
+            }
+        }
+        BytesRef[] allValues = new BytesRef[maxRows];
+        BitSet allNulls = new BitSet(maxRows);
+        int produced = 0;
+        int remaining = maxRows;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            BitSet pageNulls = new BitSet(fromPage);
+            int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+            BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+            int valIdx = 0;
+            for (int i = 0; i < fromPage; i++) {
+                if (pageNulls.get(i)) {
+                    allNulls.set(produced + i);
+                } else if (isUuid) {
+                    allValues[produced + i] = new BytesRef(OptimizedParquetColumnIterator.formatUuid(vals[valIdx++].bytes));
+                } else {
+                    allValues[produced + i] = vals[valIdx++];
+                }
+            }
+            advancePosition(fromPage);
+            produced += fromPage;
+            remaining -= fromPage;
+        }
+        if (allNulls.isEmpty() == false) {
+            Block allNull = ConstantBlockDetection.tryAllNull(allNulls, produced, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(produced)) {
+            for (int i = 0; i < produced; i++) {
+                if (allNulls.get(i)) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(allValues[i]);
+                }
             }
             return builder.build();
         }
@@ -953,7 +1024,8 @@ final class PageColumnReader {
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -975,7 +1047,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.longColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }
@@ -1029,7 +1106,8 @@ final class PageColumnReader {
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
         }
         BitSet nulls = new BitSet(maxRows);
         int produced = 0;
@@ -1051,7 +1129,12 @@ final class PageColumnReader {
             remaining -= fromPage;
         }
         if (nulls.isEmpty()) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, produced, true, false, null);
+        }
+        Block allNull = ConstantBlockDetection.tryAllNull(nulls, produced, blockFactory);
+        if (allNull != null) {
+            return allNull;
         }
         return ColumnBlockConversions.longColumn(blockFactory, values, produced, false, false, toBooleanArray(nulls, produced));
     }

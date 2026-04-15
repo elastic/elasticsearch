@@ -83,7 +83,8 @@ final class BatchColumnReader {
                 values[i] = cr.getBoolean();
                 cr.consume();
             }
-            return blockFactory.newBooleanArrayVector(values, rows).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantBoolean(values, rows, blockFactory);
+            return constant != null ? constant : blockFactory.newBooleanArrayVector(values, rows).asBlock();
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -96,10 +97,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return blockFactory.newBooleanArrayVector(values, rows).asBlock();
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return blockFactory.newBooleanArrayBlock(values, rows, null, nulls, Block.MvOrdering.UNORDERED);
         }
-        return blockFactory.newBooleanArrayBlock(values, rows, null, nulls, Block.MvOrdering.UNORDERED);
+        Block constant = ConstantBlockDetection.tryConstantBoolean(values, rows, blockFactory);
+        return constant != null ? constant : blockFactory.newBooleanArrayVector(values, rows).asBlock();
     }
 
     // --- Int ---
@@ -111,7 +117,8 @@ final class BatchColumnReader {
                 values[i] = cr.getInteger();
                 cr.consume();
             }
-            return blockFactory.newIntArrayVector(values, rows).asBlock();
+            Block constant = ConstantBlockDetection.tryConstantInt(values, rows, blockFactory);
+            return constant != null ? constant : blockFactory.newIntArrayVector(values, rows).asBlock();
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -124,10 +131,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return blockFactory.newIntArrayVector(values, rows).asBlock();
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return blockFactory.newIntArrayBlock(values, rows, null, nulls, Block.MvOrdering.UNORDERED);
         }
-        return blockFactory.newIntArrayBlock(values, rows, null, nulls, Block.MvOrdering.UNORDERED);
+        Block constant = ConstantBlockDetection.tryConstantInt(values, rows, blockFactory);
+        return constant != null ? constant : blockFactory.newIntArrayVector(values, rows).asBlock();
     }
 
     // --- Long ---
@@ -139,7 +151,8 @@ final class BatchColumnReader {
                 values[i] = cr.getLong();
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -152,10 +165,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static Block readInt32AsLongBatch(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
@@ -165,7 +183,8 @@ final class BatchColumnReader {
                 values[i] = cr.getInteger();
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -178,10 +197,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
     }
 
     // --- Double ---
@@ -209,7 +233,8 @@ final class BatchColumnReader {
                     cr.consume();
                 }
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -222,10 +247,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static Block readDecimalAsDoubleBatch(ColumnReader cr, ColumnInfo info, int scale, int rows, BlockFactory blockFactory) {
@@ -236,7 +266,8 @@ final class BatchColumnReader {
                 values[i] = decimalToDouble(cr, info.parquetType(), scale);
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -249,10 +280,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static double decimalToDouble(ColumnReader cr, PrimitiveType.PrimitiveTypeName parquetType, int scale) {
@@ -272,7 +308,8 @@ final class BatchColumnReader {
                 values[i] = decodeFloat16(cr.getBinary().getBytes());
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -285,10 +322,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantDouble(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.doubleColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static double decodeFloat16(byte[] bytes) {
@@ -301,38 +343,56 @@ final class BatchColumnReader {
     private static Block readBytesBatch(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         int maxDef = info.maxDefLevel();
-        try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            if (maxDef == 0) {
-                if (isUuid) {
-                    for (int i = 0; i < rows; i++) {
-                        builder.appendBytesRef(new BytesRef(OptimizedParquetColumnIterator.formatUuid(cr.getBinary().getBytes())));
-                        cr.consume();
-                    }
-                } else {
-                    for (int i = 0; i < rows; i++) {
-                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                        cr.consume();
-                    }
+        if (maxDef == 0) {
+            BytesRef[] values = new BytesRef[rows];
+            if (isUuid) {
+                for (int i = 0; i < rows; i++) {
+                    values[i] = new BytesRef(OptimizedParquetColumnIterator.formatUuid(cr.getBinary().getBytes()));
+                    cr.consume();
                 }
             } else {
-                if (isUuid) {
-                    for (int i = 0; i < rows; i++) {
-                        if (cr.getCurrentDefinitionLevel() < maxDef) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendBytesRef(new BytesRef(OptimizedParquetColumnIterator.formatUuid(cr.getBinary().getBytes())));
-                        }
-                        cr.consume();
-                    }
+                for (int i = 0; i < rows; i++) {
+                    values[i] = new BytesRef(cr.getBinary().getBytes());
+                    cr.consume();
+                }
+            }
+            Block constant = ConstantBlockDetection.tryConstantBytesRef(values, rows, blockFactory);
+            if (constant != null) {
+                return constant;
+            }
+            try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
+                for (int i = 0; i < rows; i++) {
+                    builder.appendBytesRef(values[i]);
+                }
+                return builder.build();
+            }
+        }
+        BitSet nulls = new BitSet(rows);
+        BytesRef[] values = new BytesRef[rows];
+        boolean hasNulls = false;
+        for (int i = 0; i < rows; i++) {
+            if (cr.getCurrentDefinitionLevel() < maxDef) {
+                nulls.set(i);
+                hasNulls = true;
+            } else if (isUuid) {
+                values[i] = new BytesRef(OptimizedParquetColumnIterator.formatUuid(cr.getBinary().getBytes()));
+            } else {
+                values[i] = new BytesRef(cr.getBinary().getBytes());
+            }
+            cr.consume();
+        }
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
+            for (int i = 0; i < rows; i++) {
+                if (nulls.get(i)) {
+                    builder.appendNull();
                 } else {
-                    for (int i = 0; i < rows; i++) {
-                        if (cr.getCurrentDefinitionLevel() < maxDef) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
-                        }
-                        cr.consume();
-                    }
+                    builder.appendBytesRef(values[i]);
                 }
             }
             return builder.build();
@@ -361,7 +421,8 @@ final class BatchColumnReader {
                     cr.consume();
                 }
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -377,10 +438,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
@@ -401,7 +467,8 @@ final class BatchColumnReader {
                 values[i] = decodeInt96Timestamp(cr.getBinary());
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+            Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+            return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
         }
         BitSet nulls = new BitSet(rows);
         boolean hasNulls = false;
@@ -414,10 +481,15 @@ final class BatchColumnReader {
             }
             cr.consume();
         }
-        if (hasNulls == false) {
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
+        if (hasNulls) {
+            Block allNull = ConstantBlockDetection.tryAllNull(nulls, rows, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
         }
-        return ColumnBlockConversions.longColumn(blockFactory, values, rows, false, false, toBooleanArray(nulls, rows));
+        Block constant = ConstantBlockDetection.tryConstantLong(values, rows, blockFactory);
+        return constant != null ? constant : ColumnBlockConversions.longColumn(blockFactory, values, rows, true, false, null);
     }
 
     private static long decodeInt96Timestamp(Binary bin) {

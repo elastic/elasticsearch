@@ -2527,6 +2527,423 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         assertPagesEqual(baselinePages, optimizedPages);
     }
 
+    // --- Stage 6: Columnar output polish — constant block detection tests ---
+
+    /**
+     * Stage 6: all-identical non-nullable long column should produce a constant block.
+     * This simulates partition columns where every value in a row group is the same.
+     */
+    public void testConstantBlockDetectionIdenticalLongs() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("partition_key")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("partition_key", 42L);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            LongBlock partBlock = page.getBlock(1);
+            if (partBlock.asVector() != null && partBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertThat(partBlock.getLong(0), equalTo(42L));
+            }
+        }
+        assertTrue("expected constant block for all-identical partition_key column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-identical non-nullable int column should produce a constant block.
+     */
+    public void testConstantBlockDetectionIdenticalInts() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("region")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 80; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("region", 7);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            IntBlock regionBlock = page.getBlock(1);
+            if (regionBlock.asVector() != null && regionBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertThat(regionBlock.getInt(0), equalTo(7));
+            }
+        }
+        assertTrue("expected constant block for all-identical region column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-identical non-nullable string column should produce a constant block.
+     */
+    public void testConstantBlockDetectionIdenticalStrings() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("status")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 60; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("status", "active");
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            BytesRefBlock statusBlock = page.getBlock(1);
+            if (statusBlock.asVector() != null && statusBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertThat(statusBlock.getBytesRef(0, new BytesRef()), equalTo(new BytesRef("active")));
+            }
+        }
+        assertTrue("expected constant block for all-identical status column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-identical non-nullable double column should produce a constant block.
+     */
+    public void testConstantBlockDetectionIdenticalDoubles() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("rate")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 70; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("rate", 3.14);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            DoubleBlock rateBlock = page.getBlock(1);
+            if (rateBlock.asVector() != null && rateBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertThat(rateBlock.getDouble(0), equalTo(3.14));
+            }
+        }
+        assertTrue("expected constant block for all-identical rate column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-identical non-nullable boolean column should produce a constant block.
+     */
+    public void testConstantBlockDetectionIdenticalBooleans() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("flag")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("flag", true);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            BooleanBlock flagBlock = page.getBlock(1);
+            if (flagBlock.asVector() != null && flagBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertTrue(flagBlock.getBoolean(0));
+            }
+        }
+        assertTrue("expected constant block for all-identical flag column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-null optional column should produce a constant null block.
+     * Verifies the all-null fast path returns ConstantNullBlock.
+     */
+    public void testConstantBlockDetectionAllNull() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("nullable_val")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("nullable_str")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("nullable_dbl")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        for (Page page : optimizedPages) {
+            for (int col = 1; col < page.getBlockCount(); col++) {
+                assertTrue("all-null column " + col + " should produce areAllValuesNull block", page.getBlock(col).areAllValuesNull());
+            }
+        }
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: mixed-value columns should NOT produce constant blocks (regression test).
+     */
+    public void testConstantBlockDetectionMixedValuesNotConstant() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("varying_long")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("varying_str")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("varying_long", (long) i);
+                g.add("varying_str", "val_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        for (Page page : optimizedPages) {
+            if (page.getPositionCount() > 1) {
+                LongBlock varyingLong = page.getBlock(1);
+                assertFalse(
+                    "varying long column should not be constant",
+                    varyingLong.asVector() != null && varyingLong.asVector().isConstant()
+                );
+                BytesRefBlock varyingStr = page.getBlock(2);
+                assertFalse(
+                    "varying string column should not be constant",
+                    varyingStr.asVector() != null && varyingStr.asVector().isConstant()
+                );
+            }
+        }
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: page-level reader should also produce constant blocks for identical values.
+     */
+    public void testConstantBlockDetectionPageLevelReader() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("partition_key")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("status")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("partition_key", 99L);
+                g.add("status", "ready");
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> pageLevelPages = readAllPages(new ParquetFormatReader(blockFactory, true, true), storageObject);
+
+        boolean foundConstantLong = false;
+        boolean foundConstantStr = false;
+        for (Page page : pageLevelPages) {
+            LongBlock partBlock = page.getBlock(1);
+            if (partBlock.asVector() != null && partBlock.asVector().isConstant()) {
+                foundConstantLong = true;
+                assertThat(partBlock.getLong(0), equalTo(99L));
+            }
+            BytesRefBlock statusBlock = page.getBlock(2);
+            if (statusBlock.asVector() != null && statusBlock.asVector().isConstant()) {
+                foundConstantStr = true;
+                assertThat(statusBlock.getBytesRef(0, new BytesRef()), equalTo(new BytesRef("ready")));
+            }
+        }
+        assertTrue("expected constant block for partition_key in page-level reader", foundConstantLong);
+        assertTrue("expected constant block for status in page-level reader", foundConstantStr);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, pageLevelPages);
+    }
+
+    /**
+     * Stage 6: nullable column with some nulls and some identical values should NOT be constant.
+     */
+    public void testConstantBlockDetectionNullableMixedNotConstant() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("nullable_partition")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                if (i % 3 != 0) {
+                    g.add("nullable_partition", 42L);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        for (Page page : optimizedPages) {
+            LongBlock partBlock = page.getBlock(1);
+            assertFalse(
+                "nullable column with mix of nulls and values should not be constant",
+                partBlock.asVector() != null && partBlock.asVector().isConstant()
+            );
+        }
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 6: all-identical empty string column should produce a constant block.
+     * Edge case: ensures BytesRef comparison works correctly for zero-length values.
+     */
+    public void testConstantBlockDetectionEmptyStrings() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("empty_col")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 40; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("empty_col", "");
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        boolean foundConstant = false;
+        for (Page page : optimizedPages) {
+            BytesRefBlock emptyBlock = page.getBlock(1);
+            if (emptyBlock.asVector() != null && emptyBlock.asVector().isConstant()) {
+                foundConstant = true;
+                assertThat(emptyBlock.getBytesRef(0, new BytesRef()), equalTo(new BytesRef("")));
+            }
+        }
+        assertTrue("expected constant block for all-identical empty string column", foundConstant);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
     /**
      * Creates a Parquet file with multiple row groups (small row group size forces splits).
      */

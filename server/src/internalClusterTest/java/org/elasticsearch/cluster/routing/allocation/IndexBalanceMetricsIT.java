@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -50,7 +51,10 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
     public void testIndexBalanceMetricsTaskStartedAndAssigned() {
         internalCluster().startNode();
         ensureGreen();
-        awaitClusterState(state -> IndexBalanceMetricsTaskExecutor.Task.findTask(state) != null);
+        awaitClusterState(state -> {
+            PersistentTasksCustomMetadata.PersistentTask<?> task = IndexBalanceMetricsTaskExecutor.Task.findTask(state);
+            return task != null && task.isAssigned();
+        });
     }
 
     public void testTaskReassignedWhenNodeShutsDown() throws Exception {

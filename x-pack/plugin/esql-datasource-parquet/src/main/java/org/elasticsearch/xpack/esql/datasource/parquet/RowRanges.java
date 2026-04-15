@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -254,6 +255,114 @@ final class RowRanges {
         }
         return density() > densityThreshold || transitionCount() > maxTransitions;
     }
+
+    /**
+     * Returns true if any selected range overlaps the half-open interval {@code [pageStart, pageEnd)}.
+     * O(log n) via binary search, allocation-free.
+     */
+    boolean overlaps(long pageStart, long pageEnd) {
+        if (starts.length == 0 || pageStart >= pageEnd) {
+            return false;
+        }
+        int idx = Arrays.binarySearch(starts, pageStart);
+        if (idx >= 0) {
+            return true;
+        }
+        int insertionPoint = -idx - 1;
+        // Check the range just before the insertion point — its end might extend past pageStart
+        if (insertionPoint > 0 && ends[insertionPoint - 1] > pageStart) {
+            return true;
+        }
+        // Check the range at the insertion point — its start might be before pageEnd
+        return insertionPoint < starts.length && starts[insertionPoint] < pageEnd;
+    }
+
+    /**
+     * Returns the first selected row in {@code [rangeStart, rangeEnd)}, or {@code -1} if none.
+     */
+    long firstSelectedInRange(long rangeStart, long rangeEnd) {
+        if (starts.length == 0 || rangeStart >= rangeEnd) {
+            return -1;
+        }
+        int idx = Arrays.binarySearch(starts, rangeStart);
+        int i;
+        if (idx >= 0) {
+            i = idx;
+        } else {
+            int insertionPoint = -idx - 1;
+            // The range before insertionPoint might contain rangeStart
+            if (insertionPoint > 0 && ends[insertionPoint - 1] > rangeStart) {
+                return rangeStart;
+            }
+            i = insertionPoint;
+        }
+        if (i < starts.length && starts[i] < rangeEnd) {
+            return Math.max(starts[i], rangeStart);
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the last selected row in {@code [rangeStart, rangeEnd)}, or {@code -1} if none.
+     */
+    long lastSelectedInRange(long rangeStart, long rangeEnd) {
+        if (starts.length == 0 || rangeStart >= rangeEnd) {
+            return -1;
+        }
+        // Find the last range that starts before rangeEnd
+        int idx = Arrays.binarySearch(starts, rangeEnd);
+        int i;
+        if (idx >= 0) {
+            i = idx - 1;
+        } else {
+            i = -idx - 2;
+        }
+        // Walk backwards to find a range that overlaps [rangeStart, rangeEnd)
+        while (i >= 0) {
+            if (ends[i] > rangeStart && starts[i] < rangeEnd) {
+                return Math.min(ends[i], rangeEnd) - 1;
+            }
+            if (ends[i] <= rangeStart) {
+                break;
+            }
+            i--;
+        }
+        return -1;
+    }
+
+    /**
+     * Finds the next contiguous run of selected rows starting from {@code pageOffset},
+     * within the next {@code maxRows} rows. Returns a {@link Run} describing how many
+     * rows to skip before the run and the run length.
+     *
+     * <p>If no selected rows remain in the window, returns a run with
+     * {@code skipBefore == maxRows} and {@code length == 0}.
+     */
+    Run nextRunInPage(long pageOffset, int maxRows) {
+        if (starts.length == 0 || maxRows <= 0) {
+            return new Run(maxRows, 0);
+        }
+        long windowEnd = pageOffset + maxRows;
+        long first = firstSelectedInRange(pageOffset, windowEnd);
+        if (first < 0) {
+            return new Run(maxRows, 0);
+        }
+        int skipBefore = (int) (first - pageOffset);
+
+        // Find which range contains 'first'
+        int idx = Arrays.binarySearch(starts, first);
+        int rangeIdx;
+        if (idx >= 0) {
+            rangeIdx = idx;
+        } else {
+            rangeIdx = -idx - 2;
+        }
+        long runEnd = Math.min(ends[rangeIdx], windowEnd);
+        int length = (int) (runEnd - first);
+        return new Run(skipBefore, length);
+    }
+
+    record Run(int skipBefore, int length) {}
 
     @Override
     public String toString() {

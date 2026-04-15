@@ -105,4 +105,103 @@ final class PlainValueDecoder {
     void skipFixedBinaries(int count, int fixedLength) {
         buffer.position(buffer.position() + count * fixedLength);
     }
+
+    // --- Selective read methods: decode totalCount values but only store selected positions ---
+
+    void readIntsSelective(int[] output, int outOffset, RowSelection selection, int totalCount) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                output[outIdx++] = buffer.getInt();
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + 4);
+            }
+        }
+    }
+
+    void readLongsSelective(long[] output, int outOffset, RowSelection selection, int totalCount) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                output[outIdx++] = buffer.getLong();
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + 8);
+            }
+        }
+    }
+
+    void readFloatsSelective(double[] output, int outOffset, RowSelection selection, int totalCount) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                output[outIdx++] = buffer.getFloat();
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + 4);
+            }
+        }
+    }
+
+    void readDoublesSelective(double[] output, int outOffset, RowSelection selection, int totalCount) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                output[outIdx++] = buffer.getDouble();
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + 8);
+            }
+        }
+    }
+
+    void readBooleansSelective(boolean[] output, int outOffset, RowSelection selection, int totalCount) {
+        int basePos = buffer.position();
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                int pos = basePos + (i / 8);
+                output[outIdx++] = ((buffer.get(pos) >>> (i % 8)) & 1) != 0;
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+        buffer.position(basePos + (totalCount + 7) / 8);
+    }
+
+    void readBinariesSelective(BytesRef[] output, int outOffset, RowSelection selection, int totalCount) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int length = buffer.getInt();
+            if (i == selIdx) {
+                byte[] copy = new byte[length];
+                buffer.get(copy);
+                output[outIdx++] = new BytesRef(copy);
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + length);
+            }
+        }
+    }
+
+    void readFixedBinariesSelective(BytesRef[] output, int outOffset, RowSelection selection, int totalCount, int fixedLength) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            if (i == selIdx) {
+                byte[] copy = new byte[fixedLength];
+                buffer.get(copy);
+                output[outIdx++] = new BytesRef(copy);
+                selIdx = selection.nextSelected(selIdx + 1);
+            } else {
+                buffer.position(buffer.position() + fixedLength);
+            }
+        }
+    }
 }

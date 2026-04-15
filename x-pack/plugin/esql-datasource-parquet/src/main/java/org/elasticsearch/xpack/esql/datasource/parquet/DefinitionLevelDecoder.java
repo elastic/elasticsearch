@@ -82,6 +82,43 @@ final class DefinitionLevelDecoder {
     }
 
     /**
+     * Decodes {@code count} definition levels but only populates null positions for selected rows.
+     * Returns the number of non-null values among selected rows (needed to size the value output array).
+     * The RLE stream is advanced for all {@code count} rows regardless of selection.
+     *
+     * <p>Null bit positions in {@code nulls} are set relative to output position (starting at
+     * {@code outOffset}), not input position — matching the compacted output array layout.
+     */
+    int readBatchSelective(int count, BitSet nulls, int outOffset, RowSelection selection) {
+        if (nonNullable) {
+            return selection.selectedCount();
+        }
+        if (count == 0) {
+            return 0;
+        }
+        int nonNullSelected = 0;
+        int outPos = outOffset;
+        int selIdx = selection.nextSelected(0);
+        try {
+            for (int i = 0; i < count; i++) {
+                int def = rleDecoder.readInt();
+                if (i == selIdx) {
+                    if (def < maxDefLevel) {
+                        nulls.set(outPos);
+                    } else {
+                        nonNullSelected++;
+                    }
+                    outPos++;
+                    selIdx = selection.nextSelected(selIdx + 1);
+                }
+            }
+        } catch (IOException e) {
+            throw new QlIllegalArgumentException("Failed to read definition levels selectively: " + e.getMessage(), e);
+        }
+        return nonNullSelected;
+    }
+
+    /**
      * Skips {@code count} definition levels without materializing values.
      * Returns the number of non-null values that were skipped.
      */

@@ -229,4 +229,149 @@ public class RowRangesTests extends ESTestCase {
         assertTrue(str.contains("[100, 500)"));
         assertTrue(str.contains("total=1000"));
     }
+
+    public void testOverlapsEmpty() {
+        RowRanges empty = RowRanges.of(0, 0, 1000);
+        assertFalse(empty.overlaps(0, 100));
+    }
+
+    public void testOverlapsSingleRangeFullyInsideSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertTrue(range.overlaps(200, 300));
+    }
+
+    public void testOverlapsSingleRangePartialOverlapAtStart() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertTrue(range.overlaps(50, 150));
+    }
+
+    public void testOverlapsSingleRangePartialOverlapAtEnd() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertTrue(range.overlaps(150, 250));
+    }
+
+    public void testOverlapsSingleRangeNoOverlapBefore() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertFalse(range.overlaps(0, 50));
+    }
+
+    public void testOverlapsSingleRangeNoOverlapAfter() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertFalse(range.overlaps(300, 400));
+    }
+
+    public void testOverlapsMultipleRangesFirst() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 0, 500 }, new long[] { 100, 600 }, 1000);
+        assertTrue(ranges.overlaps(50, 80));
+    }
+
+    public void testOverlapsMultipleRangesMiddle() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 0, 200, 500 }, new long[] { 100, 300, 700 }, 1000);
+        assertTrue(ranges.overlaps(250, 280));
+    }
+
+    public void testOverlapsMultipleRangesGap() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 0, 200 }, new long[] { 100, 300 }, 1000);
+        assertFalse(ranges.overlaps(120, 180));
+    }
+
+    public void testOverlapsBoundaryPageStartEqualsRangeEnd() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertFalse(range.overlaps(200, 300));
+    }
+
+    public void testOverlapsBoundaryPageEndEqualsRangeStart() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertFalse(range.overlaps(0, 100));
+    }
+
+    public void testOverlapsBoundaryPageStartEqualsRangeStart() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertTrue(range.overlaps(100, 150));
+    }
+
+    public void testFirstSelectedInRangeEmpty() {
+        RowRanges empty = RowRanges.of(0, 0, 1000);
+        assertThat(empty.firstSelectedInRange(0, 100), equalTo(-1L));
+    }
+
+    public void testFirstSelectedInRangeFullyInsideSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.firstSelectedInRange(200, 400), equalTo(200L));
+    }
+
+    public void testFirstSelectedInRangeStartsBeforeSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.firstSelectedInRange(50, 200), equalTo(100L));
+    }
+
+    public void testFirstSelectedInRangeStartsInMiddleOfSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.firstSelectedInRange(150, 200), equalTo(150L));
+    }
+
+    public void testFirstSelectedInRangeNoSelectionInRange() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.firstSelectedInRange(0, 50), equalTo(-1L));
+    }
+
+    public void testFirstSelectedInRangeMultipleRangesSecondRange() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 0, 200 }, new long[] { 100, 350 }, 1000);
+        assertThat(ranges.firstSelectedInRange(250, 400), equalTo(250L));
+    }
+
+    public void testLastSelectedInRangeEmpty() {
+        RowRanges empty = RowRanges.of(0, 0, 1000);
+        assertThat(empty.lastSelectedInRange(0, 100), equalTo(-1L));
+    }
+
+    public void testLastSelectedInRangeFullyInsideSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.lastSelectedInRange(200, 400), equalTo(399L));
+    }
+
+    public void testLastSelectedInRangeEndsAfterSelection() {
+        RowRanges range = RowRanges.of(100, 300, 1000);
+        assertThat(range.lastSelectedInRange(50, 500), equalTo(299L));
+    }
+
+    public void testLastSelectedInRangeEndsInMiddleOfSelection() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.lastSelectedInRange(50, 250), equalTo(249L));
+    }
+
+    public void testLastSelectedInRangeNoSelectionInRange() {
+        RowRanges range = RowRanges.of(100, 500, 1000);
+        assertThat(range.lastSelectedInRange(0, 50), equalTo(-1L));
+    }
+
+    public void testLastSelectedInRangeMultipleRanges() {
+        RowRanges ranges = RowRanges.ofSorted(new long[] { 0, 150 }, new long[] { 100, 300 }, 1000);
+        assertThat(ranges.lastSelectedInRange(50, 250), equalTo(249L));
+    }
+
+    public void testNextRunInPageEmpty() {
+        RowRanges empty = RowRanges.of(0, 0, 1000);
+        assertThat(empty.nextRunInPage(0, 128), equalTo(new RowRanges.Run(128, 0)));
+    }
+
+    public void testNextRunInPageFullySelected() {
+        RowRanges all = RowRanges.all(1000);
+        assertThat(all.nextRunInPage(0, 64), equalTo(new RowRanges.Run(0, 64)));
+    }
+
+    public void testNextRunInPageLeadingGap() {
+        RowRanges range = RowRanges.of(5, 100, 1000);
+        assertThat(range.nextRunInPage(0, 50), equalTo(new RowRanges.Run(5, 45)));
+    }
+
+    public void testNextRunInPageNoSelectionInWindow() {
+        RowRanges range = RowRanges.of(100, 200, 1000);
+        assertThat(range.nextRunInPage(0, 50), equalTo(new RowRanges.Run(50, 0)));
+    }
+
+    public void testNextRunInPageTruncatedToWindow() {
+        RowRanges range = RowRanges.of(0, 100, 1000);
+        assertThat(range.nextRunInPage(90, 20), equalTo(new RowRanges.Run(0, 10)));
+    }
 }

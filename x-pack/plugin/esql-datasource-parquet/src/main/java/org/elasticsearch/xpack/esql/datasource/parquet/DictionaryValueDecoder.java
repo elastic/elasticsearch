@@ -110,6 +110,82 @@ final class DictionaryValueDecoder {
         }
     }
 
+    // --- Selective read methods: consume totalCount indices but only store selected positions ---
+
+    void readIntsSelective(int[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                output[outIdx++] = dict.decodeToInt(idx);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
+    void readLongsSelective(long[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                output[outIdx++] = dict.decodeToLong(idx);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
+    void readFloatsSelective(double[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                output[outIdx++] = dict.decodeToFloat(idx);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
+    void readDoublesSelective(double[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                output[outIdx++] = dict.decodeToDouble(idx);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
+    void readBooleansSelective(boolean[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                output[outIdx++] = dict.decodeToBoolean(idx);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
+    void readBinariesSelective(BytesRef[] output, int outOffset, RowSelection selection, int totalCount, Dictionary dict) {
+        int outIdx = outOffset;
+        int selIdx = selection.nextSelected(0);
+        for (int i = 0; i < totalCount; i++) {
+            int idx = nextIndex();
+            if (i == selIdx) {
+                Binary bin = dict.decodeToBinary(idx);
+                byte[] bytes = bin.getBytes();
+                output[outIdx++] = new BytesRef(bytes, 0, bytes.length);
+                selIdx = selection.nextSelected(selIdx + 1);
+            }
+        }
+    }
+
     private int skipPackedValues(int remaining) {
         int skipped = 0;
         while (skipped < remaining) {

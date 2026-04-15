@@ -367,7 +367,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
-        if (FilterCompat.isFilteringRequired(recordFilter)) {
+        boolean skipParquetFilter = optimizedReader && pageLevelReader && pushedExpressions != null;
+        if (FilterCompat.isFilteringRequired(recordFilter) && skipParquetFilter == false) {
             optionsBuilder.withRecordFilter(recordFilter);
         }
         ParquetReadOptions options = optionsBuilder.build();
@@ -549,7 +550,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
-        if (FilterCompat.isFilteringRequired(recordFilter)) {
+        boolean skipParquetFilter = optimizedReader && pageLevelReader && pushedExpressions != null;
+        if (FilterCompat.isFilteringRequired(recordFilter) && skipParquetFilter == false) {
             optionsBuilder.withRecordFilter(recordFilter);
         }
         ParquetReadOptions options = optionsBuilder.build();

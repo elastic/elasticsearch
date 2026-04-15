@@ -73,10 +73,12 @@ final class PageColumnReader {
     private ByteBuffer currentValueBytes;
     private Encoding currentEncoding;
     private int currentPageValueCount;
+    private int physicalPageValueCount;
     private int currentPageConsumed;
     private boolean currentPageIsV1;
     private long rowPositionInRowGroup;
     private boolean columnExhausted;
+    private long batchStartRowPosition;
 
     PageColumnReader(PageReader pageReader, ColumnDescriptor descriptor, ColumnInfo info, RowRanges rowRanges) {
         this.pageReader = pageReader;
@@ -88,9 +90,24 @@ final class PageColumnReader {
         this.rowPositionInRowGroup = 0;
         this.currentPageConsumed = 0;
         this.currentPageValueCount = 0;
+        this.physicalPageValueCount = 0;
+    }
+
+    PageReader getPageReader() {
+        return pageReader;
+    }
+
+    /**
+     * Returns the number of logical row-group rows consumed by the last batch operation,
+     * including rows in pages that were skipped by RowRanges. This allows the iterator to
+     * correctly update {@code rowsRemainingInGroup} when page-level skipping is active.
+     */
+    long logicalRowsConsumed() {
+        return rowPositionInRowGroup - batchStartRowPosition;
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
+        batchStartRowPosition = rowPositionInRowGroup;
         loadDictionaryIfNeeded();
         return switch (info.esqlType()) {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
@@ -124,6 +141,7 @@ final class PageColumnReader {
      * @return a Block containing only the surviving rows
      */
     Block readBatchFiltered(int maxRows, BlockFactory blockFactory, boolean[] survivorMask, int survivorCount) {
+        batchStartRowPosition = rowPositionInRowGroup;
         if (survivorCount == maxRows) {
             return readBatch(maxRows, blockFactory);
         }
@@ -137,6 +155,44 @@ final class PageColumnReader {
         } finally {
             fullBlock.close();
         }
+    }
+
+    /**
+     * Reads a batch where only rows in {@code selection} are materialized.
+     * Non-selected values are consumed from the page stream but never stored.
+     * The returned Block has exactly {@code selection.selectedCount()} positions.
+     *
+     * <p>This avoids the double-allocation pattern of {@link #readBatchFiltered} (which decodes
+     * all rows into a full-sized array, then copies survivors into a smaller array). Instead,
+     * a single right-sized array is allocated and populated directly.
+     */
+    Block readBatchWithSelection(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        batchStartRowPosition = rowPositionInRowGroup;
+        if (selection.isAllSelected()) {
+            return readBatch(totalRows, blockFactory);
+        }
+        if (selection.isNoneSelected()) {
+            skipRows(totalRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        loadDictionaryIfNeeded();
+        return switch (info.esqlType()) {
+            case BOOLEAN -> readBooleanBatchSelective(totalRows, blockFactory, selection);
+            case INTEGER -> readIntBatchSelective(totalRows, blockFactory, selection);
+            case LONG -> {
+                if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                    yield readInt32AsLongBatchSelective(totalRows, blockFactory, selection);
+                }
+                yield readLongBatchSelective(totalRows, blockFactory, selection);
+            }
+            case DOUBLE -> readDoubleBatchSelective(totalRows, blockFactory, selection);
+            case KEYWORD, TEXT -> readBytesBatchSelective(totalRows, blockFactory, selection);
+            case DATETIME -> readDatetimeBatchSelective(totalRows, blockFactory, selection);
+            default -> {
+                skipRows(totalRows);
+                yield blockFactory.newConstantNullBlock(selection.selectedCount());
+            }
+        };
     }
 
     static Block filterBlock(Block source, boolean[] mask, int survivorCount, BlockFactory blockFactory) {
@@ -276,28 +332,55 @@ final class PageColumnReader {
     }
 
     private boolean loadNextPage() {
-        DataPage page = pageReader.readPage();
-        if (page == null) {
-            columnExhausted = true;
-            return false;
+        if (physicalPageValueCount > 0 && currentPageConsumed < physicalPageValueCount) {
+            int remainder = physicalPageValueCount - currentPageConsumed;
+            if (remainder > 0) {
+                int nonNullSkipped = defDecoder.skip(remainder);
+                skipValues(nonNullSkipped);
+                rowPositionInRowGroup += remainder;
+                currentPageConsumed = physicalPageValueCount;
+            }
         }
-        currentPageValueCount = page.getValueCount();
-        currentPageConsumed = 0;
+        while (true) {
+            DataPage page = pageReader.readPage();
+            if (page == null) {
+                columnExhausted = true;
+                physicalPageValueCount = 0;
+                return false;
+            }
 
-        if (page instanceof DataPageV1 v1) {
-            currentPageIsV1 = true;
-            currentEncoding = v1.getValueEncoding();
-            splitV1Page(v1);
-        } else if (page instanceof DataPageV2 v2) {
-            currentPageIsV1 = false;
-            currentEncoding = v2.getDataEncoding();
-            splitV2Page(v2);
-        } else {
-            throw new QlIllegalArgumentException("Unexpected page type: " + page.getClass().getName());
+            page.getFirstRowIndex().ifPresent(firstRow -> {
+                if (firstRow > rowPositionInRowGroup) {
+                    rowPositionInRowGroup = firstRow;
+                }
+            });
+
+            int pageRowCount = page.getValueCount();
+
+            if (rowRanges != null && rowRanges.overlaps(rowPositionInRowGroup, rowPositionInRowGroup + pageRowCount) == false) {
+                rowPositionInRowGroup += pageRowCount;
+                continue;
+            }
+
+            currentPageValueCount = pageRowCount;
+            physicalPageValueCount = pageRowCount;
+            currentPageConsumed = 0;
+
+            if (page instanceof DataPageV1 v1) {
+                currentPageIsV1 = true;
+                currentEncoding = v1.getValueEncoding();
+                splitV1Page(v1);
+            } else if (page instanceof DataPageV2 v2) {
+                currentPageIsV1 = false;
+                currentEncoding = v2.getDataEncoding();
+                splitV2Page(v2);
+            } else {
+                throw new QlIllegalArgumentException("Unexpected page type: " + page.getClass().getName());
+            }
+
+            initDecoders();
+            return true;
         }
-
-        initDecoders();
-        return true;
     }
 
     private void splitV1Page(DataPageV1 v1) {
@@ -352,6 +435,33 @@ final class PageColumnReader {
         }
     }
 
+    private void applyIntraPageSkip() {
+        if (rowRanges == null) {
+            return;
+        }
+        long originalPageStart = rowPositionInRowGroup;
+        long originalPageEnd = originalPageStart + currentPageValueCount;
+
+        long firstSelected = rowRanges.firstSelectedInRange(originalPageStart, originalPageEnd);
+        if (firstSelected < 0) {
+            return;
+        }
+
+        int leadingSkip = (int) (firstSelected - originalPageStart);
+        if (leadingSkip > 0) {
+            int nonNullSkipped = defDecoder.skip(leadingSkip);
+            skipValues(nonNullSkipped);
+            currentPageConsumed += leadingSkip;
+            rowPositionInRowGroup += leadingSkip;
+        }
+
+        long lastSelected = rowRanges.lastSelectedInRange(originalPageStart, originalPageEnd);
+        if (lastSelected >= 0 && lastSelected < originalPageEnd - 1) {
+            int trailingRows = (int) (originalPageEnd - 1 - lastSelected);
+            currentPageValueCount -= trailingRows;
+        }
+    }
+
     private int availableInPage() {
         return currentPageValueCount - currentPageConsumed;
     }
@@ -362,6 +472,7 @@ final class PageColumnReader {
     }
 
     void skipRows(int count) {
+        batchStartRowPosition = rowPositionInRowGroup;
         int remaining = count;
         while (remaining > 0) {
             if (ensurePage() == false) {
@@ -1155,7 +1266,627 @@ final class PageColumnReader {
         }
     }
 
+    // --- Selective batch readers (filter-during-decode) ---
+
+    private Block readBooleanBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        int selectedCount = selection.selectedCount();
+        boolean[] values = new boolean[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                if (currentEncoding.usesDictionary()) {
+                    dictDecoder.readBooleansSelective(values, outOff, pageSel, fromPage, dictionary);
+                } else {
+                    plainDecoder.readBooleansSelective(values, outOff, pageSel, fromPage);
+                }
+                return pageSel.selectedCount();
+            });
+            return blockFactory.newBooleanArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        readNullableValuesSelective(
+            totalRows,
+            selection,
+            nulls,
+            values,
+            (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterBooleans(
+                (boolean[]) vals,
+                outOff,
+                outNulls,
+                pageSC,
+                nonNullSel,
+                totalNonNull
+            )
+        );
+        if (nulls.isEmpty()) {
+            return blockFactory.newBooleanArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newBooleanArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private void readAndScatterBooleans(boolean[] output, int outOff, BitSet nulls, int pageSelCount, RowSelection valSel, int totalNN) {
+        boolean[] packed = new boolean[valSel.selectedCount()];
+        if (currentEncoding.usesDictionary()) {
+            dictDecoder.readBooleansSelective(packed, 0, valSel, totalNN, dictionary);
+        } else {
+            plainDecoder.readBooleansSelective(packed, 0, valSel, totalNN);
+        }
+        scatterPacked(packed, output, outOff, nulls, pageSelCount);
+    }
+
+    private Block readIntBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        int selectedCount = selection.selectedCount();
+        int[] values = new int[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                if (currentEncoding.usesDictionary()) {
+                    dictDecoder.readIntsSelective(values, outOff, pageSel, fromPage, dictionary);
+                } else {
+                    plainDecoder.readIntsSelective(values, outOff, pageSel, fromPage);
+                }
+                return pageSel.selectedCount();
+            });
+            return blockFactory.newIntArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        readNullableValuesSelective(
+            totalRows,
+            selection,
+            nulls,
+            values,
+            (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterInts(
+                (int[]) vals,
+                outOff,
+                outNulls,
+                pageSC,
+                nonNullSel,
+                totalNonNull
+            )
+        );
+        if (nulls.isEmpty()) {
+            return blockFactory.newIntArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newIntArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private void readAndScatterInts(int[] output, int outOff, BitSet nulls, int pageSelCount, RowSelection valSel, int totalNN) {
+        int[] packed = new int[valSel.selectedCount()];
+        if (currentEncoding.usesDictionary()) {
+            dictDecoder.readIntsSelective(packed, 0, valSel, totalNN, dictionary);
+        } else {
+            plainDecoder.readIntsSelective(packed, 0, valSel, totalNN);
+        }
+        scatterPacked(packed, output, outOff, nulls, pageSelCount);
+    }
+
+    private Block readLongBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        int selectedCount = selection.selectedCount();
+        long[] values = new long[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                if (currentEncoding.usesDictionary()) {
+                    dictDecoder.readLongsSelective(values, outOff, pageSel, fromPage, dictionary);
+                } else {
+                    plainDecoder.readLongsSelective(values, outOff, pageSel, fromPage);
+                }
+                return pageSel.selectedCount();
+            });
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        readNullableValuesSelective(
+            totalRows,
+            selection,
+            nulls,
+            values,
+            (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterLongs(
+                (long[]) vals,
+                outOff,
+                outNulls,
+                pageSC,
+                nonNullSel,
+                totalNonNull
+            )
+        );
+        if (nulls.isEmpty()) {
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newLongArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private void readAndScatterLongs(long[] output, int outOff, BitSet nulls, int pageSelCount, RowSelection valSel, int totalNN) {
+        long[] packed = new long[valSel.selectedCount()];
+        if (currentEncoding.usesDictionary()) {
+            dictDecoder.readLongsSelective(packed, 0, valSel, totalNN, dictionary);
+        } else {
+            plainDecoder.readLongsSelective(packed, 0, valSel, totalNN);
+        }
+        scatterPacked(packed, output, outOff, nulls, pageSelCount);
+    }
+
+    private Block readInt32AsLongBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        int selectedCount = selection.selectedCount();
+        long[] values = new long[selectedCount];
+        int[] intBuf = new int[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                int pageSelected = pageSel.selectedCount();
+                if (currentEncoding.usesDictionary()) {
+                    dictDecoder.readIntsSelective(intBuf, outOff, pageSel, fromPage, dictionary);
+                } else {
+                    plainDecoder.readIntsSelective(intBuf, outOff, pageSel, fromPage);
+                }
+                for (int i = 0; i < pageSelected; i++) {
+                    values[outOff + i] = intBuf[outOff + i];
+                }
+                return pageSelected;
+            });
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        readNullableValuesSelective(
+            totalRows,
+            selection,
+            nulls,
+            intBuf,
+            (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterInts(
+                (int[]) vals,
+                outOff,
+                outNulls,
+                pageSC,
+                nonNullSel,
+                totalNonNull
+            )
+        );
+        for (int i = 0; i < selectedCount; i++) {
+            if (nulls.get(i) == false) {
+                values[i] = intBuf[i];
+            }
+        }
+        if (nulls.isEmpty()) {
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newLongArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private Block readDoubleBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        LogicalTypeAnnotation logical = info.logicalType();
+        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+            return readBatchFiltered(totalRows, blockFactory, selection.toBooleanArray(), selection.selectedCount());
+        }
+        boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
+        int selectedCount = selection.selectedCount();
+        double[] values = new double[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                if (currentEncoding.usesDictionary()) {
+                    if (isFloat) {
+                        dictDecoder.readFloatsSelective(values, outOff, pageSel, fromPage, dictionary);
+                    } else {
+                        dictDecoder.readDoublesSelective(values, outOff, pageSel, fromPage, dictionary);
+                    }
+                } else {
+                    if (isFloat) {
+                        plainDecoder.readFloatsSelective(values, outOff, pageSel, fromPage);
+                    } else {
+                        plainDecoder.readDoublesSelective(values, outOff, pageSel, fromPage);
+                    }
+                }
+                return pageSel.selectedCount();
+            });
+            return blockFactory.newDoubleArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        readNullableValuesSelective(
+            totalRows,
+            selection,
+            nulls,
+            values,
+            (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterDoubles(
+                (double[]) vals,
+                outOff,
+                outNulls,
+                pageSC,
+                nonNullSel,
+                totalNonNull,
+                isFloat
+            )
+        );
+        if (nulls.isEmpty()) {
+            return blockFactory.newDoubleArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newDoubleArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private void readAndScatterDoubles(
+        double[] output,
+        int outOff,
+        BitSet nulls,
+        int pageSelCount,
+        RowSelection valSel,
+        int totalNN,
+        boolean isFloat
+    ) {
+        double[] packed = new double[valSel.selectedCount()];
+        if (currentEncoding.usesDictionary()) {
+            if (isFloat) {
+                dictDecoder.readFloatsSelective(packed, 0, valSel, totalNN, dictionary);
+            } else {
+                dictDecoder.readDoublesSelective(packed, 0, valSel, totalNN, dictionary);
+            }
+        } else {
+            if (isFloat) {
+                plainDecoder.readFloatsSelective(packed, 0, valSel, totalNN);
+            } else {
+                plainDecoder.readDoublesSelective(packed, 0, valSel, totalNN);
+            }
+        }
+        scatterPacked(packed, output, outOff, nulls, pageSelCount);
+    }
+
+    private Block readBytesBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        int selectedCount = selection.selectedCount();
+        boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
+        boolean isFixedLen = info.parquetType() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+        BytesRef[] values = new BytesRef[selectedCount];
+        if (maxDefLevel == 0) {
+            readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                int pageSelected = pageSel.selectedCount();
+                if (currentEncoding.usesDictionary()) {
+                    dictDecoder.readBinariesSelective(values, outOff, pageSel, fromPage, dictionary);
+                } else if (isFixedLen) {
+                    plainDecoder.readFixedBinariesSelective(
+                        values,
+                        outOff,
+                        pageSel,
+                        fromPage,
+                        descriptor.getPrimitiveType().getTypeLength()
+                    );
+                } else {
+                    plainDecoder.readBinariesSelective(values, outOff, pageSel, fromPage);
+                }
+                if (isUuid) {
+                    for (int i = 0; i < pageSelected; i++) {
+                        values[outOff + i] = new BytesRef(OptimizedParquetColumnIterator.formatUuid(values[outOff + i].bytes));
+                    }
+                }
+                return pageSelected;
+            });
+        } else {
+            BitSet nulls = new BitSet(selectedCount);
+            readNullableValuesSelective(
+                totalRows,
+                selection,
+                nulls,
+                values,
+                (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterBytes(
+                    (BytesRef[]) vals,
+                    outOff,
+                    outNulls,
+                    pageSC,
+                    nonNullSel,
+                    totalNonNull,
+                    isUuid,
+                    isFixedLen
+                )
+            );
+            if (nulls.isEmpty() == false) {
+                try (var builder = blockFactory.newBytesRefBlockBuilder(selectedCount)) {
+                    for (int i = 0; i < selectedCount; i++) {
+                        if (nulls.get(i)) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendBytesRef(values[i]);
+                        }
+                    }
+                    return builder.build();
+                }
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(selectedCount)) {
+            for (int i = 0; i < selectedCount; i++) {
+                builder.appendBytesRef(values[i]);
+            }
+            return builder.build();
+        }
+    }
+
+    private void readAndScatterBytes(
+        BytesRef[] output,
+        int outOff,
+        BitSet nulls,
+        int pageSelCount,
+        RowSelection valSel,
+        int totalNN,
+        boolean isUuid,
+        boolean isFixedLen
+    ) {
+        BytesRef[] packed = new BytesRef[valSel.selectedCount()];
+        if (currentEncoding.usesDictionary()) {
+            dictDecoder.readBinariesSelective(packed, 0, valSel, totalNN, dictionary);
+        } else if (isFixedLen) {
+            plainDecoder.readFixedBinariesSelective(packed, 0, valSel, totalNN, descriptor.getPrimitiveType().getTypeLength());
+        } else {
+            plainDecoder.readBinariesSelective(packed, 0, valSel, totalNN);
+        }
+        if (isUuid) {
+            for (int i = 0; i < packed.length; i++) {
+                packed[i] = new BytesRef(OptimizedParquetColumnIterator.formatUuid(packed[i].bytes));
+            }
+        }
+        scatterPacked(packed, output, outOff, nulls, pageSelCount);
+    }
+
+    private Block readDatetimeBatchSelective(int totalRows, BlockFactory blockFactory, RowSelection selection) {
+        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+            return readBatchFiltered(totalRows, blockFactory, selection.toBooleanArray(), selection.selectedCount());
+        }
+        boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
+        int selectedCount = selection.selectedCount();
+        long[] values = new long[selectedCount];
+        if (maxDefLevel == 0) {
+            if (isDate) {
+                int[] intBuf = new int[selectedCount];
+                readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                    int pageSelected = pageSel.selectedCount();
+                    if (currentEncoding.usesDictionary()) {
+                        dictDecoder.readIntsSelective(intBuf, outOff, pageSel, fromPage, dictionary);
+                    } else {
+                        plainDecoder.readIntsSelective(intBuf, outOff, pageSel, fromPage);
+                    }
+                    return pageSelected;
+                });
+                for (int i = 0; i < selectedCount; i++) {
+                    values[i] = intBuf[i] * MILLIS_PER_DAY;
+                }
+            } else {
+                readNonNullValuesSelective(totalRows, selection, (pageSel, fromPage, outOff) -> {
+                    if (currentEncoding.usesDictionary()) {
+                        dictDecoder.readLongsSelective(values, outOff, pageSel, fromPage, dictionary);
+                    } else {
+                        plainDecoder.readLongsSelective(values, outOff, pageSel, fromPage);
+                    }
+                    return pageSel.selectedCount();
+                });
+                applyTimestampConversion(values, selectedCount);
+            }
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        BitSet nulls = new BitSet(selectedCount);
+        if (isDate) {
+            int[] intBuf = new int[selectedCount];
+            readNullableValuesSelective(
+                totalRows,
+                selection,
+                nulls,
+                intBuf,
+                (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterInts(
+                    (int[]) vals,
+                    outOff,
+                    outNulls,
+                    pageSC,
+                    nonNullSel,
+                    totalNonNull
+                )
+            );
+            for (int i = 0; i < selectedCount; i++) {
+                if (nulls.get(i) == false) {
+                    values[i] = intBuf[i] * MILLIS_PER_DAY;
+                }
+            }
+        } else {
+            readNullableValuesSelective(
+                totalRows,
+                selection,
+                nulls,
+                values,
+                (vals, nonNullSel, totalNonNull, outOff, outNulls, pageSC) -> readAndScatterLongs(
+                    (long[]) vals,
+                    outOff,
+                    outNulls,
+                    pageSC,
+                    nonNullSel,
+                    totalNonNull
+                )
+            );
+            applyTimestampConversion(values, selectedCount);
+        }
+        if (nulls.isEmpty()) {
+            return blockFactory.newLongArrayVector(values, selectedCount).asBlock();
+        }
+        return blockFactory.newLongArrayBlock(values, selectedCount, null, nulls, Block.MvOrdering.UNORDERED);
+    }
+
+    private void applyTimestampConversion(long[] values, int count) {
+        LogicalTypeAnnotation logicalType = info.logicalType();
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            switch (ts.getUnit()) {
+                case MILLIS -> {
+                }
+                case MICROS -> {
+                    for (int i = 0; i < count; i++) {
+                        values[i] = values[i] / 1_000;
+                    }
+                }
+                case NANOS -> {
+                    for (int i = 0; i < count; i++) {
+                        values[i] = values[i] / 1_000_000;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Drives the page loop for non-nullable selective reads. The callback is invoked once
+     * per page with the page-local selection and output offset.
+     */
+    private void readNonNullValuesSelective(int totalRows, RowSelection selection, SelectivePageReader pageReader) {
+        int remaining = totalRows;
+        int consumed = 0;
+        int outOffset = 0;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            RowSelection pageSel = selection.slice(consumed, fromPage);
+            if (pageSel.isNoneSelected()) {
+                skipValues(fromPage); // non-nullable: value count == row count
+            } else {
+                int produced = pageReader.read(pageSel, fromPage, outOffset);
+                outOffset += produced;
+            }
+            advancePosition(fromPage);
+            consumed += fromPage;
+            remaining -= fromPage;
+        }
+    }
+
+    @FunctionalInterface
+    private interface SelectivePageReader {
+        int read(RowSelection pageSel, int fromPage, int outOffset);
+    }
+
+    /**
+     * Drives the page loop for nullable selective reads. Handles def levels, null tracking,
+     * and value reading for selected rows only.
+     *
+     * <p>For nullable columns, def levels are decoded for ALL rows (to advance the RLE stream).
+     * A value-level selection vector maps selected-and-non-null row positions to positions
+     * in the non-null value stream, enabling the value decoder to skip non-selected values.
+     * Selected non-null values are read packed, then scattered into the output array at the
+     * correct non-null positions.
+     */
+    private void readNullableValuesSelective(
+        int totalRows,
+        RowSelection selection,
+        BitSet nulls,
+        Object values,
+        NullableSelectivePageReader pageReader
+    ) {
+        int remaining = totalRows;
+        int consumed = 0;
+        int outOffset = 0;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            RowSelection pageSel = selection.slice(consumed, fromPage);
+            int pageSelectedCount = pageSel.selectedCount();
+            if (pageSel.isNoneSelected()) {
+                int nonNullSkipped = defDecoder.skip(fromPage);
+                skipValues(nonNullSkipped);
+            } else {
+                BitSet pageNulls = new BitSet(fromPage);
+                int totalNonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+
+                // Track nulls for selected rows in the output BitSet
+                int outPos = outOffset;
+                int selIdx = pageSel.nextSelected(0);
+                while (selIdx >= 0 && selIdx < fromPage) {
+                    if (pageNulls.get(selIdx)) {
+                        nulls.set(outPos);
+                    }
+                    outPos++;
+                    selIdx = pageSel.nextSelected(selIdx + 1);
+                }
+
+                if (totalNonNull == 0) {
+                    // No values to read from the value stream
+                } else {
+                    // Build value-level selection: among totalNonNull value positions,
+                    // which correspond to selected non-null rows?
+                    BitSet valueSel = new BitSet(totalNonNull);
+                    int valuePos = 0;
+                    int selectedNonNull = 0;
+                    selIdx = pageSel.nextSelected(0);
+                    for (int i = 0; i < fromPage; i++) {
+                        boolean isNull = pageNulls.get(i);
+                        boolean isSelected = (i == selIdx);
+                        if (isSelected && isNull == false) {
+                            valueSel.set(valuePos);
+                            selectedNonNull++;
+                        }
+                        if (isSelected) {
+                            selIdx = pageSel.nextSelected(selIdx + 1);
+                        }
+                        if (isNull == false) {
+                            valuePos++;
+                        }
+                    }
+
+                    if (selectedNonNull > 0) {
+                        RowSelection nonNullValueSelection = new RowSelection(valueSel, totalNonNull, selectedNonNull);
+                        pageReader.read(values, nonNullValueSelection, totalNonNull, outOffset, nulls, pageSelectedCount);
+                    } else {
+                        skipValues(totalNonNull);
+                    }
+                }
+                outOffset += pageSelectedCount;
+            }
+            advancePosition(fromPage);
+            consumed += fromPage;
+            remaining -= fromPage;
+        }
+    }
+
+    @FunctionalInterface
+    private interface NullableSelectivePageReader {
+        /**
+         * Read values selectively and scatter into output positions, skipping null positions.
+         *
+         * @param values output array (typed — caller casts)
+         * @param nonNullSelection selection over the non-null value stream
+         * @param totalNonNull total non-null values in this page chunk
+         * @param outOffset starting output offset for this page's selected rows
+         * @param nulls null bitmap for the output
+         * @param pageSelectedCount number of selected rows in this page chunk
+         */
+        void read(Object values, RowSelection nonNullSelection, int totalNonNull, int outOffset, BitSet nulls, int pageSelectedCount);
+    }
+
     // --- Scatter utilities ---
+
+    private static void scatterPacked(boolean[] packed, boolean[] output, int outOff, BitSet nulls, int pageSelCount) {
+        int pi = 0;
+        for (int i = 0; i < pageSelCount; i++) {
+            if (nulls.get(outOff + i) == false) {
+                output[outOff + i] = packed[pi++];
+            }
+        }
+    }
+
+    private static void scatterPacked(int[] packed, int[] output, int outOff, BitSet nulls, int pageSelCount) {
+        int pi = 0;
+        for (int i = 0; i < pageSelCount; i++) {
+            if (nulls.get(outOff + i) == false) {
+                output[outOff + i] = packed[pi++];
+            }
+        }
+    }
+
+    private static void scatterPacked(long[] packed, long[] output, int outOff, BitSet nulls, int pageSelCount) {
+        int pi = 0;
+        for (int i = 0; i < pageSelCount; i++) {
+            if (nulls.get(outOff + i) == false) {
+                output[outOff + i] = packed[pi++];
+            }
+        }
+    }
+
+    private static void scatterPacked(double[] packed, double[] output, int outOff, BitSet nulls, int pageSelCount) {
+        int pi = 0;
+        for (int i = 0; i < pageSelCount; i++) {
+            if (nulls.get(outOff + i) == false) {
+                output[outOff + i] = packed[pi++];
+            }
+        }
+    }
+
+    private static void scatterPacked(BytesRef[] packed, BytesRef[] output, int outOff, BitSet nulls, int pageSelCount) {
+        int pi = 0;
+        for (int i = 0; i < pageSelCount; i++) {
+            if (nulls.get(outOff + i) == false) {
+                output[outOff + i] = packed[pi++];
+            }
+        }
+    }
 
     private static void scatter(boolean[] packed, boolean[] output, BitSet nulls, int offset, int totalRows) {
         int pi = 0;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.logging.LogManager;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 
@@ -158,6 +160,185 @@ final class ColumnChunkPrefetcher {
             }
         }
         return ranges;
+    }
+
+    /**
+     * Computes byte ranges for only the surviving data pages within each column chunk.
+     * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
+     * the number of bytes fetched from remote storage.
+     *
+     * <p>Dictionary pages (which sit before data pages) are always included since they are
+     * needed to decode any surviving page. Adjacent page ranges are merged by the caller
+     * via {@link CoalescedRangeReader#mergeRanges}.
+     *
+     * @param block metadata for the row group
+     * @param rowRanges selected row ranges (null = fall back to whole chunks)
+     * @param metadata preloaded row group metadata with offset indexes
+     * @param rowGroupOrdinal ordinal of the row group in the file
+     * @param projectedColumns column paths to include (null = all columns)
+     * @param rowGroupRowCount total rows in the row group
+     * @return merged byte ranges covering only surviving pages
+     */
+    static List<CoalescedRangeReader.ByteRange> computeFilteredPageRanges(
+        BlockMetaData block,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        Set<String> projectedColumns,
+        long rowGroupRowCount
+    ) {
+        if (rowRanges == null || rowRanges.isAll()) {
+            return computeColumnChunkRanges(block, projectedColumns);
+        }
+
+        List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            String path = col.getPath().toDotString();
+            if (projectedColumns != null && projectedColumns.contains(path) == false) {
+                continue;
+            }
+
+            OffsetIndex oi = metadata.getOffsetIndex(rowGroupOrdinal, path);
+            if (oi == null) {
+                long totalSize = col.getTotalSize();
+                if (totalSize > 0) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(col.getStartingPos(), totalSize));
+                }
+                continue;
+            }
+
+            long dictOffset = col.getDictionaryPageOffset();
+            long firstDataPageOffset = oi.getOffset(0);
+            if (dictOffset > 0 && dictOffset < firstDataPageOffset) {
+                ranges.add(new CoalescedRangeReader.ByteRange(dictOffset, firstDataPageOffset - dictOffset));
+            }
+
+            int pageCount = oi.getPageCount();
+            for (int p = 0; p < pageCount; p++) {
+                long pageStart = oi.getFirstRowIndex(p);
+                long pageEnd = (p + 1 < pageCount) ? oi.getFirstRowIndex(p + 1) : rowGroupRowCount;
+                if (rowRanges.overlaps(pageStart, pageEnd)) {
+                    ranges.add(new CoalescedRangeReader.ByteRange(oi.getOffset(p), oi.getCompressedPageSize(p)));
+                }
+            }
+        }
+
+        if (ranges.isEmpty()) {
+            return ranges;
+        }
+        List<CoalescedRangeReader.MergedRange> merged = CoalescedRangeReader.mergeRanges(
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+        );
+        List<CoalescedRangeReader.ByteRange> result = new ArrayList<>(merged.size());
+        for (CoalescedRangeReader.MergedRange mr : merged) {
+            result.add(new CoalescedRangeReader.ByteRange(mr.offset(), mr.length()));
+        }
+        return result;
+    }
+
+    static CompletableFuture<NavigableMap<Long, PrefetchedChunk>> prefetch(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        long rowGroupRowCount
+    ) {
+        if (rowRanges == null || rowRanges.isAll()) {
+            return prefetch(storageObject, block, projectedColumns);
+        }
+
+        List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
+            block,
+            rowRanges,
+            metadata,
+            rowGroupOrdinal,
+            projectedColumns,
+            rowGroupRowCount
+        );
+        if (ranges.isEmpty()) {
+            return CompletableFuture.completedFuture(new TreeMap<>());
+        }
+
+        logger.debug(
+            "Prefetching [{}] filtered page ranges for row group at [{}] (row ranges: {} selected of {})",
+            ranges.size(),
+            block.getStartingPos(),
+            rowRanges != null ? rowRanges.selectedRowCount() : rowGroupRowCount,
+            rowGroupRowCount
+        );
+
+        CompletableFuture<NavigableMap<Long, PrefetchedChunk>> result = new CompletableFuture<>();
+        PlainActionFuture<Map<CoalescedRangeReader.ByteRange, ByteBuffer>> ioFuture = new PlainActionFuture<>();
+        CoalescedRangeReader.readCoalesced(storageObject, ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, Runnable::run, ioFuture);
+
+        try {
+            Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = ioFuture.actionGet();
+            NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
+            for (var entry : fetched.entrySet()) {
+                CoalescedRangeReader.ByteRange range = entry.getKey();
+                prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+            }
+            result.complete(prefetched);
+        } catch (Exception e) {
+            result.completeExceptionally(e);
+        }
+        return result;
+    }
+
+    static CompletableFuture<NavigableMap<Long, PrefetchedChunk>> prefetchAsync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        long rowGroupRowCount
+    ) {
+        if (rowRanges == null || rowRanges.isAll()) {
+            return prefetchAsync(storageObject, block, projectedColumns);
+        }
+
+        List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
+            block,
+            rowRanges,
+            metadata,
+            rowGroupOrdinal,
+            projectedColumns,
+            rowGroupRowCount
+        );
+        if (ranges.isEmpty()) {
+            return CompletableFuture.completedFuture(new TreeMap<>());
+        }
+
+        logger.debug("Async prefetching [{}] filtered page ranges for row group at [{}]", ranges.size(), block.getStartingPos());
+
+        CompletableFuture<NavigableMap<Long, PrefetchedChunk>> result = new CompletableFuture<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            Runnable::run,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched) {
+                    NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
+                    for (var entry : fetched.entrySet()) {
+                        CoalescedRangeReader.ByteRange range = entry.getKey();
+                        prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+                    }
+                    result.complete(prefetched);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    result.completeExceptionally(e);
+                }
+            }
+        );
+        return result;
     }
 
     /**

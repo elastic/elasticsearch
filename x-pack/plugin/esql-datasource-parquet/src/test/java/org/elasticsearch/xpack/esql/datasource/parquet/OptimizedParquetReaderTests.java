@@ -54,7 +54,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for the optimized Parquet reader feature flag and correctness parity with the baseline.
@@ -2401,6 +2403,117 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
 
         assertThat("late materialization with prefetch should return correct row count", totalRows, equalTo(199));
+    }
+
+    /**
+     * Stage 7B: SelectivePageReader parity — compares the optimized reader without
+     * SelectivePageReader (pageLevelReader=false) against the page-level reader with
+     * SelectivePageReader active (pageLevelReader=true, lateMat=true).
+     * Both use optimized=true to keep the same filtering level.
+     */
+    public void testSelectivePageReaderParity() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("value", i * 0.5);
+                g.add("label", "item_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1800L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader standardOptimized = new ParquetFormatReader(blockFactory, true);
+        standardOptimized = (ParquetFormatReader) standardOptimized.withPushedFilter(pushedExprs);
+
+        ParquetFormatReader selectiveReader = new ParquetFormatReader(blockFactory, true, true, true);
+        selectiveReader = (ParquetFormatReader) selectiveReader.withPushedFilter(pushedExprs);
+
+        List<Page> standardPages = readAllPages(standardOptimized, storageObject);
+        List<Page> selectivePages = readAllPages(selectiveReader, storageObject);
+
+        int standardRows = standardPages.stream().mapToInt(Page::getPositionCount).sum();
+        int selectiveRows = selectivePages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat(
+            "SelectivePageReader (selective=" + selectiveRows + ") should produce <= standard (" + standardRows + ") rows",
+            selectiveRows,
+            lessThanOrEqualTo(standardRows)
+        );
+        assertThat("SelectivePageReader should produce at least the exact matching rows", selectiveRows, greaterThanOrEqualTo(199));
+    }
+
+    /**
+     * Stage 7B: SelectivePageReader with various filter selectivities — verifies that the
+     * selective reader never produces more rows than the standard optimized reader, and
+     * always produces at least as many as the exact count.
+     */
+    public void testSelectivePageReaderVaryingSelectivity() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("status")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("status", i % 3 == 0 ? "active" : (i % 3 == 1 ? "inactive" : "pending"));
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        for (long threshold : new long[] { 100L, 500L, 1000L, 1500L, 1900L, 1999L }) {
+            ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+            GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, threshold, DataType.LONG));
+            ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+            ParquetFormatReader standardReader = new ParquetFormatReader(blockFactory, true);
+            standardReader = (ParquetFormatReader) standardReader.withPushedFilter(pushedExprs);
+
+            ParquetFormatReader selectiveReader = new ParquetFormatReader(blockFactory, true, true, true);
+            selectiveReader = (ParquetFormatReader) selectiveReader.withPushedFilter(pushedExprs);
+
+            List<Page> standardPages = readAllPages(standardReader, storageObject);
+            List<Page> selectivePages = readAllPages(selectiveReader, storageObject);
+
+            int standardRows = standardPages.stream().mapToInt(Page::getPositionCount).sum();
+            int selectiveRows = selectivePages.stream().mapToInt(Page::getPositionCount).sum();
+            int expectedExact = 2000 - (int) threshold - 1;
+            assertThat(
+                "SelectivePageReader (threshold=" + threshold + ") should produce <= standard (" + standardRows + ")",
+                selectiveRows,
+                lessThanOrEqualTo(standardRows)
+            );
+            assertThat(
+                "SelectivePageReader (threshold=" + threshold + ") should produce >= exact count (" + expectedExact + ")",
+                selectiveRows,
+                greaterThanOrEqualTo(expectedExact)
+            );
+        }
     }
 
     /**

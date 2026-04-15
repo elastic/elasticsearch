@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.Dictionary;
@@ -15,11 +16,13 @@ import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -125,6 +128,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private long pagesEvaluatedByColumnIndex = 0;
     private long rowsEliminatedByLateMaterialization = 0;
     private CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> pendingPrefetch;
+    private CompressionCodecFactory codecFactory;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -221,6 +225,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     private boolean advanceRowGroup() throws IOException {
+        return pageLevelReader ? advanceRowGroupWithPageSkip() : advanceRowGroupDefault();
+    }
+
+    /**
+     * Default row-group advancement: delegates to Parquet's {@code readNextFilteredRowGroup()}
+     * which applies the pushed RecordFilter (row-group stats + page-level ColumnIndex filtering).
+     */
+    private boolean advanceRowGroupDefault() throws IOException {
         while (true) {
             if (rowGroup != null) {
                 rowGroup.close();
@@ -236,20 +248,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             if (rowGroup == null) {
                 exhausted = true;
                 cancelPendingPrefetch();
-                if (rowGroupsSkippedByDictionary > 0) {
-                    logger.debug("Dictionary pruning skipped [{}] row groups in [{}]", rowGroupsSkippedByDictionary, fileLocation);
-                }
-                if (pagesEvaluatedByColumnIndex > 0) {
-                    logger.debug(
-                        "Page-level skipping: evaluated [{}] pages, skipped [{}] in [{}]",
-                        pagesEvaluatedByColumnIndex,
-                        pagesSkippedByColumnIndex,
-                        fileLocation
-                    );
-                }
-                if (rowsEliminatedByLateMaterialization > 0) {
-                    logger.debug("Late materialization eliminated [{}] rows in [{}]", rowsEliminatedByLateMaterialization, fileLocation);
-                }
+                logSkipStats();
                 return false;
             }
             rowGroupOrdinal++;
@@ -261,48 +260,189 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 continue;
             }
 
-            RowRanges pageRanges = computePageRowRanges();
-            if (pageRanges != null && pageRanges.isEmpty()) {
-                logger.trace("Page-level skipping: all pages pruned for row group [{}] in [{}]", rowGroupOrdinal, fileLocation);
+            triggerNextRowGroupPrefetch();
+            initColumnReaders(null);
+            return rowsRemainingInGroup > 0;
+        }
+    }
+
+    /**
+     * Page-level row-group advancement: iterates through all row groups by ordinal so that
+     * {@code rowGroupOrdinal} stays aligned with {@code reader.getRowGroups()} indices.
+     * The Parquet RecordFilter is NOT set on the reader in this mode, so row-group-level
+     * and page-level pruning are handled entirely by our code.
+     */
+    private boolean advanceRowGroupWithPageSkip() throws IOException {
+        List<BlockMetaData> allRowGroups = reader.getRowGroups();
+        while (true) {
+            if (rowGroup != null) {
+                rowGroup.close();
+                rowGroup = null;
+            }
+            closeSelectivePageReaders();
+
+            rowGroupOrdinal++;
+            if (rowGroupOrdinal >= allRowGroups.size()) {
+                exhausted = true;
+                cancelPendingPrefetch();
+                logSkipStats();
+                return false;
+            }
+            pageBatchIndexInRowGroup = 0;
+            rowsRemainingInGroup = allRowGroups.get(rowGroupOrdinal).getRowCount();
+
+            if (shouldSkipByDictionary()) {
+                rowGroupsSkippedByDictionary++;
+                reader.skipNextRowGroup();
                 continue;
             }
 
-            triggerNextRowGroupPrefetch();
+            RowRanges pageRanges = computePageRowRanges();
+            if (pageRanges != null && pageRanges.isEmpty()) {
+                logger.trace("Page-level skipping: all pages pruned for row group [{}] in [{}]", rowGroupOrdinal, fileLocation);
+                reader.skipNextRowGroup();
+                continue;
+            }
 
-            if (pageLevelReader) {
-                pageColumnReaders = new PageColumnReader[columnInfos.length];
-                columnReaders = null;
-                for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null && columnInfos[i].maxRepLevel() == 0) {
-                        ColumnDescriptor desc = columnInfos[i].descriptor();
-                        PageReader pr = rowGroup.getPageReader(desc);
-                        pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], pageRanges);
-                    }
-                }
-                // List columns still need ColumnReadStoreImpl
-                boolean hasListColumns = false;
-                for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
-                        hasListColumns = true;
-                        break;
-                    }
-                }
-                if (hasListColumns) {
-                    ColumnReadStoreImpl store = new ColumnReadStoreImpl(
-                        rowGroup,
-                        new NoOpGroupConverter(projectedSchema),
-                        projectedSchema,
-                        createdBy
-                    );
-                    columnReaders = new ColumnReader[columnInfos.length];
-                    for (int i = 0; i < columnInfos.length; i++) {
-                        if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
-                            columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
-                        }
-                    }
-                }
+            boolean useSelectivePageReader = pageRanges != null && pageRanges.isAll() == false && hasNoListColumns();
+
+            installPendingPrefetch();
+
+            if (useSelectivePageReader) {
+                reader.skipNextRowGroup();
+                adapter.clearPrefetchedData();
+                triggerNextRowGroupPrefetch();
+                initSelectiveColumnReaders(pageRanges, allRowGroups.get(rowGroupOrdinal));
             } else {
-                pageColumnReaders = null;
+                rowGroup = reader.readNextRowGroup();
+                adapter.clearPrefetchedData();
+                if (rowGroup == null) {
+                    exhausted = true;
+                    cancelPendingPrefetch();
+                    return false;
+                }
+                triggerNextRowGroupPrefetch();
+                initColumnReaders(pageRanges);
+            }
+            return rowsRemainingInGroup > 0;
+        }
+    }
+
+    private void logSkipStats() {
+        if (rowGroupsSkippedByDictionary > 0) {
+            logger.debug("Dictionary pruning skipped [{}] row groups in [{}]", rowGroupsSkippedByDictionary, fileLocation);
+        }
+        if (pagesEvaluatedByColumnIndex > 0) {
+            logger.debug(
+                "Page-level skipping: evaluated [{}] pages, skipped [{}] in [{}]",
+                pagesEvaluatedByColumnIndex,
+                pagesSkippedByColumnIndex,
+                fileLocation
+            );
+        }
+        if (rowsEliminatedByLateMaterialization > 0) {
+            logger.debug("Late materialization eliminated [{}] rows in [{}]", rowsEliminatedByLateMaterialization, fileLocation);
+        }
+    }
+
+    private boolean hasNoListColumns() {
+        for (ColumnInfo info : columnInfos) {
+            if (info != null && info.maxRepLevel() > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private CompressionCodecFactory getCodecFactory() {
+        if (codecFactory == null) {
+            codecFactory = ParquetReadOptions.builder().build().getCodecFactory();
+        }
+        return codecFactory;
+    }
+
+    /**
+     * Creates {@link PageColumnReader}s backed by {@link SelectivePageReader} instances that
+     * read directly from the adapter's stream, seeking only to surviving pages. This avoids
+     * parquet-java's eager page loading in {@code readNextRowGroup()}.
+     */
+    private void initSelectiveColumnReaders(RowRanges pageRanges, BlockMetaData block) {
+        pageColumnReaders = new PageColumnReader[columnInfos.length];
+        columnReaders = null;
+
+        Map<String, ColumnChunkMetaData> chunkMap = new HashMap<>();
+        for (ColumnChunkMetaData col : block.getColumns()) {
+            chunkMap.put(col.getPath().toDotString(), col);
+        }
+
+        CompressionCodecFactory factory = getCodecFactory();
+        long rgRowCount = block.getRowCount();
+
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] == null || columnInfos[i].maxRepLevel() > 0) {
+                continue;
+            }
+            ColumnDescriptor desc = columnInfos[i].descriptor();
+            String colPath = String.join(".", desc.getPath());
+            ColumnChunkMetaData colMeta = chunkMap.get(colPath);
+            OffsetIndex oi = preloadedMetadata.getOffsetIndex(rowGroupOrdinal, colPath);
+
+            if (colMeta != null && oi != null) {
+                try {
+                    SeekableInputStream stream = adapter.newStream();
+                    CompressionCodecFactory.BytesInputDecompressor decompressor = factory.getDecompressor(colMeta.getCodec());
+                    PageReader pr = new SelectivePageReader(stream, oi, pageRanges, decompressor, colMeta, rgRowCount);
+                    pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], pageRanges);
+                } catch (IOException e) {
+                    throw new ElasticsearchException(
+                        "Failed to create selective page reader for column ["
+                            + colPath
+                            + "] in row group ["
+                            + rowGroupOrdinal
+                            + "] of ["
+                            + fileLocation
+                            + "]",
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    private void closeSelectivePageReaders() {
+        if (pageColumnReaders == null) {
+            return;
+        }
+        for (PageColumnReader pcr : pageColumnReaders) {
+            if (pcr != null && pcr.getPageReader() instanceof SelectivePageReader spr) {
+                try {
+                    spr.close();
+                } catch (IOException e) {
+                    logger.debug("Failed to close selective page reader: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    private void initColumnReaders(RowRanges pageRanges) {
+        if (pageLevelReader) {
+            pageColumnReaders = new PageColumnReader[columnInfos.length];
+            columnReaders = null;
+            for (int i = 0; i < columnInfos.length; i++) {
+                if (columnInfos[i] != null && columnInfos[i].maxRepLevel() == 0) {
+                    ColumnDescriptor desc = columnInfos[i].descriptor();
+                    PageReader pr = rowGroup.getPageReader(desc);
+                    pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], pageRanges);
+                }
+            }
+            boolean hasListColumns = false;
+            for (int i = 0; i < columnInfos.length; i++) {
+                if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
+                    hasListColumns = true;
+                    break;
+                }
+            }
+            if (hasListColumns) {
                 ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                     rowGroup,
                     new NoOpGroupConverter(projectedSchema),
@@ -311,12 +451,25 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 );
                 columnReaders = new ColumnReader[columnInfos.length];
                 for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null) {
+                    if (columnInfos[i] != null && columnInfos[i].maxRepLevel() > 0) {
                         columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
                     }
                 }
             }
-            return rowsRemainingInGroup > 0;
+        } else {
+            pageColumnReaders = null;
+            ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                rowGroup,
+                new NoOpGroupConverter(projectedSchema),
+                projectedSchema,
+                createdBy
+            );
+            columnReaders = new ColumnReader[columnInfos.length];
+            for (int i = 0; i < columnInfos.length; i++) {
+                if (columnInfos[i] != null) {
+                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                }
+            }
         }
     }
 
@@ -368,7 +521,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
         BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
         try {
-            pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
+            RowRanges nextRanges = computePageRowRangesForBlock(nextBlock, nextRgOrdinal, false);
+            if (nextRanges != null && nextRanges.isEmpty()) {
+                pendingPrefetch = null;
+                return;
+            }
+            pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(
+                storageObject,
+                nextBlock,
+                projectedColumnPaths,
+                nextRanges,
+                preloadedMetadata,
+                nextRgOrdinal,
+                nextBlock.getRowCount()
+            );
         } catch (Exception e) {
             logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextRgOrdinal, fileLocation, e.getMessage());
             pendingPrefetch = null;
@@ -471,17 +637,34 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      * (a row must satisfy ALL predicates).
      */
     private RowRanges computePageRowRanges() {
-        if (pushedExpressions == null || preloadedMetadata.hasColumnIndexes() == false || preloadedMetadata.hasOffsetIndexes() == false) {
-            return null;
-        }
-
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroupOrdinal >= rowGroups.size()) {
             return null;
         }
         BlockMetaData block = rowGroups.get(rowGroupOrdinal);
-        long rowGroupRowCount = block.getRowCount();
+        RowRanges result = computePageRowRangesForBlock(block, rowGroupOrdinal, true);
+        if (result != null && result.shouldDiscard()) {
+            logger.trace(
+                "Page-level skipping: anti-fragmentation triggered for row group [{}] in [{}] "
+                    + "(density={}, transitions={}, selected={}/{})",
+                rowGroupOrdinal,
+                fileLocation,
+                result.density(),
+                result.transitionCount(),
+                result.selectedRowCount(),
+                block.getRowCount()
+            );
+            return null;
+        }
+        return result;
+    }
 
+    private RowRanges computePageRowRangesForBlock(BlockMetaData block, int rgOrdinal, boolean recordColumnIndexStats) {
+        if (pushedExpressions == null || preloadedMetadata.hasColumnIndexes() == false || preloadedMetadata.hasOffsetIndexes() == false) {
+            return null;
+        }
+
+        long rowGroupRowCount = block.getRowCount();
         RowRanges combined = null;
 
         for (ColumnChunkMetaData col : block.getColumns()) {
@@ -490,8 +673,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 continue;
             }
 
-            ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rowGroupOrdinal, columnPath);
-            OffsetIndex offsetIndex = preloadedMetadata.getOffsetIndex(rowGroupOrdinal, columnPath);
+            ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rgOrdinal, columnPath);
+            OffsetIndex offsetIndex = preloadedMetadata.getOffsetIndex(rgOrdinal, columnPath);
             if (columnIndex == null || offsetIndex == null) {
                 continue;
             }
@@ -503,13 +686,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
             List<long[]> matchingRanges = new ArrayList<>();
             for (int pageIdx = 0; pageIdx < pageCount; pageIdx++) {
-                pagesEvaluatedByColumnIndex++;
+                if (recordColumnIndexStats) {
+                    pagesEvaluatedByColumnIndex++;
+                }
                 boolean canMatch = pushedExpressions.pageCanMatch(columnPath, columnIndex, pageIdx, col.getPrimitiveType());
                 if (canMatch) {
                     long pageStart = offsetIndex.getFirstRowIndex(pageIdx);
                     long pageEnd = (pageIdx + 1 < pageCount) ? offsetIndex.getFirstRowIndex(pageIdx + 1) : rowGroupRowCount;
                     matchingRanges.add(new long[] { pageStart, pageEnd });
-                } else {
+                } else if (recordColumnIndexStats) {
                     pagesSkippedByColumnIndex++;
                 }
             }
@@ -530,24 +715,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             }
         }
 
-        if (combined == null) {
-            return null;
-        }
-
-        if (combined.shouldDiscard()) {
-            logger.trace(
-                "Page-level skipping: anti-fragmentation triggered for row group [{}] in [{}] "
-                    + "(density={}, transitions={}, selected={}/{})",
-                rowGroupOrdinal,
-                fileLocation,
-                combined.density(),
-                combined.transitionCount(),
-                combined.selectedRowCount(),
-                rowGroupRowCount
-            );
-            return null;
-        }
-
         return combined;
     }
 
@@ -565,23 +732,46 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         Page result = lateMaterialization ? nextWithLateMaterialization(rowsToRead) : nextStandard(rowsToRead);
 
         pageBatchIndexInRowGroup++;
-        rowsRemainingInGroup -= rowsToRead;
+        long logicalConsumed = computeLogicalRowsConsumed(rowsToRead);
+        rowsRemainingInGroup -= logicalConsumed;
         if (rowBudget != FormatReader.NO_LIMIT) {
             rowBudget -= result.getPositionCount();
         }
         return result;
     }
 
+    /**
+     * Determines how many logical row-group rows were consumed by the last batch.
+     * With page-level skipping, skipped pages advance the row position beyond the
+     * requested batch size. Falls back to {@code rowsToRead} when page-level readers
+     * are not active.
+     */
+    private long computeLogicalRowsConsumed(int rowsToRead) {
+        if (pageColumnReaders == null) {
+            return rowsToRead;
+        }
+        for (PageColumnReader pcr : pageColumnReaders) {
+            if (pcr != null) {
+                return pcr.logicalRowsConsumed();
+            }
+        }
+        return rowsToRead;
+    }
+
     private Page nextStandard(int rowsToRead) {
         Block[] blocks = new Block[attributes.size()];
+        int producedRows = -1;
         try {
             for (int col = 0; col < columnInfos.length; col++) {
                 ColumnInfo info = columnInfos[col];
                 if (info == null) {
-                    blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                    continue;
                 } else {
                     try {
                         blocks[col] = readColumnBlock(col, info, rowsToRead);
+                        if (producedRows < 0) {
+                            producedRows = blocks[col].getPositionCount();
+                        }
                     } catch (Exception e) {
                         Releasables.closeExpectNoException(blocks);
                         Attribute attr = attributes.get(col);
@@ -601,6 +791,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                             e
                         );
                     }
+                }
+            }
+            if (producedRows < 0) {
+                producedRows = rowsToRead;
+            }
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (blocks[col] == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
         } catch (ElasticsearchException e) {
@@ -623,53 +821,63 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     /**
-     * Three-phase late materialization pipeline:
+     * Two-phase late materialization pipeline using filter-during-decode:
      * <ol>
-     *   <li>Phase 1: Decode predicate columns (referenced in pushed filter)</li>
-     *   <li>Phase 2: Evaluate filter against predicate Blocks → survivor mask; compact predicate Blocks</li>
-     *   <li>Phase 3: Decode projection-only columns for surviving rows only</li>
+     *   <li>Phase 1: Decode predicate columns fully, evaluate filter → {@link RowSelection}</li>
+     *   <li>Phase 2: Use the selection vector to decode only surviving rows from projection
+     *       columns at the byte level (no full-batch allocation for non-surviving rows)</li>
      * </ol>
+     *
+     * <p>Predicate column Blocks are compacted to contain only surviving rows. Projection-only
+     * columns use {@link PageColumnReader#readBatchWithSelection} to skip non-surviving values
+     * during decode, avoiding the double-allocation pattern of the old filter-after-decode path.
      */
     private Page nextWithLateMaterialization(int rowsToRead) {
         Block[] blocks = new Block[attributes.size()];
         try {
-            // Phase 1: decode predicate columns
+            // === Phase 1: Decode predicate columns, build selection ===
             Map<String, Block> predicateBlockMap = new HashMap<>();
+            int actualProduced = rowsToRead;
             for (int col = 0; col < columnInfos.length; col++) {
                 if (isPredicateColumn[col]) {
                     ColumnInfo info = columnInfos[col];
-                    if (info == null) {
-                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
-                    } else {
+                    if (info != null) {
                         blocks[col] = readColumnBlock(col, info, rowsToRead);
+                        actualProduced = blocks[col].getPositionCount();
                         predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                     }
                 }
             }
-
-            // Phase 2: evaluate filter
-            boolean[] survivorMask = pushedExpressions.evaluateFilter(predicateBlockMap, rowsToRead);
-            int survivorCount = rowsToRead;
-            if (survivorMask != null) {
-                survivorCount = 0;
-                for (boolean b : survivorMask) {
-                    if (b) survivorCount++;
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col] && blocks[col] == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(actualProduced);
+                    predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
-                rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
             }
 
-            if (survivorMask != null && survivorCount < rowsToRead) {
-                // Compact predicate Blocks to contain only surviving rows
+            boolean[] survivorMask = pushedExpressions.evaluateFilter(predicateBlockMap, actualProduced);
+            RowSelection selection;
+            if (survivorMask == null) {
+                selection = RowSelection.all(actualProduced);
+            } else {
+                selection = RowSelection.fromMask(survivorMask, actualProduced);
+                rowsEliminatedByLateMaterialization += (actualProduced - selection.selectedCount());
+            }
+
+            int survivorCount = selection.selectedCount();
+
+            if (selection.isAllSelected() == false) {
+                boolean[] mask = selection.toBooleanArray();
                 for (int col = 0; col < columnInfos.length; col++) {
                     if (isPredicateColumn[col] && blocks[col] != null) {
-                        Block filtered = PageColumnReader.filterBlock(blocks[col], survivorMask, survivorCount, blockFactory);
+                        Block filtered = PageColumnReader.filterBlock(blocks[col], mask, survivorCount, blockFactory);
                         blocks[col].close();
                         blocks[col] = filtered;
                     }
                 }
             }
 
-            // Phase 3: decode projection-only columns
+            // === Phase 2: Decode projection-only columns using selection vector ===
             for (int col = 0; col < columnInfos.length; col++) {
                 if (isPredicateColumn[col]) {
                     continue;
@@ -677,23 +885,23 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 ColumnInfo info = columnInfos[col];
                 if (info == null) {
                     blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
-                } else if (survivorMask != null && survivorCount == 0) {
-                    // No survivors: skip decode entirely for projection columns
+                } else if (selection.isNoneSelected()) {
                     if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                        pageColumnReaders[col].skipRows(rowsToRead);
+                        pageColumnReaders[col].skipRows(actualProduced);
                     } else {
                         ColumnReader cr = columnReaders != null ? columnReaders[col] : null;
                         if (cr != null) {
-                            skipValues(cr, rowsToRead);
+                            skipValues(cr, actualProduced);
                         }
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
-                } else if (survivorMask != null && pageColumnReaders != null && pageColumnReaders[col] != null) {
-                    blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, survivorMask, survivorCount);
+                } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                    blocks[col] = pageColumnReaders[col].readBatchWithSelection(actualProduced, blockFactory, selection);
                 } else {
-                    Block fullBlock = readColumnBlock(col, info, rowsToRead);
-                    if (survivorMask != null && survivorCount < rowsToRead) {
-                        Block filtered = PageColumnReader.filterBlock(fullBlock, survivorMask, survivorCount, blockFactory);
+                    Block fullBlock = readColumnBlock(col, info, actualProduced);
+                    if (selection.isAllSelected() == false) {
+                        boolean[] mask = selection.toBooleanArray();
+                        Block filtered = PageColumnReader.filterBlock(fullBlock, mask, survivorCount, blockFactory);
                         fullBlock.close();
                         blocks[col] = filtered;
                     } else {
@@ -701,7 +909,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     }
                 }
             }
-            return new Page(blocks);
+            return new Page(survivorCount, blocks);
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new ElasticsearchException(
@@ -897,11 +1105,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     public void close() throws IOException {
         cancelPendingPrefetch();
         adapter.clearPrefetchedData();
+        closeSelectivePageReaders();
         try {
             if (rowGroup != null) {
                 rowGroup.close();
             }
         } finally {
+            if (codecFactory != null) {
+                codecFactory.release();
+            }
             reader.close();
         }
     }

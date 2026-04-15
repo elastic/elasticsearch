@@ -31,6 +31,6 @@ these blocks represent (name, type, nullability, etc.)
 
 ## Misc
 
-- `employees.ndjson` created by running `CsvTestsDataLoader` and extracted using
-  `curl 'http://localhost:9200/employees/_search?size=1000' | jq -c '.hits.hits[] | ._source'`
-  and manually convert "string booleans" to actual booleans.
+- QA `iceberg-fixtures/standalone/employees.ndjson` is generated at Gradle build time from the canonical
+  [`employees.csv`](../esql/qa/testFixtures/src/main/resources/data/employees.csv) via
+  `NdJsonFixtureGenerator` in `esql:qa:server` (`generateStandaloneNdjsonFixtures` on the `esql-datasource-ndjson:qa` project).

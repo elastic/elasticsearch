@@ -39,14 +39,18 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Optimized Parquet column iterator behind the {@code optimized_reader} feature flag.
@@ -75,6 +79,13 @@ import java.util.Set;
  * projection-only columns for surviving rows only. Columns in both predicate and projection sets
  * are decoded once in Phase 1 and their Blocks compacted in Phase 2.
  *
+ * <p>Stage 5: parallel column chunk fetch and async row group prefetch. When a
+ * {@link StorageObject} is available, column chunks for the current row group are fetched in
+ * parallel via {@link CoalescedRangeReader} and installed into the
+ * {@link ParquetStorageObjectAdapter} before parquet-java reads them. While the current row
+ * group is being decoded, the next row group's column chunks are prefetched asynchronously.
+ * This overlaps I/O with decode for significant throughput improvement on remote storage.
+ *
  * <p>The existing baseline {@code ParquetColumnIterator} is never modified — it remains as the
  * stable fallback when {@code optimized_reader=false}.
  */
@@ -97,6 +108,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final boolean pageLevelReader;
     private final boolean lateMaterialization;
     private final boolean[] isPredicateColumn;
+    private final StorageObject storageObject;
+    private final ParquetStorageObjectAdapter adapter;
+    private final Set<String> projectedColumnPaths;
     private int rowBudget;
 
     private PageReadStore rowGroup;
@@ -110,6 +124,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private long pagesSkippedByColumnIndex = 0;
     private long pagesEvaluatedByColumnIndex = 0;
     private long rowsEliminatedByLateMaterialization = 0;
+    private CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> pendingPrefetch;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -124,7 +139,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         PreloadedRowGroupMetadata preloadedMetadata,
         ParquetPushedExpressions pushedExpressions,
         boolean pageLevelReader,
-        boolean lateMaterialization
+        boolean lateMaterialization,
+        StorageObject storageObject,
+        ParquetStorageObjectAdapter adapter
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -139,10 +156,23 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.pushedExpressions = pushedExpressions;
         this.pageLevelReader = pageLevelReader;
         this.lateMaterialization = lateMaterialization && pageLevelReader && pushedExpressions != null;
+        this.storageObject = storageObject;
+        this.adapter = adapter;
 
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
+        this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
 
         reader.setRequestedSchema(projectedSchema);
+    }
+
+    private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {
+        Set<String> paths = new HashSet<>();
+        for (ColumnInfo info : columnInfos) {
+            if (info != null) {
+                paths.add(String.join(".", info.descriptor().getPath()));
+            }
+        }
+        return paths;
     }
 
     /**
@@ -196,9 +226,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 rowGroup.close();
                 rowGroup = null;
             }
+
+            installPendingPrefetch();
+
             rowGroup = reader.readNextFilteredRowGroup();
+
+            adapter.clearPrefetchedData();
+
             if (rowGroup == null) {
                 exhausted = true;
+                cancelPendingPrefetch();
                 if (rowGroupsSkippedByDictionary > 0) {
                     logger.debug("Dictionary pruning skipped [{}] row groups in [{}]", rowGroupsSkippedByDictionary, fileLocation);
                 }
@@ -229,6 +266,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 logger.trace("Page-level skipping: all pages pruned for row group [{}] in [{}]", rowGroupOrdinal, fileLocation);
                 continue;
             }
+
+            triggerNextRowGroupPrefetch();
 
             if (pageLevelReader) {
                 pageColumnReaders = new PageColumnReader[columnInfos.length];
@@ -278,6 +317,71 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 }
             }
             return rowsRemainingInGroup > 0;
+        }
+    }
+
+    /**
+     * Installs any previously prefetched row group data into the adapter so that
+     * the next {@code readNextFilteredRowGroup()} can read from memory instead of
+     * issuing network I/O. Falls back gracefully on failure.
+     */
+    private void installPendingPrefetch() {
+        if (pendingPrefetch == null) {
+            return;
+        }
+        try {
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = pendingPrefetch.join();
+            if (data != null && data.isEmpty() == false) {
+                adapter.installPrefetchedData(data);
+                logger.trace(
+                    "Installed [{}] prefetched column chunks for row group [{}] in [{}]",
+                    data.size(),
+                    rowGroupOrdinal + 1,
+                    fileLocation
+                );
+            }
+        } catch (Exception e) {
+            logger.debug(
+                "Prefetch for row group [{}] failed in [{}], falling back to synchronous I/O: {}",
+                rowGroupOrdinal + 1,
+                fileLocation,
+                e.getMessage()
+            );
+        } finally {
+            pendingPrefetch = null;
+        }
+    }
+
+    /**
+     * Triggers an async prefetch of column chunk data for the next row group.
+     * The prefetch runs in the background; the data is consumed in the next
+     * {@link #advanceRowGroup()} call via {@link #installPendingPrefetch()}.
+     */
+    private void triggerNextRowGroupPrefetch() {
+        if (storageObject == null) {
+            return;
+        }
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        int nextRgOrdinal = rowGroupOrdinal + 1;
+        if (nextRgOrdinal >= rowGroups.size()) {
+            return;
+        }
+        BlockMetaData nextBlock = rowGroups.get(nextRgOrdinal);
+        try {
+            pendingPrefetch = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, projectedColumnPaths);
+        } catch (Exception e) {
+            logger.debug("Failed to initiate prefetch for row group [{}] in [{}]: {}", nextRgOrdinal, fileLocation, e.getMessage());
+            pendingPrefetch = null;
+        }
+    }
+
+    /**
+     * Cancels any pending prefetch to avoid resource leaks when iteration ends early.
+     */
+    private void cancelPendingPrefetch() {
+        if (pendingPrefetch != null) {
+            pendingPrefetch.cancel(false);
+            pendingPrefetch = null;
         }
     }
 
@@ -791,6 +895,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
     @Override
     public void close() throws IOException {
+        cancelPendingPrefetch();
+        adapter.clearPrefetchedData();
         try {
             if (rowGroup != null) {
                 rowGroup.close();

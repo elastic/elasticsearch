@@ -364,7 +364,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
         if (FilterCompat.isFilteringRequired(recordFilter)) {
@@ -411,7 +411,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 preloadedMetadata,
                 pushedExpressions,
                 pageLevelReader,
-                lateMaterialization
+                lateMaterialization,
+                object,
+                parquetInputFile
             );
         }
         return new ParquetColumnIterator(
@@ -544,7 +546,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
+        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         FilterCompat.Filter recordFilter = resolveRecordFilter(object, parquetInputFile);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
         if (FilterCompat.isFilteringRequired(recordFilter)) {
@@ -593,7 +595,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 preloadedMetadata,
                 pushedExpressions,
                 pageLevelReader,
-                lateMaterialization
+                lateMaterialization,
+                object,
+                parquetInputFile
             );
         }
         return new ParquetColumnIterator(

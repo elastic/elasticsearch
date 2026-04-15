@@ -767,6 +767,56 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         );
     }
 
+    // --- Stage 5: Prefetched data tests ---
+
+    public void testPrefetchedDataServesReads() throws IOException {
+        byte[] data = new byte[1000];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) (i & 0xFF);
+        }
+        StorageObject storageObject = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        byte[] prefetchedBytes = new byte[100];
+        System.arraycopy(data, 200, prefetchedBytes, 0, 100);
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        chunks.put(200L, new ColumnChunkPrefetcher.PrefetchedChunk(200, 100, java.nio.ByteBuffer.wrap(prefetchedBytes)));
+        adapter.installPrefetchedData(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(200);
+            byte[] buffer = new byte[50];
+            stream.readFully(buffer);
+            byte[] expected = new byte[50];
+            System.arraycopy(data, 200, expected, 0, 50);
+            assertArrayEquals(expected, buffer);
+        }
+    }
+
+    public void testClearPrefetchedData() throws IOException {
+        byte[] data = new byte[500];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) (i & 0xFF);
+        }
+        StorageObject storageObject = createRangeReadStorageObject(data);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        byte[] prefetchedBytes = new byte[50];
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 50, java.nio.ByteBuffer.wrap(prefetchedBytes)));
+        adapter.installPrefetchedData(chunks);
+        adapter.clearPrefetchedData();
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(100);
+            byte[] buffer = new byte[10];
+            stream.readFully(buffer);
+            byte[] expected = new byte[10];
+            System.arraycopy(data, 100, expected, 0, 10);
+            assertArrayEquals(expected, buffer);
+        }
+    }
+
     private void randomBytes(byte[] data) {
         random().nextBytes(data);
     }

@@ -2242,6 +2242,315 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         assertThat("integer predicate filter", totalRows, equalTo(40));
     }
 
+    // --- Stage 5: Parallel column chunk fetch + async row group prefetch tests ---
+
+    /**
+     * Stage 5 correctness parity: optimized reader with prefetch produces identical output
+     * to the baseline for a multi-row-group file.
+     */
+    public void testPrefetchCorrectnessParityMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 3000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "user_" + i);
+                g.add("value", i * 0.1);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 5: prefetch with pushed filter and multi-row-group file.
+     * The prefetch pipeline must work correctly alongside dictionary pruning and page skipping.
+     */
+    public void testPrefetchWithPushedFilterMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("status")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("status", i % 3 == 0 ? "active" : (i % 3 == 1 ? "inactive" : "pending"));
+                g.add("value", i * 0.5);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1500L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader baselineReader = new ParquetFormatReader(blockFactory, false);
+        baselineReader = (ParquetFormatReader) baselineReader.withPushedFilter(pushedExprs);
+
+        ParquetFormatReader optimizedReader = new ParquetFormatReader(blockFactory, true);
+        optimizedReader = (ParquetFormatReader) optimizedReader.withPushedFilter(pushedExprs);
+
+        List<Page> baselinePages = readAllPages(baselineReader, storageObject);
+        List<Page> optimizedPages = readAllPages(optimizedReader, storageObject);
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 5: prefetch with column projection — only projected columns should be fetched.
+     */
+    public void testPrefetchWithProjectionMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "user_" + i);
+                g.add("age", 20 + (i % 50));
+                g.add("score", i * 1.5);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<String> projection = List.of("id", "score");
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject, projection);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject, projection);
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 5: prefetch with late materialization on multi-row-group file.
+     */
+    public void testPrefetchWithLateMaterializationMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("value")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("value", i * 0.5);
+                g.add("label", "item_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        GreaterThan gtExpr = new GreaterThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1800L, DataType.LONG));
+        ParquetPushedExpressions pushedExprs = new ParquetPushedExpressions(List.of(gtExpr));
+
+        ParquetFormatReader lateMatReader = new ParquetFormatReader(blockFactory, true, true, true);
+        lateMatReader = (ParquetFormatReader) lateMatReader.withPushedFilter(pushedExprs);
+
+        List<Page> pages = readAllPages(lateMatReader, storageObject);
+        int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+        assertThat("late materialization with prefetch should return correct row count", totalRows, equalTo(199));
+    }
+
+    /**
+     * Stage 5: single row group file — prefetch should not trigger (no next RG to prefetch).
+     * Correctness parity must hold.
+     */
+    public void testPrefetchSingleRowGroupFile() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 50; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "user_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 5: prefetch with nullable columns across multiple row groups.
+     */
+    public void testPrefetchNullableColumnsMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 2000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                if (i % 3 != 0) {
+                    g.add("name", "user_" + i);
+                }
+                if (i % 5 != 0) {
+                    g.add("age", 20 + i);
+                }
+                if (i % 7 != 0) {
+                    g.add("score", i * 0.5);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        List<Page> baselinePages = readAllPages(new ParquetFormatReader(blockFactory, false), storageObject);
+        List<Page> optimizedPages = readAllPages(new ParquetFormatReader(blockFactory, true), storageObject);
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Stage 5: row limit with multi-row-group file. Early termination must cancel pending prefetch.
+     */
+    public void testPrefetchWithRowLimitMultiRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFileMultiRowGroup(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 3000; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "user_" + i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        int rowLimit = 100;
+
+        List<Page> baselinePages;
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, false).read(
+                storageObject,
+                FormatReadContext.builder().batchSize(1024).rowLimit(rowLimit).build()
+            )
+        ) {
+            baselinePages = collectPages(iter);
+        }
+
+        List<Page> optimizedPages;
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(
+                storageObject,
+                FormatReadContext.builder().batchSize(1024).rowLimit(rowLimit).build()
+            )
+        ) {
+            optimizedPages = collectPages(iter);
+        }
+
+        assertPagesEqual(baselinePages, optimizedPages);
+    }
+
+    /**
+     * Creates a Parquet file with multiple row groups (small row group size forces splits).
+     */
+    private byte[] createParquetFileMultiRowGroup(MessageType schema, GroupCreator groupCreator) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        List<Group> groups = groupCreator.create(groupFactory);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(4L * 1024)
+                .withPageSize(256)
+                .withPageWriteChecksumEnabled(false)
+                .build()
+        ) {
+            for (Group group : groups) {
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
     // --- Helpers ---
 
     private StorageObject createStorageObject(byte[] data) {

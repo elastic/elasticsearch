@@ -28,14 +28,14 @@ import java.util.List;
 public class BulkNeighborQueueTests extends ESTestCase {
 
     public void testPeekSentinelMinHeap() {
-        BulkNeighborQueue queue = new BulkNeighborQueue(2, false);
+        BulkNeighborQueue queue = new BulkNeighborQueue(2);
         long sentinel = queue.peek();
         assertEquals(0.0f, queue.decodeScore(sentinel), 0.0f);
         assertEquals(0, queue.size());
     }
 
-    public void testMaxHeapNotSupported() {
-        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true));
+    public void testMaxSizeMustBePositive() {
+        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(0));
     }
 
     public void testBulkInsertMatchesTopKMinHeap() {
@@ -44,41 +44,33 @@ public class BulkNeighborQueueTests extends ESTestCase {
         int count = docs.length;
         int k = 3;
 
-        assertTopKMatches(
-            new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.FAISS_RESERVOIR),
-            docs,
-            scores,
-            count,
-            k,
-            maxScore(scores)
-        );
-        assertTopKMatches(new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.SCANN_FAST), docs, scores, count, k, maxScore(scores));
-        assertTopKMatches(
-            new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.AUTO_V2, count * 10),
-            docs,
-            scores,
-            count,
-            k,
-            maxScore(scores)
-        );
+        assertTopKMatches(new BulkNeighborQueue(k), docs, scores, count, k, maxScore(scores));
     }
 
-    public void testStrategiesRequireMinHeap() {
-        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.FAISS_RESERVOIR));
-        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.SCANN_FAST));
-        expectThrows(IllegalArgumentException.class, () -> new BulkNeighborQueue(2, true, BulkNeighborQueue.Strategy.AUTO_V2));
-    }
-
-    public void testAutoV2WorksWhenFewVectorsAreExpected() {
+    public void testAutoWorksWhenFewVectorsAreExpected() {
         int[] docs = new int[] { 1, 2, 3, 4 };
         float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f };
         int k = 4;
-        BulkNeighborQueue queue = new BulkNeighborQueue(k, false, BulkNeighborQueue.Strategy.AUTO_V2, k);
+        BulkNeighborQueue queue = new BulkNeighborQueue(k);
         assertTopKMatches(queue, docs, scores, docs.length, k, maxScore(scores));
     }
 
+    public void testTinyPathBoundaryAtTen() {
+        int[] docs = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f, 3.0f, 2.8f, 2.2f, 0.1f, 1.7f, 4.0f, 3.5f, 3.9f };
+        int k = 10;
+        assertTopKMatches(new BulkNeighborQueue(k), docs, scores, docs.length, k, maxScore(scores));
+    }
+
+    public void testReservoirPathAboveTinyBoundary() {
+        int[] docs = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f, 3.0f, 2.8f, 2.2f, 0.1f, 1.7f, 4.0f, 3.5f, 3.9f };
+        int k = 11;
+        assertTopKMatches(new BulkNeighborQueue(k), docs, scores, docs.length, k, maxScore(scores));
+    }
+
     public void testEqualBestScoreStillUsesDocTieBreak() {
-        BulkNeighborQueue queue = new BulkNeighborQueue(1, false, BulkNeighborQueue.Strategy.AUTO_V2);
+        BulkNeighborQueue queue = new BulkNeighborQueue(1);
         assertEquals(1, queue.insertWithOverflowBulk(new int[] { 5 }, new float[] { 1.0f }, 1, 1.0f));
         assertEquals(1, queue.insertWithOverflowBulk(new int[] { 4 }, new float[] { 1.0f }, 1, 1.0f));
 

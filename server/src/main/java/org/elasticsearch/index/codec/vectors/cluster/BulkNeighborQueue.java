@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.util.LongHeap;
 import org.apache.lucene.util.NumericUtils;
 
 import java.util.Arrays;
@@ -28,48 +29,31 @@ import java.util.function.LongConsumer;
  * A bulk-only neighbor queue that supports insert-with-overflow from arrays.
  */
 public class BulkNeighborQueue {
-    public enum Strategy {
-        AUTO_V2,
-        FAISS_RESERVOIR,
-        SCANN_FAST
-    }
+    private static final int TINY_K_BINARY_THRESHOLD = 10;
+    private static final long SENTINEL_WORST = encodeRaw(Integer.MAX_VALUE, 0f);
 
-    private final ReservoirTopK collector;
     private final int maxSize;
-    private final long sentinelWorst;
+    private final LongHeap tinyHeap;
+    private final ReservoirTopK collector;
 
-    public BulkNeighborQueue(int maxSize, boolean maxHeap) {
-        this(maxSize, maxHeap, Strategy.AUTO_V2, Integer.MAX_VALUE);
-    }
-
-    public BulkNeighborQueue(int maxSize, boolean maxHeap, Strategy strategy) {
-        this(maxSize, maxHeap, strategy, Integer.MAX_VALUE);
-    }
-
-    public BulkNeighborQueue(int maxSize, boolean maxHeap, Strategy strategy, int totalVectorsHint) {
+    public BulkNeighborQueue(int maxSize) {
         if (maxSize < 1) {
             throw new IllegalArgumentException("maxSize must be >= 1");
         }
-        if (totalVectorsHint < 1) {
-            throw new IllegalArgumentException("totalVectorsHint must be >= 1");
-        }
-        if (maxHeap) {
-            throw new IllegalArgumentException("BulkNeighborQueue only supports min-heap mode");
-        }
         this.maxSize = maxSize;
-        Strategy resolved = resolveStrategy(strategy, maxSize);
-        this.collector = new ReservoirTopK(maxSize, resolved == Strategy.SCANN_FAST);
-        this.sentinelWorst = encodeRaw(0, 0f);
-    }
-
-    private static Strategy resolveStrategy(Strategy strategy, int maxSize) {
-        if (strategy == Strategy.AUTO_V2) {
-            return maxSize <= 5 ? Strategy.SCANN_FAST : Strategy.FAISS_RESERVOIR;
+        if (maxSize <= TINY_K_BINARY_THRESHOLD) {
+            this.tinyHeap = new LongHeap(maxSize);
+            this.collector = null;
+        } else {
+            this.tinyHeap = null;
+            this.collector = new ReservoirTopK(maxSize);
         }
-        return strategy;
     }
 
     public int size() {
+        if (tinyHeap != null) {
+            return tinyHeap.size();
+        }
         return collector.size();
     }
 
@@ -80,7 +64,10 @@ public class BulkNeighborQueue {
      */
     public long peek() {
         if (size() < maxSize) {
-            return sentinelWorst;
+            return SENTINEL_WORST;
+        }
+        if (tinyHeap != null) {
+            return tinyHeap.top();
         }
         return collector.peek();
     }
@@ -121,6 +108,9 @@ public class BulkNeighborQueue {
      * @return the number of elements that were accepted (added or replaced).
      */
     public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+        if (tinyHeap != null) {
+            return insertWithOverflowTiny(docs, scores, count, bestScore);
+        }
         return collector.insertWithOverflowBulk(docs, scores, count, bestScore);
     }
 
@@ -128,6 +118,12 @@ public class BulkNeighborQueue {
      * Drains the queue in sorted order (worst to best), providing encoded values.
      */
     public void drain(LongConsumer consumer) {
+        if (tinyHeap != null) {
+            while (tinyHeap.size() > 0) {
+                consumer.accept(tinyHeap.pop());
+            }
+            return;
+        }
         collector.drain(consumer);
     }
 
@@ -135,7 +131,41 @@ public class BulkNeighborQueue {
      * Gathers the top k, but may not be sorted
      */
     public void drainUnsorted(LongConsumer consumer) {
+        if (tinyHeap != null) {
+            int size = tinyHeap.size();
+            for (int i = 1; i <= size; i++) {
+                consumer.accept(tinyHeap.get(i));
+            }
+            tinyHeap.clear();
+            return;
+        }
         collector.drainUnsorted(consumer);
+    }
+
+    private int insertWithOverflowTiny(int[] docs, float[] scores, int count, float bestScore) {
+        if (count <= 0) {
+            return 0;
+        }
+        int accepted = 0;
+        int i = 0;
+        while (i < count && tinyHeap.size() < maxSize) {
+            if (tinyHeap.insertWithOverflow(encodeRaw(docs[i], scores[i]))) {
+                accepted++;
+            }
+            i++;
+        }
+        if (i == count) {
+            return accepted;
+        }
+        if (bestScore < decodeScoreRaw(tinyHeap.top())) {
+            return accepted;
+        }
+        for (; i < count; i++) {
+            if (tinyHeap.insertWithOverflow(encodeRaw(docs[i], scores[i]))) {
+                accepted++;
+            }
+        }
+        return accepted;
     }
 
     private static final class ReservoirTopK {
@@ -143,7 +173,6 @@ public class BulkNeighborQueue {
         private static final int SINGLE_MEDIAN_THRESHOLD = 40;
 
         private final int maxSize;
-        private final boolean scannFast;
         private final int capacity;
         private final long[] values;
         private int size;
@@ -151,9 +180,8 @@ public class BulkNeighborQueue {
         private float thresholdScore = Float.NEGATIVE_INFINITY;
         private int thresholdNode = Integer.MAX_VALUE;
 
-        private ReservoirTopK(int maxSize, boolean scannFast) {
+        private ReservoirTopK(int maxSize) {
             this.maxSize = maxSize;
-            this.scannFast = scannFast;
             this.capacity = maxSize * 2;
             this.values = new long[capacity];
         }
@@ -238,15 +266,7 @@ public class BulkNeighborQueue {
         }
 
         private void onCapacityReached() {
-            if (scannFast) {
-                int keepMax = (maxSize + capacity) / 2 - 1;
-                if (keepMax < maxSize) {
-                    keepMax = maxSize;
-                }
-                compactTo(keepMax);
-            } else {
-                compactTo(maxSize);
-            }
+            compactTo(maxSize);
         }
 
         private void initializeThresholdOnFirstFull() {
@@ -262,7 +282,7 @@ public class BulkNeighborQueue {
                 return;
             }
             int start = size - keepMax;
-            quickSelect(values, 0, size - 1, start);
+            select(start);
             long min = Long.MAX_VALUE;
             for (int i = 0; i < keepMax; i++) {
                 long value = values[start + i];
@@ -276,8 +296,8 @@ public class BulkNeighborQueue {
             refreshThresholdCache();
         }
 
-        private void quickSelect(long[] values, int left, int right, int k) {
-            quickSelectIntro(values, left, right, k);
+        private void select(int k) {
+            quickSelectIntro(values, 0, size - 1, k);
         }
 
         private void refreshThresholdFromValues() {
@@ -460,4 +480,5 @@ public class BulkNeighborQueue {
             return minIndex;
         }
     }
+
 }

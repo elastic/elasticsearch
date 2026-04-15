@@ -148,7 +148,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
-        BulkNeighborQueue mergeQueue = new BulkNeighborQueue(mergeK, false, BulkNeighborQueue.Strategy.AUTO_V2, Math.max(mergeK, numCands));
+        BulkNeighborQueue mergeQueue = new BulkNeighborQueue(mergeK);
         long totalHitsValue = 0;
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (TopDocs topDocs : perLeafResults) {

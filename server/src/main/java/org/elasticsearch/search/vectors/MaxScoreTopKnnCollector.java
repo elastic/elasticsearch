@@ -27,20 +27,7 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
         super(k, visitLimit, searchStrategy);
         this.minCompetitiveDocScore = LEAST_COMPETITIVE;
         this.minCompetitiveSimilarity = Float.NEGATIVE_INFINITY;
-        this.queue = new BulkNeighborQueue(
-            k,
-            false,
-            BulkNeighborQueue.Strategy.AUTO_V2,
-            resolveTotalVectorsHint(visitLimit, searchStrategy)
-        );
-    }
-
-    private static int resolveTotalVectorsHint(long visitLimit, KnnSearchStrategy searchStrategy) {
-        int strategyHint = searchStrategy instanceof IVFKnnSearchStrategy ivf ? ivf.getNumCands() : Integer.MAX_VALUE;
-        if (visitLimit > 0 && visitLimit < Integer.MAX_VALUE) {
-            strategyHint = Math.min(strategyHint, (int) visitLimit);
-        }
-        return Math.max(1, strategyHint);
+        this.queue = new BulkNeighborQueue(k);
     }
 
     @Override

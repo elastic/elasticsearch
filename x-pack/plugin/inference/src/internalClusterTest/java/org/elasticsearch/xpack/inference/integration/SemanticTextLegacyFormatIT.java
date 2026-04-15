@@ -426,7 +426,7 @@ public class SemanticTextLegacyFormatIT extends ESIntegTestCase {
      * confirms the settings are absent before indexing, then indexes a document and confirms
      * that model_settings are subsequently populated in the mapping.
      */
-    public void testLegacyFormatMappingPopulatedAfterFirstDocument() throws Exception {
+    public void testLegacyFormatMappingPopulatedAfterFirstSparseDocument() throws Exception {
         assertAcked(
             prepareCreate(indexName).setSettings(legacyIndexSettings())
                 .setMapping(
@@ -452,6 +452,41 @@ public class SemanticTextLegacyFormatIT extends ESIntegTestCase {
 
         // After indexing: model_settings should be present
         assertMappingModelSettings(indexName, SPARSE_FIELD, true);
+    }
+
+    /**
+     * Creates a legacy index with a dense semantic_text field that has no initial model_settings,
+     * confirms the settings are absent before indexing, then indexes a document and confirms
+     * that model_settings (including dimensions, similarity, and element_type) are subsequently
+     * populated in the mapping.
+     */
+    public void testLegacyFormatMappingPopulatedAfterFirstDenseDocument() throws Exception {
+        assertAcked(
+            prepareCreate(indexName).setSettings(legacyIndexSettings())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(DENSE_FIELD)
+                        .field("type", "semantic_text")
+                        .field("inference_id", DENSE_INFERENCE_ID)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .get()
+        );
+
+        // Before indexing: model_settings should be absent
+        assertMappingModelSettings(indexName, DENSE_FIELD, false);
+
+        // Index a document to trigger inference and mapping population
+        client().prepareIndex(indexName).setSource(Map.of(DENSE_FIELD, "dense mapping test")).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // After indexing: model_settings should be present with dense-specific fields
+        assertMappingModelSettings(indexName, DENSE_FIELD, true);
+        assertDenseMappingModelSettings(indexName, DENSE_FIELD);
     }
 
     // -----------------------------------------------------------------------
@@ -531,5 +566,24 @@ public class SemanticTextLegacyFormatIT extends ESIntegTestCase {
         } else {
             assertFalse("model_settings should not be present in [" + fieldName + "] mapping before first doc", modelSettingsPresent);
         }
+    }
+
+    /**
+     * Asserts that the model_settings for a dense semantic_text field contain the dense-specific
+     * fields ({@code dimensions}, {@code similarity}, {@code element_type}) in addition to
+     * {@code task_type}.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertDenseMappingModelSettings(String index, String fieldName) {
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
+        MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
+        assertThat(mappingMetadata, notNullValue());
+        Map<String, Object> properties = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
+        Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
+        Map<String, Object> modelSettings = (Map<String, Object>) fieldMapping.get("model_settings");
+        assertThat("model_settings.task_type", modelSettings.get("task_type"), notNullValue());
+        assertThat("model_settings.dimensions", modelSettings.get("dimensions"), notNullValue());
+        assertThat("model_settings.similarity", modelSettings.get("similarity"), notNullValue());
+        assertThat("model_settings.element_type", modelSettings.get("element_type"), notNullValue());
     }
 }

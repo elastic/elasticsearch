@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
@@ -54,13 +53,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/5379",
-    value = "org.elasticsearch.action.search:DEBUG,"
-        + "org.elasticsearch.search.SearchService:DEBUG,"
-        + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG,"
-        + "org.elasticsearch.xpack.stateless.recovery.PITRelocationService:DEBUG"
-)
 public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
     private final Settings nodeSettings = Settings.builder()

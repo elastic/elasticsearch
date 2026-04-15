@@ -240,6 +240,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
      * its bucketing interval from the filter range, rather than failing with a verification exception.
      */
     public void testTopLevelFilterAllowsNumericTBucketWithoutExplicitBounds() throws IOException {
+        assumeTrue("requires fix for TBUCKET numeric on empty range", EsqlCapabilities.Cap.FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE.isEnabled());
         // index data at 2024-11-26; the filter will cover 2020-12-13 to 2020-12-14 where no data exists
         indexTimestampData(3, "test1", "2024-11-26", "id1");
 

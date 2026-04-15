@@ -331,6 +331,38 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
+- class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
+  method: testSequences
+  issue: https://github.com/elastic/elasticsearch/issues/146263
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testMaxQueueLatencyMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/146283
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsLookAheadTime
+  issue: https://github.com/elastic/elasticsearch/issues/146305
+- class: org.elasticsearch.xpack.sql.qa.multi_node.RestSqlIT
+  method: testAsyncTextPaginated
+  issue: https://github.com/elastic/elasticsearch/issues/80089
+- class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
+  method: testAsyncTextPaginated
+  issue: https://github.com/elastic/elasticsearch/issues/80089
+- class: org.elasticsearch.xpack.sql.qa.security.RestSqlIT
+  method: testAsyncTextPaginated
+  issue: https://github.com/elastic/elasticsearch/issues/80089
+- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.RestSqlIT
+  method: testAsyncTextPaginated
+  issue: https://github.com/elastic/elasticsearch/issues/80089
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  method: testGetAdditionalIndexSettingsLookBackTime
+  issue: https://github.com/elastic/elasticsearch/issues/146307
+- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
+  issue: https://github.com/elastic/elasticsearch/issues/146126
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/146312
 
 # Examples:
 #

@@ -122,7 +122,6 @@ public class SynonymsManagementAPIService {
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
 
-
     // Gate writes above PRE_LARGE_SETS_LIMIT behind this version to prevent silent truncation on
     // old nodes during rolling upgrades
     static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");

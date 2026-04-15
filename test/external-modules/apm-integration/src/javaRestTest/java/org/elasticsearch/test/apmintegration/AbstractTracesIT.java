@@ -143,10 +143,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );
         ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
-        assertTrue(
-            "Root span should carry a parent span ID propagated from the traceparent header",
-            rootSpan.parentSpanId().isPresent()
-        );
+        assertTrue("Root span should carry a parent span ID propagated from the traceparent header", rootSpan.parentSpanId().isPresent());
         assertEquals(
             "Root span parent span ID should match the remote parent from the traceparent header",
             remoteParentSpanId,

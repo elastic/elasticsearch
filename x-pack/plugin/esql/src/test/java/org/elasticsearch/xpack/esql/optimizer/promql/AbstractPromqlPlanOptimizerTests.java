@@ -35,14 +35,18 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     protected LogicalPlan planPromql(String query) {
-        return planPromql(query, false);
+        return planPromql(query, false, true);
+    }
+
+    protected LogicalPlan planPromql(String query, boolean optimize) {
+        return planPromql(query, false, optimize);
     }
 
     protected LogicalPlan planPromqlExpectNoReferences(String query) {
-        return planPromql(query, true);
+        return planPromql(query, true, true);
     }
 
-    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");
@@ -55,6 +59,9 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             assertThat(references.build(), not(empty()));
         }
         logger.trace("analyzed plan:\n{}", analyzed);
+        if (optimize == false) {
+            return analyzed;
+        }
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);
         return optimized;

@@ -208,18 +208,45 @@ public final class FirstLongByTimestampAggregatorFunction implements AggregatorF
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block timestampsUncast = page.getBlock(channels.get(0));
     if (timestampsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
     assert timestamps.getPositionCount() == 1;
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector values = ((LongBlock) valuesUncast).asVector();
     assert values.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

@@ -108,6 +108,7 @@ public class TransformUpdater {
      * @param deferValidation whether to defer some validation checks
      * @param dryRun whether to actually write the configuration back or whether to just check for updates
      * @param checkAccess whether to run access checks
+     * @param hasLinkedProjects whether the current project has linked projects (skips source index privilege checks)
      * @param listener the listener called containing the result of the update
      */
 
@@ -125,6 +126,7 @@ public class TransformUpdater {
         final boolean deferValidation,
         final boolean dryRun,
         final boolean checkAccess,
+        final boolean hasLinkedProjects,
         final TimeValue timeout,
         final Settings destIndexSettings,
         ActionListener<UpdateResult> listener
@@ -209,6 +211,7 @@ public class TransformUpdater {
                 client,
                 updatedConfig,
                 true,
+                hasLinkedProjects,
                 ActionListener.wrap(aVoid -> checkPrivilegesListener.onResponse(AuthorizationState.green()), e -> {
                     if (deferValidation) {
                         checkPrivilegesListener.onResponse(AuthorizationState.red(e));

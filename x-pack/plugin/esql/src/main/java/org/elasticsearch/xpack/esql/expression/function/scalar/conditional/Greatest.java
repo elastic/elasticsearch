@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -41,6 +42,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Greatest", Greatest::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Greatest.class)
+        .unaryVariadic(Greatest::new)
+        .name("greatest");
 
     private DataType dataType;
 

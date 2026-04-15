@@ -225,8 +225,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V5}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -248,10 +248,36 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
-         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * Fix for 500 error when querying multiple indices with {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/145555
          */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
+
+        /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
+         * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3: Fix synthetic _source numeric load bug (#143916)
+         * V4: Support for union type like resolution for load.
+         * V5: Support for rejecting partially unmapped non-keywords unless cast or projected
+         *     Support for rejecting loading subfields of flattened fields
+         */
+        OPTIONAL_FIELDS_V5,
+
+        /**
+         * Unconditionally load partially mapped keyword fields, whether they are mentioned in expressions or not.
+         * <p>
+         * Also, always load values of partially mapped fields from the indices where they are mapped.
+         * <p>
+         * Fixes https://github.com/elastic/elasticsearch/issues/141994
+         * and https://github.com/elastic/elasticsearch/issues/145206
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1035,6 +1061,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
 
         /**
+         * Return 0 (instead of null) for count on AMD when there are no rows
+         */
+        AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
+
+        /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1180,22 +1216,33 @@ public class EsqlCapabilities {
         /**
          * Support non-correlated subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND,
 
         /**
          * Support non-correlated subqueries in the FROM clause without implicit limit.
          */
-        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT,
 
         /**
          * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
+
+        /**
+         * Prune no-fields in subquery project.
+         */
+        SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
+
+        /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE,
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
@@ -1209,6 +1256,14 @@ public class EsqlCapabilities {
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+        /**
+         * Added telemetry for views
+         */
+        VIEWS_TELEMETRY,
+        /**
+         * Fixed a bug where views are incorrectly de-duplicated.
+         */
+        VIEWS_DEDUPLICATION_BUGFIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1653,6 +1708,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets for INCREASE with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1970,13 +2029,13 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL {@code without} grouping.
          */
-        PROMQL_WITHOUT_GROUPING(false),
+        PROMQL_WITHOUT_GROUPING,
 
         /**
-         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
-         * grouping function that excludes specific dimensions from time-series grouping.
+         * Support for`WITHOUT` grouping function
+         * that excludes specific dimensions from time-series grouping.
          */
-        TIME_SERIES_WITHOUT_GROUPING,
+        ESQL_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2045,6 +2104,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/137544
          */
         FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
+
+        /**
+         * Makes SUM(long) agg return null+warning instead of a 500 overflow.
+         */
+        FIX_SUM_AGG_LONG_OVERFLOW,
 
         /**
          * Support for requesting the "_tier" metadata field.
@@ -2125,7 +2189,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V5(Build.current().isSnapshot()),
+        APPROXIMATION_V6,
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2228,12 +2292,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2250,11 +2314,6 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
-
-        /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Dense_vector SUM aggregation function
@@ -2335,11 +2394,20 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
-         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
-         * Enables the feature without a preceding SORT.
-         *
+         * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
+         * The feature will not work if we had SORT | LIMIT n BY
          */
-        ESQL_LIMIT_BY(Build.current().isSnapshot()),
+        ESQL_LIMIT_BY,
+
+        /**
+         * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
+         */
+        ESQL_TOPN_BY,
+
+        /**
+         * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
+         */
+        LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
@@ -2353,10 +2421,9 @@ public class EsqlCapabilities {
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
         /**
-         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
-         * See https://github.com/elastic/elasticsearch/issues/143494
+         * MMR fixes for constant folding
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
+        MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2364,6 +2431,71 @@ public class EsqlCapabilities {
          * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
          */
         AUTO_PARTITION_DOCS_THRESHOLD,
+
+        /**
+         * Rename the {@code unmapped_fields} default setting from {@code "fail"} to {@code "default"}.
+         * See https://github.com/elastic/elasticsearch/issues/144833
+         */
+        UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Support window durations that are larger than but not exact multiples of the time bucket
+         * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
+         */
+        TIME_SERIES_WINDOW_NON_MULTIPLE,
+
+        /**
+         * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
+         * See https://github.com/elastic/elasticsearch/issues/144914
+         */
+        FIX_SUM_OF_NULL_OPTIMIZATION,
+
+        PROPAGATE_EMPTY_RELATION_PAST_JOINS,
+
+        /**
+         * Supports the {@code USER_AGENT} command.
+         */
+        USER_AGENT_COMMAND,
+
+        /**
+         * Fix full-text functions being rejected after SAMPLE.
+         */
+        FIX_SAMPLE_AFTER_KQL_OR_QSTR,
+        KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
+
+        /**
+         * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
+         */
+        PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
+        /**
+         * Alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicitly set to @timestamp.
+         * These are not time series agg functions.
+         */
+        EARLIEST_LATEST_AGGS,
+
+        /**
+         * Fix for full-text functions (MATCH, MATCH_PHRASE, :) on constant_keyword fields.
+         * The optimizer no longer replaces their field arguments with literal constants.
+         * See https://github.com/elastic/elasticsearch/issues/145570
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
+
+        /**
+         * Fix for {@code PropagateNullable} incorrectly discarding surviving OR branches when
+         * a field is constrained by {@code IS NULL} or {@code IS NOT NULL} in the same AND conjunction.
+         * Previously {@code (a IS NOT NULL OR p) AND a IS NULL} was optimized to {@code null AND a IS NULL}
+         * (dropping {@code p}); now it correctly becomes {@code p AND a IS NULL}.
+         * Symmetric fix: {@code (a IS NULL OR p) AND a IS NOT NULL} now correctly becomes
+         * {@code p AND a IS NOT NULL} instead of remaining unoptimized.
+         * See https://github.com/elastic/elasticsearch/issues/141579
+         */
+        FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
+
+        /**
+         * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
+         */
+        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -108,9 +107,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsServiceSettings(
             location,
@@ -128,7 +125,6 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        serviceSettings = new HashMap<>(serviceSettings);
 
         Integer maxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
             serviceSettings,
@@ -138,9 +134,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsServiceSettings(this, maxBatchSize);
     }

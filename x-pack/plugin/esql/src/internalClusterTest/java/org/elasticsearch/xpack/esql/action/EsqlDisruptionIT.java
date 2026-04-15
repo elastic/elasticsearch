@@ -70,8 +70,8 @@ public class EsqlDisruptionIT extends EsqlActionIT {
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
-        boolean singleIndex = request.query().startsWith("from test |");
-        if (singleIndex && randomIntBetween(0, 100) <= 20) {
+        boolean singleIndex = request.queryDescription().startsWith("from test |");
+        if (singleIndex && randomIntBetween(0, 100) <= 10) {
             return runQueryWithDisruption(request);
         } else {
             return super.run(request);
@@ -82,7 +82,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         final ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
-        logger.info("--> executing esql query with disruption {} ", request.query());
+        logger.info("--> executing esql query with disruption {} ", request.queryDescription());
         if (randomBoolean()) {
             request.allowPartialResults(randomBoolean());
         }

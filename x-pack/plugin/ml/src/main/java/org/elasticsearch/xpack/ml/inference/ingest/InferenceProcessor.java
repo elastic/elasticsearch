@@ -687,7 +687,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         /**
-         * {@code outputField} can be a dot '.' seperated path of elements.
+         * {@code outputField} can be a dot '.' separated path of elements.
          * Extract the base path (everything before the last '.') and the final
          * element.
          * If {@code outputField} does not contain any dotted elements the base

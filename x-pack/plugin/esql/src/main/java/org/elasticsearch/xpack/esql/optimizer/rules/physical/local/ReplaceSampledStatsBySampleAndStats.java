@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
 import java.util.ArrayList;
@@ -60,11 +62,13 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
         assert sampleProbability < 1.0;
 
-        // The only non-unary plans that are currently supported are Joins.
+        // The only non-unary plans that are currently supported are lookup joins.
         // At the moment, the left side of the join is the "expensive" side and
         // will be sampled, while the right side is just a lookup table.
         // This will probably change in the future, in which case this logic
         // must be reconsidered.
+        assert plan.allMatch(p -> p instanceof LeafExec || p instanceof UnaryExec || p instanceof LookupJoinExec);
+
         Holder<Boolean> sampledAdded = new Holder<>(false);
         PhysicalPlan child = plan.child().transformDown(p -> {
             if (p instanceof LeafExec && sampledAdded.get() == false) {

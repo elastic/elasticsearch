@@ -92,30 +92,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float visitRatio
     ) throws IOException {
         final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-        int bulkSize = fieldEntry.getBulkSize();
-        float approximateDocsPerCentroid = approximateCost / numCentroids;
-        if (approximateDocsPerCentroid <= 1.25) {
-            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
-            approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
-        }
-        final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
-        final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
-        final long fp = centroids.getFilePointer();
-        final FixedBitSet acceptCentroids;
-        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
-            // only apply centroid filtering when we expect some / many centroids will not have
-            // any matching document.
-            acceptCentroids = null;
-        } else {
-            acceptCentroids = new FixedBitSet(numCentroids);
-            final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
-            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
-            final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
-            int doc = iterator.nextDoc();
-            for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
-            }
-        }
+        // build optmization filters if possible
+        final FixedBitSet acceptCentroids = getCentroidFilter(centroids, numCentroids, values, acceptDocs, approximateCost);
+        final int numParents = centroids.readVInt();
+        // build centroid search helpers
+        final int bulkSize = fieldEntry.getBulkSize();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
@@ -130,9 +111,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             quantized[i] = (byte) scratch[i];
         }
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension(), bulkSize);
-        centroids.seek(fp + sizeLookup);
-        int numParents = centroids.readVInt();
-
         CentroidIterator centroidIterator;
         if (numParents > 0) {
             // equivalent to (float) centroidsPerParentCluster / 2
@@ -164,6 +142,40 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+    }
+
+    private FixedBitSet getCentroidFilter(
+        IndexInput centroids,
+        int numCentroids,
+        FloatVectorValues values,
+        AcceptDocs acceptDocs,
+        float approximateCost
+    ) throws IOException {
+        float approximateDocsPerCentroid = approximateCost / numCentroids;
+        if (approximateDocsPerCentroid <= 1.25) {
+            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
+            approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
+        }
+        final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
+        final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
+        long fp = centroids.getFilePointer();
+        final FixedBitSet acceptCentroids;
+        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
+            // only apply centroid filtering when we expect some / many centroids will not have
+            // any matching document.
+            acceptCentroids = null;
+        } else {
+            acceptCentroids = new FixedBitSet(numCentroids);
+            final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
+            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
+            final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
+            int doc = iterator.nextDoc();
+            for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
+            }
+        }
+        centroids.seek(fp + sizeLookup);
+        return acceptCentroids;
     }
 
     @Override
@@ -226,7 +238,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return null;
     }
 
-    static class NextFieldEntry extends FieldEntry {
+    protected static final class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -578,7 +590,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
-        int numVectors,
+        FloatVectorValues values,
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,
@@ -586,7 +598,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
-        final long sizeLookup = DirectWriter.bytesRequired(numVectors, bitsRequired);
+        final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();

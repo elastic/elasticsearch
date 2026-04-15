@@ -74,9 +74,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT;
-import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
@@ -227,11 +225,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
         var assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, projectId);
-        if (assignment.equals(AWAITING_UPGRADE)) {
+        if (assignment.getReason() == Assignment.Reason.AWAITING_UPGRADE) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }
 
-        if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
+        if (assignment.getExecutorNode() == null && assignment.getReason() != Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
             throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
         }
     }
@@ -617,13 +615,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String jobId,
         Logger logger
     ) {
-        if (assignment != null
-            && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
-            && assignment.isAssigned() == false) {
+        if (assignment != null && assignment.getReason() != Assignment.Reason.INITIAL_ASSIGNMENT && assignment.isAssigned() == false) {
             // Assignment has failed on the master node despite passing our "fast fail" validation
-            if (assignment.equals(AWAITING_UPGRADE)) {
+            if (assignment.getReason() == Assignment.Reason.AWAITING_UPGRADE) {
                 return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId));
-            } else if (assignment.equals(PersistentTasksCustomMetadata.ASSIGNMENT_DISABLED)) {
+            } else if (assignment.getReason() == Assignment.Reason.ASSIGNMENT_DISABLED) {
                 return Optional.of(makeAssignmentsNotAllowedException(logger, jobId));
             } else {
                 return Optional.of(makeNoSuitableNodesException(logger, jobId, assignment.getExplanation()));

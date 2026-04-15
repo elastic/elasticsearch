@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -375,7 +374,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
-                if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
+                if (assignment != null
+                    && assignment.getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
                     return true;
                 }
 

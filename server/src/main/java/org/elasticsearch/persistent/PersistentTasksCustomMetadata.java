@@ -177,19 +177,119 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @FixForMultiProject(description = "Consider moving it to PersistentTasks")
     public static class Assignment {
+
+        /**
+         * Identifies the category of an assignment decision for programmatic interpretation.
+         * <p>
+         * Note, ordering of the enum is important, make sure to add new values
+         * at the end and handle version serialization properly.
+         */
+        public enum Reason {
+            /**
+             * Task is assigned to a node (executorNode is non-null).
+             */
+            ASSIGNED,
+            /**
+             * Task is waiting for its initial assignment.
+             */
+            INITIAL_ASSIGNMENT,
+            /**
+             * The node the task was assigned to left the cluster.
+             */
+            LOST_NODE,
+            /**
+             * Cluster settings prevent persistent task assignment.
+             */
+            ASSIGNMENT_DISABLED,
+            /**
+             * No suitable node was found for the assignment.
+             */
+            NO_NODE_FOUND,
+            /**
+             * Task is awaiting node assignment via lazy allocation or autoscaling.
+             */
+            AWAITING_LAZY_ASSIGNMENT,
+            /**
+             * Task cannot be assigned while ML upgrade mode is active.
+             */
+            AWAITING_UPGRADE,
+            /**
+             * Task cannot be assigned while a feature reset is in progress.
+             */
+            RESET_IN_PROGRESS,
+            /**
+             * Datafeed is waiting for its associated job to be assigned.
+             */
+            AWAITING_JOB_ASSIGNMENT,
+            /**
+             * Datafeed is waiting for its associated job to be relocated.
+             */
+            AWAITING_JOB_RELOCATION,
+            /**
+             * Generic or dynamic reason that does not match a well-known category.
+             */
+            OTHER;
+
+            private static final Reason[] VALUES = values();
+
+            static Reason fromOrdinal(int ordinal) {
+                if (ordinal < 0 || ordinal >= VALUES.length) {
+                    return OTHER;
+                }
+                return VALUES[ordinal];
+            }
+
+            /**
+             * Infers the reason from the executor node and explanation string.
+             * Used for backward compatibility when reading from nodes that do not send the reason.
+             * <p>
+             * The explanation strings matched here must correspond exactly to those used by the well-known
+             * Assignment constants (e.g. {@link PersistentTasks#INITIAL_ASSIGNMENT}). Since old nodes have
+             * these strings baked in, they must not be changed without also updating this method.
+             */
+            public static Reason fromExplanation(@Nullable String executorNode, String explanation) {
+                if (executorNode != null) {
+                    return ASSIGNED;
+                }
+                return switch (explanation) {
+                    case "waiting for initial assignment" -> INITIAL_ASSIGNMENT;
+                    case "awaiting reassignment after node loss" -> LOST_NODE;
+                    case "no persistent task assignments are allowed due to cluster settings" -> ASSIGNMENT_DISABLED;
+                    case "no appropriate nodes found for the assignment" -> NO_NODE_FOUND;
+                    case "persistent task is awaiting node assignment." -> AWAITING_LAZY_ASSIGNMENT;
+                    case "persistent task cannot be assigned while upgrade mode is enabled." -> AWAITING_UPGRADE;
+                    case "persistent task will not be assigned as a feature reset is in progress." -> RESET_IN_PROGRESS;
+                    case "datafeed awaiting job assignment." -> AWAITING_JOB_ASSIGNMENT;
+                    case "datafeed awaiting job relocation." -> AWAITING_JOB_RELOCATION;
+                    default -> OTHER;
+                };
+            }
+        }
+
         @Nullable
         private final String executorNode;
+        private final Reason reason;
         private final String explanation;
 
-        public Assignment(String executorNode, String explanation) {
+        public Assignment(String executorNode, Reason reason, String explanation) {
             this.executorNode = executorNode;
+            assert reason != null;
+            this.reason = reason;
             assert explanation != null;
             this.explanation = explanation;
+        }
+
+        public Assignment(String executorNode, String explanation) {
+            this(executorNode, Reason.OTHER, explanation);
         }
 
         @Nullable
         public String getExecutorNode() {
             return executorNode;
+        }
+
+        public Reason getReason() {
+            return reason;
         }
 
         public String getExplanation() {
@@ -201,12 +301,14 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Assignment that = (Assignment) o;
-            return Objects.equals(executorNode, that.executorNode) && Objects.equals(explanation, that.explanation);
+            return reason == that.reason
+                && Objects.equals(executorNode, that.executorNode)
+                && Objects.equals(explanation, that.explanation);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(executorNode, explanation);
+            return Objects.hash(reason, executorNode, explanation);
         }
 
         public boolean isAssigned() {
@@ -215,7 +317,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         @Override
         public String toString() {
-            return "node: [" + executorNode + "], explanation: [" + explanation + "]";
+            return "node: [" + executorNode + "], reason: [" + reason + "], explanation: [" + explanation + "]";
         }
     }
 
@@ -224,6 +326,10 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      */
     @FixForMultiProject(description = "Consider moving it to PersistentTasks")
     public static class PersistentTask<P extends PersistentTaskParams> implements Writeable, ToXContentObject {
+
+        private static final TransportVersion PERSISTENT_TASK_ASSIGNMENT_REASON = TransportVersion.fromName(
+            "persistent_task_assignment_reason"
+        );
 
         private final String id;
         private final long allocationId;
@@ -284,7 +390,13 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             taskName = in.readString();
             params = (P) in.readNamedWriteable(PersistentTaskParams.class);
             state = in.readOptionalNamedWriteable(PersistentTaskState.class);
-            assignment = new Assignment(in.readOptionalString(), in.readString());
+            String executorNode = in.readOptionalString();
+            String explanation = in.readString();
+            if (in.getTransportVersion().supports(PERSISTENT_TASK_ASSIGNMENT_REASON)) {
+                assignment = new Assignment(executorNode, Assignment.Reason.fromOrdinal(in.readByte()), explanation);
+            } else {
+                assignment = new Assignment(executorNode, Assignment.Reason.fromExplanation(executorNode, explanation), explanation);
+            }
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
         }
 
@@ -297,6 +409,9 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             out.writeOptionalNamedWriteable(state);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);
+            if (out.getTransportVersion().supports(PERSISTENT_TASK_ASSIGNMENT_REASON)) {
+                out.writeByte((byte) assignment.reason.ordinal());
+            }
             out.writeOptionalLong(allocationIdOnLastStatusUpdate);
         }
 
@@ -386,6 +501,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
                     {
                         builder.field("executor_node", assignment.executorNode);
                         builder.field("explanation", assignment.explanation);
+                        builder.field("reason", assignment.reason.name());
                     }
                     builder.endObject();
                     if (allocationIdOnLastStatusUpdate != null) {

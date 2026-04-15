@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
@@ -45,7 +46,6 @@ import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.ml.MachineLearning.DUMMY_ENTITY_MEMORY;
 import static org.elasticsearch.xpack.ml.MachineLearning.DUMMY_ENTITY_PROCESSORS;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 /**
  * This handles ML autoscaling just for serverless.
@@ -179,7 +179,7 @@ public final class MlAutoscalingResourceTracker {
 
             minNodes = 1;
 
-            if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
+            if (task.getAssignment().getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
                 logger.debug("job [{}] lacks assignment , memory required [{}]", jobId, jobMemory);
 
                 // implementation decision: don't count processors for AD, if this gets a revisit, ensure to change it for the
@@ -213,7 +213,7 @@ public final class MlAutoscalingResourceTracker {
 
             minNodes = 1;
 
-            if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
+            if (task.getAssignment().getReason() == PersistentTasksCustomMetadata.Assignment.Reason.AWAITING_LAZY_ASSIGNMENT) {
                 logger.debug("dfa job [{}] lacks assignment , memory required [{}]", jobId, jobMemory);
 
                 // implementation decision: don't count processors for DFA, if this gets a revisit, ensure to change it for the

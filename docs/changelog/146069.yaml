@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 146069
+summary: "[Native] AVX-512 BBQ vector operations"
+type: enhancement

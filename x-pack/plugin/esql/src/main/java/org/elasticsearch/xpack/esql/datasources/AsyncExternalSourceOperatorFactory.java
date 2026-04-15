@@ -499,7 +499,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 fileColumnNames.add(name);
                 DataType castTarget = mapping.cast(i);
                 if (castTarget != null) {
-                    DataType fileType = inferFileType(attributes.get(i).dataType(), castTarget);
+                    DataType fileType = inferFileType(castTarget);
                     if (fileType != null) {
                         fileColumnTypes.put(name, fileType);
                     }
@@ -518,20 +518,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Infers the file's native type from the unified attribute type and the cast target.
-     * The cast target is the unified (wider) type; the file has the narrower type.
-     */
-    /**
      * Infers the file's native type from the cast target. Only returns a narrower type when
-     * the adaptation is safe for integral comparisons (LONG→INTEGER). DOUBLE→INTEGER narrowing
-     * is not supported because literal truncation can cause incorrect predicate semantics.
+     * the adaptation is safe for integral comparisons (LONG→INTEGER).
+     * DOUBLE→INTEGER narrowing is not supported because {@code Number.longValue()} truncates
+     * fractional values, which changes comparison semantics (e.g., {@code col < 2.7} vs {@code col < 2}).
      */
-    private static DataType inferFileType(DataType unifiedType, DataType castTarget) {
+    private static DataType inferFileType(DataType castTarget) {
         if (castTarget == DataType.LONG) {
             return DataType.INTEGER;
         }
-        // DOUBLE→INTEGER narrowing is intentionally not supported: Number.longValue() truncates
-        // fractional values, which can change comparison semantics (e.g., col < 2.7 vs col < 2).
         return null;
     }
 

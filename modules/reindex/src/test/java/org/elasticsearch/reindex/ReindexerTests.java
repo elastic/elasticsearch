@@ -513,7 +513,8 @@ public class ReindexerTests extends ESTestCase {
         final TaskResultsService taskResultsService = mock(TaskResultsService.class);
         doAnswer(invocation -> {
             TaskResult stored = invocation.getArgument(0);
-            assertThat(stored.getTask().taskId().getNodeId(), equalTo("source-node"));
+            assertThat(stored.getTask().taskId(), equalTo(new TaskId("source-node", task.getId())));
+            assertThat(stored.getTask().action(), equalTo("test_action"));
             final Map<String, Object> errorMap = stored.getErrorAsMap();
             assertThat(errorMap.get("type"), equalTo("task_relocated_exception"));
             assertThat(errorMap.get("original_task_id"), equalTo(sourceTaskId.toString()));
@@ -540,6 +541,38 @@ public class ReindexerTests extends ESTestCase {
         reindexer.execute(task, request, mock(Client.class), future);
 
         verify(taskResultsService).storeResult(any(TaskResult.class), any());
+    }
+
+    public void testRelocationsSetsHandoffFlag() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
+
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, mock(TransportService.class));
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        assertFalse("handoff flag should not be set before relocation", task.useCreateSemanticsForResultStorage());
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(reindexResponseWithResumeInfo());
+
+        assertTrue("handoff flag should be set after relocation", task.useCreateSemanticsForResultStorage());
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {

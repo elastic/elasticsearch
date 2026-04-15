@@ -110,10 +110,7 @@ public class MergeResultWireCompatibilityTopHitsTests extends ESTestCase {
             for (var it = transientHits.iterator(); it.hasNext();) {
                 SearchHits h = it.next();
                 it.remove();
-                assertTrue(
-                    "transient SearchHits must be released after Serialized wire rewrite (expand + re-serialize)",
-                    h.decRef()
-                );
+                assertTrue("transient SearchHits must be released after Serialized wire rewrite (expand + re-serialize)", h.decRef());
             }
         } finally {
             // Release any extra refs not yet consumed above (e.g. when writeTo threw before the assertion).

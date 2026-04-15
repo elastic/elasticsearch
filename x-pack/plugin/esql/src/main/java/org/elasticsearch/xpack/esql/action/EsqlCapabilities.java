@@ -254,6 +254,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
 
         /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -2408,11 +2414,6 @@ public class EsqlCapabilities {
          * MMR fixes for constant folding
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
-
-        /**
-         * Support CHANGE_POINT arguments in any order
-         */
-        CHANGE_POINT_ARGS_ANY_ORDER,
 
         FIX_DIV_ERROR_MESSAGE,
 

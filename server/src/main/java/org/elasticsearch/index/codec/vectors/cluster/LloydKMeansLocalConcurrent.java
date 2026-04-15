@@ -14,9 +14,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  * concurrent implementation of Lloyd's k-means
@@ -46,7 +43,16 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException {
-        return stepLloydSliceConcurrent(executor, numWorkers, vectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborHoods);
+        return stepLloydSliceConcurrent(
+            executor,
+            numWorkers,
+            vectors,
+            ordTranslator,
+            centroids,
+            centroidChangedSlices,
+            assignments,
+            neighborHoods
+        );
     }
 
     @Override

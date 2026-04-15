@@ -253,8 +253,7 @@ public class CsvTestsDataLoader {
             "metric_temporality.csv",
             "metric_temporality-settings.json"
         ),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset(".hidden_idx", "mapping-dot-hidden_idx.json", "dot-hidden_idx.csv")
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

@@ -1560,24 +1560,22 @@ GTF            | Great Falls Int'l | 8                 | airports
 LUH            | Sahnewal          | 9                 | airports
 ;
 
-startsWithOnDotPrefixedIndexWhere
+startsWithOnIndexWithMinusWhere
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| WHERE STARTS_WITH(_index, ".")
-| KEEP message
-| SORT message;
+FROM k8s-downsampled METADATA _index
+| WHERE STARTS_WITH(_index, "k8s-")
+| STATS c = COUNT(*);
 
-message:keyword
-hello
-world
+c:long
+27
 ;
 
-startsWithOnDotPrefixedIndexEval
+startsWithOnIndexWithMinusEval
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| EVAL is_there = STARTS_WITH(_index, ".")
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = STARTS_WITH(_index, "k8s-")
 | KEEP is_there
 | LIMIT 1;
 
@@ -1585,24 +1583,22 @@ is_there:boolean
 true
 ;
 
-endsWithOnDotPrefixedIndexWhere
+endsWithOnIndexWithMinusWhere
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| WHERE ENDS_WITH(_index, "hidden_idx")
-| KEEP message
-| SORT message;
+FROM k8s-downsampled METADATA _index
+| WHERE ENDS_WITH(_index, "-downsampled")
+| STATS c = COUNT(*);
 
-message:keyword
-hello
-world
+c:long
+27
 ;
 
-endsWithOnDotPrefixedIndexEval
+endsWithOnIndexWithMinusEval
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| EVAL is_there = ENDS_WITH(_index, "hidden_idx")
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = ENDS_WITH(_index, "-downsampled")
 | KEEP is_there
 | LIMIT 1;
 
@@ -1610,24 +1606,22 @@ is_there:boolean
 true
 ;
 
-likeOnDotPrefixedIndexWhere
+likeOnIndexWithMinusWhere
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| WHERE _index LIKE ".hidden*"
-| KEEP message
-| SORT message;
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s-*"
+| STATS c = COUNT(*);
 
-message:keyword
-hello
-world
+c:long
+27
 ;
 
-likeOnDotPrefixedIndexEval
+likeOnIndexWithMinusEval
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| EVAL is_there = _index LIKE ".hidden*"
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s-*"
 | KEEP is_there
 | LIMIT 1;
 
@@ -1635,24 +1629,22 @@ is_there:boolean
 true
 ;
 
-rlikeOnDotPrefixedIndexWhere
+rlikeOnIndexWithMinusWhere
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| WHERE _index RLIKE ".hidden_.*"
-| KEEP message
-| SORT message;
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE "k8s-.*"
+| STATS c = COUNT(*);
 
-message:keyword
-hello
-world
+c:long
+27
 ;
 
-rlikeOnDotPrefixedIndexEval
+rlikeOnIndexWithMinusEval
 required_capability: index_metadata_field
 
-FROM .hidden_idx METADATA _index
-| EVAL is_there = _index RLIKE ".hidden_.*"
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE "k8s-.*"
 | KEEP is_there
 | LIMIT 1;
 

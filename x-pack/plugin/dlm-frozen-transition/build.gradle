@@ -24,4 +24,6 @@ dependencies {
   compileOnly project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
+  internalClusterTestImplementation project(xpackModule('searchable-snapshots'))
 }

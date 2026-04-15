@@ -91,20 +91,21 @@ public class RecordingApmServer extends ExternalResource {
             if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
-                        if ("/v1/metrics".equals(path)) {
-                            received.addAll(OtlpMetricsParser.parse(requestBody));
-                        } else if ("/v1/traces".equals(path)) {
-                            received.addAll(OtlpTracesParser.parse(requestBody));
-                        } else {
-                            List<String> lines = readJsonMessages(requestBody);
-                            for (String line : lines) {
-                                ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
-                                    if (msg instanceof ReceivedTelemetry.ReceivedSpan s) {
-                                        logger.debug("APM span received: {}", s);
-                                    }
-                                    received.add(msg);
-                                });
+                        switch (path) {
+                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/traces" -> received.addAll(OtlpTracesParser.parse(requestBody));
+                            case "/intake/v2/events" -> {
+                                List<String> lines = readJsonMessages(requestBody);
+                                for (String line : lines) {
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
+                                        if (msg instanceof ReceivedTelemetry.ReceivedSpan s) {
+                                            logger.debug("APM span received: {}", s);
+                                        }
+                                        received.add(msg);
+                                    });
+                                }
                             }
+                            default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
                 } catch (Throwable t) {

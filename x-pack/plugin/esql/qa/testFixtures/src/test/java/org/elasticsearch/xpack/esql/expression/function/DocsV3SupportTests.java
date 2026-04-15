@@ -391,7 +391,7 @@ public class DocsV3SupportTests extends ESTestCase {
     public void testRenderingTypeTableAppliesToIncludesServerless() throws Exception {
         FunctionInfo info = functionInfo(TestPreviewClass.class);
         assert info != null;
-        FunctionDefinition definition = EsqlFunctionRegistry.def(TestPreviewClass.class, TestPreviewClass::new, "preview_func");
+        FunctionDefinition definition = FunctionDefinition.def(TestPreviewClass.class).unary(TestPreviewClass::new).name("preview_func");
         TestCallbacks callbacks = new TestCallbacks();
         var docs = new DocsV3Support.FunctionDocsSupport(
             "preview_func",

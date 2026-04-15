@@ -307,32 +307,22 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     public void testHighlightDefaultTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
         List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null);
-        assertNotNull(result);
-        assertThat(result, hasSize(1));
-        assertThat(result.get(0), containsString("<em>Park</em>"));
-        assertThat(result.get(0), containsString("Adirondack"));
+        assertThat(result, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
     }
 
     public void testHighlightCustomTags() {
         String text = "The Adirondack Park is a beautiful wilderness area.";
         List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null);
-        assertNotNull(result);
-        assertThat(result, hasSize(1));
-        assertThat(result.get(0), containsString("<b>Park</b>"));
+        assertThat(result, equalTo(List.of("The Adirondack <b>Park</b> is a beautiful wilderness area.")));
     }
 
     public void testHighlightMultipleTerms() {
         String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
         List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
-        assertNotNull(result);
-        for (String snippet : result) {
-            if (snippet.contains("Elasticsearch")) {
-                assertThat(snippet, containsString("<em>Elasticsearch</em>"));
-            }
-            if (snippet.contains("Lucene")) {
-                assertThat(snippet, containsString("<em>Lucene</em>"));
-            }
-        }
+        assertThat(
+            result,
+            equalTo(List.of("<em>Elasticsearch</em> is a search engine. <em>Lucene</em> powers <em>Elasticsearch</em>."))
+        );
     }
 
     public void testHighlightFalseReturnsPlainText() {
@@ -341,24 +331,15 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null);
         List<String> noHighlightOption = process(text, "park", 5, 300);
 
-        assertNotNull(withHighlight);
-        assertNotNull(withoutHighlight);
-        assertNotNull(noHighlightOption);
-        assertThat(withHighlight.get(0), containsString("<em>"));
-        assertFalse(withoutHighlight.get(0).contains("<em>"));
-        assertFalse(noHighlightOption.get(0).contains("<em>"));
-        assertThat(withoutHighlight, equalTo(noHighlightOption));
+        assertThat(withHighlight, equalTo(List.of("The Adirondack <em>Park</em> is a beautiful wilderness area.")));
+        assertThat(withoutHighlight, equalTo(List.of("The Adirondack Park is a beautiful wilderness area.")));
+        assertThat(noHighlightOption, equalTo(List.of("The Adirondack Park is a beautiful wilderness area.")));
     }
 
     public void testHighlightHtmlEncoder() {
         String text = "Use <b>bold</b> & special chars with the Ring.";
         List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html");
-        assertNotNull(result);
-        assertThat(result, hasSize(1));
-        assertThat(result.get(0), containsString("&lt;b&gt;"));
-        assertThat(result.get(0), containsString("&lt;&#x2F;b&gt;"));
-        assertThat(result.get(0), containsString("&amp;"));
-        assertThat(result.get(0), containsString("<em>Ring</em>"));
+        assertThat(result, equalTo(List.of("Use &lt;b&gt;bold&lt;&#x2F;b&gt; &amp; special chars with the <em>Ring</em>.")));
     }
 
     /**
@@ -371,13 +352,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     public void testHighlightNoStemmingUsesExactTermOnly() {
         String text = "The API returns results. Use the return value to continue.";
         List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null);
-        assertNotNull(result);
-        assertThat(result, hasSize(1));
-        // Exact term "return" is highlighted
-        assertThat(result.get(0), containsString("<em>return</em>"));
-        // "returns" is not highlighted (StandardAnalyzer does not stem)
-        assertThat(result.get(0), containsString("returns"));
-        assertFalse(result.get(0).contains("<em>returns</em>"));
+        assertThat(result, equalTo(List.of("The API returns results. Use the <em>return</em> value to continue.")));
     }
 
     public void testHighlightPreservesWholeChunk() {
@@ -388,15 +363,17 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             + "Elasticsearch provides near real-time search capabilities. "
             + "Elasticsearch scales horizontally for large search workloads.";
         List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null);
-        assertNotNull(result);
-        assertThat(result, hasSize(1));
-        // The single result must contain the full chunk text (all four sentences), not a fragment
-        assertThat(result.get(0), containsString("built on Lucene"));
-        assertThat(result.get(0), containsString("distributed"));
-        assertThat(result.get(0), containsString("near real-time"));
-        assertThat(result.get(0), containsString("scales horizontally"));
-        // And it should have highlighting markup
-        assertThat(result.get(0), containsString("<em>"));
+        assertThat(
+            result,
+            equalTo(
+                List.of(
+                    "<em>Elasticsearch</em> is a <em>search</em> engine built on Lucene. "
+                        + "<em>Elasticsearch</em> supports distributed <em>search</em> across many nodes. "
+                        + "<em>Elasticsearch</em> provides near real-time <em>search</em> capabilities. "
+                        + "<em>Elasticsearch</em> scales horizontally for large <em>search</em> workloads."
+                )
+            )
+        );
     }
 
     private List<String> process(String str, String query, int numSnippets, int numWords) {

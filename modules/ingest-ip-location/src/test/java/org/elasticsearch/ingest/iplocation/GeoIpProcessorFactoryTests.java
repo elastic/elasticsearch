@@ -38,7 +38,6 @@ import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYP
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -229,10 +228,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         DatabaseUnavailableProcessor processor = (DatabaseUnavailableProcessor) factory.create(null, null, null, config, ProjectId.DEFAULT);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
-        assertThat(
-            ingestDocument.getSourceAndMetadata().get("tags"),
-            equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb"))
-        );
+        assertThat(ingestDocument.getSourceAndMetadata().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
     }
 
     public void testBuildUnsupportedDatabase() throws Exception {

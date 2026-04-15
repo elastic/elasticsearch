@@ -487,6 +487,22 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertThat(task.isRelocatedTask(), equalTo(isRelocated));
     }
 
+    public void testTaskInfo_notRelocated() {
+        BulkByScrollTask task = createTask(randomBoolean(), false);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
+    }
+
+    public void testTaskInfo_relocated() {
+        BulkByScrollTask task = createTask(true, true);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(task.relocationOrigin().originalTaskId()));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.relocationOrigin().originalStartTimeMillis()));
+    }
+
     private static float randomFloatBetween(float min, float max) {
         return min + (max - min) * random().nextFloat();
     }

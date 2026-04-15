@@ -25,7 +25,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -59,8 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * Private index settings are allowed here so that we can set {@code index.version.created}
  * to a version in the valid legacy range.
  */
-@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class SemanticTextLegacyFormatIT extends ESIntegTestCase {
 
     private static final String SPARSE_FIELD = "sparse_field";

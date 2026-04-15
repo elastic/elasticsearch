@@ -18,12 +18,19 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -31,8 +38,10 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -56,6 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -477,6 +487,63 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
         );
     }
 
+    public void testIndexWithZeroReplicasAndAutoExpandReplicasHasClusterBlocks() throws Exception {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .put(useRefreshBlockSetting(true))
+                .build()
+        );
+        String searchNodeName = startSearchNode();
+
+        // Intercept TransportRegisterCommitForRecoveryAction on the search node. This action is sent
+        // by the search node to register its shard copy during recovery; until it completes the shard
+        // stays in RECOVERING (not STARTED)
+        Queue<CheckedRunnable<Exception>> blockedRegistrations = new ConcurrentLinkedQueue<>();
+        CountDownLatch recoveryBlockedLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNodeName).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
+                blockedRegistrations.add(() -> connection.sendRequest(requestId, action, request, options));
+                recoveryBlockedLatch.countDown();
+            } else {
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        final String indexName = randomIndexName();
+
+        // Create index async — needs primary + 1 auto-expanded replica to become active.
+        final var createIndexFuture = client().admin()
+            .indices()
+            .create(
+                new CreateIndexRequest(indexName).settings(
+                    indexSettings(1, 0).put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1").build()
+                )
+            );
+
+        // Wait until the search shard recovery is in progress but blocked at commit registration.
+        safeAwait(recoveryBlockedLatch);
+        assertFalse("createIndex should be blocked while replica shard is still recovering", createIndexFuture.isDone());
+
+        var clusterBlocks = clusterBlocks();
+        assertThat(clusterBlocks.hasIndexBlock(ProjectId.DEFAULT, indexName, IndexMetadata.INDEX_REFRESH_BLOCK), is(true));
+
+        // Opening a PIT or searching should work
+        if (randomBoolean()) {
+            var pitResponse = openPointInTime(indexName, TimeValue.timeValueHours(1));
+            closePointInTime(pitResponse.getPointInTimeId());
+        } else {
+            assertNoSearchHits(prepareSearch(indexName).setQuery(new MatchAllQueryBuilder()));
+        }
+
+        var registration = blockedRegistrations.poll();
+        assertNotNull(registration);
+        registration.run();
+
+        assertAcked(createIndexFuture.actionGet());
+        ensureGreen(indexName);
+    }
+
     private ActionFuture<BulkResponse> indexDocsWithRefreshPolicy(
         List<String> indices,
         int docCountPerIndex,
@@ -502,5 +569,13 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
 
     private static Settings useRefreshBlockSetting(boolean value) {
         return Settings.builder().put(StatelessPlugin.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
+    }
+
+    private OpenPointInTimeResponse openPointInTime(String index, TimeValue keepAlive) {
+        return client().execute(TransportOpenPointInTimeAction.TYPE, new OpenPointInTimeRequest(index).keepAlive(keepAlive)).actionGet();
+    }
+
+    private ClosePointInTimeResponse closePointInTime(BytesReference readerId) {
+        return client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

@@ -60,7 +60,13 @@ public class ThreadPoolHotThreadsIT extends AbstractStatelessPluginIntegTestCase
         final TimeValue durationThreshold = HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING.get(nodeSettings);
         final boolean enabled = sizeThreshold > 0;
 
-        final String node = startMasterAndIndexNode(nodeSettings);
+        final String node = startMasterAndIndexNode(
+            Settings.builder()
+                // disable health reporting because this also uses the MANAGEMENT pool
+                .put("health.node.enabled", false)
+                .put(nodeSettings)
+                .build()
+        );
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);
         for (var info : threadPool.info()) {
             final var executor = threadPool.executor(info.getName());

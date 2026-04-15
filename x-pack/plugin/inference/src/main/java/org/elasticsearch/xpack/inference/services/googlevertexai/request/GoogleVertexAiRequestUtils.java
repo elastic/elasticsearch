@@ -12,15 +12,12 @@ import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.List;
 
@@ -30,17 +27,12 @@ public final class GoogleVertexAiRequestUtils {
     private static final List<String> AUTH_SCOPE = Collections.singletonList("https://www.googleapis.com/auth/cloud-platform");
 
     public static void decorateWithBearerToken(HttpPost httpPost, GoogleVertexAiSecretSettings secretSettings) {
-        SpecialPermission.check();
         try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(secretSettings.serviceAccountJson().toString().getBytes(StandardCharsets.UTF_8))
-                ).createScoped(AUTH_SCOPE);
-                credentials.refreshIfExpired();
-                httpPost.setHeader(createAuthBearerHeader(new SecureString(credentials.getAccessToken().getTokenValue().toCharArray())));
-
-                return null;
-            });
+            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(secretSettings.serviceAccountJson().toString().getBytes(StandardCharsets.UTF_8))
+            ).createScoped(AUTH_SCOPE);
+            credentials.refreshIfExpired();
+            httpPost.setHeader(createAuthBearerHeader(new SecureString(credentials.getAccessToken().getTokenValue().toCharArray())));
         } catch (Exception e) {
             throw new ElasticsearchStatusException(e.getMessage(), RestStatus.FORBIDDEN, e);
         }

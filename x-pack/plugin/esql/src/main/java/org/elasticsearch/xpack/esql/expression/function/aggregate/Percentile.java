@@ -74,7 +74,13 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
                     + "maximum value per row, and use the result with the `PERCENTILE` function",
                 file = "stats_percentile",
                 tag = "docsStatsPercentileNestedExpression"
-            ), }
+            ),
+            @Example(
+                description = "`PERCENTILE` can also operate on `exponential_histogram` fields, "
+                    + "approximating the percentile of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "percentileExpHistoForDocs"
+            ) }
     )
     public Percentile(
         Source source,

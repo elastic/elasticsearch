@@ -97,6 +97,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `exponential_histogram` fields, "
+                    + "computing the sum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "sumExpHistoForDocs"
             ) }
     )
     public Sum(

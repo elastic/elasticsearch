@@ -3274,10 +3274,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean hasPeerReplicationTargets() {
-        final ShardRouting primaryRouting = routingEntry();
-        for (final ShardRouting shard : getReplicationGroup().getReplicationTargets()) {
-            if (shard.isSameAllocation(primaryRouting) == false) {
-                return true;
+        if (this.state() != IndexShardState.CLOSED) {
+            final ShardRouting primaryRouting = routingEntry();
+            for (final ShardRouting shard : getReplicationGroup().getReplicationTargets()) {
+                if (shard.isSameAllocation(primaryRouting) == false) {
+                    return true;
+                }
             }
         }
         return false;

@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -1900,20 +1899,14 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var optimizedRelation = as(optimizedTsAgg.child(), EsRelation.class);
         var relationTemporalities = optimizedRelation.output().stream().filter(TemporalityAttribute.class::isInstance).toList();
 
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(optimizedRate.temporality(), notNullValue());
-            assertThat(optimizedIncrease.temporality(), notNullValue());
+        assertThat(optimizedRate.temporality(), notNullValue());
+        assertThat(optimizedIncrease.temporality(), notNullValue());
 
-            var rateTemporality = as(optimizedRate.temporality(), TemporalityAttribute.class);
-            var increaseTemporality = as(optimizedIncrease.temporality(), TemporalityAttribute.class);
-            assertThat(increaseTemporality.id(), equalTo(rateTemporality.id()));
+        var rateTemporality = as(optimizedRate.temporality(), TemporalityAttribute.class);
+        var increaseTemporality = as(optimizedIncrease.temporality(), TemporalityAttribute.class);
+        assertThat(increaseTemporality.id(), equalTo(rateTemporality.id()));
 
-            assertThat(relationTemporalities, hasSize(1));
-            assertThat((relationTemporalities.getFirst()).id(), equalTo(rateTemporality.id()));
-        } else {
-            assertThat(optimizedRate.temporality(), equalTo(Literal.NULL));
-            assertThat(optimizedIncrease.temporality(), equalTo(Literal.NULL));
-            assertThat(relationTemporalities, hasSize(0));
-        }
+        assertThat(relationTemporalities, hasSize(1));
+        assertThat((relationTemporalities.getFirst()).id(), equalTo(rateTemporality.id()));
     }
 }

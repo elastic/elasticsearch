@@ -12,7 +12,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -2474,17 +2473,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
         assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
         FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            assertThat(
-                Expressions.names(readMetrics.attributesToExtract()),
-                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
-            );
-        } else {
-            assertThat(
-                Expressions.names(readMetrics.attributesToExtract()),
-                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
-            );
-        }
+        assertThat(
+            Expressions.names(readMetrics.attributesToExtract()),
+            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
+        );
         as(readMetrics.child(), EsQueryExec.class);
     }
 

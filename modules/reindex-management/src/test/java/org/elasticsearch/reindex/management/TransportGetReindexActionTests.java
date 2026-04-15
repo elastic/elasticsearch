@@ -88,6 +88,18 @@ public class TransportGetReindexActionTests extends ESTestCase {
         assertProbeAndFetch(true);
     }
 
+    public void testWaitForAlreadyCompletedTask() {
+        TaskResult completedResult = new TaskResult(true, createReindexTaskInfo());
+        GetReindexRequest request = createGetReindexRequest(true);
+
+        mockGetTaskSequence(completedResult, completedResult);
+        action.doExecute(mock(), request, listener);
+
+        assertNull(failureRef.get());
+        assertEquals(new GetReindexResponse(completedResult), responseRef.get());
+        assertProbeAndFetch(true);
+    }
+
     public void testTaskNotFound() {
         GetReindexRequest request = createGetReindexRequest(false);
 

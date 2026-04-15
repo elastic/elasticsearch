@@ -165,7 +165,6 @@ final class MetricDataSerializer {
             .toList();
     }
 
-
     private static MetricData fromMap(Map<String, Object> map) throws IOException {
         Resource resource = readResource(Types.forciblyCast(map.get("resource")));
         InstrumentationScopeInfo scope = readScope(nodeMapValue(map.get("scope"), "scope"));

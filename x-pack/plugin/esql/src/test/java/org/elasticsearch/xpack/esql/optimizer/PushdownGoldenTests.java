@@ -91,6 +91,24 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testStartsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE starts_with(_index, "sample")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testEndsWithOnMetadataIndex() {
+        String query = """
+            FROM sample_data METADATA _index
+            | WHERE ends_with(_index, "data")
+            | KEEP message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
     private void runUnmappedTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
     }

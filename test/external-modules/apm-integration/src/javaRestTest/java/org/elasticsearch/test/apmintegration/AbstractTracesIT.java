@@ -155,14 +155,11 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
 
     /**
      * Asserts that {@code span} carries the semantic metadata expected of a sampled
-     * {@code GET /_nodes/stats} HTTP server span, using the attribute keys emitted by the
-     * APM Java agent ({@code otel.attributes.*} namespace).
+     * {@code GET /_nodes/stats} HTTP server span.
      *
-     * <p>Both the APM agent path and the OTel SDK path (PR 2) must satisfy these assertions.
-     * The OTel SDK exporter defaults to bare OTel semantic convention keys
-     * (e.g. {@code http.request.method}), so PR 2 must normalise its output to match the
-     * {@code otel.attributes.*} namespace so that a downstream consumer sees identical keys
-     * regardless of which export path is active.
+     * <p>All concrete subclasses must satisfy these assertions regardless of which export path
+     * is active. Attribute keys are normalised to the {@code otel.attributes.*} namespace so
+     * that a downstream consumer sees identical keys from every exporter implementation.
      */
     protected void assertNodeStatsRootSpanAttributes(ReceivedTelemetry.ReceivedSpan span) {
         Map<String, Object> attrs = span.attributes();

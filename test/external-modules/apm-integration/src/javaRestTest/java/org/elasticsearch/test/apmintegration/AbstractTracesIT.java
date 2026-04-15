@@ -137,16 +137,16 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
         assertTrue(
-            "Timeout waiting for GET /_nodes/stats span with traceId " + traceIdValue,
+            "GET /_nodes/stats span with traceId " + traceIdValue + " should be received within timeout",
             finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );
         ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
         assertTrue(
-            "Remote parent span ID was not propagated: parentSpanId is empty",
+            "Root span should carry a parent span ID propagated from the traceparent header",
             rootSpan.parentSpanId().isPresent()
         );
         assertEquals(
-            "Remote parent span ID value does not match the traceparent header",
+            "Root span parent span ID should match the remote parent from the traceparent header",
             remoteParentSpanId,
             rootSpan.parentSpanId().get()
         );
@@ -210,12 +210,12 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("Root span not received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
         // Grace period: on the OTLP SDK path a batch can contain both root and child spans delivered in
         // a single received.addAll() call. The consumer thread processes them sequentially, so child spans
         // may still be in the queue when the root-span latch trips. Give the consumer time to drain them.
         Thread.sleep(OTLP_BATCH_GRACE_PERIOD_MS);
 
-        assertEquals("Expected only root span, but received child spans too: " + receivedSpans, 1, receivedSpans.size());
+        assertEquals("Only the root span should be exported; received: " + receivedSpans, 1, receivedSpans.size());
     }
 }

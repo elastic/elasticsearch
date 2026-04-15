@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
@@ -227,15 +228,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         public Map<OperationSignature<?>, MethodHandle> build(BiFunction<String, FunctionDescriptor, MethodHandle> binder) {
-            Map<OperationSignature<?>, MethodHandle> handles = new HashMap<>();
-            for (NativeFunction<?> f : nativeFunctions) {
-                String funcName = getFuncName(f.op.function());
-                String opName = getOpName(f.op.operation());
-
-                MethodHandle handle = binder.apply("vec_" + funcName + f.typeName + opName, f.descriptor);
-                handles.put(f.op, handle);
-            }
-            return Collections.unmodifiableMap(handles);
+            return nativeFunctions.stream()
+                .collect(
+                    Collectors.toUnmodifiableMap(
+                        f -> f.op,
+                        f -> binder.apply("vec_" + getFuncName(f.op.function()) + f.typeName + getOpName(f.op.operation()), f.descriptor)
+                    )
+                );
         }
     }
 

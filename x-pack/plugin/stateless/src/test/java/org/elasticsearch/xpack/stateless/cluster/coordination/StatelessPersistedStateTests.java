@@ -41,7 +41,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
@@ -401,62 +400,6 @@ public class StatelessPersistedStateTests extends ESTestCase {
                 ClusterState clusterState = safeAwait(l -> node2PersistedState.getLatestStoredState(2, l));
                 assertThat(clusterState, is(notNullValue()));
             }
-        }
-    }
-
-    public void testUpdateLeaseUpgradesLegacyToV1() throws Exception {
-        try (var ctx = createTestContext()) {
-            var localNode = ctx.getLocalNode();
-            var remoteNode = DiscoveryNodeUtils.create(
-                "remote-node",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE)
-            );
-            final var term = 1L;
-            var persistedState = ctx.persistedState();
-            persistedState.setCurrentTerm(term);
-            // Write a legacy-format lease
-            ctx.statelessNode.objectStoreService.getClusterStateBlobContainer()
-                .writeBlob(
-                    OperationPurpose.CLUSTER_STATE,
-                    StatelessElectionStrategy.LEASE_BLOB,
-                    new StatelessLease(StatelessLease.LEGACY_FORMAT_VERSION, term, 0L, 0L).asBytes(),
-                    false
-                );
-            final var compatibilityVersions = CompatibilityVersionsUtils.staticCurrent();
-            final var state1 = ClusterState.builder(ClusterName.DEFAULT)
-                .version(1)
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(localNode)
-                        .add(remoteNode)
-                        .localNodeId(localNode.getId())
-                        .masterNodeId(localNode.getId())
-                        .build()
-                )
-                .metadata(
-                    Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(term).build()).clusterUUIDCommitted(true)
-                )
-                .putCompatibilityVersions(localNode.getId(), compatibilityVersions)
-                .putCompatibilityVersions(remoteNode.getId(), compatibilityVersions)
-                .build();
-            persistedState.setLastAcceptedState(state1);
-            // a node leaves, triggering updateLease which should upgrade legacy -> V1
-            var clusterStateWithOneNode = ClusterState.builder(persistedState.getLastAcceptedState())
-                .nodes(DiscoveryNodes.builder(persistedState.getLastAcceptedState().nodes()).remove(remoteNode.getId()).build())
-                .nodeIdsToCompatibilityVersions(Map.of(localNode.getId(), compatibilityVersions))
-                .incrementVersion()
-                .build();
-            persistedState.setLastAcceptedState(clusterStateWithOneNode);
-            var newLease = safeAwait(SubscribableListener.newForked(ctx.statelessNode.electionStrategy::readLease)).get();
-            assertThat(newLease.currentTerm(), equalTo(term));
-            assertThat(newLease.nodeLeftGeneration(), equalTo(1L));
-            assertThat(newLease.formatVersion(), equalTo(StatelessLease.V1_FORMAT_VERSION));
-            assertThat(newLease.projectsUnderDeletedGeneration(), equalTo(0L));
-            // clean up
-            ctx.statelessNode.objectStoreService.getClusterStateBlobContainer()
-                .deleteBlobsIgnoringIfNotExists(OperationPurpose.CLUSTER_STATE, Iterators.single(StatelessElectionStrategy.LEASE_BLOB));
         }
     }
 

@@ -105,16 +105,13 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
         readLease(listener.delegateFailure((delegate, currentLeaseOpt) -> {
             final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
-            // Use the same lease format version as the current lease since it is possible to have a mixed cluster and
-            // we don't have a way to check using th cluster state MinVersion here
             final StatelessLease newLease = new StatelessLease(
-                currentLease.formatVersion(),
                 Math.max(proposedTerm, currentLease.currentTerm() + 1),
                 0,
-                // TODO: projectsUnderDeletedGeneration in the cluster state is ephemeral and is lost on a full cluster restart.
-                // we need to either reset projectsUnderDeletedGeneration too upon master election or persist it in the cluster metadata.
+                // TODO: projectsUnderDeletionGeneration in the cluster state is ephemeral and is lost on a full cluster restart.
+                // we need to either reset projectsUnderDeletionGeneration too upon master election or persist it in the cluster metadata.
                 // ES-12451
-                currentLease.projectsUnderDeletedGeneration()
+                currentLease.projectsUnderDeletionGeneration()
             );
 
             blobContainer().compareAndSetRegister(
@@ -158,9 +155,9 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 projectsMarkedForDeletionGeneration
             );
             if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()
-                && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletedGeneration()) {
+                && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletionGeneration()) {
                 assert nodeLeftGeneration == currentLease.nodeLeftGeneration()
-                    && projectsMarkedForDeletionGeneration == currentLease.projectsUnderDeletedGeneration()
+                    && projectsMarkedForDeletionGeneration == currentLease.projectsUnderDeletionGeneration()
                     : "tried to set [" + newLease + "] after [" + currentLease + "]";
                 delegate.onResponse(null);
                 return;

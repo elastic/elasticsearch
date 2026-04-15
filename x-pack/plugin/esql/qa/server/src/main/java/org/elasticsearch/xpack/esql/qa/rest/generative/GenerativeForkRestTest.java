@@ -46,7 +46,8 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query + " | FORK (WHERE true) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
+        // we add a LIMIT in one of the branches, so we prevent the filter pushdown that would end up removing one of the branches.
+        String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);
     }
 

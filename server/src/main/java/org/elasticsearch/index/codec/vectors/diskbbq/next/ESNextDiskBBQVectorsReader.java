@@ -56,7 +56,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVectorsReader.NextFieldEntry>
     implements
-    VectorPreconditioner {
+        VectorPreconditioner {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {

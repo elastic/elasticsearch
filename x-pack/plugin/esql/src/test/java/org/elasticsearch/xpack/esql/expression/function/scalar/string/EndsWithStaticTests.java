@@ -68,20 +68,27 @@ public class EndsWithStaticTests extends ESTestCase {
     }
 
     public void testLuceneQuery_OnlyEscapesWildcardChars() {
-        EndsWith function = new EndsWith(
-            Source.EMPTY,
-            new FieldAttribute(
+        // Characters that are special in Lucene query-parser syntax but NOT in wildcard syntax.
+        // QueryParser.escape would escape these, but our wildcard escaping must leave them untouched.
+        for (String ch : new String[] { "+", "-", "!", "(", ")", "^", "\"", "~", "/" }) {
+            EndsWith function = new EndsWith(
                 Source.EMPTY,
-                "field",
-                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-            ),
-            Literal.keyword(Source.EMPTY, ".hidden+special")
-        );
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "field",
+                    new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                ),
+                Literal.keyword(Source.EMPTY, "k8s" + ch + "idx")
+            );
 
-        Query query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+            Query query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        // '+' is not a wildcard-special character and must not be escaped
-        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*.hidden+special", false, true)));
+            assertThat(
+                "character '" + ch + "' must not be escaped",
+                query,
+                equalTo(new WildcardQuery(Source.EMPTY, "field", "*k8s" + ch + "idx", false, true))
+            );
+        }
     }
 
     public void testLuceneQuery_StringLikeOnIndexFalse() {

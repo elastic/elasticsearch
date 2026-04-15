@@ -1629,6 +1629,29 @@ is_there:boolean
 true
 ;
 
+likeSingleCharOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s?downsampled"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s?downsampled"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
 rlikeOnIndexWithMinusWhere
 required_capability: fix_starts_with_ends_with_pushdown_on_index
 

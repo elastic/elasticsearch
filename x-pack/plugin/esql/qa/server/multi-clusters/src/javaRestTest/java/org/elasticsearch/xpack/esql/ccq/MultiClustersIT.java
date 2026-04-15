@@ -798,6 +798,20 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
+    public void testEndsWithIndex() throws Exception {
+        //TODO: needs a capability check
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE ENDS_WITH(_index, "remote-index")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
     public static class ClusterSettingToggle implements AutoCloseable {
         private final RestClient client;
         private final String settingKey;

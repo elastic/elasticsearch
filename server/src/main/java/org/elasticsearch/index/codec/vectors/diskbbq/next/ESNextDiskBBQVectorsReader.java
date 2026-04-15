@@ -238,7 +238,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return null;
     }
 
-    protected final static class NextFieldEntry extends FieldEntry {
+    protected static final class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;

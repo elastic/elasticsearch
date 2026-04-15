@@ -193,7 +193,7 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
 )
 ```
 
-You can also use `appliesTo` for `Param`, `MapParam`, and `MapParamEntry`. In this case `appliesTo` is a plain text field that accepts the same format used in inline `applies_to` metadata.
+You can also use `appliesTo` for `Param`, `MapParam`, and `MapParamEntry`. In this case `appliesTo` is a plain text field that accepts the same format used in [inline](https://elastic.github.io/docs-builder/syntax/applies/#inline-examples-by-product) `applies_to` metadata.
 For example, to mark a specific parameter as preview:
 
 ```java

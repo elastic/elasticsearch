@@ -8,23 +8,19 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.BeforeClass;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,7 +28,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -44,7 +39,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static LogicalPlanOptimizer logicalOptimizer;
 
     protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
-    protected static LogicalPlanOptimizer optimizerWithoutForkImplicitLimit;
 
     protected static Map<String, EsField> mapping;
 
@@ -69,13 +63,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
         );
         mapping = loadMapping("mapping-basic.json");
-
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        optimizerWithoutForkImplicitLimit = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())
-        );
     }
 
     protected static TestAnalyzer analyzerWithEnrichPolicies() {
@@ -186,18 +173,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .addSpatialLookup();
     }
 
-    protected static TestAnalyzer analyzerWithoutForkImplicitLimit() {
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        return analyzerWithEnrichPolicies().configuration(config)
-            .addEmployees("test")
-            .addEmployees()
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addSpatialLookup();
-    }
-
     protected LogicalPlan optimize(LogicalPlan plan) {
         return logicalOptimizer.optimize(plan);
     }
@@ -248,10 +223,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planSubquery(String query) {
         return optimize(subqueryAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        return optimizerWithoutForkImplicitLimit.optimize(analyzerWithoutForkImplicitLimit().query(query));
     }
 
     @Override

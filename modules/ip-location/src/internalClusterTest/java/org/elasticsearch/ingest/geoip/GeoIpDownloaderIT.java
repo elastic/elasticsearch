@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -43,7 +43,7 @@ import org.junit.After;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -58,10 +58,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.allOf;
@@ -98,7 +97,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        deleteDatabasesInConfigDirectory();
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
 
         updateClusterSettings(
             Settings.builder()
@@ -141,7 +140,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String projectId = ProjectId.DEFAULT.id();
-        setupDatabasesInConfigDirectory();
+        IpLocationTestHelper.setupDatabasesInConfigDirectory(internalCluster());
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
@@ -275,7 +274,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String projectId = ProjectId.DEFAULT.id();
-        setupDatabasesInConfigDirectory();
+        IpLocationTestHelper.setupDatabasesInConfigDirectory(internalCluster());
 
         // Verify config databases are available before download
         {
@@ -529,74 +528,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
-    }
-
-    private void setupDatabasesInConfigDirectory() throws Exception {
-        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
-            .map(Environment::configDir)
-            .map(path -> path.resolve("ingest-geoip"))
-            .distinct()
-            .forEach(path -> {
-                try {
-                    Files.createDirectories(path);
-                    copyDefaultDatabases(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-
-        assertBusy(() -> {
-            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
-            assertThat(response.getNodes(), not(empty()));
-            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(
-                    nodeResponse.getConfigDatabases(),
-                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
-                );
-                assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
-            }
-        });
-    }
-
-    private void deleteDatabasesInConfigDirectory() throws Exception {
-        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
-            .map(Environment::configDir)
-            .map(path -> path.resolve("ingest-geoip"))
-            .distinct()
-            .forEach(path -> {
-                try {
-                    IOUtils.rm(path);
-                } catch (IOException e) {
-                    /*
-                     * If the test is emulating Windows mode then it will throw an IOException if something has an open file handle to this
-                     * directory. ConfigDatabases adds a FileWatcher that lists the contents of this directory every 5 seconds. If the
-                     * timing is unlucky a directory listing can happen just as we are attempting to do this delete. In that case we wait a
-                     * small amount of time and retry once. If it fails a second time then something more serious is going on so we bail
-                     * out.
-                     */
-                    if (path.getFileSystem().provider().getScheme().equals("windows://") && e.getMessage().contains("access denied")) {
-                        logger.debug("Caught an IOException, will sleep and try deleting again", e);
-                        safeSleep(500);
-                        try {
-                            IOUtils.rm(path);
-                        } catch (IOException e2) {
-                            throw new UncheckedIOException(e2);
-                        }
-                    } else {
-                        throw new UncheckedIOException(e);
-                    }
-
-                }
-            });
-
-        assertBusy(() -> {
-            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
-            assertThat(response.getNodes(), not(empty()));
-            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(nodeResponse.getConfigDatabases(), empty());
-            }
-        });
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")

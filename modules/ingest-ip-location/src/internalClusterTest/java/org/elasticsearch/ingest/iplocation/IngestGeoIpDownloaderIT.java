@@ -9,6 +9,9 @@
 
 package org.elasticsearch.ingest.iplocation;
 
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -20,6 +23,7 @@ import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
+import org.elasticsearch.ingest.geoip.IpLocationTestHelper;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -27,6 +31,10 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,10 +45,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Internal cluster tests for ingest pipeline behavior with geoip processors.
@@ -68,6 +82,17 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         return settings.build();
     }
 
+    @After
+    public void cleanUp() throws Exception {
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
+
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
+        );
+    }
+
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomAlphaOfLength(10);
@@ -90,11 +115,70 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
+    public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        IpLocationTestHelper.setupDatabasesInConfigDirectory(internalCluster());
+        putGeoIpPipeline("_id");
+
+        // verify enrichment with config databases before download
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument(), notNullValue());
+
+            IngestDocument doc = result.getIngestDocument();
+            assertThat(doc.getSourceAndMetadata(), hasKey("ip-city"));
+            assertThat(doc.getSourceAndMetadata(), hasKey("ip-asn"));
+            assertThat(doc.getSourceAndMetadata(), hasKey("ip-country"));
+
+            assertThat(doc.getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+            assertThat(doc.getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(doc.getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+        });
+
+        // Enable downloader — databases get updated
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        verifyEnrichment();
+        awaitAllNodesDownloadedDatabases();
+    }
+
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
+    public void testStartWithNoDatabases() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        putGeoIpPipeline("_id");
+
+        // Behaviour without any databases loaded:
+        {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument(), notNullValue());
+            Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat(
+                source,
+                hasEntry(
+                    "tags",
+                    List.of(
+                        "_geoip_database_unavailable_GeoLite2-City.mmdb",
+                        "_geoip_database_unavailable_GeoLite2-Country.mmdb",
+                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb",
+                        "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"
+                    )
+                )
+            );
+        }
+
+        // Enable downloader:
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        verifyEnrichment();
+        awaitAllNodesDownloadedDatabases();
+    }
+
     public void testDoNotDownloadDatabaseOnPipelineCreation() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomIdentifier();
 
-        deleteDatabasesInConfigDirectory();
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
 
         putGeoIpPipeline("_id", false);
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
@@ -120,6 +204,52 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         awaitAllNodesDownloadedDatabases();
 
         assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
+    }
+
+    private void verifyEnrichment() throws Exception {
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument(), notNullValue());
+
+            Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat(source, not(hasKey("tags")));
+            assertThat(source, hasKey("ip-city"));
+            assertThat(source, hasKey("ip-asn"));
+            assertThat(source, hasKey("ip-country"));
+
+            assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
+            assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
+        });
+    }
+
+    private SimulateDocumentBaseResult simulatePipeline() throws IOException {
+        BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            builder.startArray("docs");
+            {
+                builder.startObject();
+                builder.field("_index", "my-index");
+                {
+                    builder.startObject("_source");
+                    builder.field("ip", "89.160.20.128");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        var simulateRequest = jsonSimulatePipelineRequest(bytes);
+        simulateRequest.setId("_id");
+        // Avoid executing on a coordinating only node, because databases are not available there and geoip processor won't do any lookups.
+        SimulatePipelineResponse simulateResponse = dataNodeClient().admin().cluster().simulatePipeline(simulateRequest).actionGet();
+        assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
+        assertThat(simulateResponse.getResults().size(), equalTo(1));
+        return (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
     }
 
     private void putGeoIpPipeline(String pipelineId) throws IOException {
@@ -229,27 +359,6 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
             }
             return builder.endArray();
         }));
-    }
-
-    private void deleteDatabasesInConfigDirectory() throws Exception {
-        org.elasticsearch.core.IOUtils.rm(
-            java.util.stream.StreamSupport.stream(
-                internalCluster().getInstances(org.elasticsearch.env.Environment.class).spliterator(),
-                false
-            )
-                .map(org.elasticsearch.env.Environment::configDir)
-                .map(path -> path.resolve("ingest-geoip"))
-                .distinct()
-                .toArray(java.nio.file.Path[]::new)
-        );
-
-        assertBusy(() -> {
-            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
-            assertThat(response.getNodes(), not(empty()));
-            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(nodeResponse.getConfigDatabases(), empty());
-            }
-        });
     }
 
     private void awaitAllNodesDownloadedDatabases() throws Exception {

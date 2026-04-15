@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
@@ -120,19 +120,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
-import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
-import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
-import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
-import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
-import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
-import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
-import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
-import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitSourceShardStateAction;
-import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

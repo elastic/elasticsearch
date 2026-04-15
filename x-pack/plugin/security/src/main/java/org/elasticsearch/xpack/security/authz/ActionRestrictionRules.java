@@ -51,6 +51,12 @@ public final class ActionRestrictionRules {
         key -> Setting.stringListSetting(key, Property.Dynamic, Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<List<String>> PROJECT_IDS = Setting.affixKeySetting(
+        PREFIX,
+        "project_ids",
+        key -> Setting.stringListSetting(key, Property.Dynamic, Property.NodeScope)
+    );
+
     public static final Setting.AffixSetting<List<String>> EXEMPT_ROLES = Setting.affixKeySetting(
         PREFIX,
         "exempt_roles",
@@ -66,6 +72,7 @@ public final class ActionRestrictionRules {
      * @param actionMatcher pre-compiled predicate from action patterns (supports wildcards and Lucene regex via {@link StringMatcher})
      * @param nodeIds       node IDs this rule applies to; empty means all nodes
      * @param nodeRoles     node role names this rule applies to; empty means all nodes
+     * @param projectIds    project IDs this rule applies to; empty means all projects
      * @param users         user principals this rule applies to; empty means all users
      * @param exemptRoles   role names exempt from this rule
      */
@@ -73,6 +80,7 @@ public final class ActionRestrictionRules {
         Predicate<String> actionMatcher,
         Set<String> nodeIds,
         Set<String> nodeRoles,
+        Set<String> projectIds,
         Set<String> users,
         Set<String> exemptRoles
     ) {
@@ -85,10 +93,11 @@ public final class ActionRestrictionRules {
 
             Set<String> nodeIds = Set.copyOf(NODE_IDS.getConcreteSettingForNamespace(namespace).get(settings));
             Set<String> nodeRoles = Set.copyOf(NODE_ROLES.getConcreteSettingForNamespace(namespace).get(settings));
+            Set<String> projectIds = Set.copyOf(PROJECT_IDS.getConcreteSettingForNamespace(namespace).get(settings));
             Set<String> users = Set.copyOf(USERS.getConcreteSettingForNamespace(namespace).get(settings));
             Set<String> exemptRoles = Set.copyOf(EXEMPT_ROLES.getConcreteSettingForNamespace(namespace).get(settings));
 
-            return new Rule(actionMatcher, nodeIds, nodeRoles, users, exemptRoles);
+            return new Rule(actionMatcher, nodeIds, nodeRoles, projectIds, users, exemptRoles);
         }
     }
 
@@ -96,6 +105,7 @@ public final class ActionRestrictionRules {
         settings.add(ACTIONS);
         settings.add(NODE_IDS);
         settings.add(NODE_ROLES);
+        settings.add(PROJECT_IDS);
         settings.add(USERS);
         settings.add(EXEMPT_ROLES);
     }

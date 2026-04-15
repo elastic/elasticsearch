@@ -1162,6 +1162,7 @@ public class Security extends Plugin
         final var authorizedProjectsResolver = getCustomAuthorizedProjectsResolverOrDefault(extensionComponents);
         final ActionRestrictionRulesChecker actionRestrictionRulesChecker = new ActionRestrictionRulesChecker(
             () -> clusterService.localNode(),
+            projectResolver,
             settings,
             clusterService.getClusterSettings()
         );

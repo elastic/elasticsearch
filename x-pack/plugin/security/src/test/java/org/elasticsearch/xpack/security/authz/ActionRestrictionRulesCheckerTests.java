@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -28,10 +31,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class ActionRestrictionRulesCheckerTests extends ESTestCase {
 
     private ActionRestrictionRulesChecker buildChecker(Settings settings, DiscoveryNode localNode) {
+        return buildChecker(settings, localNode, DefaultProjectResolver.INSTANCE);
+    }
+
+    private ActionRestrictionRulesChecker buildChecker(Settings settings, DiscoveryNode localNode, ProjectResolver projectResolver) {
         java.util.List<org.elasticsearch.common.settings.Setting<?>> settingsList = new java.util.ArrayList<>();
         ActionRestrictionRules.addSettings(settingsList);
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingsList));
-        return new ActionRestrictionRulesChecker(() -> localNode, settings, clusterSettings);
+        return new ActionRestrictionRulesChecker(() -> localNode, projectResolver, settings, clusterSettings);
     }
 
     private DiscoveryNode createNode(String nodeId, Set<DiscoveryNodeRole> roles) {
@@ -235,10 +242,86 @@ public class ActionRestrictionRulesCheckerTests extends ESTestCase {
         assertThat(checker.check(auth, "indices:data/write/index"), nullValue());
     }
 
-    // Verifies that the addSettings helper works correctly for integration with Security.getSettings()
+    public void testProjectIdFilteringMatchingProject() {
+        Settings settings = Settings.builder()
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.actions", "indices:data/write/*")
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.project_ids", "project-abc", "project-def")
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.exempt_roles")
+            .build();
+        DiscoveryNode node = createNode("node1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+
+        ProjectResolver matchingResolver = mockProjectResolver(ProjectId.fromId("project-abc"));
+        ActionRestrictionRulesChecker checker = buildChecker(settings, node, matchingResolver);
+        Authentication auth = authenticationFor("test_user", "some_role");
+
+        assertThat(checker.check(auth, "indices:data/write/index"), notNullValue());
+    }
+
+    public void testProjectIdFilteringNonMatchingProject() {
+        Settings settings = Settings.builder()
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.actions", "indices:data/write/*")
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.project_ids", "project-abc", "project-def")
+            .putList("xpack.security.authz.action_restrictions.rules.project_rule.exempt_roles")
+            .build();
+        DiscoveryNode node = createNode("node1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+
+        ProjectResolver nonMatchingResolver = mockProjectResolver(ProjectId.fromId("project-xyz"));
+        ActionRestrictionRulesChecker checker = buildChecker(settings, node, nonMatchingResolver);
+        Authentication auth = authenticationFor("test_user", "some_role");
+
+        assertThat(checker.check(auth, "indices:data/write/index"), nullValue());
+    }
+
+    public void testProjectIdFilteringEmptyMeansAllProjects() {
+        Settings settings = Settings.builder()
+            .putList("xpack.security.authz.action_restrictions.rules.global_rule.actions", "indices:data/write/*")
+            .putList("xpack.security.authz.action_restrictions.rules.global_rule.exempt_roles")
+            .build();
+        DiscoveryNode node = createNode("node1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+
+        ProjectResolver resolver = mockProjectResolver(ProjectId.fromId("any-project"));
+        ActionRestrictionRulesChecker checker = buildChecker(settings, node, resolver);
+        Authentication auth = authenticationFor("test_user", "some_role");
+
+        assertThat(checker.check(auth, "indices:data/write/index"), notNullValue());
+    }
+
+    public void testProjectIdCombinedWithUserFiltering() {
+        Settings settings = Settings.builder()
+            .putList("xpack.security.authz.action_restrictions.rules.combo_rule.actions", "indices:data/write/*")
+            .putList("xpack.security.authz.action_restrictions.rules.combo_rule.project_ids", "project-abc")
+            .putList("xpack.security.authz.action_restrictions.rules.combo_rule.users", "bad_user")
+            .putList("xpack.security.authz.action_restrictions.rules.combo_rule.exempt_roles")
+            .build();
+        DiscoveryNode node = createNode("node1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+
+        ProjectResolver resolver = mockProjectResolver(ProjectId.fromId("project-abc"));
+        ActionRestrictionRulesChecker checker = buildChecker(settings, node, resolver);
+
+        Authentication badUser = authenticationFor("bad_user", "some_role");
+        assertThat(checker.check(badUser, "indices:data/write/index"), notNullValue());
+
+        Authentication goodUser = authenticationFor("good_user", "some_role");
+        assertThat(checker.check(goodUser, "indices:data/write/index"), nullValue());
+    }
+
+    private static ProjectResolver mockProjectResolver(ProjectId projectId) {
+        return new ProjectResolver() {
+            @Override
+            public ProjectId getProjectId() {
+                return projectId;
+            }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId id, org.elasticsearch.core.CheckedRunnable<E> body) throws E {
+                body.run();
+            }
+        };
+    }
+
     public void testAddSettingsRegistersAllAffixSettings() {
         java.util.List<org.elasticsearch.common.settings.Setting<?>> settingsList = new java.util.ArrayList<>();
         ActionRestrictionRules.addSettings(settingsList);
-        assertEquals(5, settingsList.size());
+        assertEquals(6, settingsList.size());
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -37,9 +38,11 @@ public class ActionRestrictionRulesChecker {
 
     private volatile Map<String, ActionRestrictionRules.Rule> rules = Map.of();
     private final Supplier<DiscoveryNode> localNodeSupplier;
+    private final ProjectResolver projectResolver;
 
     private ActionRestrictionRulesChecker() {
         this.localNodeSupplier = () -> null;
+        this.projectResolver = null;
     }
 
     /**
@@ -51,16 +54,19 @@ public class ActionRestrictionRulesChecker {
 
     public ActionRestrictionRulesChecker(
         Supplier<DiscoveryNode> localNodeSupplier,
+        ProjectResolver projectResolver,
         Settings initialSettings,
         ClusterSettings clusterSettings
     ) {
         this.localNodeSupplier = localNodeSupplier;
+        this.projectResolver = projectResolver;
         loadInitialRules(initialSettings);
         clusterSettings.addAffixGroupUpdateConsumer(
             List.of(
                 ActionRestrictionRules.ACTIONS,
                 ActionRestrictionRules.NODE_IDS,
                 ActionRestrictionRules.NODE_ROLES,
+                ActionRestrictionRules.PROJECT_IDS,
                 ActionRestrictionRules.USERS,
                 ActionRestrictionRules.EXEMPT_ROLES
             ),
@@ -116,6 +122,7 @@ public class ActionRestrictionRulesChecker {
             ActionRestrictionRules.Rule rule = entry.getValue();
             if (rule.actionMatcher().test(action)
                 && matchesNode(rule)
+                && matchesProject(rule)
                 && matchesUser(rule, authentication)
                 && isNotExempt(rule, authentication)) {
                 return "action [" + action + "] is restricted by rule [" + entry.getKey() + "]";
@@ -141,6 +148,16 @@ public class ActionRestrictionRulesChecker {
             }
         }
         return false;
+    }
+
+    private boolean matchesProject(ActionRestrictionRules.Rule rule) {
+        if (rule.projectIds().isEmpty()) {
+            return true;
+        }
+        if (projectResolver == null) {
+            return false;
+        }
+        return rule.projectIds().contains(projectResolver.getProjectId().id());
     }
 
     private static boolean matchesUser(ActionRestrictionRules.Rule rule, Authentication authentication) {

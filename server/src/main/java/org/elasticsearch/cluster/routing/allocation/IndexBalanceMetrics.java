@@ -30,7 +30,8 @@ import java.util.stream.Stream;
  * replicas on {@link DiscoveryNodeRole#SEARCH_ROLE} nodes). Results are aggregated into a
  * histogram of balance ranges rather than retained per-index.
  */
-public final class IndexBalanceMetrics {
+public enum IndexBalanceMetrics {
+    ;
 
     static final BucketDefinition[] BUCKET_DEFINITIONS = {
         new BucketDefinition("none", 0.0),
@@ -65,7 +66,7 @@ public final class IndexBalanceMetrics {
      * <tr><td>3</td><td>{@code [0.5,1.0]}</td><td>Severe imbalance</td><td>6 shards on 3 nodes: [0,0,6]</td></tr>
      * </table>
      */
-    public IndexBalanceState compute(ClusterState state) {
+    public static IndexBalanceState compute(ClusterState state) {
         final var nodes = state.nodes();
         final var shutdowns = state.metadata().nodeShutdowns();
         final var indexNodeMap = buildEligibleNodeMap(nodes, shutdowns, DiscoveryNodeRole.INDEX_ROLE);

@@ -54,7 +54,7 @@ public class IndexBalanceMetricsTests extends ESTestCase {
         final var primaries = randomFrequencyMap("index_", numIndexNodes, maxShards, 1);
 
         final var state = buildState(indexNames, primaries, numSearchNodes);
-        final var result = new IndexBalanceMetrics().compute(state);
+        final var result = IndexBalanceMetrics.compute(state);
 
         assertThat(sum(result.primaryBalanceHistogram()), equalTo(numIndices));
         assertThat(sum(result.replicaBalanceHistogram()), equalTo(numIndices));
@@ -98,7 +98,7 @@ public class IndexBalanceMetricsTests extends ESTestCase {
             .routingTable(RoutingTable.builder().add(routingBuilder))
             .build();
 
-        final var result = new IndexBalanceMetrics().compute(state);
+        final var result = IndexBalanceMetrics.compute(state);
 
         // Assigned shards are perfectly balanced; if unassigned shards affected the ratio this would fail
         assertThat("primary shards should yield perfect balance", result.primaryBalanceHistogram()[0], equalTo(1));

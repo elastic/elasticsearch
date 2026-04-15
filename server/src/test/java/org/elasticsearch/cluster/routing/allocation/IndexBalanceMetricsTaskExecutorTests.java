@@ -102,7 +102,6 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
             Map.of(),
             threadPool,
             clusterService,
-            new IndexBalanceMetrics(),
             currentInterval::get
         );
         task.startScheduledRefresh();

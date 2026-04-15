@@ -104,7 +104,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     }
 
     private final ClusterService clusterService;
-    private final IndexBalanceMetrics indexBalanceMetrics;
     private final AtomicReference<Task> executorNodeTask = new AtomicReference<>();
     private volatile TimeValue refreshInterval;
 
@@ -114,7 +113,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
     public IndexBalanceMetricsTaskExecutor(ClusterService clusterService, MeterRegistry meterRegistry) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        this.indexBalanceMetrics = new IndexBalanceMetrics();
         for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
             final int bucket = i;
             meterRegistry.registerLongsGauge(
@@ -189,7 +187,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             headers,
             clusterService.threadPool(),
             clusterService,
-            indexBalanceMetrics,
             () -> refreshInterval
         );
     }
@@ -250,7 +247,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         private final ThreadPool threadPool;
         private final Executor managementExecutor;
         private final ClusterService clusterService;
-        private final IndexBalanceMetrics indexBalanceMetrics;
         private final AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState = new AtomicReference<>();
         private final ClusterStateListener routingTableChangedListener;
         private final Supplier<TimeValue> pollIntervalSupplier;
@@ -269,14 +265,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             Map<String, String> headers,
             ThreadPool threadPool,
             ClusterService clusterService,
-            IndexBalanceMetrics indexBalanceMetrics,
             Supplier<TimeValue> pollIntervalSupplier
         ) {
             super(id, type, action, description, parentTask, headers);
             this.threadPool = threadPool;
             this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
             this.clusterService = clusterService;
-            this.indexBalanceMetrics = indexBalanceMetrics;
             this.routingTableChangedListener = this::onRoutingTableChanged;
             this.pollIntervalSupplier = pollIntervalSupplier;
             this.needRefresh = new AtomicBoolean(false);
@@ -335,7 +329,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 return;
             }
             if (needRefresh.getAndSet(false)) {
-                var result = indexBalanceMetrics.compute(clusterService.state());
+                var result = IndexBalanceMetrics.compute(clusterService.state());
                 lastState.set(result);
             }
         }

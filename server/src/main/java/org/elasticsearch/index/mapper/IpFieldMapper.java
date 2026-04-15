@@ -734,7 +734,7 @@ public class IpFieldMapper extends FieldMapper {
             doc.add(address);
         }
         if (fieldType().indexType.hasDocValues()) {
-            if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+            if (fieldType().usesBinaryDocValues()) {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
                 MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(doc, fieldType().name(), address.binaryValue());
             } else if (fieldType().indexType.hasDocValuesSkipper()) {

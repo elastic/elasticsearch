@@ -387,6 +387,49 @@ public class TransportGetTaskActionTests extends ESTestCase {
         assertThat("no response on running task", result.getResponse(), nullValue());
     }
 
+    public void testGetTaskDoesNotFollowRelocationWhenDisabled() throws Exception {
+        var nodeId = "nodeA";
+        var originalTaskId = new TaskId(nodeId, 100);
+        var relocatedTaskId = new TaskId("nodeB", 200);
+
+        TaskResult originalStoredResult = completedTaskResult(
+            originalTaskId.toString(),
+            ReindexAction.NAME,
+            relocatedErrorBytes(relocatedTaskId.toString())
+        );
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(nodeId, new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    var getRequest = (GetRequest) request;
+                    ((ActionListener<GetResponse>) listener).onResponse(buildTasksIndexResponse(getRequest.id(), originalStoredResult));
+                } else if (TransportGetTaskAction.TYPE.equals(action)) {
+                    fail("Should not follow relocation when follow_relocations=false");
+                } else {
+                    fail("Unexpected action: " + action);
+                }
+            }
+        }, taskManager);
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        var request = new GetTaskRequest().setTaskId(originalTaskId).setFollowRelocations(false);
+        taskManager.registerAndExecute("transport", getTaskAction, request, null, future);
+        GetTaskResponse response = future.get(10, TimeUnit.SECONDS);
+
+        TaskResult result = response.getTask();
+        assertThat("should return the original task", result.getTask().taskId(), equalTo(originalTaskId));
+        assertThat("should be completed", result.isCompleted(), equalTo(true));
+        assertThat("action should be reindex", result.getTask().action(), equalTo(ReindexAction.NAME));
+        assertThat("error should be preserved (relocation not followed)", result.getError(), notNullValue());
+    }
+
     public void testGetTaskFallsBackWhenRelocatedTaskNotFound() throws Exception {
         var nodeId = "nodeA";
         var originalTaskId = new TaskId(nodeId, 100);

@@ -74,8 +74,9 @@ public class BlobStoreHealthIndicator extends AbstractLifecycleComponent impleme
     // We apply this factor to the poll interval to determine when is a health check stale
     private static final int STALENESS_FACTOR = 2;
 
-    // We extend the timeout and we log a warning on the initial timeout
-    // See https://github.com/elastic/elasticsearch-serverless/issues/931
+    // Over time, we extended the check timeout beyond 5s, but we still log a warning on the initial timeout.
+    // In practice, sometimes reads can take longer to succeed which may have performance implications, but doesn't in itself indicate
+    // a problem that needs immediate attention.
     private static final long WARNING_THRESHOLD_MILLIS = TimeValue.timeValueSeconds(5).millis();
     public static final String CHECK_TIMEOUT = "health.blob_storage.check.timeout";
     public static final Setting<TimeValue> CHECK_TIMEOUT_SETTING = Setting.timeSetting(
@@ -338,7 +339,6 @@ public class BlobStoreHealthIndicator extends AbstractLifecycleComponent impleme
                 public void onResponse(Optional<StatelessLease> lease) {
                     long currentTimeMillis = currentTimeMillisSupplier.get();
                     long durationMillis = currentTimeMillis - lastCheckStartedTimeMillis;
-                    // See https://github.com/elastic/elasticsearch-serverless/issues/931
                     if (durationMillis > WARNING_THRESHOLD_MILLIS) {
                         logger.warn(
                             "Blob store read duration is higher than the warn threshold, read took {}.",

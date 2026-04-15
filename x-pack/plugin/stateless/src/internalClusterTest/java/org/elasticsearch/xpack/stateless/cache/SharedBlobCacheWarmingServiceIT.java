@@ -748,7 +748,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     || ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
-                    // See https://github.com/elastic/elasticsearch-serverless/issues/2518
                     final Thread thread = new Thread(() -> {
                         flush(indexName);
                         flushCountdown.countDown();

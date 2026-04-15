@@ -103,7 +103,10 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
         int numSlices = randomIntBetween(3, 7);
         int docCount = randomIntBetween(150, 400);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String destIndex = randomValueOtherThan(sourceIndex, () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT));
+        String destIndex = randomValueOtherThan(
+            sourceIndex,
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);

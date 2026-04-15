@@ -26,7 +26,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.Throughput)
@@ -72,16 +71,12 @@ public class NeighborQueueInsertWithOverflowBenchmark {
     @Param({ "EXTRAPOLATED_REAL_WORLD", "PREFILTERED_DECAY" })
     public WorkloadModel workloadModel;
 
-    @Param({ "false" })
-    public boolean verifyTopK;
-
     @Param({ "BINARY", "PIVOT_AUTO" })
     public HeapImplementation heapImplementation;
 
     private QueueAdapter queueAdapter;
     private int[] docIdsScratch;
     private float[] scores;
-    private NeighborQueue verifyQueue;
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -92,7 +87,6 @@ public class NeighborQueueInsertWithOverflowBenchmark {
     @Setup(Level.Invocation)
     public void setupInvocation() {
         queueAdapter = createQueueAdapter();
-        verifyQueue = verifyTopK ? new NeighborQueue(heapSize, false) : null;
     }
 
     @Benchmark
@@ -130,17 +124,7 @@ public class NeighborQueueInsertWithOverflowBenchmark {
             queueStats.accepted += acceptedThisBatch;
             queueStats.batchCalls++;
 
-            if (verifyQueue != null) {
-                for (int i = 0; i < candidateCount; i++) {
-                    verifyQueue.insertWithOverflow(docIdsScratch[i], scores[i]);
-                }
-            }
-
             docBase += blockSize;
-        }
-
-        if (verifyQueue != null) {
-            assertTopKMatchesVerificationQueue();
         }
         bh.consume(accepted);
         return accepted;
@@ -218,38 +202,8 @@ public class NeighborQueueInsertWithOverflowBenchmark {
         };
     }
 
-    private void assertTopKMatchesVerificationQueue() {
-        long[] expected = snapshotNeighborQueue(verifyQueue);
-        long[] actual = queueAdapter.snapshotSorted();
-        if (Arrays.equals(expected, actual) == false) {
-            throw new IllegalStateException(
-                "TopK mismatch for " + heapImplementation + " expected=" + Arrays.toString(expected) + " actual=" + Arrays.toString(actual)
-            );
-        }
-    }
-
-    private static long[] snapshotNeighborQueue(NeighborQueue queue) {
-        int size = queue.size();
-        long[] values = new long[size];
-        for (int i = 0; i < size; i++) {
-            values[i] = queue.popRaw();
-        }
-        Arrays.sort(values);
-        return values;
-    }
-
-    private static long[] snapshotBulkQueue(BulkNeighborQueue queue) {
-        long[] values = new long[queue.size()];
-        final int[] index = new int[1];
-        queue.drain(encoded -> values[index[0]++] = encoded);
-        Arrays.sort(values);
-        return values;
-    }
-
     private interface QueueAdapter {
         int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore);
-
-        long[] snapshotSorted();
     }
 
     private static class BinaryQueueAdapter implements QueueAdapter {
@@ -270,10 +224,6 @@ public class NeighborQueueInsertWithOverflowBenchmark {
             return accepted;
         }
 
-        @Override
-        public long[] snapshotSorted() {
-            return snapshotNeighborQueue(queue);
-        }
     }
 
     private static class BulkNeighborQueueAdapter implements QueueAdapter {
@@ -288,9 +238,5 @@ public class NeighborQueueInsertWithOverflowBenchmark {
             return queue.insertWithOverflowBulk(docs, scores, count, bestScore);
         }
 
-        @Override
-        public long[] snapshotSorted() {
-            return snapshotBulkQueue(queue);
-        }
     }
 }

@@ -180,6 +180,15 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         // Skip testing request stats since the S3StallingHttpHandler does not track request stats
     }
 
+    @Override
+    public void testSnapshotWithLargeSegmentFiles() {
+        // See #146156
+        // The aggressive settings + zero retries can make this test flaky (since we are using an actual HTTP stack
+        // and can be subject to transport errors during heavy loads).
+        // This test is already exercised under representative settings in S3BlobStoreRepositoryTests, there is
+        // no real differentiating coverage from duplicating it here.
+    }
+
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an S3 endpoint")
     protected class S3StallingHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 

@@ -416,6 +416,8 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
 ) {
     int c = 0;
     constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    const int rem = dims % elements;
+    const bool odd_dims = (rem & 1) != 0;
     const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
 
     const bf16_t* current_vecs[batches];
@@ -453,7 +455,6 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
         }
 
         // Masked tail
-        const int rem = dims - i;
         if (rem > 0) {
             __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
             __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
@@ -467,19 +468,23 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
         }
 
         f32_t qq = _mm512_reduce_add_ps(sum_qq);
-        if ((rem & 1) != 0) {
+        // dpbf16 is a pair-wise instruction, so we may need to consider a lone un-paired element
+        if (odd_dims) {
             qq += dot_scalar(b[dims - 1], b[dims - 1]);
-        }
-
-        apply_indexed<batches>([&](auto I) {
-            f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
-            f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
-            if ((rem & 1) != 0) {
+            apply_indexed<batches>([&](auto I) {
+                f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
+                f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
                 aa += dot_scalar(current_vecs[I][dims - 1], current_vecs[I][dims - 1]);
                 ab += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
-            }
-            results[c + I] = aa + qq - 2.0f * ab;
-        });
+                results[c + I] = aa + qq - 2.0f * ab;
+            });
+        } else {
+            apply_indexed<batches>([&](auto I) {
+                f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
+                f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
+                results[c + I] = aa + qq - 2.0f * ab;
+            });
+        }
 
         if (has_next) {
             std::copy_n(next_vecs, batches, current_vecs);

@@ -85,12 +85,12 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        String[] size = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "size").toArray(new String[0]);
-        String[] functions = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "function").toArray(new String[0]);
+        var size = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "size");
+        var functions = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "function");
         VectorSimilarityFunctions.BFloat16QueryType[] queryTypes = VectorSimilarityFunctions.BFloat16QueryType.values();
-        return () -> Arrays.stream(size)
+        return () -> size.stream()
             .map(Integer::parseInt)
-            .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
+            .flatMap(i -> functions.stream().map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
             .flatMap(o -> Arrays.stream(queryTypes).map(qt -> CollectionUtils.appendToCopy(Arrays.asList(o), qt).toArray()))
             .iterator();
     }

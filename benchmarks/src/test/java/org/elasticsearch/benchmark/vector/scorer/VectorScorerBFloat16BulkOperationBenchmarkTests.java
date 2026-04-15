@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryType;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
@@ -79,20 +80,15 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends ESTestCase 
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerBFloat16BulkOperationBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerBFloat16BulkOperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(
-                    d -> Arrays.stream(functions)
-                        .map(VectorSimilarityType::valueOf)
-                        .flatMap(f -> Arrays.stream(BFloat16QueryType.values()).map(qt -> new Object[] { f, qt, d }))
-                )
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        var dims = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class, "dims");
+        var functions = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class,"function");
+        return () -> dims.stream()
+            .map(Integer::parseInt)
+            .flatMap(
+                d -> functions.stream()
+                    .map(VectorSimilarityType::valueOf)
+                    .flatMap(f -> Arrays.stream(BFloat16QueryType.values()).map(qt -> new Object[] { f, qt, d }))
+            )
+            .iterator();
     }
 }

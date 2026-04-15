@@ -189,13 +189,16 @@ final class RemoteRequestBuilders {
     /**
      * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
      */
-    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest) {
+    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest, Version remoteVersion) {
         StringBuilder path = new StringBuilder("/");
         addIndices(path, indices);
         path.append("_pit");
         Request request = new Request("POST", path.toString());
         request.addParameter("keep_alive", keepAlive.getStringRep());
-        request.addParameter("allow_partial_search_results", "false");
+        // Remote versions before V_8_16_0 do not accept allow_partial_search_results on {@code POST /{index}/_pit}
+        if (remoteVersion.onOrAfter(Version.V_8_16_0)) {
+            request.addParameter("allow_partial_search_results", "false");
+        }
 
         String projectRouting = searchRequest.getProjectRouting();
         QueryBuilder indexFilter = searchRequest.source() != null ? searchRequest.source().query() : null;

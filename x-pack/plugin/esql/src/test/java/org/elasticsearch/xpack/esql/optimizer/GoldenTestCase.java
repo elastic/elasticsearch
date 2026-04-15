@@ -793,13 +793,31 @@ public abstract class GoldenTestCase extends ESTestCase {
         );
     }
 
+    // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
         var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {
             for (var entry : dataset.typeMapping().entrySet()) {
-                if (mapping.containsKey(entry.getKey())) {
+                String key = entry.getKey();
+                String[] segments = key.split("\\.");
+                // Navigate to the parent map containing the leaf field.
+                Map<String, EsField> targetMap = mapping;
+                for (int i = 0; i < segments.length - 1 && targetMap != null; i++) {
+                    EsField parent = targetMap.get(segments[i]);
+                    targetMap = parent != null ? parent.getProperties() : null;
+                }
+                String leafName = segments[segments.length - 1];
+                if (targetMap == null) {
+                    continue;
+                }
+
+                if (entry.getValue() == null) {
+                    targetMap.remove(leafName);
+                    continue;
+                }
+                if (targetMap.containsKey(leafName)) {
                     DataType dataType = DataType.fromTypeName(entry.getValue());
-                    EsField field = mapping.get(entry.getKey());
+                    EsField field = targetMap.get(leafName);
                     EsField editedField = new EsField(
                         field.getName(),
                         dataType,
@@ -807,7 +825,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                         field.isAggregatable(),
                         field.getTimeSeriesFieldType()
                     );
-                    mapping.put(entry.getKey(), editedField);
+                    targetMap.put(leafName, editedField);
                 }
             }
         }

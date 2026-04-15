@@ -1,6 +1,6 @@
 version: 9.2.8
-released: false
-generated: 2026-04-03T00:20:00.235175980Z
+released: true
+generated: 2026-04-08T15:24:35.184830091Z
 changelogs:
   - pr: 137598
     summary: Improve SAML error handling by adding metadata

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -146,9 +149,22 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            if (projectedDataColumns.isEmpty() == false && schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                if (info != null && hasNoProjectedColumns(info.fileSchema(), projectedDataColumns)) {
+            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
+
+            if (projectedDataColumns.isEmpty() == false && fileSchemaInfo != null) {
+                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), projectedDataColumns)) {
+                    continue;
+                }
+            }
+
+            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
+                Set<String> fileColumnNames = new LinkedHashSet<>();
+                for (Attribute attr : fileSchemaInfo.fileSchema()) {
+                    fileColumnNames.add(attr.name());
+                }
+                // Partition columns are always available (values come from paths, not file data)
+                fileColumnNames.addAll(partitionValues.keySet());
+                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                     continue;
                 }
             }
@@ -534,13 +550,77 @@ public class FileSplitProvider implements SplitProvider {
      * Returns {@code true} when the file's data columns have zero overlap with the projected set,
      * meaning this file would produce only NULL rows for all needed columns.
      */
-    static boolean hasNoProjectedColumns(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
+    static boolean skipIfNoColumnOverlap(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
         for (Attribute attr : fileSchema) {
             if (projectedDataColumns.contains(attr.name())) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Returns {@code true} when the file can be skipped because a filter conjunct references a
+     * column absent from the file and evaluates to UNKNOWN (which becomes FALSE in WHERE context).
+     * <p>
+     * Only simple leaf predicates are checked: comparisons ({@code =, !=, <, >, <=, >=}),
+     * {@link In}, and {@link IsNotNull}. These all evaluate to UNKNOWN/FALSE for a missing column.
+     * {@link IsNull} on a missing column evaluates to TRUE (all rows match), so it does NOT
+     * trigger a skip.
+     * <p>
+     * Compound expressions (OR, NOT) and multi-column expressions are conservatively kept.
+     *
+     * @param filterHints AND-separated filter conjuncts from ancestor FilterExec nodes
+     * @param fileColumnNames names of columns present in this file's schema
+     * @return {@code true} if the file can be safely skipped
+     */
+    static boolean skipIfFilterOnMissingColumns(List<Expression> filterHints, Set<String> fileColumnNames) {
+        for (Expression conjunct : filterHints) {
+            String columnName = extractFilterColumnName(conjunct);
+            if (columnName == null) {
+                continue;
+            }
+            if (fileColumnNames.contains(columnName)) {
+                continue;
+            }
+            // Column is missing from this file — determine the skip decision based on predicate type
+            if (conjunct instanceof IsNull) {
+                // IS NULL on missing column → TRUE (all rows match) → do NOT skip
+                continue;
+            }
+            // All other recognized leaf predicates evaluate to UNKNOWN → FALSE in WHERE context → skip
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Extracts the single column name from a simple leaf predicate, or {@code null} for
+     * compound/multi-column expressions that cannot be evaluated for file skipping.
+     */
+    private static String extractFilterColumnName(Expression expr) {
+        if (expr instanceof BinaryComparison bc) {
+            String left = extractColumnName(bc.left());
+            String right = extractColumnName(bc.right());
+            // Only handle single-column leaf predicates (column op literal)
+            if (left != null && bc.right() instanceof Literal) {
+                return left;
+            }
+            if (right != null && bc.left() instanceof Literal) {
+                return right;
+            }
+            return null;
+        }
+        if (expr instanceof In in) {
+            return extractColumnName(in.value());
+        }
+        if (expr instanceof IsNull isNull) {
+            return extractColumnName(isNull.field());
+        }
+        if (expr instanceof IsNotNull isNotNull) {
+            return extractColumnName(isNotNull.field());
+        }
+        return null;
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {

@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -44,6 +46,15 @@ public class PresentOverTime extends TimeSeriesAggregateFunction
         "PresentOverTime",
         PresentOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PresentOverTime.class)
+        .binary(PresentOverTime::new)
+        .name("present_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(PresentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns 1 if the range vector has any elements, otherwise returns an empty vector.")
+        .example("present_over_time(http_requests_total[5m])")
+        .name("present_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,

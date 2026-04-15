@@ -129,6 +129,15 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             Integer.MAX_VALUE,
             0
         );
+      
+        /**  
+         * Duration between each poll for the copy status during a copy operation
+         */
+        static final Setting<TimeValue> COPY_POLL_INTERVAL = Setting.timeSetting(
+            "copy_poll_interval",
+            TimeValue.timeValueSeconds(1),
+            Property.NodeScope
+        );
     }
 
     private final ByteSizeValue chunkSize;

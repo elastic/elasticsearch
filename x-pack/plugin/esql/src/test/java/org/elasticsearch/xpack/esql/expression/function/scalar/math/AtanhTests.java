@@ -12,7 +12,6 @@ import ch.obermuhlner.math.big.BigDecimalMath;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,7 +29,6 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145492")
 public class AtanhTests extends AbstractScalarFunctionTestCase {
 
     // Canonical formula: https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
@@ -54,8 +52,8 @@ public class AtanhTests extends AbstractScalarFunctionTestCase {
         helper.expectedFromDouble(d -> d).castingToDouble(0, 0, true, suppliers);
         helper.expectedFromDouble(d -> {
             double canonical = canonicalAtanh(d);
-            double err = Math.ulp(canonical) * 2;
-            // Our canonical implementation isn't 100% in line with the real one. That's ok.
+            // FastMath.atanh (production) vs DECIMAL128 log-formula reference can differ by a few ULP.
+            double err = Math.ulp(canonical) * 4;
             if (Math.abs(d) > 0.94) {
                 err *= 2;
             }

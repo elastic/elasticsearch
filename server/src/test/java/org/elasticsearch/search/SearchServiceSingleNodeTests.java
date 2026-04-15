@@ -3010,7 +3010,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final Settings settings = Settings.builder()
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")

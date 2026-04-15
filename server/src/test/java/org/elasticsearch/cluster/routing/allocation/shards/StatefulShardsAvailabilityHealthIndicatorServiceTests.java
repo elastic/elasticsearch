@@ -2837,13 +2837,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(nodeSettings);
         var allocationService = mock(AllocationService.class);
-        when(allocationService.explainShardAllocation(any(ShardRouting.class), any(RoutingAllocation.class))).thenAnswer(
-            (Answer<ShardAllocationDecision>) invocation -> {
-                ShardRouting shardRouting = invocation.getArgument(0);
-                var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
-                return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
-            }
-        );
+        when(
+            allocationService.explainShardAllocation(
+                any(ShardRouting.class),
+                any(ClusterState.class),
+                any(RoutingAllocation.DebugMode.class)
+            )
+        ).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {
+            ShardRouting shardRouting = invocation.getArgument(0);
+            var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
+            return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
+        });
         return new StatefulShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }
 }

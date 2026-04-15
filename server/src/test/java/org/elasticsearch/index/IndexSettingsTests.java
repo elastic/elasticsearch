@@ -1121,7 +1121,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersSetting() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var disabled = randomBoolean();
@@ -1135,7 +1134,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersImpliesDocValuesOnly() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
@@ -1148,7 +1146,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnly() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
@@ -1171,7 +1168,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
@@ -1200,7 +1196,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersValidationWithInvalidVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
 
         Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();

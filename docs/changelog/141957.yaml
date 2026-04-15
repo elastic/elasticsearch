@@ -7,6 +7,6 @@ highlight:
   title: "Implement Prometheus remote write indexing support"
   notable: true
   body: |-
-    We're introducing a Prometheus-compatible `POST /api/v1/write` REST entrypoint that allows receiving data via
+    We're introducing a Prometheus-compatible `POST /_prometheus/api/v1/write` REST entrypoint that allows receiving data via
     Prometheus remote write protocol (Tech Preview). Elasticsearch can now be used as a Prometheus storage backend, consuming data
     sent in Prometheus native format.

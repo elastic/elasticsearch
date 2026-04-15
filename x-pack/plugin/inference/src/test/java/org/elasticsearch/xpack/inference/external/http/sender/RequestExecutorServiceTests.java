@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -183,12 +184,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(thrownException.isExecutorShutdown());
     }
 
-    public void testExecute_Throws_WhenRateLimitedQueueIsFull() {
+    public void testExecute_Throws_WhenRateLimitedQueueIsFull() throws InterruptedException {
         var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
-        service.start();
 
+        // Enqueue before start() so the poller cannot drain the queue between submits (avoids rate-limit delay + timeout).
         service.execute(
-            RequestManagerTests.createMockWithRateLimitingEnabled(),
+            RequestManagerTests.createMockWithRateLimitingEnabled("id"),
             new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             new PlainActionFuture<>()
@@ -210,6 +211,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
             )
         );
         assertFalse(thrownException.isExecutorShutdown());
+
+        service.shutdown();
+        service.start();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {
@@ -267,7 +272,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
         assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-        assertThat(thrownException.status().getStatus(), is(408));
+        assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {

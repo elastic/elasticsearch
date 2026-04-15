@@ -175,7 +175,8 @@
   ],
   "examples" : [
     "FROM employees\n| STATS MIN(languages)",
-    "FROM employees\n| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))"
+    "FROM employees\n| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))",
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS minimum = ROUND(MIN(responseTime), 4)"
   ],
   "preview" : false,
   "snapshot_only" : false

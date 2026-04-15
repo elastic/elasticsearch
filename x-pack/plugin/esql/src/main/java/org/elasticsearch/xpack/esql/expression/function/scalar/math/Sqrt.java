@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,6 +32,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
 
 public class Sqrt extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sqrt", Sqrt::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sqrt.class).unary(Sqrt::new).name("sqrt");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Sqrt::new)
+        .description("Calculates the square root of all elements in the input vector.")
+        .example("sqrt(http_requests_total)")
+        .name("sqrt");
 
     @FunctionInfo(returnType = "double", description = """
         Returns the square root of a number. The input can be any numeric value, the return value is always a double.

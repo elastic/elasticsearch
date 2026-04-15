@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class MetadataAttribute extends TypedAttribute {
+public final class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";

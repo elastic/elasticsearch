@@ -1,0 +1,7 @@
+area: SQL
+issues:
+ - 143646
+ - 143645
+pr: 145967
+summary: Fix CLI tests failures due to unconsumed output
+type: bug

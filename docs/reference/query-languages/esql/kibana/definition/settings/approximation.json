@@ -9,5 +9,5 @@
   "serverlessOnly" : false,
   "preview" : true,
   "snapshotOnly" : false,
-  "description" : "Enables query approximation if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings."
+  "description" : "Enables [query approximation](https://www.elastic.co/docs/reference/query-languages/esql/esql-query-approximation) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings."
 }

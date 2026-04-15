@@ -10,6 +10,7 @@
 package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Filter for the target projects based on the provided project routing string.
@@ -50,4 +51,13 @@ public interface ProjectRoutingResolver {
             return targetProjects;
         }
     };
+
+    /**
+     * SPI interface for providing a {@link ProjectRoutingResolver} instance.
+     */
+    interface Provider {
+        Provider NOOP_PROVIDER = pool -> NOOP;
+
+        ProjectRoutingResolver create(ThreadPool threadPool);
+    }
 }

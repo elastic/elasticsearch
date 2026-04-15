@@ -1111,12 +1111,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
+            if (rangeToWrite.isEmpty()) {
+                listener.onResponse(false);
+                return;
+            }
             try {
-                if (rangeToWrite.isEmpty()) {
-                    listener.onResponse(false);
+                try {
+                    incRefEnsureOpen();
+                } catch (Exception e) {
+                    listener.onFailure(e);
                     return;
                 }
-                incRefEnsureOpen();
                 // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
                 final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(listener.map(unused -> false), this::decRef);
                 try {
@@ -1192,6 +1197,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
                 });
             } catch (Exception e) {
+                decRef();
                 listener.onFailure(e);
             }
         }

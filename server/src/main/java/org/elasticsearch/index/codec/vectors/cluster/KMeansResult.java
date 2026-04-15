@@ -84,6 +84,12 @@ public class KMeansResult {
         return soarAssignments;
     }
 
+    /**
+     * Merge multiple clustering results into a single result by concatenating centroids
+     * in the provided order and reindexing assignments to the merged centroid layout.
+     * Soar assignments are offset the same way; if a result has no soar assignments,
+     * the merged result uses {@code -1} for those positions.exit
+     */
     public static KMeansResult merge(List<KMeansResult> results) {
         int numCentroids = 0;
         int numAssignments = 0;

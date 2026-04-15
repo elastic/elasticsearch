@@ -500,16 +500,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertNotNull(operator);
 
         List<Page> pages = new ArrayList<>();
-        while (operator.isFinished() == false) {
-            Page page = operator.getOutput();
-            if (page != null) {
-                pages.add(page);
+        RuntimeException readFailure = expectThrows(RuntimeException.class, () -> {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
             }
-        }
+        });
+        assertThat(readFailure.getCause(), org.hamcrest.Matchers.instanceOf(IOException.class));
+        assertTrue(readFailure.getCause().getMessage().contains("Simulated read error"));
 
-        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
-        assertNotNull(status.failure());
-        assertTrue(status.failure().getMessage().contains("Simulated read error"));
+        assertEquals("First file should yield one page before the second file fails", 1, pages.size());
 
         for (Page p : pages) {
             p.releaseBlocks();

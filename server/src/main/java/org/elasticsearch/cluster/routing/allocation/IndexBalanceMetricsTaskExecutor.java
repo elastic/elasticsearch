@@ -72,7 +72,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
      * Dynamic setting for the interval at which the task runs its refresh.
      * Default is 1 minute, minimum 100 milliseconds.
      */
-    public static final Setting<TimeValue> INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.index_balance_metrics.refresh_interval",
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMillis(100),
@@ -129,7 +129,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             );
         }
         final var clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING, this::updateRefreshInterval);
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING, this::updateRefreshInterval);
     }
 
     private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {

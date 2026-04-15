@@ -37,7 +37,7 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), true)
-            .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master", "index", "search")
             .build();
     }

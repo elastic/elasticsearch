@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
@@ -796,6 +798,33 @@ public class MultiClustersIT extends ESRestTestCase {
                 remoteClient.performRequest(deleteView);
             }
         }
+    }
+
+    public void testStartsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("STARTS_WITH(_index, \"" + REMOTE_CLUSTER_NAME + ":test-remote\")");
+    }
+
+    public void testEndsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("ENDS_WITH(_index, \"remote-index\")");
+    }
+
+    private void assertRemoteIndexPredicate(String predicate) throws Exception {
+        assumeTrue(
+            "requires fix",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX.capabilityName()))
+        );
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+
+        Map<String, Object> result = run(LoggerMessageFormat.format(null, """
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE {}
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, predicate), includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
     }
 
     public static class ClusterSettingToggle implements AutoCloseable {

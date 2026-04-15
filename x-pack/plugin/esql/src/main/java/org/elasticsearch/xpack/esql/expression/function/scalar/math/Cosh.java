@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,11 @@ import java.util.List;
 public class Cosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cosh", Cosh::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Cosh.class).unary(Cosh::new).name("cosh");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Cosh::new)
+        .description("Calculates the hyperbolic cosine of all elements in the input vector.")
+        .example("cosh(some_metric)")
+        .name("cosh");
 
     @FunctionInfo(
         returnType = "double",

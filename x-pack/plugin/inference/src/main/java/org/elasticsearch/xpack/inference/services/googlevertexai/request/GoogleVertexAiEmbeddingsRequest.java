@@ -13,8 +13,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
@@ -23,7 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
+public class GoogleVertexAiEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final Truncator truncator;
 
@@ -69,7 +71,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequest.decorateWithBearerToken(httpPost, model.getSecretSettings());
+        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     Truncator truncator() {
@@ -104,5 +106,10 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

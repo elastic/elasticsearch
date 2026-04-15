@@ -10,14 +10,13 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.request;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 
-public interface GoogleAiStudioRequest extends Request {
+public final class GoogleAiStudioRequestUtils {
 
-    String API_KEY_PARAMETER = "key";
+    private static final String API_KEY_PARAMETER = "key";
 
     static void decorateWithApiKeyParameter(HttpPost httpPost, DefaultSecretSettings secretSettings) {
         try {
@@ -38,4 +37,5 @@ public interface GoogleAiStudioRequest extends Request {
             .addParameter(API_KEY_PARAMETER, secretSettings.apiKey().toString());
     }
 
+    private GoogleAiStudioRequestUtils() {}
 }

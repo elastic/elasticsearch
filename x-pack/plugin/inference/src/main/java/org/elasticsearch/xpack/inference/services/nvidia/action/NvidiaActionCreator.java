@@ -49,7 +49,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new NvidiaEmbeddingsResponseHandler(
-        "NVIDIA text embedding",
+        "NVIDIA embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 

@@ -285,7 +285,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
+    }
 
+    @Override
+    protected boolean supportsImageEmbeddingContent() {
+        return true;
     }
 
     @Override

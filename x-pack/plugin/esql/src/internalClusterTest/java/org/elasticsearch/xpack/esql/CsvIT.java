@@ -376,8 +376,25 @@ public class CsvIT extends ESTestCase {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
-                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
-                var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (pattern.equals("*")) {
+                    switch (currentGroupName) {
+                        // Temporarily allow a few so they have time to migrate away
+                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        default -> throw new IllegalStateException(
+                            "FROM * is not allowed in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                        );
+                    }
+                    return CSV_DATASET.values().stream();
+                }
+                if (pattern.endsWith("*") == false) {
+                    throw new IllegalStateException("CsvIT only supports suffix patterns but got: " + pattern);
+                }
+                String prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                if (prefix.length() < 3) {
+                    throw new IllegalStateException(
+                        "FROM pattern* may not be short in csv-spec tests because it makes them brittle. We add new data sets frequently."
+                    );
+                }
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
                 return Stream.of(CSV_DATASET.get(pattern));

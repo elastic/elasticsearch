@@ -3363,6 +3363,77 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForSearchReadyListener() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForSearchReady(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        recoverShardFromStore(primary);
+        assertThat("listener should have been called after recovery", called.get(), equalTo(true));
+
+        closeShards(primary);
+    }
+
+    public void testWaitForSearchReadyOnClose() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        primary.waitForSearchReady(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                called.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failed.set(true);
+            }
+        });
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        closeShards(primary);
+        assertThat("listener should not have succeeded", called.get(), equalTo(false));
+        assertThat("listener should have failed on close", failed.get(), equalTo(true));
+    }
+
+    public void testWaitForSearchReadyWhenAlreadyStarted() throws IOException {
+        IndexShard primary = newStartedShard(true);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForSearchReady(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should have been called immediately for a started shard", called.get(), equalTo(true));
+
+        closeShards(primary);
+    }
+
+    public void testWaitForSearchReadyMultipleListeners() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        int listenerCount = randomIntBetween(2, 10);
+        AtomicInteger completedCount = new AtomicInteger(0);
+        for (int i = 0; i < listenerCount; i++) {
+            primary.waitForSearchReady(ActionListener.running(completedCount::incrementAndGet));
+        }
+        assertThat("no listeners should have been called yet", completedCount.get(), equalTo(0));
+
+        recoverShardFromStore(primary);
+        assertThat("all listeners should have been called", completedCount.get(), equalTo(listenerCount));
+
+        closeShards(primary);
+    }
+
     public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""

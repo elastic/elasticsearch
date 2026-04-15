@@ -285,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexShardOperationPermits indexShardOperationPermits;
 
     private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY);
+    private final SubscribableListener<Void> searchReadyListener = new SubscribableListener<>();
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
     // in state RECOVERING or POST_RECOVERY.
@@ -956,6 +957,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndexShardState previousState = state;
         state = newState;
         this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
+        if (readAllowedStates.contains(newState)) {
+            searchReadyListener.onResponse(null);
+        }
         return previousState;
     }
 
@@ -1929,6 +1933,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     checkAndCallWaitForEngineOrClosedShardListeners();
                 } finally {
+                    searchReadyListener.onFailure(new IndexShardClosedException(shardId));
                     final Engine engine = getAndSetCurrentEngine(null);
                     closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
                         @Override
@@ -4941,6 +4946,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void waitForEngineOrClosedShard(ActionListener<Void> listener) {
         waitForEngineOrClosedShardListeners.addListener(listener);
+    }
+
+    /**
+     * Registers a listener that is notified when the shard reaches a state that allows search operations
+     * ({@link IndexShardState#POST_RECOVERY} or {@link IndexShardState#STARTED}). If the shard is already
+     * in a search-ready state, the listener is notified immediately.
+     */
+    public void waitForSearchReady(ActionListener<Void> listener) {
+        searchReadyListener.addListener(listener);
     }
 
     /**

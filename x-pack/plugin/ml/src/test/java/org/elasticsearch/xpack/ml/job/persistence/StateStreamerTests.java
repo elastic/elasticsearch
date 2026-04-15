@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
@@ -107,8 +108,8 @@ public class StateStreamerTests extends ESTestCase {
             hits[i++] = hit;
         }
         SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
-        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
         return searchResponse;
     }
 

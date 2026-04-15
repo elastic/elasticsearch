@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.TimeField;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -582,20 +583,20 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hits.add(hit);
         }
         SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(searchResponse.getHits()).thenReturn(searchHits);
         when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
         return searchResponse;
     }
 
     private SearchResponse createSummaryResponse(long start, long end, long totalHits) {
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(
-            new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1)
-        );
+        SearchHits summaryHits = new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
+        when(searchResponse.getHits()).thenReturn(summaryHits);
         when(searchResponse.getAggregations()).thenReturn(
             InternalAggregations.from(List.of(new Min("earliest_time", start, null, null), new Max("latest_time", end, null, null)))
         );
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, summaryHits);
         return searchResponse;
     }
 

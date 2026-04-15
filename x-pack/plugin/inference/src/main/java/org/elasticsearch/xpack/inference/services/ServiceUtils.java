@@ -301,6 +301,7 @@ public final class ServiceUtils {
 
     /**
      * Extracts an optional URI from the map. If the field is not present, null is returned. If the field is present but invalid,
+     * an error is added to the validation exception.
      * @param map the map to extract the URI from
      * @param fieldName the field name to extract
      * @param validationException the validation exception to add errors to

@@ -25,9 +25,6 @@ public class VectorOpsTests extends ESTestCase {
             x[i] = randomFloat();
         }
 
-        float a = MathUtils.log2NQT(0.25f);
-        System.out.println(a);
-
         assertEquals(logSumExpBase2(x), ESVectorUtil.logSumExpNQT(x), 1e-1);
 
         // Example with large numbers prone to overflow in naive implementation

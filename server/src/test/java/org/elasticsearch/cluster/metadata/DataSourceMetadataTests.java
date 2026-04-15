@@ -78,14 +78,17 @@ public class DataSourceMetadataTests extends AbstractChunkedSerializingTestCase<
         return new DataSourceSetting(value, secret);
     }
 
-    public void testContextExcludesApi() {
-        // Regression guard: DataSourceMetadata must not be emitted in the API context. The cluster-state framework
-        // reads context() to decide inclusion, so restricting it to GATEWAY + SNAPSHOT is what keeps plaintext secrets
-        // out of GET /_cluster/state responses until the encryption layer lands.
+    public void testContextIsGatewayOnly() {
+        // Regression guard. The cluster-state framework reads context() to decide inclusion:
+        // - API is excluded because the raw XContent contains plaintext secret setting values, which must not appear
+        // in GET /_cluster/state.
+        // - SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets; restoring a
+        // cluster state containing data sources would produce unusable configurations.
         DataSourceMetadata metadata = new DataSourceMetadata(
             Map.of("my-s3", new DataSource("my-s3", "s3", null, Map.of("access_key", new DataSourceSetting("AKIA_LEAK_CHECK", true))))
         );
-        assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT), metadata.context());
+        assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY), metadata.context());
         assertFalse(metadata.context().contains(Metadata.XContentContext.API));
+        assertFalse(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
     }
 }

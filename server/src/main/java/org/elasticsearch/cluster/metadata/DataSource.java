@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -61,7 +62,7 @@ public final class DataSource implements Writeable, ToXContentObject {
     private final String description;
     private final Map<String, DataSourceSetting> settings;
 
-    public DataSource(String name, String type, String description, Map<String, DataSourceSetting> settings) {
+    public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
@@ -100,11 +101,24 @@ public final class DataSource implements Writeable, ToXContentObject {
         return settings;
     }
 
-    /** Flatten settings for the query pipeline. Values are plaintext including secrets. */
+    /**
+     * Flatten settings for the query pipeline. Values are plaintext including secrets. Each setting is accessed
+     * through its classification-specific accessor (non-secret vs secret), so this iteration is explicit about
+     * producing plaintext for both kinds.
+     */
     public Map<String, Object> toUnencryptedMap() {
         Map<String, Object> result = new HashMap<>();
         for (var entry : settings.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().unencryptedValue());
+            DataSourceSetting setting = entry.getValue();
+            Object plaintext;
+            if (setting.secret()) {
+                try (var secure = setting.secretValue()) {
+                    plaintext = secure == null ? null : secure.toString();
+                }
+            } else {
+                plaintext = setting.nonSecretValue();
+            }
+            result.put(entry.getKey(), plaintext);
         }
         return Map.copyOf(result);
     }
@@ -164,7 +178,7 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        // Uses toPresentationMap() so secret values appear as "**********" rather than their raw form.
+        // Uses toPresentationMap() so secret values appear as "::es_redacted::" rather than their raw form.
         return "DataSource{name='"
             + name
             + "', type='"

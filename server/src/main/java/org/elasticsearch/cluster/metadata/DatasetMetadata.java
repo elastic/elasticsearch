@@ -75,6 +75,8 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
     }
 
     public DatasetMetadata(Map<String, Dataset> datasets) {
+        assert datasets.entrySet().stream().allMatch(e -> e.getKey().equals(e.getValue().name()))
+            : "DatasetMetadata map key must match Dataset.name(): " + datasets;
         this.datasets = Collections.unmodifiableMap(datasets);
     }
 
@@ -89,8 +91,10 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // Datasets carry no secrets (credentials live on the parent data source), so full API exposure is intentional.
-        return Metadata.ALL_CONTEXTS;
+        // API + GATEWAY. Datasets carry no secrets (credentials live on the parent data source), so full API exposure
+        // is intentional. SNAPSHOT is excluded to stay consistent with DataSourceMetadata: restoring datasets without
+        // their data sources would leave dangling references. Snapshot support is tracked as a future milestone.
+        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
     }
 
     @Override
@@ -125,6 +129,11 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public int hashCode() {
         return Objects.hash(datasets);
+    }
+
+    @Override
+    public String toString() {
+        return "DatasetMetadata{count=" + datasets.size() + ", names=" + datasets.keySet() + "}";
     }
 
     public static DatasetMetadata get(ProjectMetadata project) {

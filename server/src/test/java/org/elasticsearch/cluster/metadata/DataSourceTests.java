@@ -12,18 +12,85 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
-public class DataSourceTests extends ESTestCase {
+public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSource> {
 
-    public void testWriteableRoundTrip() throws IOException {
+    @Override
+    protected DataSource doParseInstance(XContentParser parser) throws IOException {
+        return DataSource.fromXContent(parser);
+    }
+
+    @Override
+    protected Writeable.Reader<DataSource> instanceReader() {
+        return DataSource::new;
+    }
+
+    @Override
+    protected DataSource createTestInstance() {
+        return randomDataSource();
+    }
+
+    @Override
+    protected DataSource mutateInstance(DataSource instance) {
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new DataSource(
+                randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
+                instance.type(),
+                instance.description(),
+                instance.settings()
+            );
+            case 1 -> new DataSource(
+                instance.name(),
+                randomValueOtherThan(instance.type(), () -> randomFrom("s3", "gcs", "azure")),
+                instance.description(),
+                instance.settings()
+            );
+            case 2 -> new DataSource(
+                instance.name(),
+                instance.type(),
+                randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
+                instance.settings()
+            );
+            default -> new DataSource(
+                instance.name(),
+                instance.type(),
+                instance.description(),
+                randomValueOtherThan(instance.settings(), DataSourceTests::randomSettings)
+            );
+        };
+    }
+
+    private static DataSource randomDataSource() {
+        return new DataSource(
+            randomAlphaOfLength(8).toLowerCase(Locale.ROOT),
+            randomFrom("s3", "gcs", "azure"),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
+            randomSettings()
+        );
+    }
+
+    private static Map<String, DataSourceSetting> randomSettings() {
+        int count = randomIntBetween(0, 4);
+        Map<String, DataSourceSetting> settings = new HashMap<>(count);
+        for (int i = 0; i < count; i++) {
+            boolean secret = randomBoolean();
+            Object value = secret ? randomAlphaOfLength(8) : randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean());
+            settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), new DataSourceSetting(value, secret));
+        }
+        return settings;
+    }
+
+    public void testWriteableRoundTripExplicit() throws IOException {
         var dataSource = new DataSource(
             "my-s3",
             "s3",
@@ -65,7 +132,7 @@ public class DataSourceTests extends ESTestCase {
         );
 
         Map<String, Object> masked = dataSource.toPresentationMap();
-        assertEquals("**********", masked.get("access_key"));
+        assertEquals("::es_redacted::", masked.get("access_key"));
         assertEquals("us-east-1", masked.get("region"));
     }
 
@@ -115,14 +182,14 @@ public class DataSourceTests extends ESTestCase {
         String summary = dataSource.toString();
         assertFalse("raw access_key leaked in toString: " + summary, summary.contains("AKIA_ABSOLUTELY_SECRET"));
         assertFalse("raw secret_key leaked in toString: " + summary, summary.contains("wJal_VERY_PRIVATE"));
-        assertTrue("masked sentinel not present in toString: " + summary, summary.contains("**********"));
+        assertTrue("masked sentinel not present in toString: " + summary, summary.contains("::es_redacted::"));
         assertTrue("non-secret value missing from toString: " + summary, summary.contains("us-east-1"));
     }
 
     public void testXContentRoundTripHeterogeneousSettings() throws IOException {
-        // Exercises all JSON-native value types inside the settings map (String, Integer, Long, Double,
-        // Boolean, null) to verify both the per-setting XContent contract and the containing DataSource's
-        // map serialization. Secrets must be String-valued (invariant), so the non-String cases are non-secret.
+        // Exercises all JSON-native value types inside the settings map (String, Integer, Long, Double, Boolean, null)
+        // to verify both the per-setting XContent contract and the containing DataSource's map serialization.
+        // Secrets must be String-valued (invariant), so the non-String cases are non-secret.
         Map<String, DataSourceSetting> settings = new HashMap<>();
         settings.put("access_key", new DataSourceSetting("AKIA123", true));
         settings.put("region", new DataSourceSetting("us-east-1", false));
@@ -132,20 +199,20 @@ public class DataSourceTests extends ESTestCase {
         settings.put("use_path_style", new DataSourceSetting(true, false));
         settings.put("optional_label", new DataSourceSetting(null, false));
         var dataSource = new DataSource("my-s3", "s3", "Production S3 bucket", settings);
-        assertXContentRoundTrip(dataSource);
+        assertExplicitXContentRoundTrip(dataSource);
     }
 
     public void testXContentRoundTripNoDescription() throws IOException {
         var dataSource = new DataSource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)));
-        assertXContentRoundTrip(dataSource);
+        assertExplicitXContentRoundTrip(dataSource);
     }
 
     public void testXContentRoundTripEmptySettings() throws IOException {
         var dataSource = new DataSource("my-s3", "s3", "desc", Map.of());
-        assertXContentRoundTrip(dataSource);
+        assertExplicitXContentRoundTrip(dataSource);
     }
 
-    private void assertXContentRoundTrip(DataSource dataSource) throws IOException {
+    private void assertExplicitXContentRoundTrip(DataSource dataSource) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         dataSource.toXContent(builder, null);
 

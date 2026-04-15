@@ -337,7 +337,7 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         Exception e = expectThrows(IllegalStateException.class, projectBuilder::build);
-        assertThat(e.getMessage(), startsWith("index, alias, data stream, and view names need to be unique"));
+        assertThat(e.getMessage(), startsWith("index, alias, data stream, view, and dataset names need to be unique"));
     }
 
     public void testValidateAliasWriteOnly() {
@@ -969,8 +969,8 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, data stream, and view names need to be unique, but the following duplicates were found [data "
-                    + "stream ["
+                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found "
+                    + "[data stream ["
                     + dataStreamName
                     + "] conflicts with index]"
             )
@@ -988,7 +988,7 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, data stream, and view names need to be unique, but the following duplicates were found ["
+                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
                     + dataStreamName
                     + " (alias of ["
                     + idx.getIndex().getName()
@@ -1013,7 +1013,7 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, data stream, and view names need to be unique, but the following duplicates were found "
+                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found "
                     + "[dataset ["
                     + conflictingName
                     + "] conflicts with index]"

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -69,7 +70,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private final String description;
     private final Map<String, Object> settings;
 
-    public Dataset(String name, String dataSource, String resource, String description, Map<String, Object> settings) {
+    public Dataset(String name, String dataSource, String resource, @Nullable String description, Map<String, Object> settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");

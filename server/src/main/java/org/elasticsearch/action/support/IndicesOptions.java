@@ -536,12 +536,13 @@ public record IndicesOptions(
         ALLOW_FAILURE_INDICES,  // Added in 8.14, Removed in 8.18
         ALLOW_SELECTORS,        // Added in 8.18
         INCLUDE_FAILURE_INDICES, // Added in 8.18
-        RESOLVE_VIEWS,
-        RESOLVE_DATASETS
+        RESOLVE_VIEWS
+        // Note: resolveDatasets is intentionally NOT serialized across the wire. All dataset resolution runs on the
+        // coordinating node against cluster state, and there is no transport action that depends on this flag on the
+        // receiving side. Dropping the wire bit keeps the options format smaller and avoids a transport version gate.
     }
 
     public static final TransportVersion INDICES_OPTIONS_RESOLVE_VIEWS = TransportVersion.fromName("esql_resolve_fields_response_views");
-    public static final TransportVersion INDICES_OPTIONS_RESOLVE_DATASETS = TransportVersion.fromName("esql_datasources");
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
     private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated "
@@ -910,9 +911,7 @@ public record IndicesOptions(
         if (indexAbstractionOptions.resolveViews() && out.getTransportVersion().supports(INDICES_OPTIONS_RESOLVE_VIEWS)) {
             backwardsCompatibleOptions.add(Option.RESOLVE_VIEWS);
         }
-        if (indexAbstractionOptions.resolveDatasets() && out.getTransportVersion().supports(INDICES_OPTIONS_RESOLVE_DATASETS)) {
-            backwardsCompatibleOptions.add(Option.RESOLVE_DATASETS);
-        }
+        // resolveDatasets is not serialized — always coord-local. See the Option enum comment.
         out.writeEnumSet(backwardsCompatibleOptions);
 
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
@@ -947,7 +946,9 @@ public record IndicesOptions(
         IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(
             options.contains(Option.EXCLUDE_ALIASES) == false,
             options.contains(Option.RESOLVE_VIEWS),
-            options.contains(Option.RESOLVE_DATASETS)
+            // resolveDatasets is not serialized across the wire; it is a coord-local flag. After deserialization it
+            // defaults to false; any caller that needs dataset resolution will set it on the receiving-side instance.
+            false
         );
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)

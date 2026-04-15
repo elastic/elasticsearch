@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -46,6 +47,14 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
         )
     );
     public static final DataSourceMetadata EMPTY = new DataSourceMetadata(Collections.emptyMap());
+
+    /**
+     * Feature flag that gates the ES|QL external data sources feature end-to-end: metadata registration,
+     * dataset-aware error messages, collision detection preambles, and the downstream CRUD/EXTERNAL surfaces.
+     * Kept here (on the server-side foundational class) so that both {@code server} and {@code x-pack} consumers
+     * can reference a single source of truth. System property: {@code es.esql_external_datasources_feature_flag_enabled}.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG = new FeatureFlag("esql_external_datasources");
 
     /**
      * Shared transport version for {@link DataSourceMetadata} and {@link DatasetMetadata}. Both metadata
@@ -84,6 +93,8 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
     }
 
     public DataSourceMetadata(Map<String, DataSource> dataSources) {
+        assert dataSources.entrySet().stream().allMatch(e -> e.getKey().equals(e.getValue().name()))
+            : "DataSourceMetadata map key must match DataSource.name(): " + dataSources;
         this.dataSources = Collections.unmodifiableMap(dataSources);
     }
 
@@ -98,9 +109,12 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // Excludes API context: the raw XContent contains plaintext secret setting values, which must not appear in
-        // GET /_cluster/state. The CRUD REST layer exposes data sources separately via a masked path (presentationValue).
-        return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
+        // GATEWAY only. API is excluded because the raw XContent contains plaintext secret setting values, which must
+        // not appear in GET /_cluster/state; the CRUD REST layer exposes data sources separately via a masked path
+        // (presentationValue). SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets,
+        // so restoring a cluster state containing data sources would produce unusable configurations. Snapshot support
+        // is tracked as a future milestone and will require a key-availability story for restore.
+        return EnumSet.of(Metadata.XContentContext.GATEWAY);
     }
 
     @Override
@@ -134,6 +148,13 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
     @Override
     public int hashCode() {
         return Objects.hash(dataSources);
+    }
+
+    @Override
+    public String toString() {
+        // Names only — values can contain secrets and must never appear in toString. For per-setting presentation
+        // output, callers should use DataSource.toPresentationMap() explicitly.
+        return "DataSourceMetadata{count=" + dataSources.size() + ", names=" + dataSources.keySet() + "}";
     }
 
     public static DataSourceMetadata get(ProjectMetadata project) {

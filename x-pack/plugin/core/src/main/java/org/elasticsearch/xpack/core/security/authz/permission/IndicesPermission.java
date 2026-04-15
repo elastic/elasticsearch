@@ -548,7 +548,7 @@ public final class IndicesPermission {
          * In case when the IndexResource is a view or dataset, it returns the abstraction name only.
          * The returned collection is the one that DLS or FLS permissions need to be checked for.
          */
-        public Collection<String> resolveConcreteIndicesAndViews(List<Index> failureIndices) {
+        public Collection<String> resolveConcreteIndicesViewsAndDatasets(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
@@ -658,7 +658,7 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndicesAndViews = resource.resolveConcreteIndicesAndViews(
+            final Collection<String> concreteIndicesViewsAndDatasets = resource.resolveConcreteIndicesViewsAndDatasets(
                 failureIndicesByIndexResource.get(resourceEntry.getKey())
             );
             for (Group group : groups) {
@@ -671,7 +671,7 @@ public final class IndicesPermission {
                             && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
                         granted = true;
                         // propagate DLS and FLS permissions over the concrete indices and views
-                        for (String index : concreteIndicesAndViews) {
+                        for (String index : concreteIndicesViewsAndDatasets) {
                             final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
                                 if (existingSet == null) {
                                     // Most indices rely on the default (empty) field permissions object, so we optimize for that case
@@ -719,7 +719,7 @@ public final class IndicesPermission {
                 grantedResources.add(resourceName);
 
                 if (resource.canHaveBackingIndices()) {
-                    for (String concreteIndex : concreteIndicesAndViews) {
+                    for (String concreteIndex : concreteIndicesViewsAndDatasets) {
                         // If the name appears directly as part of the requested indices, it takes precedence over implicit access
                         if (false == requestedResources.containsKey(concreteIndex)) {
                             grantedResources.add(concreteIndex);

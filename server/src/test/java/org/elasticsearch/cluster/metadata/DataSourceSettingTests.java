@@ -26,7 +26,7 @@ public class DataSourceSettingTests extends ESTestCase {
         var setting = new DataSourceSetting("my-value", false);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        assertEquals("my-value", deserialized.unencryptedValue());
+        assertEquals("my-value", deserialized.nonSecretValue());
         assertFalse(deserialized.secret());
     }
 
@@ -34,7 +34,9 @@ public class DataSourceSettingTests extends ESTestCase {
         var setting = new DataSourceSetting("AKIA123", true);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        assertEquals("AKIA123", deserialized.unencryptedValue());
+        try (var s = deserialized.secretValue()) {
+            assertEquals("AKIA123", s.toString());
+        }
         assertTrue(deserialized.secret());
     }
 
@@ -42,43 +44,43 @@ public class DataSourceSettingTests extends ESTestCase {
         var setting = new DataSourceSetting(42, false);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        assertEquals(42, deserialized.unencryptedValue());
+        assertEquals(42, deserialized.nonSecretValue());
     }
 
     public void testWriteableRoundTripBoolean() throws IOException {
         var setting = new DataSourceSetting(true, false);
         var deserialized = writeableRoundTrip(setting);
-        assertEquals(true, deserialized.unencryptedValue());
+        assertEquals(true, deserialized.nonSecretValue());
     }
 
     public void testWriteableRoundTripNull() throws IOException {
         var setting = new DataSourceSetting(null, false);
         var deserialized = writeableRoundTrip(setting);
-        assertNull(deserialized.unencryptedValue());
+        assertNull(deserialized.nonSecretValue());
     }
 
     public void testWriteableRoundTripLong() throws IOException {
         var setting = new DataSourceSetting(9_999_999_999L, false);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        assertEquals(9_999_999_999L, deserialized.unencryptedValue());
+        assertEquals(9_999_999_999L, deserialized.nonSecretValue());
     }
 
     public void testWriteableRoundTripDouble() throws IOException {
         var setting = new DataSourceSetting(3.14159, false);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        assertEquals(3.14159, (Double) deserialized.unencryptedValue(), 0.0);
+        assertEquals(3.14159, (Double) deserialized.nonSecretValue(), 0.0);
     }
 
-    public void testUnencryptedValue() {
+    public void testNonSecretValueThrowsIfSecret() {
         var setting = new DataSourceSetting("secret-key", true);
-        assertEquals("secret-key", setting.unencryptedValue());
+        expectThrows(IllegalStateException.class, setting::nonSecretValue);
     }
 
     public void testPresentationValueSecret() {
         var setting = new DataSourceSetting("secret-key", true);
-        assertEquals("**********", setting.presentationValue());
+        assertEquals("::es_redacted::", setting.presentationValue());
     }
 
     public void testPresentationValuePlaintext() {
@@ -89,7 +91,7 @@ public class DataSourceSettingTests extends ESTestCase {
     public void testToStringMasksSecrets() {
         var secret = new DataSourceSetting("password123", true);
         assertFalse(secret.toString().contains("password123"));
-        assertTrue(secret.toString().contains("***"));
+        assertTrue(secret.toString().contains("::es_redacted::"));
 
         var plaintext = new DataSourceSetting("us-east-1", false);
         assertTrue(plaintext.toString().contains("us-east-1"));
@@ -121,7 +123,7 @@ public class DataSourceSettingTests extends ESTestCase {
     public void testSecretMayBeNull() {
         // Null is the explicit "no value" state and is allowed even when secret=true.
         var setting = new DataSourceSetting(null, true);
-        assertNull(setting.unencryptedValue());
+        assertNull(setting.secretValue());
     }
 
     public void testSecretValueReturnsSecureString() {
@@ -159,8 +161,7 @@ public class DataSourceSettingTests extends ESTestCase {
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         var deserialized = DataSourceSetting.fromXContent(parser);
-        assertEquals(setting.unencryptedValue(), deserialized.unencryptedValue());
-        assertEquals(setting.secret(), deserialized.secret());
+        assertEquals(setting, deserialized);
     }
 
     private static DataSourceSetting writeableRoundTrip(DataSourceSetting setting) throws IOException {

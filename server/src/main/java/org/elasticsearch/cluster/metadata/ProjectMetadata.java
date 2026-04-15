@@ -1770,10 +1770,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
 
         /**
-         * Verifies that the names of indices, aliases, data streams, views, and datasets do not collide
-         * with each other. Note that dataSources are not included in this check: they are not index
-         * abstractions and do not participate in the index namespace — they are configuration objects
-         * referenced by datasets, not queryable entities themselves.
+         * Verifies that the names of indices, aliases, data streams, views, and datasets do not collide with each other.
          */
         static void ensureNoNameCollisions(
             Set<String> indexAliases,
@@ -1851,18 +1848,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
             if (duplicates.isEmpty() == false) {
-                // Note: the preamble intentionally does not mention "dataset" because datasets are not yet
-                // user-visible (no CRUD API, no releases). Mentioning them here would leak the concept into error
-                // messages users hit during ordinary index/alias/data-stream/view operations. The specific duplicate
-                // strings below DO mention "dataset" when a dataset is actually involved in a collision, but that
-                // path is gated by dataset existence, which is impossible for user-facing clusters today.
-                // Update this preamble when the CRUD feature ships.
-                throw new IllegalStateException(
-                    "index, alias, data stream, and view names need to be unique, but the following duplicates "
-                        + "were found ["
-                        + Strings.collectionToCommaDelimitedString(duplicates)
-                        + "]"
-                );
+                // The preamble enumeration is gated by the ES|QL external data sources feature flag. When the flag is
+                // off, datasets are not user-visible (no CRUD API) and must not appear in messages users can hit during
+                // ordinary index/alias/data-stream/view operations. The specific duplicate strings above already mention
+                // "dataset" when a dataset is actually involved in a collision, but that can only happen after datasets
+                // exist in cluster state, which requires the feature flag to be on.
+                String preamble = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                    ? "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
+                    : "index, alias, data stream, and view names need to be unique, but the following duplicates were found [";
+                throw new IllegalStateException(preamble + Strings.collectionToCommaDelimitedString(duplicates) + "]");
             }
         }
 

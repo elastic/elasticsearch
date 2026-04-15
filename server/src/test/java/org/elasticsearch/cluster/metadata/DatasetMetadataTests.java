@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +54,17 @@ public class DatasetMetadataTests extends AbstractChunkedSerializingTestCase<Dat
             datasets.put(name, randomDataset(name));
         }
         return new DatasetMetadata(datasets);
+    }
+
+    public void testContextExcludesSnapshot() {
+        // Regression guard. Datasets carry no secrets, so API exposure is intentional. SNAPSHOT is excluded to stay
+        // consistent with DataSourceMetadata: restoring datasets without their data sources would leave dangling
+        // references, so both types must move together when snapshot support is enabled in a future milestone.
+        DatasetMetadata metadata = new DatasetMetadata(
+            Map.of("my-dataset", new Dataset("my-dataset", "my-source", "s3://bucket/key", null, Map.of()))
+        );
+        assertEquals(EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY), metadata.context());
+        assertFalse(metadata.context().contains(Metadata.XContentContext.SNAPSHOT));
     }
 
     static String randomName() {

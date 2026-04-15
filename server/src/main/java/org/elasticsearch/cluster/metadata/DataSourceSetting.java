@@ -26,17 +26,18 @@ import java.util.Objects;
  * A validated data source setting value paired with its sensitivity classification.
  * Stored in cluster state as part of data source metadata.
  *
- * <p>Non-secret settings may carry any JSON-native value (String, Integer, Long, Double,
- * Boolean, or null). Secret settings must be String-valued (or null); the constructor
- * enforces this invariant.
+ * <p>Secret settings must be String-valued (or null) — the constructor enforces this invariant. Non-secret settings
+ * may carry any value that round-trips through {@link StreamOutput#writeGenericValue} and the XContent writer
+ * (in practice: String, Integer, Long, Double, Boolean, null, and nested maps or lists).
  *
- * <p>Read accessors:
+ * <p>Read accessors are split by secret classification so that access to plaintext secrets is always
+ * explicit at the call site. There is no generic {@code value()} accessor.
  * <ul>
- *   <li>{@link #unencryptedValue()} — returns the in-memory plaintext value as {@code Object}.</li>
+ *   <li>{@link #nonSecretValue()} — returns the plaintext {@code Object} for a non-secret setting;
+ *       throws if the setting is a secret.</li>
  *   <li>{@link #secretValue()} — returns the plaintext as a {@link SecureString} for secrets only;
- *       use in a try-with-resources to zero the chars when done.</li>
- *   <li>{@link #presentationValue()} — masks if secret, else returns the plaintext;
- *       safe for REST responses.</li>
+ *       use in a try-with-resources to zero the chars when done. Throws if the setting is not a secret.</li>
+ *   <li>{@link #presentationValue()} — masks if secret, else returns the plaintext; safe for REST responses.</li>
  *   <li>{@link #toString()} — masks secret values.</li>
  * </ul>
  *
@@ -47,7 +48,7 @@ import java.util.Objects;
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 
-    static final String MASK_SENTINEL = "**********";
+    static final String MASK_SENTINEL = "::es_redacted::";
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField SECRET = new ParseField("secret");
@@ -84,9 +85,10 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
+        // Delegate to the primary constructor so the same validation (secret values must be String or null) runs on
+        // the wire deserialization path as on direct construction.
+        this(in.readGenericValue(), in.readBoolean());
         // TODO(encryption): decrypt secret values on read.
-        this.value = in.readGenericValue();
-        this.secret = in.readBoolean();
     }
 
     @Override
@@ -100,8 +102,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         return secret;
     }
 
-    /** Plaintext in-memory value. For secret values, prefer {@link #secretValue()} to obtain a {@link SecureString}. */
-    public Object unencryptedValue() {
+    /**
+     * Plaintext in-memory value for a non-secret setting. Throws if this setting is a secret —
+     * secret values must go through {@link #secretValue()} so that plaintext access is explicit at every call site.
+     */
+    public Object nonSecretValue() {
+        if (secret) {
+            throw new IllegalStateException("secret setting — use secretValue() for SecureString access");
+        }
         return value;
     }
 
@@ -116,14 +124,14 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
      */
     public SecureString secretValue() {
         if (secret == false) {
-            throw new IllegalStateException("not a secret setting");
+            throw new IllegalStateException("not a secret setting — use nonSecretValue()");
         }
         return value == null ? null : new SecureString(((String) value).toCharArray());
     }
 
     /** Returns the masked sentinel for secrets, or the plaintext value otherwise. Safe for REST responses. */
     public Object presentationValue() {
-        return secret ? MASK_SENTINEL : unencryptedValue();
+        return secret ? MASK_SENTINEL : value;
     }
 
     public static DataSourceSetting fromXContent(XContentParser parser) throws IOException {

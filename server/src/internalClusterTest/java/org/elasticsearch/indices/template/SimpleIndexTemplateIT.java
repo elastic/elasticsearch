@@ -654,7 +654,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         InvalidAliasNameException e = expectThrows(InvalidAliasNameException.class, () -> createIndex("test"));
         assertThat(
             e.getMessage(),
-            equalTo("Invalid alias name [index]: an index, data stream, or ESQL view exists with the same name as the alias")
+            equalTo("Invalid alias name [index]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias")
         );
     }
 

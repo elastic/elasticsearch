@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 public class EsqlConfig {
@@ -38,7 +38,7 @@ public class EsqlConfig {
      * the feature flag alone.
      */
     public boolean isExternalDataSourcesEnabled() {
-        if (EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false) {
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false) {
             return false;
         }
         return isDevVersion || Build.current().isSnapshot() == false;

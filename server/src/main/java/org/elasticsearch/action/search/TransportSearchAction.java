@@ -930,6 +930,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getShardFailures(),
                             clusters,
                             searchResponse.pointInTimeId(),
+                            null,
                             null
                         )
                     );
@@ -2093,7 +2094,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
-                    searchRequestAttributes
+                    searchRequestAttributes,
+                    false
                 ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)

@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -121,6 +122,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * in order to compute a correct scroll keep alive time.
      */
     private final AtomicInteger totalBatchSizeInSingleScrollResponse = new AtomicInteger();
+    /**
+     * Minimum time a relocated task must run before it can be relocated again.
+     * Prevents quick back-to-back relocations that could cause issues with tasks endpoints,
+     * as of writing, mainly race condition in list where a two-listing approach could hit two relocations and have missing results.
+     */
+    private final long relocationCooldownNanos;
 
     /**
      * Version of the remote cluster when reindexing from remote, or null when reindexing locally.
@@ -138,7 +145,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         Request mainRequest,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
-        @Nullable ReindexSslConfig sslConfig
+        @Nullable ReindexSslConfig sslConfig,
+        TimeValue maxTaskShutdownGracePeriod
     ) {
         this(
             task,
@@ -153,7 +161,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             listener,
             scriptService,
             sslConfig,
-            null
+            null,
+            maxTaskShutdownGracePeriod
         );
     }
 
@@ -170,7 +179,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
-        @Nullable Version remoteVersion
+        @Nullable Version remoteVersion,
+        TimeValue maxTaskShutdownGracePeriod
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -185,6 +195,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
+        this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
@@ -194,6 +205,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
             prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+    }
+
+    /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
+    static long computeRelocationCooldownNanos(TimeValue maxTaskShutdownGracePeriod) {
+        assert maxTaskShutdownGracePeriod.nanos() >= 0 : "shutdownTimeout must be non-negative"; // implicit nullcheck
+        // 5s should give us strong guarantees that list race condition won't happen, anything above 30s is likely redundant
+        final long lowerBoundNanos = TimeUnit.SECONDS.toNanos(5);
+        final long upperBoundNanos = TimeUnit.SECONDS.toNanos(30);
+        return Math.clamp(maxTaskShutdownGracePeriod.nanos() / 2, lowerBoundNanos, upperBoundNanos);
     }
 
     /**
@@ -589,66 +609,73 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
         if (asyncResponse.hasRemainingHits()) {
+            // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
             onScrollResponse(asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {
-            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
-            if (nodeToRelocateTo.isPresent()) {
-                final PaginatedHitSource.Response paginatedHitSourceResponse = asyncResponse.response();
-                final WorkerResumeInfo workerResumeInfo;
-                if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
-                    final Object[] searchAfterValues = paginatedHitSourceResponse.getSearchAfterValues();
-                    if (searchAfterValues == null) {
-                        throw new IllegalStateException("PIT relocation requires search_after values from the last hit");
+            final boolean tooYoungToRelocateAgain = task.isRelocatedTask()
+                && (System.nanoTime() - task.getStartTimeNanos()) < relocationCooldownNanos;
+            if (tooYoungToRelocateAgain) {
+                logger.debug("skipping re-relocation for recently-relocated task [{}]", task.getId());
+            } else {
+                final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
+                if (nodeToRelocateTo.isPresent()) {
+                    final PaginatedHitSource.Response paginatedHitSourceResponse = asyncResponse.response();
+                    final WorkerResumeInfo workerResumeInfo;
+                    if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
+                        final Object[] searchAfterValues = paginatedHitSourceResponse.getSearchAfterValues();
+                        if (searchAfterValues == null) {
+                            throw new IllegalStateException("PIT relocation requires search_after values from the last hit");
+                        }
+                        final BytesReference pitIdForResume = paginatedHitSourceResponse.getPitId() != null
+                            ? paginatedHitSourceResponse.getPitId()
+                            : pit.getPitId();
+                        final Version remoteVersion = paginatedHitSource instanceof RemotePitPaginatedHitSource s
+                            ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote PIT version should be set"))
+                            : null;
+                        workerResumeInfo = new ResumeInfo.PitWorkerResumeInfo(
+                            pitIdForResume,
+                            searchAfterValues,
+                            startTimeEpochMillis.get(),
+                            worker.getStatus(),
+                            remoteVersion
+                        );
+                    } else {
+                        final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
+                            ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
+                            : null;
+                        workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                            paginatedHitSourceResponse.getScrollId(),
+                            startTimeEpochMillis.get(),
+                            worker.getStatus(),
+                            remoteVersion
+                        );
                     }
-                    final BytesReference pitIdForResume = paginatedHitSourceResponse.getPitId() != null
-                        ? paginatedHitSourceResponse.getPitId()
-                        : pit.getPitId();
-                    final Version remoteVersion = paginatedHitSource instanceof RemotePitPaginatedHitSource s
-                        ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote PIT version should be set"))
-                        : null;
-                    workerResumeInfo = new ResumeInfo.PitWorkerResumeInfo(
-                        pitIdForResume,
-                        searchAfterValues,
-                        startTimeEpochMillis.get(),
-                        worker.getStatus(),
-                        remoteVersion
+                    final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
+                    // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
+                    // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
+                    // its own combined status from it to serialize to .tasks index.
+                    // For non-sliced, status is unused (comes from the worker state).
+                    BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
+                    final BulkByScrollResponse response = new BulkByScrollResponse(
+                        TimeValue.MINUS_ONE,
+                        task.getStatus(),
+                        List.of(),
+                        List.of(),
+                        false,
+                        resumeInfo,
+                        pitId
                     );
-                } else {
-                    final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
-                        ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
-                        : null;
-                    workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
-                        paginatedHitSourceResponse.getScrollId(),
-                        startTimeEpochMillis.get(),
-                        worker.getStatus(),
-                        remoteVersion
+                    // Don't call finishHim — it clears the pagination which the relocated task needs.
+                    // Do close local resources (e.g. the remote REST client) that won't be reused.
+                    paginatedHitSource.cleanupWithoutClosingPagination(
+                        threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
                     );
+                    return;
                 }
-                final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
-                // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
-                // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
-                // its own combined status from it to serialize to .tasks index.
-                // For non-sliced, status is unused (comes from the worker state).
-                BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
-                final BulkByScrollResponse response = new BulkByScrollResponse(
-                    TimeValue.MINUS_ONE,
-                    task.getStatus(),
-                    List.of(),
-                    List.of(),
-                    false,
-                    resumeInfo,
-                    pitId
-                );
-                // Don't call finishHim — it clears the pagination which the relocated task needs.
-                // Do close local resources (e.g. the remote REST client) that won't be reused.
-                paginatedHitSource.cleanupWithoutClosingPagination(
-                    threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
-                );
-                return;
             }
-            // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.
+            // if we can't relocate, continue. we could still finish gracefully, or eventually meet the conditions for relocation.
         }
 
         int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);

@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -236,6 +237,15 @@ public class BulkByScrollTask extends CancellableTask {
     /** Returns true if this task was created via relocation from another node. */
     public boolean isRelocatedTask() {
         return relocatedTask;
+    }
+
+    @Override
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        if (relocatedTask) {
+            return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

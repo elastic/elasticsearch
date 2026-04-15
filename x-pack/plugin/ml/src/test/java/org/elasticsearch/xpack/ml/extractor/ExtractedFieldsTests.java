@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -126,13 +127,16 @@ public class ExtractedFieldsTests extends ESTestCase {
 
         SearchHit hitTrue = new SearchHitBuilder(42).addField("a_bool", true).build();
         SearchHit hitFalse = new SearchHitBuilder(42).addField("a_bool", false).build();
+        try {
+            assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
+            assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
 
-        assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
-        assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
-
-        assertThat(mapped.getName(), equalTo(aBool.getName()));
-        assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
-        assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+            assertThat(mapped.getName(), equalTo(aBool.getName()));
+            assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
+            assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+        } finally {
+            SearchHitTestUtil.decRefHits(new SearchHit[] { hitTrue, hitFalse });
+        }
     }
 
     public void testApplyBooleanMapping_GivenSourceField() {
@@ -144,15 +148,18 @@ public class ExtractedFieldsTests extends ESTestCase {
         SearchHit hitFalse = new SearchHitBuilder(42).setSource("{\"a_bool\": false}").build();
         SearchHit hitTrueArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"true\", true]}").build();
         SearchHit hitFalseArray = new SearchHitBuilder(42).setSource("{\"a_bool\": [\"false\", false]}").build();
+        try {
+            assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
+            assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
+            assertThat(mapped.value(hitTrueArray, new SourceSupplier(hitTrueArray)), equalTo(new Integer[] { 1, 1 }));
+            assertThat(mapped.value(hitFalseArray, new SourceSupplier(hitFalseArray)), equalTo(new Integer[] { 0, 0 }));
 
-        assertThat(mapped.value(hitTrue, new SourceSupplier(hitTrue)), equalTo(new Integer[] { 1 }));
-        assertThat(mapped.value(hitFalse, new SourceSupplier(hitFalse)), equalTo(new Integer[] { 0 }));
-        assertThat(mapped.value(hitTrueArray, new SourceSupplier(hitTrueArray)), equalTo(new Integer[] { 1, 1 }));
-        assertThat(mapped.value(hitFalseArray, new SourceSupplier(hitFalseArray)), equalTo(new Integer[] { 0, 0 }));
-
-        assertThat(mapped.getName(), equalTo(aBool.getName()));
-        assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
-        assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+            assertThat(mapped.getName(), equalTo(aBool.getName()));
+            assertThat(mapped.getMethod(), equalTo(aBool.getMethod()));
+            assertThat(mapped.supportsFromSource(), is(aBool.supportsFromSource()));
+        } finally {
+            SearchHitTestUtil.decRefHits(new SearchHit[] { hitTrue, hitFalse, hitTrueArray, hitFalseArray });
+        }
     }
 
     public void testApplyBooleanMapping_GivenNonBooleanField() {

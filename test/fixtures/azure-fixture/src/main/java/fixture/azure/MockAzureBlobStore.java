@@ -63,18 +63,32 @@ public class MockAzureBlobStore {
         blob.putBlockList(blockIds, leaseId);
     }
 
-    public void putBlob(String path, BytesReference contents, String blobType, @Nullable String ifNoneMatch, @Nullable String leaseId) {
+    public void putBlob(
+        String path,
+        BytesReference contents,
+        String blobType,
+        @Nullable String ifNoneMatch,
+        @Nullable String leaseId,
+        @Nullable CopyInfo copyInfo
+    ) {
         blobs.compute(path, (p, existingValue) -> {
             if (existingValue != null) {
-                existingValue.setContents(contents, leaseId, ifNoneMatch);
+                existingValue.setContents(contents, leaseId, ifNoneMatch, copyInfo);
                 return existingValue;
             } else {
                 validateBlobType(blobType);
                 final AzureBlockBlob newBlob = new AzureBlockBlob();
-                newBlob.setContents(contents, leaseId);
+                newBlob.setContents(contents, leaseId, copyInfo);
                 return newBlob;
             }
         });
+    }
+
+    public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl) {
+        AzureBlockBlob sourceBlob = getBlob(sourcePath, null);
+        final var copyInfo = new CopyInfo(UUID.randomUUID().toString(), sourceUrl);
+        putBlob(path, sourceBlob.getContents(), sourceBlob.type(), null, null, copyInfo);
+        return copyInfo;
     }
 
     private void validateBlobType(String blobType) {
@@ -158,6 +172,7 @@ public class MockAzureBlobStore {
     public class AzureBlockBlob {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
+        private volatile CopyInfo copyInfo = null;
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents;
 
@@ -202,15 +217,21 @@ public class MockAzureBlobStore {
             );
         }
 
-        public synchronized void setContents(BytesReference contents, @Nullable String leaseId) {
+        public synchronized void setContents(BytesReference contents, @Nullable String leaseId, @Nullable CopyInfo copyInfo) {
             synchronized (writeLock) {
                 lease.checkLeaseForWrite(leaseId);
                 this.contents = contents;
                 this.blocks.clear();
+                this.copyInfo = copyInfo;
             }
         }
 
-        public void setContents(BytesReference contents, @Nullable String leaseId, @Nullable String ifNoneMatchHeaderValue) {
+        public void setContents(
+            BytesReference contents,
+            @Nullable String leaseId,
+            @Nullable String ifNoneMatchHeaderValue,
+            @Nullable CopyInfo copyInfo
+        ) {
             synchronized (writeLock) {
                 if (matches(ifNoneMatchHeaderValue)) {
                     throw new PreconditionFailedException(
@@ -218,7 +239,7 @@ public class MockAzureBlobStore {
                         "The target condition specified using HTTP conditional header(s) is not met."
                     );
                 }
-                setContents(contents, leaseId);
+                setContents(contents, leaseId, copyInfo);
             }
         }
 
@@ -269,6 +290,11 @@ public class MockAzureBlobStore {
 
         public void checkLeaseForWrite(@Nullable String leaseId) {
             lease.checkLeaseForWrite(leaseId);
+        }
+
+        @Nullable
+        public CopyInfo copyInfo() {
+            return copyInfo;
         }
     }
 
@@ -424,6 +450,11 @@ public class MockAzureBlobStore {
             }
         }
     }
+
+    /**
+     * Copy info is retained for copied blobs
+     */
+    public record CopyInfo(String copyId, String sourceUrl) {};
 
     public static class AzureBlobStoreError extends RuntimeException {
         private final RestStatus restStatus;

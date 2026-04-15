@@ -1,0 +1,6 @@
+pr: 146315
+summary: "ESQL: Prune filters using shard min/max field statistics"
+area: ES|QL
+type: enhancement
+issues:
+  - 144219

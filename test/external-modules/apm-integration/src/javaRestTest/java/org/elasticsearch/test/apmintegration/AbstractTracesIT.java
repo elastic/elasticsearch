@@ -173,7 +173,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             ((Number) attrs.get("otel.attributes.http.status_code")).intValue(),
             greaterThanOrEqualTo(200)
         );
-        assertThat("HTTP URL", attrs.get("otel.attributes.http.url").toString(), not(emptyOrNullString()));
+        assertThat("HTTP URL", attrs.get("otel.attributes.http.url").toString(), is("/_nodes/stats"));
         assertThat("HTTP flavour", attrs.get("otel.attributes.http.flavour").toString(), not(emptyOrNullString()));
         // ES resource attributes
         assertThat("ES node name", attrs.get("otel.attributes.es.node.name").toString(), not(emptyOrNullString()));

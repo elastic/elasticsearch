@@ -98,9 +98,7 @@ public class RecordingApmServer extends ExternalResource {
                                 List<String> lines = readJsonMessages(requestBody);
                                 for (String line : lines) {
                                     ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
-                                        if (msg instanceof ReceivedTelemetry.ReceivedSpan s) {
-                                            logger.debug("APM span received: {}", s);
-                                        }
+                                        logger.debug("APM telemetry received: {}", msg);
                                         received.add(msg);
                                     });
                                 }

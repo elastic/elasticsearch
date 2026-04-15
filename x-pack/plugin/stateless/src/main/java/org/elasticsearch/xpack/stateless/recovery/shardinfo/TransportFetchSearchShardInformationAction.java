@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -82,6 +83,9 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     );
 
     private static final Logger logger = LogManager.getLogger(TransportFetchSearchShardInformationAction.class);
+    static final TransportVersion FETCH_SEARCH_SHARD_INFO_ALLOW_NEGATIVE_TIMESTAMP = TransportVersion.fromName(
+        "fetch_search_shard_info_fix_serialization"
+    );
     static final Response NO_OTHER_SHARDS_FOUND_RESPONSE = new Response(-1);
     static final Response SHARD_HAS_MOVED_RESPONSE = new Response(-2);
 
@@ -284,7 +288,11 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         }
 
         public Response(StreamInput in) throws IOException {
-            lastSearcherAcquiredTime = in.readVLong();
+            if (in.getTransportVersion().supports(FETCH_SEARCH_SHARD_INFO_ALLOW_NEGATIVE_TIMESTAMP)) {
+                lastSearcherAcquiredTime = in.readZLong();
+            } else {
+                lastSearcherAcquiredTime = in.readVLong();
+            }
         }
 
         public long getLastSearcherAcquiredTime() {
@@ -293,7 +301,11 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(lastSearcherAcquiredTime);
+            if (out.getTransportVersion().supports(FETCH_SEARCH_SHARD_INFO_ALLOW_NEGATIVE_TIMESTAMP)) {
+                out.writeZLong(lastSearcherAcquiredTime);
+            } else {
+                out.writeVLong(Math.max(0, lastSearcherAcquiredTime));
+            }
         }
 
         @Override

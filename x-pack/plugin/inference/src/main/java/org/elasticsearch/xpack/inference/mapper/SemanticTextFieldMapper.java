@@ -358,7 +358,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions.get());
                     yield sparseVectorMapperBuilder;
                 }
-                case TEXT_EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                         CHUNKED_EMBEDDINGS_FIELD,
                         indexVersionCreated,

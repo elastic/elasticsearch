@@ -58,9 +58,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
     public Sparkline(
         Source source,
         @Param(
-            name = "field",
+            name = "aggregation",
             type = { "integer", "long", "double" },
-            description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
+            description = "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
         @Param(name = "key", type = { "date" }, description = "Date expression from which to derive buckets.") Expression key,
         @Param(name = "buckets", type = { "integer" }, description = "Target number of buckets.") Expression buckets,

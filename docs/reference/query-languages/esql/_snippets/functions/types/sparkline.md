@@ -2,7 +2,7 @@
 
 ## Supported types
 
-| field | key | buckets | from | to | result |
+| aggregation | key | buckets | from | to | result |
 | --- | --- | --- | --- | --- | --- |
 | double | date | integer | text | text | double |
 | integer | date | integer | date | date | integer |

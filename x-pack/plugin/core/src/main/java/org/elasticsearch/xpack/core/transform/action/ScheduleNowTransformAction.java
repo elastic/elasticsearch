@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -40,20 +41,29 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
 
     public static final class Request extends BaseTasksRequest<Request> {
 
-        private final String id;
+        static final TransportVersion SCHEDULE_NOW_DEFER = TransportVersion.fromName("transform_schedule_now_defer");
 
-        public Request(String id, TimeValue timeout) {
+        private final String id;
+        private final boolean defer;
+
+        public Request(String id, TimeValue timeout, boolean defer) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.setTimeout(ExceptionsHelper.requireNonNull(timeout, TransformField.TIMEOUT.getPreferredName()));
+            this.defer = defer;
+        }
+
+        public Request(String id, TimeValue timeout) {
+            this(id, timeout, false);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-        }
-
-        public static Request fromXContent(final String id, final TimeValue timeout) {
-            return new Request(id, timeout);
+            if (in.getTransportVersion().supports(SCHEDULE_NOW_DEFER)) {
+                this.defer = in.readBoolean();
+            } else {
+                this.defer = false;
+            }
         }
 
         @Override
@@ -70,16 +80,23 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
             return id;
         }
 
+        public boolean defer() {
+            return defer;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getTransportVersion().supports(SCHEDULE_NOW_DEFER)) {
+                out.writeBoolean(defer);
+            }
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(getTimeout(), id);
+            return Objects.hash(getTimeout(), id, defer);
         }
 
         @Override
@@ -93,7 +110,7 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return this.id.equals(other.id) && getTimeout().equals(other.getTimeout());
+            return this.id.equals(other.id) && getTimeout().equals(other.getTimeout()) && this.defer == other.defer;
         }
 
         @Override

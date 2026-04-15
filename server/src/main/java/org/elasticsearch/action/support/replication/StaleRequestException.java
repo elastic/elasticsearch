@@ -10,7 +10,9 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -20,8 +22,18 @@ import java.io.IOException;
  */
 public class StaleRequestException extends ElasticsearchException {
 
-    public StaleRequestException(String msg, Object... args) {
-        super(msg, args);
+    private static final String STALE_SUMMARY = "es.stale_summary";
+
+    /**
+     * Construct a StaleRequestException
+     * @param shardId      The shardId of the shard that triggered this exception.
+     * @param staleSummary The stale summary that triggered this exception.
+     *                     The caller should retry when the request summary it produces differs.
+     */
+    public StaleRequestException(ShardId shardId, SplitShardCountSummary staleSummary) {
+        super("Request is stale due to concurrent reshard operation, retry later", shardId);
+        setStaleSummary(staleSummary);
+        setShard(shardId);
     }
 
     public StaleRequestException(StreamInput in) throws IOException {
@@ -31,5 +43,20 @@ public class StaleRequestException extends ElasticsearchException {
     @Override
     public final RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    private void setStaleSummary(SplitShardCountSummary staleSummary) {
+        addMetadata(STALE_SUMMARY, Integer.toString(staleSummary.asInt()));
+    }
+
+    public SplitShardCountSummary getStaleSummary() {
+        final var shardCountMetadata = getMetadata(STALE_SUMMARY);
+        // may be null if the exception was produced by a node running an older version
+        if (shardCountMetadata == null) {
+            return SplitShardCountSummary.UNSET;
+        } else {
+            assert shardCountMetadata.size() == 1;
+            return SplitShardCountSummary.fromInt(Integer.parseInt(shardCountMetadata.getFirst()));
+        }
     }
 }

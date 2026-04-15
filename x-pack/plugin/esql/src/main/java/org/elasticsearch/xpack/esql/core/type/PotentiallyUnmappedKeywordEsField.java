@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 
 /**
  * This class is used as a marker for fields that may be unmapped, where an unmapped field is a field which exists in the _source but is not
@@ -19,7 +19,7 @@ import java.util.Collections;
  */
 public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     public PotentiallyUnmappedKeywordEsField(String name) {
-        super(name, Collections.emptyMap(), true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
+        super(name, new HashMap<>(), true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public PotentiallyUnmappedKeywordEsField(StreamInput in) throws IOException {

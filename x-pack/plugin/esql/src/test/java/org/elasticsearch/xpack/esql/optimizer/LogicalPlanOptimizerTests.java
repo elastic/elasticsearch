@@ -11176,7 +11176,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             mapping,
             Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));

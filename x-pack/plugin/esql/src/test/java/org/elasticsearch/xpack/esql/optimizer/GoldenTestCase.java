@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -262,7 +265,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var optimizerContext = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), transportVersion);
+            var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var logicallyOptimized = new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
             if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
                 result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
@@ -273,22 +277,25 @@ public abstract class GoldenTestCase extends ESTestCase {
                 || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(
-                    new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, transportVersion)
-                );
+                // When query approximation is enabled, the logical plan can contain
+                // `SampleProbabilityPlaceholder`s. After subplan execution, these are replaced
+                // by literal sample probabilities. This is required for physical plan
+                // optimization. Since subplan execution is not done in the golden tests,
+                // manually replace the placeholders instead by a fixed value.
+                logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, 0.0123456789);
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
                 if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)) {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
-                Configuration conf = analyzer.context().configuration();
                 PhysicalPlan localPhysicalPlan = null;
                 boolean needsLocalPlan = stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
                     || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
                     || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
                 if (needsLocalPlan) {
-                    localPhysicalPlan = localOptimize(physicalPlan, conf);
+                    localPhysicalPlan = localOptimize(physicalPlan, configuration);
                 }
                 if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
                     TestResult localPhysicalResult = verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
@@ -298,13 +305,13 @@ public abstract class GoldenTestCase extends ESTestCase {
                     List<LookupJoinExec> joins = findLookupJoins(localPhysicalPlan);
                     for (int i = 0; i < joins.size(); i++) {
                         String suffix = joins.size() > 1 ? "_" + i : "";
-                        LogicalPlan lookupLogical = buildLookupLogicalPlan(joins.get(i), conf, searchStats);
+                        LogicalPlan lookupLogical = buildLookupLogicalPlan(joins.get(i), configuration, searchStats);
                         if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)) {
                             TestResult r = verifyOrWrite(lookupLogical, outputPath("lookup_logical_optimization" + suffix));
                             result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
                         }
                         if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
-                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, conf, searchStats);
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, configuration, searchStats);
                             TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
                             result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
                         }
@@ -316,8 +323,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                     var reductionPlan = ComputeService.reductionPlan(
                         PlannerSettings.DEFAULTS,
                         new EsqlFlags(false),
-                        conf,
-                        conf.newFoldContext(),
+                        configuration,
+                        configuration.newFoldContext(),
                         sink,
                         true,
                         true,
@@ -344,7 +351,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                                     Tuple.tuple(
                                         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
                                         verifyOrWrite(
-                                            localOptimize(reductionPlan.dataNodePlan(), conf),
+                                            localOptimize(reductionPlan.dataNodePlan(), configuration),
                                             outputPath(dualFileOutput.dataNodeOutput())
                                         )
                                     )
@@ -352,8 +359,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                             }
                             case ENABLED -> {
                                 var finalizedResult = new ReductionPlan(
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf),
+                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), configuration),
+                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), configuration),
                                     reductionPlan.localPhysicalOptimization()
                                 );
                                 result.addAll(

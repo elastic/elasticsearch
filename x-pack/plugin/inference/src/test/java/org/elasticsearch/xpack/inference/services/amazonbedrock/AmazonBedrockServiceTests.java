@@ -454,33 +454,6 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         service.parseRequestConfig(INFERENCE_ID_VALUE, taskType, config, modelVerificationListener);
     }
 
-    public void testParseRequestConfig_MovesModel() throws IOException {
-        try (var service = createAmazonBedrockService()) {
-            ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoFailureListener(model -> {
-                assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
-
-                var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is(REGION_VALUE));
-                assertThat(settings.modelId(), is(MODEL_VALUE));
-                assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-                var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
-                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
-            });
-
-            service.parseRequestConfig(
-                INFERENCE_ID_VALUE,
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
-                    Map.of(),
-                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
-                ),
-                modelVerificationListener
-            );
-        }
-    }
-
     public void testParseRequestConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
             ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoFailureListener(model -> {

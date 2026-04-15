@@ -240,7 +240,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
         assertThat(
             providersFor(TaskType.EMBEDDING),
-            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic").toArray())
+            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic", "openai").toArray())
         );
     }
 

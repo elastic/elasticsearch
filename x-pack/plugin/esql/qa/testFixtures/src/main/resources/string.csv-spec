@@ -1560,6 +1560,196 @@ GTF            | Great Falls Int'l | 8                 | airports
 LUH            | Sahnewal          | 9                 | airports
 ;
 
+startsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE STARTS_WITH(_index, "k8s-")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+startsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = STARTS_WITH(_index, "k8s-")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+endsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE ENDS_WITH(_index, "-downsampled")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+endsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = ENDS_WITH(_index, "-downsampled")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s-*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s-*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+// https://github.com/elastic/elasticsearch/issues/146364
+likeSingleCharOnIndexWithMinusWhere-Ignore
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s?downsampled"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s?downsampled"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s-*", "no_match*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s-*", "no_match*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeSingleCharListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s?downsampled", "no_match")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s?downsampled", "no_match")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE "k8s-.*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE "k8s-.*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE ("k8s-.*", "no_match.*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE ("k8s-.*", "no_match.*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
 toLowerRow#[skip:-8.12.99]
 // tag::to_lower[]
 ROW message = "Some Text"

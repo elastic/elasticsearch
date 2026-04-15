@@ -31,7 +31,7 @@ public class FunctionDefinition {
     /**
      * Create a builder for a {@link FunctionDefinition}.
      */
-    public static <T extends Function> FunctionDefinition.Builder<T> def(Class<T> function) {
+    public static <T extends Function> Builder<T> def(Class<T> function) {
         return new Builder<>(function);
     }
 

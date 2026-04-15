@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -48,6 +49,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class).unary(Count::new).name("count");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Count::new)
+        .description("Counts the number of elements in the input vector.")
+        .example("count(http_requests_total)")
+        .name("count");
 
     @FunctionInfo(
         returnType = "long",

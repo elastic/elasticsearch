@@ -13,6 +13,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
@@ -21,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
+public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest implements CompletionRequest {
     private final List<String> input;
     private final AzureAiStudioChatCompletionModel completionModel;
     private final boolean stream;

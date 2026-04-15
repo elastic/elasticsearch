@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -49,6 +50,11 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
         .binary(CountOverTime::new)
+        .name("count_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(CountOverTime::new)
+        .description("Returns the count of all values in the specified time range.")
+        .example("count_over_time(http_requests_total[5m])")
         .name("count_over_time");
 
     @FunctionInfo(

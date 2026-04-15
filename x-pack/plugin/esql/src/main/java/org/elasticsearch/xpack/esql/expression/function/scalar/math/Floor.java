@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +37,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 public class Floor extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Floor", Floor::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Floor.class).unary(Floor::new).name("floor");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Floor::new)
+        .description("Rounds the sample values of all elements down to the nearest integer.")
+        .example("floor(rate(http_requests_total[5m]))")
+        .name("floor");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },

@@ -1845,6 +1845,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits:debug", reason = "Issue #6241")
     public void testReshardFailsDuringResize() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -1864,11 +1865,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Start a clone with ActiveShardCount.NONE so it returns immediately,
         // and route the target's shards to a non-existent node so they never allocate.
         // This keeps the resizing operation without completing.
-        String targetIndex = "target";
+        String clonedIndex = "cloned";
         var cloneRequest = resizeRequest(
             ResizeType.CLONE,
             sourceIndex,
-            targetIndex,
+            clonedIndex,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.routing.allocation.require._name", "non_existent_node")
@@ -1885,22 +1886,27 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(e.getMessage(), containsString("cannot be resharded while it is the source of a resize operation"));
 
         // Let resize complete
-        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), targetIndex);
-        ensureGreen(targetIndex);
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), clonedIndex);
+        ensureGreen(clonedIndex);
+        refresh(clonedIndex);
+        logger.info("Resizing completed");
 
         // Now we can reshard the source index
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(sourceIndex)).actionGet(SAFE_AWAIT_TIMEOUT);
         waitForReshardCompletion(sourceIndex);
         checkNumberOfShardsSetting(indexNode, sourceIndex, sourceShards * 2);
+        refresh(sourceIndex);
+        logger.info("Resharding completed");
 
-        // Write new documents to the target index
+        // Write new documents to the cloned index
         int numNewDocs = randomIntBetween(0, 50);
         if (numNewDocs > 0) {
-            indexDocsAndRefresh(targetIndex, numNewDocs);
+            indexDocsAndRefresh(clonedIndex, numNewDocs);
         }
+        logger.info("{} new docs to cloned", numNewDocs);
 
-        // Verify all documents are present in the target index
-        assertHitCount(prepareSearch(targetIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs + numNewDocs);
+        // Verify all documents are present in the cloned index
+        assertHitCount(prepareSearch(clonedIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs + numNewDocs);
 
         // Verify all documents are present in the resharded source index
         ensureGreen(sourceIndex);

@@ -388,7 +388,6 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(rendered.trim(), equalTo(expected.trim()));
     }
 
-
     public void testRenderingTypeTableAppliesToIncludesServerless() throws Exception {
         FunctionInfo info = functionInfo(TestPreviewClass.class);
         assert info != null;
@@ -536,10 +535,7 @@ public class DocsV3SupportTests extends ESTestCase {
 
         public static Set<DocsV3Support.TypeSignature> signatures() {
             return Set.of(
-                new DocsV3Support.TypeSignature(
-                    List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())),
-                    DataType.LONG
-                ),
+                new DocsV3Support.TypeSignature(List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())), DataType.LONG),
                 new DocsV3Support.TypeSignature(
                     List.of(
                         new DocsV3Support.Param(

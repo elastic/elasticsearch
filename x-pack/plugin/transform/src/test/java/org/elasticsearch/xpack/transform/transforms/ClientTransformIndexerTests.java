@@ -384,6 +384,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testDisablePitWhenCrossProjectSearchIsEnabled() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
 
@@ -759,7 +760,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             // copy the pit from the request
                             searchRequest.pointInTimeBuilder() != null
                                 ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null
+                                : null,
+                            null
                         )
                     );
 

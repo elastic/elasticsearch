@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,6 +52,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     private final Grouping grouping;
     private final List<Attribute> groupings;
+    private final Attribute timeseriesAttribute;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -63,6 +65,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
+        this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
     }
 
     public Grouping grouping() {
@@ -102,8 +105,16 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return false;
     }
 
+    /**
+     * {@code WITHOUT} uses a dynamic {@code _timeseries} output because the
+     * concrete retained labels are not known until lowering time. {@code BY}
+     * and {@code NONE} export concrete labels or nothing.
+     */
     @Override
     public List<Attribute> output() {
+        if (grouping == Grouping.WITHOUT) {
+            return List.of(timeseriesAttribute);
+        }
         return groupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
     }
 

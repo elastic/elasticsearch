@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
-import org.junit.BeforeClass;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -19,15 +18,31 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 
 public class LimitByGoldenTests extends GoldenTestCase {
 
-    @BeforeClass
-    public static void checkLimitByCapability() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-    }
-
     public void testLimitByWithoutSort() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         runGoldenTest(
             """
                 FROM employees
+                | LIMIT 5 BY emp_no + 4, languages
+                """,
+            EnumSet.of(
+                Stage.ANALYSIS,
+                Stage.LOGICAL_OPTIMIZATION,
+                Stage.PHYSICAL_OPTIMIZATION,
+                Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+                Stage.NODE_REDUCE,
+                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+            ),
+            STATS
+        );
+    }
+
+    public void testSortLimitBy() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        runGoldenTest(
+            """
+                FROM employees
+                | SORT salary
                 | LIMIT 5 BY emp_no + 4, languages
                 """,
             EnumSet.of(

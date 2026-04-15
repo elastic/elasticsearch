@@ -414,9 +414,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, dimensions, similarity, elementType);
         }

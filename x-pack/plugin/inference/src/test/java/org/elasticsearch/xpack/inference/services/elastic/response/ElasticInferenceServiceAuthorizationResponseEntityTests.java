@@ -60,10 +60,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String ELSER_V2_MODEL_NAME = "elser_model_2";
     public static final String EIS_SPARSE_PATH = "embed/text/sparse";
 
-    // multilingual-text-embed
+    // jina-embeddings-v3
     public static final String JINA_EMBED_V3_ENDPOINT_ID = ".jina-embeddings-v3";
     public static final String JINA_EMBED_V3_MODEL_NAME = "jina-embeddings-v3";
     public static final String EIS_TEXT_EMBED_PATH = "embed/text/dense";
+
+    // jina-embeddings-v5-text-small
+    public static final String JINA_EMBED_V5_ENDPOINT_ID = ".jina-embeddings-v5-text-small";
+    public static final String JINA_EMBED_V5_MODEL_NAME = "jina-embeddings-v5-text-small";
 
     // multimodal embedding
     public static final String JINA_CLIP_V2_ENDPOINT_ID = ".jina-clip-v2";
@@ -295,6 +299,34 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               "fingerprint": "fingerprint456"
             },
             {
+              "id": ".jina-embeddings-v5-text-small",
+              "model_name": "jina-embeddings-v5-text-small",
+              "task_types": {
+                "eis": "embed/text/dense",
+                "elasticsearch": "text_embedding"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01",
+              "configuration": {
+                "similarity": "cosine",
+                "dimensions": 1024,
+                "element_type": "float",
+                "chunking_settings": {
+                  "strategy": "sentence",
+                  "max_chunk_size": 250,
+                  "sentence_overlap": 1
+                }
+              },
+              "display": {
+                "name": "Jina Embeddings V5 Text Small",
+                "model_creator": "Jina"
+              },
+              "fingerprint": "fingerprintV5"
+            },
+            {
               "id": ".jina-clip-v2",
               "model_name": "jina-clip-v2",
               "task_types": {
@@ -356,6 +388,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
     private static final Display JINA_EMBED_V3_DISPLAY = new Display("Jina Embeddings V3", "Jina");
     private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
+    private static final Display JINA_EMBED_V5_DISPLAY = new Display("Jina Embeddings V5 Text Small", "Jina");
+    private static final String JINA_EMBED_V5_FINGERPRINT = "fingerprintV5";
     private static final Display JINA_CLIP_V2_DISPLAY = new Display("Jina Clip V2", "Jina");
     private static final String JINA_CLIP_V2_FINGERPRINT = "fingerprint_clip_v2";
     private static final Display RERANK_V1_DISPLAY = new Display("Jina Reranker V2", "Jina");
@@ -427,6 +461,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaTextEmbedAuthorizedEndpoint(),
+            createJinaV5TextEmbedAuthorizedEndpoint(),
             createJinaMultimodalEmbedAuthorizedEndpoint(),
             createRerankV1AuthorizedEndpoint()
         );
@@ -444,6 +479,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedTextEmbeddingEndpoint(url),
+                createJinaV5ExpectedTextEmbeddingEndpoint(url),
                 createJinaExpectedMultimodalEmbeddingEndpoint(url),
                 createRerankV1ExpectedEndpoint(url)
             ),
@@ -609,6 +645,41 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 ),
                 new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 JINA_EMBED_V3_DISPLAY
+            )
+        );
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaV5TextEmbedAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+            JINA_EMBED_V5_ENDPOINT_ID,
+            JINA_EMBED_V5_MODEL_NAME,
+            createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
+            "ga",
+            List.of("multilingual"),
+            RELEASE_DATE_STRING,
+            null,
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                "cosine",
+                1024,
+                "float",
+                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
+            ),
+            JINA_EMBED_V5_DISPLAY,
+            JINA_EMBED_V5_FINGERPRINT
+        );
+    }
+
+    private static ElasticInferenceServiceModel createJinaV5ExpectedTextEmbeddingEndpoint(String url) {
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
+            JINA_EMBED_V5_ENDPOINT_ID,
+            TaskType.TEXT_EMBEDDING,
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V5_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceComponents(url),
+            new SentenceBoundaryChunkingSettings(250, 1),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
+                new EndpointMetadata.Internal(JINA_EMBED_V5_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
+                JINA_EMBED_V5_DISPLAY
             )
         );
     }

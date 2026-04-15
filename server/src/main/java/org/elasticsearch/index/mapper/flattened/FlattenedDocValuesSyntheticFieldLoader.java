@@ -32,6 +32,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     private final String keyedIgnoredValuesFieldFullPath;
     private final String leafName;
     private final boolean usesBinaryDocValues;
+    private final List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders;
 
     protected DocValuesFieldValues docValues = NO_VALUES;
     protected List<Object> ignoredValues = List.of();
@@ -45,19 +46,23 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
      *                                             due to ignore_above
      * @param leafName                             the name of the leaf field to use in the rendered {@code _source}
      * @param usesBinaryDocValues                  whether the values are stored using binary or sorted set doc values
+     * @param mappedSubFieldLoaders                synthetic field loaders for mapped sub-fields; their values are
+     *                                             written inside the flattened field's object alongside unmapped keys
      */
     FlattenedDocValuesSyntheticFieldLoader(
         String fieldFullPath,
         String keyedFieldFullPath,
         @Nullable String keyedIgnoredValuesFieldFullPath,
         String leafName,
-        boolean usesBinaryDocValues
+        boolean usesBinaryDocValues,
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
     ) {
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.leafName = leafName;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.mappedSubFieldLoaders = mappedSubFieldLoaders;
     }
 
     @Override
@@ -67,44 +72,80 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        if (keyedIgnoredValuesFieldFullPath == null) {
-            return Stream.empty();
-        }
-
-        return Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (values) -> {
-            ignoredValues = new ArrayList<>();
-            ignoredValues.addAll(values);
-        }));
+        Stream<Map.Entry<String, StoredFieldLoader>> flattenedLoaders = keyedIgnoredValuesFieldFullPath == null
+            ? Stream.empty()
+            : Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (values) -> {
+                ignoredValues = new ArrayList<>();
+                ignoredValues.addAll(values);
+            }));
+        Stream<Map.Entry<String, StoredFieldLoader>> subFieldLoaders = mappedSubFieldLoaders.stream()
+            .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders);
+        return Stream.concat(flattenedLoaders, subFieldLoaders);
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        List<DocValuesLoader> allLoaders = new ArrayList<>();
+
         if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
-            if (binaryDv == null) {
-                return null;
+            if (binaryDv != null) {
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath, binaryDv);
+                MultiValuedBinaryFieldValues loader = new MultiValuedBinaryFieldValues(dv);
+                docValues = loader;
+                allLoaders.add(loader);
+            } else {
+                docValues = NO_VALUES;
             }
-
-            SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath, binaryDv);
-            MultiValuedBinaryFieldValues loader = new MultiValuedBinaryFieldValues(dv);
-            docValues = loader;
-            return loader;
         } else {
             final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
-            if (dv.getValueCount() == 0) {
+            if (dv.getValueCount() > 0) {
+                SortedSetFieldValues loader = new SortedSetFieldValues(dv);
+                docValues = loader;
+                allLoaders.add(loader);
+            } else {
                 docValues = NO_VALUES;
-                return null;
             }
-
-            SortedSetFieldValues loader = new SortedSetFieldValues(dv);
-            docValues = loader;
-            return loader;
         }
+
+        for (SourceLoader.SyntheticFieldLoader subFieldLoader : mappedSubFieldLoaders) {
+            DocValuesLoader subFieldDvLoader = subFieldLoader.docValuesLoader(reader, docIdsInLeaf);
+            if (subFieldDvLoader != null) {
+                allLoaders.add(subFieldDvLoader);
+            }
+        }
+
+        if (allLoaders.isEmpty()) {
+            return null;
+        }
+        if (allLoaders.size() == 1) {
+            return allLoaders.getFirst();
+        }
+        return docId -> {
+            boolean any = false;
+            for (DocValuesLoader loader : allLoaders) {
+                any |= loader.advanceToDoc(docId);
+            }
+            return any;
+        };
     }
 
     @Override
     public boolean hasValue() {
+        return hasFlattenedValues() || hasPropertyValues();
+    }
+
+    protected boolean hasFlattenedValues() {
         return docValues.count() > 0 || ignoredValues.isEmpty() == false;
+    }
+
+    private boolean hasPropertyValues() {
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
+            if (loader.hasValue()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected FlattenedFieldSyntheticWriterHelper getWriter() {
@@ -122,20 +163,34 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+        boolean hasFlattenedValues = hasFlattenedValues();
+        if (hasFlattenedValues == false && hasPropertyValues() == false) {
             return;
         }
 
-        var writer = getWriter();
-
         b.startObject(leafName);
-        writer.write(b);
+        if (hasFlattenedValues) {
+            var writer = getWriter();
+            writer.write(b);
+        }
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
+            if (loader.hasValue()) {
+                loader.write(b);
+            }
+        }
         b.endObject();
     }
 
     @Override
     public void reset() {
         ignoredValues = List.of();
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
+            loader.reset();
+        }
+    }
+
+    protected List<SourceLoader.SyntheticFieldLoader> getMappedSubFieldLoaders() {
+        return mappedSubFieldLoaders;
     }
 
     protected interface DocValuesFieldValues {

@@ -80,7 +80,8 @@ public class QuerySettings {
         type = { "keyword" },
         since = "9.3.0",
         description = "Defines how unmapped fields are treated. Possible values are: "
-            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"DEFAULT\" (default) - standard ESQL queries fail when referencing unmapped fields, "
+            + "while other query types (e.g. PromQL) may treat them differently; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "
         // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
@@ -95,12 +96,12 @@ public class QuerySettings {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
                 UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
-                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled() == false) {
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled() == false) {
                     throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
                 }
                 return res;
             } catch (Exception exc) {
-                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled()
                     ? UnmappedResolution.values()
                     : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
 
@@ -109,7 +110,7 @@ public class QuerySettings {
                 );
             }
         },
-        UnmappedResolution.FAIL
+        UnmappedResolution.DEFAULT
     );
 
     @Param(

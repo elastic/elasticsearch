@@ -10,16 +10,20 @@ package org.elasticsearch.xpack.eql.logging;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class EqlLogContext extends ActivityLoggerContext {
+public class EqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
     public static final String TYPE = "eql";
     private final EqlSearchRequest request;
     private final EqlSearchResponse response;
@@ -36,10 +40,12 @@ public class EqlLogContext extends ActivityLoggerContext {
         this.response = null;
     }
 
-    String getQuery() {
+    @Override
+    public String getQuery() {
         return request.query();
     }
 
+    @Override
     public String[] getIndices() {
         return request.indices();
     }
@@ -49,13 +55,15 @@ public class EqlLogContext extends ActivityLoggerContext {
         return response != null && response.isTimeout();
     }
 
-    long getHits() {
+    @Override
+    public int getResultCount() {
         if (response == null || response.hits() == null || response.hits().totalHits() == null) {
             return 0;
         }
-        return response.hits().totalHits().value();
+        return Math.clamp(response.hits().totalHits().value(), 0, Integer.MAX_VALUE);
     }
 
+    @Override
     public Optional<ShardInfo> shardInfo() {
         // We only know about failed shards in EQL
         return Optional.ofNullable(response).map(r -> new ShardInfo(null, null, getFailedShards(response)));
@@ -67,21 +75,11 @@ public class EqlLogContext extends ActivityLoggerContext {
     }
 
     // CCS stuff
-    public long remoteClusterCount() {
+    public Collection<String> remoteClusterAliases() {
         ResolvedIndexExpressions resolved = request.getResolvedIndexExpressions();
-        if (resolved != null) {
-            return resolved.getRemoteIndicesList()
-                .stream()
-                .filter(RemoteClusterAware::isRemoteIndexName)
-                .map(i -> RemoteClusterAware.splitIndexName(i)[0])
-                .distinct()
-                .count();
-        } else {
-            String[] indices = request.indices();
-            if (indices != null) {
-                return Arrays.stream(indices).filter(RemoteClusterAware::isRemoteIndexName).count();
-            }
-        }
-        return 0;
+        Stream<String> indices = resolved != null ? resolved.getRemoteIndicesList().stream() : Arrays.stream(request.indices());
+        return indices.filter(RemoteClusterAware::isRemoteIndexName)
+            .map(i -> RemoteClusterAware.splitIndexName(i)[0])
+            .collect(Collectors.toSet());
     }
 }

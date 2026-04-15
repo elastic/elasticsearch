@@ -2667,7 +2667,15 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         );
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
 
-        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
+        // Simulate missing field stats for the _timeseries field to ensure retention relies on the explicit
+        // TimeSeriesMetadataAttribute handling in ReplaceFieldWithConstantOrNull.
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals(fieldAttr.name());
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
         var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
 
         var optimizedEval = as(optimizedPlan, Eval.class);

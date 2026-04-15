@@ -185,7 +185,7 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testBuildErrorJson() throws IOException {
-        try (XContentBuilder builder = PrometheusQueryRangeResponseListener.buildErrorJson(RestStatus.BAD_REQUEST, "test error")) {
+        try (XContentBuilder builder = PrometheusErrorResponse.build(RestStatus.BAD_REQUEST, "test error")) {
             ObjectPath path = toObjectPath(builder);
             assertThat(path.evaluate("status"), equalTo("error"));
             assertThat(path.evaluate("errorType"), equalTo("bad_data"));
@@ -194,7 +194,7 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testBuildErrorJsonTimeout() throws IOException {
-        try (XContentBuilder builder = PrometheusQueryRangeResponseListener.buildErrorJson(RestStatus.SERVICE_UNAVAILABLE, "timeout")) {
+        try (XContentBuilder builder = PrometheusErrorResponse.build(RestStatus.SERVICE_UNAVAILABLE, "timeout")) {
             ObjectPath path = toObjectPath(builder);
             assertThat(path.evaluate("errorType"), equalTo("timeout"));
         }

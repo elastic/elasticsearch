@@ -199,9 +199,9 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields_snapshot() {
-        assumeTrue("OPTIONAL_FIELDS_V2 option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+        assumeTrue("OPTIONAL_FIELDS_V4 option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
 
-        var modes = List.of("FAIL", "NULLIFY", "LOAD");
+        var modes = List.of("DEFAULT", "NULLIFY", "LOAD");
         verifySetUnmappedFields(modes);
         assertThat(modes.size(), is(UnmappedResolution.values().length));
     }
@@ -209,7 +209,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSetUnmappedFields_nonSnapshot() {
         assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
-        verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
+        verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY"));
 
         String name = randomizeCase(UnmappedResolution.LOAD.name());
         expectThrows(
@@ -217,7 +217,7 @@ public class SetParserTests extends AbstractStatementParserTests {
             containsString(
                 "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
                     + name
-                    + "], must be one of [FAIL, NULLIFY]"
+                    + "], must be one of [DEFAULT, NULLIFY]"
             ),
             () -> statement("SET unmapped_fields=\"" + name + "\"; row a = 1")
         );
@@ -236,7 +236,7 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
-        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
+        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled()
             ? UnmappedResolution.values()
             : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
         expectValidationError(

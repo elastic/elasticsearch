@@ -281,26 +281,30 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
-            if (q == null) {
-                // if any of the matchFields are null, it means there is no match for this position
-                // A AND NULL is always NULL, so we can skip this position
-                return null;
+        try {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (QueryList queryList : queryLists) {
+                Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
+                if (q == null) {
+                    // if any of the matchFields are null, it means there is no match for this position
+                    // A AND NULL is always NULL, so we can skip this position
+                    return null;
+                }
+                builder.add(q, BooleanClause.Occur.FILTER);
             }
-            builder.add(q, BooleanClause.Occur.FILTER);
-        }
-        // also attach the pre-join filter if it exists
-        // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
-        for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
-            try {
-                builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+            // also attach the pre-join filter if it exists
+            // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
+            for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
+                try {
+                    builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+                }
             }
+            return builder.build();
+        } finally {
+            searchExecutionContext.releaseQueryConstructionMemory();
         }
-        return builder.build();
     }
 
     /**

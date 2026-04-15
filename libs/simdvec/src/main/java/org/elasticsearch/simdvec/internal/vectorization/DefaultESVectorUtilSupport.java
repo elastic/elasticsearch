@@ -35,6 +35,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            float diff = a[i] - b[i];
+            sum = fma(diff, diff, sum);
+        }
+        return sum;
+    }
+
+    @Override
     public float cosine(byte[] a, byte[] b) {
         return VectorUtil.cosine(a, b);
     }
@@ -325,6 +336,23 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         distances[1] = VectorUtil.squareDistance(query, v1);
         distances[2] = VectorUtil.squareDistance(query, v2);
         distances[3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
+        distances[0] = squareDistance(query, v0, queryOffset, length);
+        distances[1] = squareDistance(query, v1, queryOffset, length);
+        distances[2] = squareDistance(query, v2, queryOffset, length);
+        distances[3] = squareDistance(query, v3, queryOffset, length);
     }
 
     @Override

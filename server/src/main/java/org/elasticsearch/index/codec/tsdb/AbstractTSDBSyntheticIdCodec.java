@@ -9,15 +9,17 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 
@@ -50,16 +52,28 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
 abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     private final TSDBStoredFieldsFormat storedFieldsFormat;
     private final ValidatingFieldInfosFormat fieldInfosFormat;
+    private final DocValuesFormat docValuesFormat;
 
-    AbstractTSDBSyntheticIdCodec(String name, Codec delegate) {
+    AbstractTSDBSyntheticIdCodec(String name, Lucene104Codec delegate) {
         super(name, delegate);
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
         this.fieldInfosFormat = new ValidatingFieldInfosFormat(delegate.fieldInfosFormat());
+        this.docValuesFormat = new XPerFieldDocValuesFormat() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return delegate.getDocValuesFormatForField(field);
+            }
+        };
     }
 
     @Override
     public StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;
+    }
+
+    @Override
+    public DocValuesFormat docValuesFormat() {
+        return docValuesFormat;
     }
 
     @Override

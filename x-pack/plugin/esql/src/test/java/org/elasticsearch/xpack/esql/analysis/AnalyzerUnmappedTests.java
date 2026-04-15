@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -31,11 +36,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -46,6 +54,16 @@ import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
+
+    /**
+     * Query suffixes that use the unsupported type-conflict field [message] in different commands.
+     * Each type conflict test iterates over these to verify the error is raised regardless of how the field is used.
+     */
+    private static final String[] TYPE_CONFLICT_QUERY_SUFFIXES = new String[] {
+        "| SORT message",
+        "| EVAL x = message",
+        "| WHERE message IS NOT NULL" };
+
     public void testFailKeepAndNonMatchingStar() {
         assertUnmappedFailure(test(), """
             FROM test
@@ -352,22 +370,38 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testLoadModeDisallowsFork() {
-        var stmt = setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)");
-        test().statementError(stmt, containsString("FORK is not supported with unmapped_fields=\"load\""));
+        test().statementError(
+            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
+            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsForkWithStats() {
-        var stmt = setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))");
-        test().statementError(stmt, containsString("FORK is not supported with unmapped_fields=\"load\""));
+        test().statementError(
+            setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"),
+            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsForkWithMultipleBranches() {
-        assertUnmappedLoadError(test(), """
-            FROM test
-            | FORK (WHERE emp_no > 1)
-                   (WHERE emp_no < 100)
-                   (WHERE salary > 50000)
-            """, containsString("FORK is not supported with unmapped_fields=\"load\""));
+        test().statementError(
+            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100) (WHERE salary > 50000)"),
+            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
+        );
+    }
+
+    public void testLoadModeDisallowsForkAfterLinearPipeline() {
+        test().statementError(
+            setUnmappedLoad("FROM test | WHERE emp_no > 1 | FORK (WHERE salary > 50000) (WHERE salary < 30000)"),
+            containsString("line 1:60: FORK is not supported with unmapped_fields=\"load\"")
+        );
+    }
+
+    public void testLoadModeDisallowsForkWithUnmappedFieldInBranch() {
+        test().statementError(
+            setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"),
+            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsLookupJoin() {
@@ -388,39 +422,99 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
     }
 
-    public void testLoadModeDisallowsSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testLoadModeDisallowsForkAndLookupJoin() {
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedLoad("""
+                    FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code
+                    | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+                    """),
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("line 4:3: FORK is not supported with unmapped_fields=\"load\""),
+                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                )
+            );
+    }
 
-        assertUnmappedLoadError(
-            test().addLanguages(),
-            "FROM test, (FROM languages | WHERE language_code > 1)",
-            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
+    public void testLoadMode_AllowsSingleSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoad("FROM (FROM test)"));
+    }
+
+    public void testLoadMode_AllowsSingleSubqueryInFrom_WithWhere() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoad("FROM (FROM test | WHERE emp_no > 1)"));
+    }
+
+    public void testLoadMode_AllowsSingleSubqueryInFrom_WithEval() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoad("FROM (FROM test | EVAL x = emp_no + 1)"));
+    }
+
+    public void testLoadMode_AllowsSingleSubqueryInFrom_WithStats() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoad("FROM (FROM test | STATS c = COUNT(*))"));
+    }
+
+    public void testLoadMode_AllowsSingleSubqueryInFrom_WithSort() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statement(setUnmappedLoad("FROM (FROM test | SORT emp_no | LIMIT 10)"));
+    }
+
+    public void testLoadModeDisallowsMainIndexPlusSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages()
+            .statementError(
+                setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)"),
+                containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\"")
+            );
+    }
+
+    public void testLoadModeDisallowsTwoSubqueriesWithoutMainIndex() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test),(FROM test)"),
+            allOf(
+                containsString("Found 2 problems"),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:46: Subqueries and views are not supported with unmapped_fields=\"load\"")
+            )
         );
     }
 
-    public void testLoadModeDisallowsMultipleSubqueries() {
+    public void testLoadModeDisallowsThreeSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
-        assertUnmappedLoadError(test().addLanguages().addSampleData(), """
-            FROM test,
-                (FROM languages | WHERE language_code > 1),
-                (FROM sample_data | STATS max(@timestamp))
-            """, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test),(FROM test),(FROM test)"),
+            allOf(
+                containsString("Found 3 problems"),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:46: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:58: Subqueries and views are not supported with unmapped_fields=\"load\"")
+            )
+        );
     }
 
     public void testLoadModeDisallowsNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
-        assertUnmappedLoadError(
-            test().addLanguages().addSampleData(),
-            "FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)",
-            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
-        );
+        test().addLanguages()
+            .addSampleData()
+            .statementError(
+                setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)"),
+                allOf(
+                    containsString("Found 2 problems"),
+                    containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 1:57: Subqueries and views are not supported with unmapped_fields=\"load\"")
+                )
+            );
     }
 
     public void testLoadModeDisallowsSubqueryWithLookupJoin() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         assertUnmappedLoadError(test().addLanguagesLookup(), """
             FROM test,
                 (FROM test
@@ -429,36 +523,197 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
     }
 
-    public void testLoadModeDisallowsForkAndLookupJoin() {
-        assertUnmappedLoadError(
-            test().addLanguagesLookup(),
-            """
-                FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code
-                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                """,
+    public void testLoadModeDisallowsSingleSubqueryPlusFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
+            containsString("line 1:48: FORK is not supported with unmapped_fields=\"load\"")
+        );
+    }
+
+    public void testLoadModeDisallowsMultipleSubqueriesPlusFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
             allOf(
-                containsString("FORK is not supported with unmapped_fields=\"load\""),
-                containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                containsString("Found 7 problems"),
+                containsString("line 1:60: FORK is not supported with unmapped_fields=\"load\""),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:46: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:46: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:34: FORK after subquery is not supported"),
+                containsString("line 1:34: FORK after subquery is not supported")
             )
         );
     }
 
     public void testLoadModeDisallowsSubqueryAndFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var query = setUnmappedLoad("""
+            FROM test, (FROM languages | WHERE language_code > 1)
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """);
+        test().addLanguages()
+            .statementError(
+                query,
+                allOf(
+                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("FORK is not supported with unmapped_fields=\"load\"")
+                )
+            );
+    }
 
-        assertUnmappedLoadError(
-            test().addLanguages(),
-            """
-                FROM test, (FROM languages | WHERE language_code > 1)
-                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                """,
+    public void testLoadModeAllowsNonBranchingViewEquivalent() {
+        test().statement(setUnmappedLoad("FROM test | WHERE emp_no > 1 | KEEP emp_no, does_not_exist"));
+    }
+
+    public void testLoadModeAllowsNonBranchingViewEquivalentWithEval() {
+        test().statement(setUnmappedLoad("FROM test | WHERE emp_no > 1 | EVAL x = does_not_exist | KEEP emp_no, x"));
+    }
+
+    public void testLoadModeAllowsNonBranchingViewEquivalentWithStats() {
+        test().statement(setUnmappedLoad("FROM test | WHERE emp_no > 1 | STATS c = COUNT(*) BY does_not_exist"));
+    }
+
+    public void testLoadModeAllowsNonBranchingViewEquivalentWithSort() {
+        test().statement(setUnmappedLoad("FROM test | WHERE emp_no > 1 | SORT does_not_exist | KEEP emp_no, does_not_exist"));
+    }
+
+    public void testLoadModeAllowsNonBranchingViewEquivalentWithRename() {
+        test().statement(setUnmappedLoad("FROM test | RENAME first_name AS fname | KEEP fname, does_not_exist"));
+    }
+
+    public void testLoadModeDisallowsBranchingViewEquivalent() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test | WHERE emp_no > 1),(FROM test | WHERE emp_no < 100)"),
             allOf(
-                containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                containsString("FORK is not supported with unmapped_fields=\"load\"")
+                containsString("Found 2 problems"),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:65: Subqueries and views are not supported with unmapped_fields=\"load\"")
             )
         );
+    }
+
+    public void testLoadModeDisallowsBranchingViewEquivalentWithUnmappedField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().statementError(
+            setUnmappedLoad("FROM (FROM test | WHERE emp_no > 1),(FROM test | WHERE emp_no < 100) | KEEP emp_no, does_not_exist"),
+            allOf(
+                containsString("Found 2 problems"),
+                containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 1:65: Subqueries and views are not supported with unmapped_fields=\"load\"")
+            )
+        );
+    }
+
+    public void testTypeConflictLongUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongKeywordUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongIntUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "integer")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictTextUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testSameMappingHashNotPartiallyUnmapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar | EVAL x = message + 1"));
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
+        var attr = eval.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(attr.dataType(), is(DataType.LONG));
+    }
+
+    public void testSameMappingHashWithUnmappedIndex() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
+        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
@@ -768,11 +1023,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of()));
+        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of()));
     }
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
         analyzer.statementError(setUnmappedLoad(query), matcher);
+    }
+
+    private void typeConflictVerificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions) {
+        TestAnalyzer ta = analyzer();
+        for (var entry : indexResolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
+        assertThat(e.getMessage(), containsString("Cannot use field [message]"));
     }
 
     private static String setUnmappedNullify(String query) {
@@ -781,7 +1045,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

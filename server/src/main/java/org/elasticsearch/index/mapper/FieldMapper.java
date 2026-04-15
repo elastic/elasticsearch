@@ -629,24 +629,6 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (fieldBuilders.containsKey(toMerge.leafName()) == false) {
-                    if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
-                        add(toMerge);
-                    }
-                } else {
-                    FieldMapper.Builder existingBuilder = fieldBuilders.get(toMerge.leafName());
-                    FieldMapper.Builder incomingBuilder = toMerge.getMergeBuilder();
-                    if (incomingBuilder != null) {
-                        MapperMergeContext childContext = MapperMergeContext.from(context.getMapperBuilderContext(), Long.MAX_VALUE);
-                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
-                        fieldBuilders.put(toMerge.leafName(), (FieldMapper.Builder) merged);
-                    } else {
-                        add(toMerge);
-                    }
-                }
-            }
-
             void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
                 for (var entry : incoming.fieldBuilders.entrySet()) {
                     FieldMapper.Builder incomingBuilder = entry.getValue();

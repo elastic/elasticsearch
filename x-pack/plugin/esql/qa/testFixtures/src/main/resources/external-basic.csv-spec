@@ -779,22 +779,6 @@ emp_no:integer | language_name:keyword
 10001          | French
 ;
 
-enrichRemote
-required_capability: external_command
-required_capability: enrich_load
-
-EXTERNAL "{{employees}}"
-| SORT emp_no
-| LIMIT 1
-| EVAL x = TO_STRING(languages)
-| ENRICH _remote:languages_policy ON x
-| KEEP emp_no, language_name
-;
-
-emp_no:integer | language_name:keyword
-10001          | French
-;
-
 decayFunction
 required_capability: external_command
 required_capability: decay_function
@@ -845,17 +829,16 @@ operatorLikeRLike
 required_capability: external_command
 
 EXTERNAL "{{employees}}"
-| KEEP emp_no, first_name, job_positions
-| WHERE job_positions LIKE "Senior*"
-| WHERE job_positions RLIKE "Senior.*"
+| KEEP emp_no, first_name
+| WHERE first_name LIKE "Hi*"
+| WHERE first_name RLIKE "Hi.*"
 | SORT emp_no
 ;
 
-emp_no:integer |first_name:keyword|job_positions:keyword
-10002          |Bezalel        |Senior Team Lead
-10027          |Divier         |Senior Python Developer
-10036          |null           |Senior Python Developer
-10056          |Brendon        |Senior Team Lead
-10080          |Premal         |Senior Python Developer
-10086          |Somnath        |Senior Python Developer
+emp_no:integer |first_name:keyword
+10051          |Hidefumi
+10071          |Hisao
+10072          |Hironoby
+10095          |Hilari
+10100          |Hironobu
 ;

@@ -65,9 +65,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
                 validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
         }
     }
 
@@ -115,9 +113,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new RecursiveChunkingSettings(maxChunkSize, separators);
     }

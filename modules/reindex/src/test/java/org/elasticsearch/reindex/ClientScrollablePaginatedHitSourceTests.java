@@ -14,9 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -37,12 +40,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -52,6 +58,7 @@ import java.util.stream.IntStream;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
@@ -157,8 +164,59 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(timeValueSeconds(10))
         );
 
+        paginatedHitSource.setScroll("scroll_id");
         paginatedHitSource.startNextScroll(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
+    }
+
+    /** When scroll ID is empty or null, close runs cleanup immediately without calling clearScroll. */
+    public void testCloseWhenScrollIdEmpty() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        assertTrue(closeCallbackCalled.get());
+        assertFalse(client.hasExecuted(TransportClearScrollAction.TYPE));
+    }
+
+    /** When scroll ID is set, close calls clearScroll and runs cleanup after it completes. */
+    public void testCloseWhenScrollIdSet() throws InterruptedException {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+        paginatedHitSource.setScroll("scroll_123");
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        client.awaitOperation();
+        client.validateRequest(
+            TransportClearScrollAction.TYPE,
+            (ClearScrollRequest r) -> assertThat(r.getScrollIds(), contains("scroll_123"))
+        );
+        client.respond(TransportClearScrollAction.TYPE, new ClearScrollResponse(true, 1));
+        assertTrue(closeCallbackCalled.get());
     }
 
     private SearchResponse createSearchResponse() {
@@ -214,6 +272,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
 
     private static class MockClient extends AbstractClient {
         private ExecuteRequest<?, ?> executeRequest;
+        private final List<ActionType<?>> executedActions = new ArrayList<>();
 
         MockClient(ThreadPool threadPool) {
             super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
@@ -225,9 +284,13 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-
+            executedActions.add(action);
             this.executeRequest = new ExecuteRequest<>(action, request, listener);
             this.notifyAll();
+        }
+
+        boolean hasExecuted(ActionType<?> action) {
+            return executedActions.contains(action);
         }
 
         @SuppressWarnings("unchecked")

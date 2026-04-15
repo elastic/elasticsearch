@@ -41,7 +41,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     private Optional<Throwable> tryRunTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        return EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
+        return EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled()
             ? builder(setUnmappedLoad(query)).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages).tryRun()
             : Optional.empty();
     }

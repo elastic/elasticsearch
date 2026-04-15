@@ -63,9 +63,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
     }
 
     @Override
@@ -118,9 +116,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new WordBoundaryChunkingSettings(maxChunkSize, overlap);
     }

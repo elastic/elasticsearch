@@ -134,6 +134,11 @@ $else$
     public $type$ get$Type$(int position) {
         return values[position];
     }
+
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
 $endif$
 
     @Override

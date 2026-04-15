@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
@@ -65,7 +66,9 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
         var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
-        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(API_KEY, apiKey.toString()));
+        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(API_KEY, apiKey.toString()))
+        );
 
         assertThat(newSettings, is(expectedSettings));
     }
@@ -74,7 +77,9 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
         var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
-        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(ENTRA_ID, entraId.toString()));
+        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(ENTRA_ID, entraId.toString()))
+        );
 
         assertThat(newSettings, is(expectedSettings));
     }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -30,18 +32,30 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
+    private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(
+        "esql_potentially_unmapped_expression"
+    );
 
     private final Map<String, Expression> indexToConversionExpressions;
+
+    /**
+     * If this is not {@code null}, then this expression should be used to convert the field value in case the field is not mapped in an
+     * index from {@link DataType#KEYWORD} to the target type.
+     */
+    @Nullable
+    private final Expression potentiallyUnmappedExpression;
 
     public MultiTypeEsField(
         String name,
         DataType dataType,
         boolean aggregatable,
         Map<String, Expression> indexToConversionExpressions,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable Expression potentiallyUnmappedExpression
     ) {
         super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
         this.indexToConversionExpressions = indexToConversionExpressions;
+        this.potentiallyUnmappedExpression = potentiallyUnmappedExpression;
     }
 
     protected MultiTypeEsField(StreamInput in) throws IOException {
@@ -50,7 +64,8 @@ public class MultiTypeEsField extends EsField {
             DataType.readFrom(in),
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
-            readTimeSeriesFieldType(in)
+            readTimeSeriesFieldType(in),
+            in.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? in.readOptionalNamedWriteable(Expression.class) : null
         );
     }
 
@@ -61,6 +76,9 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
+        if (out.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION)) {
+            out.writeOptionalNamedWriteable(potentiallyUnmappedExpression);
+        }
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -72,12 +90,27 @@ public class MultiTypeEsField extends EsField {
         return "MultiTypeEsField";
     }
 
+    public @Nullable Expression getPotentiallyUnmappedExpression() {
+        return potentiallyUnmappedExpression;
+    }
+
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
     }
 
-    public Expression getConversionExpressionForIndex(String indexName) {
+    public @Nullable Expression getConversionExpressionForIndex(String indexName) {
         return indexToConversionExpressions.get(indexName);
+    }
+
+    public MultiTypeEsField withPotentiallyUnmappedExpression(@Nullable Expression potentiallyUnmappedExpression) {
+        return new MultiTypeEsField(
+            getName(),
+            getDataType(),
+            isAggregatable(),
+            indexToConversionExpressions,
+            getTimeSeriesFieldType(),
+            potentiallyUnmappedExpression
+        );
     }
 
     public static MultiTypeEsField resolveFrom(
@@ -104,7 +137,8 @@ public class MultiTypeEsField extends EsField {
             resolvedDataType,
             false,
             indexToConversionExpressions,
-            invalidMappedField.getTimeSeriesFieldType()
+            invalidMappedField.getTimeSeriesFieldType(),
+            null
         );
     }
 
@@ -114,18 +148,20 @@ public class MultiTypeEsField extends EsField {
             return false;
         }
         if (obj instanceof MultiTypeEsField other) {
-            return super.equals(other) && indexToConversionExpressions.equals(other.indexToConversionExpressions);
+            return super.equals(other)
+                && indexToConversionExpressions.equals(other.indexToConversionExpressions)
+                && Objects.equals(potentiallyUnmappedExpression, other.potentiallyUnmappedExpression);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), indexToConversionExpressions);
+        return Objects.hash(super.hashCode(), indexToConversionExpressions, potentiallyUnmappedExpression);
     }
 
     @Override
     public String toString() {
-        return super.toString() + " (" + indexToConversionExpressions + ")";
+        return Strings.format("%s (%s, %s)", super.toString(), indexToConversionExpressions, potentiallyUnmappedExpression);
     }
 }

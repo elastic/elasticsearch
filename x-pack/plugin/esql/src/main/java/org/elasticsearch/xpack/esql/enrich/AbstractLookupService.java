@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -767,7 +768,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         static LookupShardContextFactory fromSearchService(SearchService searchService) {
             return shardId -> {
-                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+                // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
+                // doesn't matter.
+                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                    shardId,
+                    0,
+                    AliasFilter.EMPTY,
+                    null,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 return LookupShardContext.fromSearchContext(
                     searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
                 );

@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -188,21 +190,37 @@ public final class Expressions {
         return true;
     }
 
-    public static boolean listSemanticEquals(List<Expression> leftList, List<Expression> rightList) {
-        if (leftList.size() != rightList.size()) {
+    public static boolean listSemanticEqualsIgnoreOrder(List<Expression> left, List<Expression> right) {
+        if (left.size() != right.size()) {
             return false;
         }
-        for (int i = 0; i < leftList.size(); i++) {
-            Expression left = leftList.get(i);
-            Expression right = rightList.get(i);
-            if (left == null || right == null) {
-                throw new IllegalArgumentException("Unexpected null expression in list at index [" + i + "]");
-            }
-            if (left.semanticEquals(right) == false) {
+
+        Set<SemanticExpression> rightLookup = new HashSet<>(right.size());
+        for (Expression e : right) {
+            rightLookup.add(new SemanticExpression(e));
+        }
+        for (Expression l : left) {
+            if (rightLookup.contains(new SemanticExpression(l)) == false) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Wrapper that delegates {@code hashCode} and {@code equals} to
+     * {@link Expression#semanticHash()} and {@link Expression#semanticEquals(Expression)}.
+     */
+    private record SemanticExpression(Expression expression) {
+        @Override
+        public int hashCode() {
+            return expression.semanticHash();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof SemanticExpression other && expression.semanticEquals(other.expression);
+        }
     }
 
     public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {

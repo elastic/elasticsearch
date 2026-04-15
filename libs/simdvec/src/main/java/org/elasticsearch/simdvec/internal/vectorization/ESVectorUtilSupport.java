@@ -24,6 +24,9 @@ public interface ESVectorUtilSupport {
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
 
+    /** Returns the sum of squared differences over {@code [offset, offset + length)}. */
+    float squareDistance(float[] a, float[] b, int offset, int length);
+
     /** Calculates the cosine of the given byte arrays. */
     float cosine(byte[] a, byte[] b);
 
@@ -68,6 +71,8 @@ public interface ESVectorUtilSupport {
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
     void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+
+    void squareDistanceBulk(float[] query, int queryOffset, int length, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
 
     void soarDistanceBulk(
         float[] v1,

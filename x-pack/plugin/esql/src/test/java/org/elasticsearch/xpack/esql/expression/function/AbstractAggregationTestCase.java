@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
@@ -571,8 +572,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var blocksArraySize = randomIntBetween(1, 10);
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
-        try (var groups = driverContext().blockFactory().newIntRangeVector(0, groupCount)) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
+        try (
+            IntVector groups = driverContext().blockFactory().newIntRangeVector(0, groupCount);
+            GroupingAggregatorFunction.PreparedForEvaluation prepared = aggregator.prepareForEvaluate(
+                groups,
+                new GroupingAggregatorEvaluationContext(driverContext())
+            );
+        ) {
+            prepared.evaluate(blocks, resultBlockIndex, groups);
 
             var block = blocks[resultBlockIndex];
 

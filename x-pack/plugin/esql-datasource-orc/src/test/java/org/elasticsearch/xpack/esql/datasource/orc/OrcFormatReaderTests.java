@@ -34,11 +34,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -109,7 +109,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(DataType.LONG, attributes.get(0).dataType());
 
         assertEquals("name", attributes.get(1).name());
-        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         assertEquals("age", attributes.get(2).name());
         assertEquals(DataType.INTEGER, attributes.get(2).dataType());
@@ -609,7 +609,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
-        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());

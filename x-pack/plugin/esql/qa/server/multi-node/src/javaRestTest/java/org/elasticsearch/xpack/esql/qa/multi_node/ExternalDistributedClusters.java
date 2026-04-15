@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -26,6 +27,7 @@ public class ExternalDistributedClusters {
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
             spec.module("repository-s3");
             spec.module("repository-gcs");
             spec.setting("xpack.ml.enabled", "false");

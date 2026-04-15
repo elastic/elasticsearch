@@ -27,7 +27,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -127,21 +126,6 @@ public class AnalyzerExternalTests extends ESTestCase {
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH_PHRASE(first_name, \"foo\")",
             containsString("function cannot operate on [first_name], which is not a field from an index mapping")
-        );
-    }
-
-    /**
-     * Match function requires field from index mapping; EXTERNAL fields are rejected.
-     */
-    public void testWithMultiMatchFunctionRejected() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
-
-        external().error(
-            "EXTERNAL \"" + S3_PATH + "\" | WHERE MULTI_MATCH(\"foo\", first_name, last_name)",
-            allOf(
-                containsString("function cannot operate on [first_name], which is not a field from an index mapping"),
-                containsString("function cannot operate on [last_name], which is not a field from an index mapping")
-            )
         );
     }
 

@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -132,7 +131,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // TODO: investigate whether these plans are supported or explain why not
         Fuse.class,
         FuseScoreEval.class,
-        LimitBy.class,
         Lookup.class,
         MMR.class,
         Subquery.class,

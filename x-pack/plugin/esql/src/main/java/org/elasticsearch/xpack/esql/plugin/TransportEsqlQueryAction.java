@@ -209,9 +209,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             crossProjectModeDecider
         );
 
-        OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
-            .createOperatorFactoryRegistry(externalSourceExecutor());
-        FilterPushdownRegistry filterPushdownRegistry = planExecutor.dataSourceModule().filterPushdownRegistry();
+        var dataSourceModule = planExecutor.dataSourceModule();
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalSourceExecutor());
+        FilterPushdownRegistry filterPushdownRegistry = dataSourceModule.filterPushdownRegistry();
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -220,7 +220,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            filterPushdownRegistry
+            filterPushdownRegistry,
+            dataSourceModule.formatReaderRegistry()
         );
 
         this.activityLogger = new ActivityLogger<>(
@@ -545,7 +546,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.query(), // Pass the query as the description
+            request.queryDescription(), // Pass the query description as the task description
             parentTaskId,
             headers,
             originHeaders,

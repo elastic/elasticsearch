@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
@@ -40,7 +38,6 @@ import java.util.Map;
 class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryResponse> {
 
     private static final Logger logger = LogManager.getLogger(PrometheusQueryRangeResponseListener.class);
-    private static final String JSON_CONTENT_TYPE = XContentType.JSON.mediaType();
 
     // Column names expected in the ES|QL PROMQL response.
     static final String VALUE_COLUMN = "value";
@@ -78,16 +75,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
 
     private void sendErrorResponse(Exception e) {
         logger.debug("PromQL query_range request failed", e);
-        try {
-            RestStatus status = ExceptionsHelper.status(e);
-            XContentBuilder builder = buildErrorJson(status, e.getMessage());
-            channel.sendResponse(new RestResponse(status, builder));
-        } catch (Exception inner) {
-            logger.error("failed to send error response for PromQL query_range", inner);
-            try {
-                channel.sendResponse(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, JSON_CONTENT_TYPE, new BytesArray("{}")));
-            } catch (Exception ignored) {}
-        }
+        PrometheusErrorResponse.send(channel, e, logger);
     }
 
     /**
@@ -261,24 +249,6 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
                 builder.field(key, entry.getValue().toString());
             }
         }
-    }
-
-    static XContentBuilder buildErrorJson(RestStatus status, String message) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field("status", "error");
-        builder.field("errorType", mapErrorType(status));
-        builder.field("error", message != null ? message : "unknown error");
-        builder.endObject();
-        return builder;
-    }
-
-    private static String mapErrorType(RestStatus status) {
-        return switch (status) {
-            case BAD_REQUEST -> "bad_data";
-            case SERVICE_UNAVAILABLE, REQUEST_TIMEOUT, GATEWAY_TIMEOUT -> "timeout";
-            default -> "execution";
-        };
     }
 
     static class SeriesData {

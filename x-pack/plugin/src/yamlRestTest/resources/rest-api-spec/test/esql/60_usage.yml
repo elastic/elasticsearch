@@ -97,6 +97,7 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
+  - set: { esql.features.view: view_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.mmr: mmr_counter }
@@ -407,3 +408,40 @@ took:
   - exists: esql.took.lt_10h
   - exists: esql.took.lt_1d
   - exists: esql.took.gt_1d
+
+---
+"Views telemetry (snapshot only)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_telemetry ]
+        - method: GET
+          path: /_query/view
+          capabilities: [ view_index_abstraction ]
+      reason: "Views telemetry test requires snapshot build with views enabled"
+
+  - do: { xpack.usage: { } }
+  - set: { esql.features.view: view_counter }
+  - set: { esql.features.subquery: subquery_counter }
+
+  - do:
+      esql.put_view:
+        name: test_view_for_telemetry
+        body:
+          query: 'FROM test | WHERE data > 0'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_view_for_telemetry | LIMIT 10'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.view: $view_counter }
+  - match: { esql.features.subquery: $subquery_counter }
+
+  - do:
+      esql.delete_view:
+        name: test_view_for_telemetry

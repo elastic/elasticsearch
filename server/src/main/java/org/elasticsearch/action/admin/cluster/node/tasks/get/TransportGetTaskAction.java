@@ -103,9 +103,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        ActionListener<GetTaskResponse> relocationAwareListener = listener.delegateFailureAndWrap(
-            (l, response) -> followReindexRelocationIfNeeded(request, response, l)
-        );
+        ActionListener<GetTaskResponse> relocationAwareListener = request.getFollowRelocations()
+            ? listener.delegateFailureAndWrap((l, response) -> followReindexRelocationIfNeeded(request, response, l))
+            : listener;
         if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
             getRunningTaskFromNode(thisTask, request, relocationAwareListener);
         } else {

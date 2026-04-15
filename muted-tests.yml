@@ -187,18 +187,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/145519
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
-  method: testTopNByKeyEncoderTooMuchMemory
-  issue: https://github.com/elastic/elasticsearch/issues/145627
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testWriteLargeBlob
-  issue: https://github.com/elastic/elasticsearch/issues/145654
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
-- class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
-  method: testRecreateTemplateWhenDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/123232
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669

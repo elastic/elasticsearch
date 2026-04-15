@@ -44,7 +44,14 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
         NeighborHood[] neighborHoods
     ) throws IOException {
         return stepLloydSliceConcurrent(
-            executor, numWorkers, vectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborHoods
+            executor,
+            numWorkers,
+            vectors,
+            ordTranslator,
+            centroids,
+            centroidChangedSlices,
+            assignments,
+            neighborHoods
         );
     }
 

@@ -93,7 +93,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(
                     name,
-                    (datasetName, error) -> new IllegalArgumentException("invalid dataset name [" + name + "], " + error)
+                    (datasetName, error) -> new IllegalArgumentException("invalid dataset name [" + datasetName + "], " + error)
                 );
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);

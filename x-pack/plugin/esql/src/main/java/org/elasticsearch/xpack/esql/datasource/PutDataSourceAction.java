@@ -91,7 +91,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(
                     name,
-                    (dataSourceName, error) -> new IllegalArgumentException("invalid data source name [" + name + "], " + error)
+                    (dataSourceName, error) -> new IllegalArgumentException("invalid data source name [" + dataSourceName + "], " + error)
                 );
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);

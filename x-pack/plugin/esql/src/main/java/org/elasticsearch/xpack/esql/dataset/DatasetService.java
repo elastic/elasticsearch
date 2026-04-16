@@ -139,9 +139,7 @@ public class DatasetService {
                 }
                 final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
                 updated.put(dataset.name(), dataset);
-                return ClusterState.builder(currentState)
-                    .putProjectMetadata(ProjectMetadata.builder(project).datasets(updated))
-                    .build();
+                return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
         taskQueue.submitTask("update-esql-dataset-metadata-[" + dataset.name() + "]", task, task.timeout());
@@ -165,9 +163,7 @@ public class DatasetService {
                 }
                 final Map<String, Dataset> updated = new HashMap<>(metadata.datasets());
                 updated.remove(name);
-                return ClusterState.builder(currentState)
-                    .putProjectMetadata(ProjectMetadata.builder(project).datasets(updated))
-                    .build();
+                return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
         taskQueue.submitTask("delete-esql-dataset-metadata-[" + name + "]", task, task.timeout());

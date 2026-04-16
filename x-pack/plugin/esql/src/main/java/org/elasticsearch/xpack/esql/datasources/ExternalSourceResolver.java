@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -166,7 +167,19 @@ public class ExternalSourceResolver {
 
         SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileList.UNRESOLVED);
+        /*
+         * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
+         * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
+         * which forces coordinator execution down paths that never see per-split byte ranges and yields incorrect counts.
+         */
+        StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = resolveProvider(storagePath, config);
+        StorageObject object = provider.newObject(storagePath);
+        FileList singletonList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            path
+        );
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -181,9 +194,11 @@ public class ExternalSourceResolver {
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             StorageProvider provider = resolveProvider(storagePath, config);
+            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             FileList raw = path.indexOf(',') >= 0
-                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning)
-                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
+                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion)
+                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
@@ -251,7 +266,9 @@ public class ExternalSourceResolver {
         StoragePath storagePath
     ) throws Exception {
         StorageProvider provider = resolveProvider(storagePath, config);
-        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+        int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+        int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {

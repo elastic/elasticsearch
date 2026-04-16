@@ -46,21 +46,18 @@ import static org.hamcrest.Matchers.notNullValue;
  * populated and exposed in the datafeed stats API when a datafeed targets
  * indices on a remote cluster via CCS.
  *
- * <h2>Limitation: dynamic cluster config changes are not visible to a running datafeed</h2>
+ * <h2>Live scope detection</h2>
  *
- * The ML datafeed executes its CCS searches using stashed security headers captured at
- * datafeed-start time ({@code ClientHelper.executeWithHeaders}). As a result, remote
- * clusters added or removed via {@code _cluster/settings} while the datafeed is running
- * are <b>not</b> reflected in the search response's {@code _clusters} metadata, even
- * though they appear in {@code _remote/info}. This means that {@code CrossProjectSearchStats}
- * cannot detect scope changes (link/unlink) caused by dynamic cluster topology changes
- * during the lifetime of a single datafeed run.
+ * The stashed security headers in {@code ClientHelper.executeWithHeaders} contain only
+ * authentication identity — they do not encode which remote clusters exist. The {@code *:}
+ * CCS wildcard is resolved at search time by {@code TransportSearchAction} using the live
+ * {@code RemoteClusterService} state. This means a running datafeed using a wildcard pattern
+ * will automatically pick up clusters added or removed via {@code _cluster/settings} on its
+ * next search cycle, without needing a restart.
  *
- * <p>Scope change annotation testing (link, unlink, relink) is therefore handled by
- * unit tests in {@code DatafeedJobTests} and {@code CrossProjectSearchStatsTests}, which
- * have fine-grained control over the linked-project state cycles. The integration tests
- * here focus on verifying the stats API fields, multi-cluster visibility, and the
- * stop/reconfigure/restart lifecycle.
+ * <p>Changing the datafeed's own index pattern (e.g. narrowing from two explicit clusters to
+ * one) requires a stop/update/restart cycle because the datafeed config is immutable while
+ * running.
  *
  * <h2>CCS versus CPS mode</h2>
  *
@@ -73,14 +70,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * true CPS mode is not yet available for ML datafeeds. The loopback setup for linked
  * projects (via operator settings) exercises a different infrastructure path than the
  * CCS-based tests here.
- *
- * <h2>Wildcard resolution after cluster removal</h2>
- *
- * The {@code *:} CCS wildcard pattern does not reliably produce {@code _clusters} metadata
- * after a dynamically added remote cluster is removed. Even after {@code _remote/info}
- * confirms the removal, the wildcard resolution may fail to include the remaining remotes
- * in the search response's cluster metadata. Tests that exercise topology contraction
- * therefore use explicit index patterns or recreate the job/datafeed from scratch.
  */
 public class CpsDatafeedStatsIT extends ESRestTestCase {
 
@@ -473,17 +462,14 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
     }
 
     /**
-     * Simulates the dynamic config change when linking a new project:
-     * a datafeed using a wildcard CCS pattern picks up a newly added remote cluster after
-     * being stopped and restarted, without any change to its own configuration.
-     *
-     * <p>This mirrors the real-world scenario where an operator adds a linked project to the
-     * cluster and expects existing datafeeds to include it on their next run. Because the ML
-     * search context is captured at start time, the datafeed must be restarted for the change
-     * to take effect.
+     * Verifies that a running datafeed using a wildcard CCS pattern picks up a newly added
+     * remote cluster live, without needing to be stopped and restarted. The {@code *:} pattern
+     * is resolved at search time by the transport layer using the live {@code RemoteClusterService}
+     * state, so dynamic changes to {@code cluster.remote.*} settings are reflected on the
+     * datafeed's next search cycle.
      */
     @SuppressWarnings("unchecked")
-    public void testTopologyExpansionAcrossRestart() throws Exception {
+    public void testTopologyExpansionWhileRunning() throws Exception {
         String sharedIndex = "topo_expand_data";
         String jobId = "topo-expand-job";
         String datafeedId = jobId + "-datafeed";
@@ -513,31 +499,14 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
                 assertThat("project_b should not be present yet", aliases, not(hasItem("project_b")));
             }, 60, TimeUnit.SECONDS);
 
-            stopDatafeed(datafeedId);
-        } finally {
-            stopDatafeed(datafeedId);
-        }
+            // Phase 2: add project_b while the datafeed is still running
+            addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
+            assertBusy(() -> {
+                Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
+                assertThat(entityAsString(infoResponse), containsString("project_b"));
+            }, 30, TimeUnit.SECONDS);
 
-        // Phase 2: add project_b while datafeed is stopped — no datafeed config change
-        addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
-        assertBusy(() -> {
-            Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
-            assertThat(entityAsString(infoResponse), containsString("project_b"));
-        }, 30, TimeUnit.SECONDS);
-
-        // Index fresh data so the restarted datafeed's lookback finds new records and
-        // triggers a CCS search, which is required to establish the CrossClusterSearchStats baseline.
-        try (RestClient remoteA = remoteClientA()) {
-            indexRemoteData(remoteA, sharedIndex);
-        }
-        try (RestClient remoteB = remoteClientB()) {
-            indexRemoteData(remoteB, sharedIndex);
-        }
-
-        // Restart the same datafeed with the same *: pattern
-        startDatafeed(datafeedId);
-
-        try {
+            // The running datafeed should pick up project_b on its next search cycle
             assertBusy(() -> {
                 Map<String, Object> stats = getDatafeedStats(datafeedId);
                 assertThat(stats.get("state"), equalTo("started"));
@@ -561,14 +530,10 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
     }
 
     /**
-     * Tests scope contraction: the datafeed configuration is narrowed from searching two
-     * remote clusters to searching only one. After the stop/reconfigure/restart cycle, the
+     * Tests scope contraction via datafeed reconfiguration: the datafeed's index pattern is
+     * narrowed from two explicit clusters to one. This requires a stop/update/restart cycle
+     * because the datafeed config is immutable while running. After restart, the
      * remote_cluster_stats baseline is re-established with the reduced set.
-     *
-     * <p>This mirrors the operational scenario where a linked project is removed
-     * and the datafeed's index pattern is updated to reflect the reduced
-     * scope. The remote cluster itself remains configured — only the datafeed's target
-     * indices change — avoiding interference from cluster teardown timing.
      */
     @SuppressWarnings("unchecked")
     public void testTopologyContractionAcrossRestart() throws Exception {

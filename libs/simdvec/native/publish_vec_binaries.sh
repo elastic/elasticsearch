@@ -54,7 +54,7 @@ if [ "$UPLOAD" = true ]; then
 fi
 
 echo 'Building all binaries...'
-docker run --rm --platform linux/amd64 \
+docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
   "$TOOLCHAIN_IMAGE" \

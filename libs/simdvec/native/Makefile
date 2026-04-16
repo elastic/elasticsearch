@@ -37,7 +37,7 @@ CLANG       = clang++-21 --target=arm64-apple-macos14 -Winline -nostdinc \
 CLANG_LINK  = clang++-21 --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
 CLANG_STRIP = llvm-strip-21 --strip-debug
 CXX_ARM     = clang++-21 --target=aarch64-linux-gnu -Winline
-CXX_X64     = clang++-21 -Winline
+CXX_X64     = clang++-21 --target=x86_64-linux-gnu -Winline
 
 # Sources split by tier
 SRC_AARCH64_TIER1 = $(filter-out %_2.cpp, $(wildcard src/vec/c/aarch64/*.cpp))
@@ -88,6 +88,7 @@ else ifeq ($(shell uname -m),aarch64)
 else
   LOCAL_PLATFORM = linux-x64
   LOCAL_OUTPUT   = $(SO_X64)
+  local: CXX_X64 = clang++-21 -Winline
   local: $(SO_X64)
 endif
 
@@ -137,7 +138,7 @@ $(OBJ_LIN_X64_TIER3): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
 	$(CXX_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER3) $(HEADERS) -c $< -o $@
 
 $(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) $(OBJ_LIN_X64_TIER3) | $(OUT_DIR_AMD64)
-	$(CXX_X64) -shared $^ -o $@
+	$(CXX_X64) -fuse-ld=lld -shared $^ -o $@
 	llvm-strip-21 --strip-unneeded $@
 
 # --- directories ---

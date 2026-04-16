@@ -220,7 +220,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
             capturedTimeout.set(ans.getArgument(2));
-            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(null);
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(4)).onResponse(null);
             return null;
         }).when(client).invoke(any(), any(), any(), any(), any());
 
@@ -247,7 +247,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
             capturedTimeout.set(ans.getArgument(2));
-            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(null);
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(4)).onResponse(null);
             return null;
         }).when(client).invoke(any(), any(), any(), any(), any());
 
@@ -270,7 +270,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private void mockInvoke() {
         doAnswer(ans -> {
-            ActionListener<InvokeEndpointResponse> responseListener = ans.getArgument(3);
+            ActionListener<InvokeEndpointResponse> responseListener = ans.getArgument(4);
             responseListener.onResponse(InvokeEndpointResponse.builder().build());
             return null; // Void
         }).when(client).invoke(any(), any(), any(), any(), any());
@@ -304,7 +304,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private void mockInvokeStream() {
         doAnswer(ans -> {
-            ActionListener<SageMakerClient.SageMakerStream> responseListener = ans.getArgument(3);
+            ActionListener<SageMakerClient.SageMakerStream> responseListener = ans.getArgument(4);
             responseListener.onResponse(
                 new SageMakerClient.SageMakerStream(InvokeEndpointWithResponseStreamResponse.builder().build(), mock())
             );
@@ -342,7 +342,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private void mockInvokeFailure(Exception e) {
         doAnswer(ans -> {
-            ActionListener<?> responseListener = ans.getArgument(3);
+            ActionListener<?> responseListener = ans.getArgument(4);
             responseListener.onFailure(e);
             return null; // Void
         }).when(client).invoke(any(), any(), any(), any(), any());
@@ -421,7 +421,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private void mockInvokeStreamFailure(Exception e) {
         doAnswer(ans -> {
-            ActionListener<?> responseListener = ans.getArgument(3);
+            ActionListener<?> responseListener = ans.getArgument(4);
             responseListener.onFailure(e);
             return null; // Void
         }).when(client).invokeStream(any(), any(), any(), any(), any());

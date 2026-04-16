@@ -501,31 +501,6 @@ public class ESVectorUtil {
     }
 
     /**
-     * Collect relative ordinals where {@code scores[offset + i] >= thresholdScore} for {@code i in [0, length)}.
-     * Returns the number of ordinals written to {@code acceptedOrdinals}.
-     */
-    public static int collectScoresAtOrAboveThreshold(
-        float[] scores,
-        int offset,
-        int length,
-        float thresholdScore,
-        int[] acceptedOrdinals
-    ) {
-        Objects.checkFromIndexSize(offset, length, scores.length);
-        if (acceptedOrdinals.length < length) {
-            throw new IllegalArgumentException("acceptedOrdinals array too small: " + acceptedOrdinals.length + " < " + length);
-        }
-        int accepted = 0;
-        int end = offset + length;
-        for (int i = offset; i < end; i++) {
-            if (scores[i] >= thresholdScore) {
-                acceptedOrdinals[accepted++] = i - offset;
-            }
-        }
-        return accepted;
-    }
-
-    /**
      * Searches for the first occurrence of the given marker byte in the specified range of the array.
      *
      * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return

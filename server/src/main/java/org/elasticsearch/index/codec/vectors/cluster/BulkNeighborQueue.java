@@ -65,6 +65,7 @@ public class BulkNeighborQueue {
         if (tinyHeap != null) {
             return tinyHeap.size();
         }
+        assert collector != null;
         return collector.size();
     }
 
@@ -80,6 +81,7 @@ public class BulkNeighborQueue {
         if (tinyHeap != null) {
             return tinyHeap.top();
         }
+        assert collector != null;
         return collector.peek();
     }
 
@@ -122,6 +124,7 @@ public class BulkNeighborQueue {
         if (tinyHeap != null) {
             return insertWithOverflowTiny(docs, scores, count, bestScore);
         }
+        assert collector != null;
         return collector.insertWithOverflowBulk(docs, scores, count, bestScore);
     }
 
@@ -135,6 +138,7 @@ public class BulkNeighborQueue {
             }
             return;
         }
+        assert collector != null;
         collector.drain(consumer);
     }
 
@@ -150,10 +154,12 @@ public class BulkNeighborQueue {
             tinyHeap.clear();
             return;
         }
+        assert collector != null;
         collector.drainUnsorted(consumer);
     }
 
     private int insertWithOverflowTiny(int[] docs, float[] scores, int count, float bestScore) {
+        assert tinyHeap != null;
         if (count <= 0) {
             return 0;
         }
@@ -267,10 +273,6 @@ public class BulkNeighborQueue {
 
         private void sortValues(int length) {
             if (length <= 1) {
-                return;
-            }
-            if (length < 64) {
-                Arrays.sort(values, 0, length);
                 return;
             }
             Arrays.sort(values, 0, length);

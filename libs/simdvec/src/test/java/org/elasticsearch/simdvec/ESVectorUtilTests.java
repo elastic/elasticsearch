@@ -738,31 +738,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    public void testCollectScoresAtOrAboveThreshold() {
-        int size = randomIntBetween(32, 1024);
-        int offset = randomIntBetween(0, size / 4);
-        int length = randomIntBetween(1, size - offset);
-        float threshold = randomFloatBetween(-1f, 1f, true);
-
-        float[] scores = new float[size];
-        for (int i = 0; i < size; i++) {
-            scores[i] = randomIntBetween(0, 7) == 0 ? threshold : randomFloatBetween(-1f, 1f, true);
-        }
-
-        int[] expected = new int[length];
-        int expectedCount = 0;
-        for (int i = 0; i < length; i++) {
-            if (scores[offset + i] >= threshold) {
-                expected[expectedCount++] = i;
-            }
-        }
-
-        int[] actual = new int[length];
-        int actualCount = ESVectorUtil.collectScoresAtOrAboveThreshold(scores, offset, length, threshold, actual);
-        assertEquals(expectedCount, actualCount);
-        assertArrayEquals(Arrays.copyOf(expected, expectedCount), Arrays.copyOf(actual, actualCount));
-    }
-
     private void assertContains(String value, String term, boolean expected) {
         byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
         byte[] termBytes = term.getBytes(StandardCharsets.UTF_8);

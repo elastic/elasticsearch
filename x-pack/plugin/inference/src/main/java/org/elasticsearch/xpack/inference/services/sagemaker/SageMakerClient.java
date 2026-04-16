@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.sender.TimedListener.gatewayTimeoutException;
 
 public class SageMakerClient implements Closeable {
     private static final Logger log = LogManager.getLogger(SageMakerClient.class);
@@ -95,14 +96,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(awsFuture);
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Request timed out after [{}] for inference id [{}]",
-                        RestStatus.GATEWAY_TIMEOUT,
-                        timeout,
-                        inferenceId
-                    )
-                );
+                contextPreservingListener.onFailure(gatewayTimeoutException(timeout, inferenceId));
             }
         );
         awsFuture.thenAcceptAsync(timeoutListener::onResponse, threadPool.executor(UTILITY_THREAD_POOL_NAME))
@@ -161,14 +155,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(cancelAwsRequestListener.get());
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Request timed out after [{}] for inference id [{}]",
-                        RestStatus.GATEWAY_TIMEOUT,
-                        timeout,
-                        inferenceId
-                    )
-                );
+                contextPreservingListener.onFailure(gatewayTimeoutException(timeout, inferenceId));
             }
         );
         // To stay consistent with HTTP providers, we cancel the TimeoutListener onResponse because we are measuring the time it takes to

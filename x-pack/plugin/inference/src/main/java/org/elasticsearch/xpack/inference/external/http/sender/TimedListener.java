@@ -59,12 +59,7 @@ public class TimedListener<Response> {
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
-            (ignored) -> notificationListener.onFailure(
-                new ElasticsearchStatusException(
-                    Strings.format("Request timed out after [%s] for inference id [%s]", timeout, inferenceId),
-                    RestStatus.GATEWAY_TIMEOUT
-                )
-            )
+            (ignored) -> notificationListener.onFailure(gatewayTimeoutException(timeout, inferenceId))
         );
     }
 
@@ -74,5 +69,12 @@ public class TimedListener<Response> {
 
     public ActionListener<Response> getListener() {
         return listenerWithTimeout;
+    }
+
+    public static ElasticsearchStatusException gatewayTimeoutException(TimeValue timeout, String inferenceId) {
+        return new ElasticsearchStatusException(
+            Strings.format("Request timed out after [%s] for inference id [%s]", timeout, inferenceId),
+            RestStatus.GATEWAY_TIMEOUT
+        );
     }
 }

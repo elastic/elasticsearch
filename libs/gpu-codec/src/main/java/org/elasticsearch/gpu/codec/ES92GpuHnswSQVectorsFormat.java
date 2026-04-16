@@ -17,7 +17,8 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.gpu.CuVSGPUSupport;
-import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -43,26 +44,11 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     private final long totalDeviceMemory;
 
     public ES92GpuHnswSQVectorsFormat() {
-        this(
-            CuVSResourceManager::pooling,
-            CuVSGPUSupport.instance().getTotalGpuMemory(),
-            DEFAULT_MAX_CONN,
-            DEFAULT_BEAM_WIDTH,
-            null,
-            7,
-            false
-        );
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, 7, false);
     }
 
-    public ES92GpuHnswSQVectorsFormat(
-        long totalDeviceMemory,
-        int maxConn,
-        int beamWidth,
-        Float confidenceInterval,
-        int bits,
-        boolean compress
-    ) {
-        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, confidenceInterval, bits, compress);
+    public ES92GpuHnswSQVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth, int bits, boolean useDirectIO) {
+        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, bits, useDirectIO);
     }
 
     ES92GpuHnswSQVectorsFormat(
@@ -70,9 +56,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
         long totalDeviceMemory,
         int maxConn,
         int beamWidth,
-        Float confidenceInterval,
         int bits,
-        boolean compress
+        boolean useDirectIO
     ) {
         super(NAME);
         this.totalDeviceMemory = totalDeviceMemory;
@@ -89,7 +74,7 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
+        this.flatVectorsFormat = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, useDirectIO);
     }
 
     @Override

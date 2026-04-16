@@ -40,11 +40,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            containsString("Incompatible model settings for field [dense_field]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+        assertThat(fullExceptionChain(e), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -66,13 +66,16 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
+            () -> client().prepareIndex(indexName).setSource(source).get()
+        );
+        assertThat(
+            fullExceptionChain(e),
             containsString(
                 "The configured inference_id [a-different-inference-id] for field [dense_field]"
                     + " doesn't match the inference_id [dense-inference-id]"
-            ),
-            () -> client().prepareIndex(indexName).setSource(source).get()
+            )
         );
     }
 
@@ -95,11 +98,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            containsString("Incompatible model settings for field [dense_field]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+        assertThat(fullExceptionChain(e), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -121,11 +124,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "byte",
             List.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            containsString("Incompatible model settings for field [dense_field]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+        assertThat(fullExceptionChain(e), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -146,11 +149,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "sparse_embedding",
             Map.of("feature_0", 1.0f, "feature_1", 2.0f, "feature_2", 3.0f, "feature_3", 4.0f)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            containsString("Incompatible model settings for field [dense_field]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+        assertThat(fullExceptionChain(e), containsString("Incompatible model settings for field [dense_field]"));
     }
 
     /**
@@ -161,7 +164,12 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
      */
     public void testLegacyFormatIncompatibleTaskTypeSparseFails() throws Exception {
         createLegacyIndex();
-        client().prepareIndex(indexName).setSource(Map.of(SPARSE_FIELD, "setup text")).get();
+        // Index the setup doc using the full legacy format so that model_settings are explicitly
+        // written to the mapping (plain-string indexing via the fake sparse model does not update
+        // model_settings in the same way).
+        client().prepareIndex(indexName)
+            .setSource(buildLegacySparseDoc(SPARSE_FIELD, "setup text", SPARSE_INFERENCE_ID, "sparse_embedding", Map.of("feature_0", 1.0f)))
+            .get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         Map<String, Object> source = buildLegacyDenseDoc(
@@ -173,11 +181,11 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             "float",
             List.of(0.1, 0.2, 0.3, 0.4)
         );
-        expectThrows(
+        DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            containsString("Incompatible model settings for field [sparse_field]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+        assertThat(fullExceptionChain(e), containsString("Incompatible model settings for field [sparse_field]"));
     }
 
     /**
@@ -277,5 +285,26 @@ public class SemanticTextIncompatibleFieldMappingLegacyFormatIT extends Semantic
             containsString("failed to parse field [dense_field] of type [semantic_text]"),
             () -> client().prepareIndex(indexName).setSource(source).get()
         );
+    }
+
+    /**
+     * Returns a concatenation of every message in the given exception's cause chain, separated by
+     * {@code " | "}. This mirrors how the YAML REST test framework evaluates {@code catch} regex
+     * patterns — against the full serialised error body, which includes all {@code caused_by}
+     * entries — so that Java and YAML tests assert the same strings.
+     */
+    private static String fullExceptionChain(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        Throwable cause = t;
+        while (cause != null) {
+            if (cause.getMessage() != null) {
+                if (sb.length() > 0) {
+                    sb.append(" | ");
+                }
+                sb.append(cause.getMessage());
+            }
+            cause = cause.getCause();
+        }
+        return sb.toString();
     }
 }

@@ -26,6 +26,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.Arrays;
+import java.util.SplittableRandom;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.Throughput)
@@ -42,7 +44,7 @@ public class NeighborQueueInsertWithOverflowBenchmark {
 
     public enum HeapImplementation {
         BINARY,
-        PIVOT_AUTO
+        PIVOT
     }
 
     public enum WorkloadModel {
@@ -71,7 +73,7 @@ public class NeighborQueueInsertWithOverflowBenchmark {
     @Param({ "EXTRAPOLATED_REAL_WORLD", "PREFILTERED_DECAY" })
     public WorkloadModel workloadModel;
 
-    @Param({ "BINARY", "PIVOT_AUTO" })
+    @Param({ "BINARY", "PIVOT" })
     public HeapImplementation heapImplementation;
 
     private QueueAdapter queueAdapter;
@@ -128,6 +130,45 @@ public class NeighborQueueInsertWithOverflowBenchmark {
         }
         bh.consume(accepted);
         return accepted;
+    }
+
+    @Benchmark
+    public long mergeSegmentTopKUnsorted(Blackhole bh, SegmentMergeState state) {
+        return mergeSegmentTopK(false, bh, state);
+    }
+
+    @Benchmark
+    public long mergeSegmentTopKSorted(Blackhole bh, SegmentMergeState state) {
+        return mergeSegmentTopK(true, bh, state);
+    }
+
+    private long mergeSegmentTopK(boolean sortPerSegment, Blackhole bh, SegmentMergeState state) {
+        MergeAdapter global = switch (heapImplementation) {
+            case BINARY -> new BinaryMergeAdapter(state.mergeK);
+            case PIVOT -> new BulkMergeAdapter(state.mergeK);
+        };
+        int accepted = 0;
+        for (int segment = 0; segment < state.segmentCount; segment++) {
+            int[] docs = state.docsBySegment[segment];
+            float[] segmentScores = state.scoresBySegment[segment];
+            float bestScore = state.bestScoreBySegment[segment];
+            if (sortPerSegment) {
+                System.arraycopy(state.encodedBySegment[segment], 0, state.sortEncodedScratch, 0, state.mergeK);
+                Arrays.sort(state.sortEncodedScratch, 0, state.mergeK);
+                for (int i = 0; i < state.mergeK; i++) {
+                    long encoded = state.sortEncodedScratch[i];
+                    state.sortDocsScratch[i] = (int) ~encoded;
+                    state.sortScoresScratch[i] = BulkNeighborQueue.decodeScoreRaw(encoded);
+                }
+                docs = state.sortDocsScratch;
+                segmentScores = state.sortScoresScratch;
+                bestScore = state.sortScoresScratch[state.mergeK - 1];
+            }
+            accepted += global.insertWithOverflowBulk(docs, segmentScores, state.mergeK, bestScore);
+        }
+        long checksum = global.drainChecksum();
+        bh.consume(accepted);
+        return checksum;
     }
 
     private int prefilteredCandidateCount(int blockSize, int docBase, int safeHeapSize) {
@@ -195,10 +236,84 @@ public class NeighborQueueInsertWithOverflowBenchmark {
         }
     }
 
+    public enum SegmentMagnitudeProfile {
+        MIXED_1M_100K_10K
+    }
+
+    @State(Scope.Thread)
+    public static class SegmentMergeState {
+        @Param({ "10", "20", "50", "100" })
+        public int segmentCount;
+
+        @Param({ "100" })
+        public int mergeK;
+
+        @Param
+        public SegmentMagnitudeProfile segmentMagnitudeProfile;
+
+        int[][] docsBySegment;
+        float[][] scoresBySegment;
+        float[] bestScoreBySegment;
+        long[][] encodedBySegment;
+        long[] sortEncodedScratch;
+        int[] sortDocsScratch;
+        float[] sortScoresScratch;
+
+        @Setup(Level.Trial)
+        public void setup() {
+            docsBySegment = new int[segmentCount][mergeK];
+            scoresBySegment = new float[segmentCount][mergeK];
+            bestScoreBySegment = new float[segmentCount];
+            encodedBySegment = new long[segmentCount][mergeK];
+            sortEncodedScratch = new long[mergeK];
+            sortDocsScratch = new int[mergeK];
+            sortScoresScratch = new float[mergeK];
+
+            int docBase = 0;
+            SplittableRandom random = new SplittableRandom(0xBADC0FFEE0DDF00DL);
+            for (int segment = 0; segment < segmentCount; segment++) {
+                int vectors = segmentVectorCount(segment, segmentMagnitudeProfile);
+                long[] encodedValues = encodedBySegment[segment];
+                double sizeBoost = Math.log10(vectors);
+                for (int i = 0; i < mergeK; i++) {
+                    int doc = docBase + i;
+                    float score = (float) (sizeBoost + random.nextDouble() * 2.0d - (i * 0.01d));
+                    encodedValues[i] = BulkNeighborQueue.encodeRaw(doc, score);
+                }
+                for (int i = mergeK - 1; i > 0; i--) {
+                    int swapWith = random.nextInt(i + 1);
+                    long tmp = encodedValues[i];
+                    encodedValues[i] = encodedValues[swapWith];
+                    encodedValues[swapWith] = tmp;
+                }
+                float bestScore = Float.NEGATIVE_INFINITY;
+                for (int i = 0; i < mergeK; i++) {
+                    long encoded = encodedValues[i];
+                    docsBySegment[segment][i] = (int) ~encoded;
+                    float score = BulkNeighborQueue.decodeScoreRaw(encoded);
+                    scoresBySegment[segment][i] = score;
+                    bestScore = Math.max(bestScore, score);
+                }
+                bestScoreBySegment[segment] = bestScore;
+                docBase += vectors;
+            }
+        }
+
+        private static int segmentVectorCount(int segment, SegmentMagnitudeProfile profile) {
+            return switch (profile) {
+                case MIXED_1M_100K_10K -> switch (segment % 3) {
+                    case 0 -> 1_000_000;
+                    case 1 -> 100_000;
+                    default -> 10_000;
+                };
+            };
+        }
+    }
+
     private QueueAdapter createQueueAdapter() {
         return switch (heapImplementation) {
             case BINARY -> new BinaryQueueAdapter(heapSize);
-            case PIVOT_AUTO -> new BulkNeighborQueueAdapter(new BulkNeighborQueue(heapSize));
+            case PIVOT -> new BulkNeighborQueueAdapter(new BulkNeighborQueue(heapSize));
         };
     }
 
@@ -238,5 +353,59 @@ public class NeighborQueueInsertWithOverflowBenchmark {
             return queue.insertWithOverflowBulk(docs, scores, count, bestScore);
         }
 
+    }
+
+    private interface MergeAdapter {
+        int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore);
+
+        long drainChecksum();
+    }
+
+    private static class BulkMergeAdapter implements MergeAdapter {
+        private final BulkNeighborQueue queue;
+
+        private BulkMergeAdapter(int mergeK) {
+            this.queue = BulkNeighborQueue.forMerging(mergeK);
+        }
+
+        @Override
+        public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+            return queue.insertWithOverflowBulk(docs, scores, count, bestScore);
+        }
+
+        @Override
+        public long drainChecksum() {
+            long[] checksum = new long[1];
+            queue.drain(encoded -> checksum[0] = (checksum[0] * 31L) ^ encoded);
+            return checksum[0];
+        }
+    }
+
+    private static class BinaryMergeAdapter implements MergeAdapter {
+        private final NeighborQueue queue;
+
+        private BinaryMergeAdapter(int mergeK) {
+            this.queue = new NeighborQueue(mergeK, false);
+        }
+
+        @Override
+        public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+            int accepted = 0;
+            for (int i = 0; i < count; i++) {
+                if (queue.insertWithOverflow(docs[i], scores[i])) {
+                    accepted++;
+                }
+            }
+            return accepted;
+        }
+
+        @Override
+        public long drainChecksum() {
+            long checksum = 0L;
+            while (queue.size() > 0) {
+                checksum = (checksum * 31L) ^ queue.popRaw();
+            }
+            return checksum;
+        }
     }
 }

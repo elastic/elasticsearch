@@ -148,7 +148,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
-        BulkNeighborQueue mergeQueue = new BulkNeighborQueue(mergeK);
+        // During merge across segments, always favor bulk pivot collection.
+        // Segment-level unsorted gathering avoids per-segment sorting work.
+        BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
         long totalHitsValue = 0;
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (TopDocs topDocs : perLeafResults) {

@@ -37,11 +37,22 @@ public class BulkNeighborQueue {
     private final ReservoirTopK collector;
 
     public BulkNeighborQueue(int maxSize) {
+        this(maxSize, true);
+    }
+
+    /**
+     * Creates a merge-focused queue that always uses the bulk pivot collector.
+     */
+    public static BulkNeighborQueue forMerging(int maxSize) {
+        return new BulkNeighborQueue(maxSize, false);
+    }
+
+    private BulkNeighborQueue(int maxSize, boolean useTinyHeapWhenEligible) {
         if (maxSize < 1) {
             throw new IllegalArgumentException("maxSize must be >= 1");
         }
         this.maxSize = maxSize;
-        if (maxSize <= TINY_K_BINARY_THRESHOLD) {
+        if (useTinyHeapWhenEligible && maxSize <= TINY_K_BINARY_THRESHOLD) {
             this.tinyHeap = new LongHeap(maxSize);
             this.collector = null;
         } else {

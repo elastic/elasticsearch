@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -67,6 +68,16 @@ public class BulkNeighborQueueTests extends ESTestCase {
         float[] scores = new float[] { 1.0f, 0.5f, 2.0f, 1.5f, 3.0f, 2.8f, 2.2f, 0.1f, 1.7f, 4.0f, 3.5f, 3.9f };
         int k = 11;
         assertTopKMatches(new BulkNeighborQueue(k), docs, scores, docs.length, k, maxScore(scores));
+    }
+
+    public void testForMergingBypassesTinyHeap() throws Exception {
+        BulkNeighborQueue queue = BulkNeighborQueue.forMerging(5);
+        Field tinyHeapField = BulkNeighborQueue.class.getDeclaredField("tinyHeap");
+        tinyHeapField.setAccessible(true);
+        Field collectorField = BulkNeighborQueue.class.getDeclaredField("collector");
+        collectorField.setAccessible(true);
+        assertNull(tinyHeapField.get(queue));
+        assertNotNull(collectorField.get(queue));
     }
 
     public void testEqualBestScoreStillUsesDocTieBreak() {

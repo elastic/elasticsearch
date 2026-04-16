@@ -40,6 +40,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         TimeValue.timeValueMinutes(1),
         Setting.Property.NodeScope
     );
+
     static final Setting<Integer> MAX_CONCURRENCY_SETTING = Setting.intSetting(
         "dlm.frozen_transition.max_concurrency",
         10,
@@ -47,6 +48,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         100,
         Setting.Property.NodeScope
     );
+
     static final Setting<Integer> MAX_QUEUE_SIZE = Setting.intSetting(
         "dlm.frozen_transition.max_queue_size",
         500,
@@ -54,12 +56,13 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         10000,
         Setting.Property.NodeScope
     );
+
     private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
     private final int maxConcurrency;
     private final int maxQueueSize;
     private final DataStreamLifecycleErrorStore errorStore;
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
-    private DLMFrozenTransitionExecutor transitionExecutor;
+    private volatile DLMFrozenTransitionExecutor transitionExecutor;
 
     DLMFrozenTransitionService(
         ClusterService clusterService,

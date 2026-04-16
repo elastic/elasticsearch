@@ -13,11 +13,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -140,6 +143,96 @@ public class DirectoryMetricsTests extends ESTestCase {
         DirectoryMetrics resolved = resolveCapture(capture, 0);
         StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
         assertEquals(42, result.getBytesRead());
+    }
+
+    public void testSerializationWithSameNamedWriteableThrowsException() throws IOException {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new NamedWriteableRegistry(
+                List.of(
+                    new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, Counter.NAME, Counter::new),
+                    new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, Counter2.NAME, Counter2::new)
+                )
+            )
+        );
+    }
+
+    public static class Counter implements DirectoryMetrics.PluggableMetrics<Counter> {
+        public static final String NAME = "counter";
+        private int count;
+
+        public Counter() {}
+
+        public Counter(int count) {
+            this.count = count;
+        }
+
+        public Counter(StreamInput in) throws IOException {
+            this.count = in.readVInt();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(count);
+        }
+
+        public void increment() {
+            count++;
+        }
+
+        public long getCount() {
+            return count;
+        }
+
+        @Override
+        public Supplier<Counter> delta() {
+            Counter snapshot = copy();
+            return () -> new Counter(count - snapshot.count);
+        }
+
+        @Override
+        public Counter copy() {
+            return new Counter(count);
+        }
+
+        @Override
+        public Counter merge(Counter other) {
+            return new Counter(count + other.count);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("count", count);
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Counter that = (Counter) o;
+            return count == that.count;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(count);
+        }
+    }
+
+    public static final class Counter2 extends Counter {
+        public Counter2(int count) {
+            super(count);
+        }
+
+        public Counter2(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     private static DirectoryMetrics resolveCapture(IndicesService.DirectoryMetricsCapture capture, long workerBytesRead) {

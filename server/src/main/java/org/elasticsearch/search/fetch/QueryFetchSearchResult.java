@@ -84,7 +84,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         super.setDirectoryMetrics(directoryMetrics);
         queryResult.setDirectoryMetrics(directoryMetrics);
-        fetchResult.setDirectoryMetrics(directoryMetrics);
     }
 
     @Override

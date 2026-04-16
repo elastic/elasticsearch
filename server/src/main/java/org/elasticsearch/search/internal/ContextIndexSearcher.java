@@ -55,6 +55,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.store.Store.DIRECTORY_METRICS_FEATURE_FLAG;
+
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
@@ -83,7 +85,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private volatile boolean timeExceeded = false;
 
     private volatile LongSupplier threadBytesRead;
-    private final AtomicLong workerDirectoryBytesRead = new AtomicLong();
+    private AtomicLong workerDirectoryBytesRead;
 
     /** constructor for non-concurrent search */
     @SuppressWarnings("this-escape")
@@ -142,6 +144,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
+        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            workerDirectoryBytesRead = new AtomicLong();
+        }
     }
 
     /**
@@ -166,7 +171,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * Returns the total bytes read by worker threads during parallel collection.
      */
     public long getWorkerDirectoryBytesRead() {
-        return workerDirectoryBytesRead.get();
+        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return workerDirectoryBytesRead.get();
+        }
+        return 0;
     }
 
     @Override

@@ -1124,7 +1124,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta, ContextIndexSearcher searcher) {
-        if (metricsDelta == null) {
+        if (metricsDelta == null || Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
             return DirectoryMetrics.EMPTY;
         }
         indicesService.currentThreadStoreMetrics().addBytesRead(searcher.getWorkerDirectoryBytesRead());
@@ -1139,7 +1139,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndicesService.DirectoryMetricsCapture metricsCapture,
         ContextIndexSearcher searcher
     ) {
-        if (metricsCapture == null) {
+        if (metricsCapture == null || Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
             return DirectoryMetrics.EMPTY;
         }
         metricsCapture.callingThreadStoreMetrics().addBytesRead(searcher.getWorkerDirectoryBytesRead());

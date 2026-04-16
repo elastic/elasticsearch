@@ -84,7 +84,7 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
             PluggableMetrics<?> metric = in.readNamedWriteable(PluggableMetrics.class);
             map.put(metric.getWriteableName(), metric);
         }
-        this.data = Map.copyOf(map);
+        this.data = map;
     }
 
     @Override

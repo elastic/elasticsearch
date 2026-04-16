@@ -7,7 +7,7 @@
       "type": "keyword",
       "time_series_dimension": true
     },
-    "temporality": {
+    "my_temporality": {
       "type": "keyword",
       "time_series_dimension": true
     },

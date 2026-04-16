@@ -864,7 +864,9 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
-        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+        if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
+        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {

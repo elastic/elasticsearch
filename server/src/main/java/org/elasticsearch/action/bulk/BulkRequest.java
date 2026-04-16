@@ -503,7 +503,11 @@ public class BulkRequest extends LegacyActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long ramBytesUsed = SHALLOW_SIZE;
+        for (final var request : requests) {
+            ramBytesUsed += request.ramBytesUsed();
+        }
+        return ramBytesUsed;
     }
 
     public Set<String> getIndices() {

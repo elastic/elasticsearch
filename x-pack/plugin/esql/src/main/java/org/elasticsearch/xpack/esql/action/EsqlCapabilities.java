@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -2032,6 +2033,12 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
+         * also match time series where the label is absent ({@code NULL}), per PromQL spec.
+         */
+        PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2420,6 +2427,11 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
+         * TSDB Temporality support which is guarded by a feature flag.
+         */
+        TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -2496,6 +2508,13 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/141579
          */
         FIX_PROPAGATE_NULLABLE_OR_DISJUNCTION,
+
+        /**
+         * Fix TBUCKET with a numeric bucket count returning a verification exception instead of empty results
+         * when the top-level request filter covers a time range with no matching indices.
+         * See https://github.com/elastic/elasticsearch/issues/146354
+         */
+        FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE,
 
         /**
          * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.

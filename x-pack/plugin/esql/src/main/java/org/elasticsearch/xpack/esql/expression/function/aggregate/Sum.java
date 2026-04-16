@@ -109,6 +109,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
                     + "computing the sum of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "sumExpHistoForDocs"
+            ),
+            @Example(
+                description = "`SUM` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the sum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "sumTDigestForDocs"
             ) }
     )
     public Sum(

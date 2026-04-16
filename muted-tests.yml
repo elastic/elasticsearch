@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/141548
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testExecute_Throws_WhenRateLimitedQueueIsFull
-  issue: https://github.com/elastic/elasticsearch/issues/141231
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -235,9 +232,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/145948
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
@@ -343,6 +337,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:text-embedding.text_embedding scores by stable sort}
   issue: https://github.com/elastic/elasticsearch/issues/146416
+- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
+  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/146419
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.AzureRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/146430
 
 # Examples:
 #

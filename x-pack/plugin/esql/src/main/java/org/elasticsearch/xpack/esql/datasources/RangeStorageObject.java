@@ -18,8 +18,8 @@ import java.time.Instant;
 
 /**
  * A view over a byte range of a delegate {@link StorageObject}.
- * Used when a {@link FileSplit} has a non-zero offset, so that format readers
- * see only the relevant portion of the file.
+ * Used for every {@link FileSplit} so format readers and splittable decompressors
+ * only see the split's compressed byte span (including offset {@code 0}).
  */
 class RangeStorageObject implements StorageObject {
 

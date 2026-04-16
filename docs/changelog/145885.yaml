@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145885
+summary: Add DataSourceValidator SPI for CRUD-time validation of external data source settings
+type: enhancement

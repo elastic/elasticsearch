@@ -470,16 +470,16 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
      * have to supply them. But you have to supply them in some cases. It depends on
      * the signatures. And when we're rendering the signatures for kibana it's more
      * correct to say that all parameters are required. They'll render like
-     * <pre>{@code
-     * | field | buckets | from | to | result |
-     * | --- | --- | --- | --- | --- |
-     * | date | date_period | | | date |
-     * | date | time_duration | | | date |
-     * | date | integer | date | date | date |
-     * | double | double | | | double |
-     * | double | integer | double | double | double |
+     * {@snippet lang="markdown" :
+     * | field    | buckets         | from     | to       | result   |
+     * | -------- | --------------- | -------- | -------- | -------- |
+     * | `date`   | `date_period`   |          |          | `date`   |
+     * | `date`   | `time_duration` |          |          | `date`   |
+     * | `date`   | `integer`       | `date`   | `date`   | `date`   |
+     * | `double` | `double`        |          |          | `double` |
+     * | `double` | `integer`       | `double` | `double` | `double` |
      * ...
-     * }</pre>
+     * }
      * And all of those listed versions *are* required.
      */
     public static EsqlFunctionRegistry.ArgSignature patchKibanaSignature(EsqlFunctionRegistry.ArgSignature arg) {

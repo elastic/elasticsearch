@@ -36,6 +36,9 @@ public class LookupJoinGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
+        if (schema.lookupIndices().isEmpty()) {
+            return EMPTY_DESCRIPTION;
+        }
         LookupIdx lookupIdx = randomFrom(schema.lookupIndices());
         String lookupIdxName = lookupIdx.idxName();
         int joinColumnsCount = randomInt(lookupIdx.keys().size() - 1) + 1; // at least one column must be used for the join

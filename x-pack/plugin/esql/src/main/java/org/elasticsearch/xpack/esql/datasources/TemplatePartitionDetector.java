@@ -25,14 +25,14 @@ import java.util.regex.Pattern;
  * Template syntax uses {@code {name}} placeholders (e.g., {@code {year}/{month}/{day}}).
  * Values are extracted positionally from the last N directory segments above the filename.
  */
-final class TemplatePartitionDetector implements PartitionDetector {
+public final class TemplatePartitionDetector implements PartitionDetector {
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
 
     private final String template;
     private final List<String> columnNames;
 
-    TemplatePartitionDetector(String template) {
+    public TemplatePartitionDetector(String template) {
         if (template == null || template.isEmpty()) {
             throw new IllegalArgumentException("template cannot be null or empty");
         }
@@ -133,7 +133,7 @@ final class TemplatePartitionDetector implements PartitionDetector {
         }
     }
 
-    static List<String> parseTemplateColumns(String template) {
+    public static List<String> parseTemplateColumns(String template) {
         List<String> columns = new ArrayList<>();
         String[] segments = template.split("/");
         for (String segment : segments) {

@@ -609,4 +609,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", TransportSearchAction.TYPE.name(), TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
+
+    public void testClearProjectRoutingAllowsValidationWithPointInTime() {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder());
+        request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pit-id")));
+        request.setProjectRouting("_origin");
+        assertNotNull(request.validate());
+
+        request.clearProjectRouting();
+        assertNull(request.validate());
+    }
 }

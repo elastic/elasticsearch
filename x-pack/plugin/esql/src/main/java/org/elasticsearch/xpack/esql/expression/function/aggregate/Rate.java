@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,11 +23,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -37,10 +40,21 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)
+        .ternary(Rate::createWithImplicitTemporality)
+        .name("rate");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(Rate::createWithImplicitTemporality)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
+        .description("Calculates the per-second average rate of increase of the time series in the range vector.")
+        .example("rate(http_requests_total[5m])")
+        .name("rate");
 
     private final Expression timestamp;
+    private final Expression temporality;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -51,8 +65,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             + "values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed "
             + "in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a "
             + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
 
@@ -69,24 +84,36 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             description = "the time window over which the rate is computed",
             optional = true
         ) Expression window,
-        Expression timestamp
+        Expression timestamp,
+        @Nullable Expression temporality
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
     }
 
-    public Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public static Rate createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {
+        return new Rate(source, field, window, timestamp, null);
+    }
+
+    public Rate(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression timestamp,
+        @Nullable Expression temporality
+    ) {
+        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
         this.timestamp = timestamp;
+        this.temporality = temporality;
     }
 
-    public Rate(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+    private static Rate readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new Rate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override
@@ -96,17 +123,35 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     @Override
     protected NodeInfo<Rate> info() {
-        return NodeInfo.create(this, Rate::new, field(), filter(), window(), timestamp);
+        if (temporality != null) {
+            return NodeInfo.create(this, Rate::new, field(), filter(), window(), timestamp, temporality);
+        } else {
+            return NodeInfo.create(
+                this,
+                (source, field, filter, window, timestamp) -> new Rate(source, field, filter, window, timestamp, null),
+                field(),
+                filter(),
+                window(),
+                timestamp
+            );
+        }
     }
 
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
-        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Rate(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            newChildren.size() > 4 ? newChildren.get(4) : null
+        );
     }
 
     @Override
     public Rate withFilter(Expression filter) {
-        return new Rate(source(), field(), filter, window(), timestamp);
+        return new Rate(source(), field(), filter, window(), timestamp, temporality);
     }
 
     @Override
@@ -139,12 +184,22 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     @Override
     public String toString() {
-        return "rate(" + field() + ", " + timestamp() + ")";
+        return "rate(" + field() + ", " + timestamp() + ", " + temporality() + ")";
     }
 
     @Override
     public Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public Expression temporality() {
+        return temporality;
+    }
+
+    @Override
+    public Rate withTemporality(Expression newTemporality) {
+        return new Rate(source(), field(), filter(), window(), timestamp, newTemporality);
     }
 
     @Override

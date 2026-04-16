@@ -48,11 +48,12 @@ public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSett
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonFields = parseCommonFields(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
+        var validationException = new ValidationException();
+
+        var commonSettings = parseCommonSettings(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
 
         validationException.throwIfValidationErrorsExist();
-        return new AzureOpenAiCompletionServiceSettings(commonFields);
+        return new AzureOpenAiCompletionServiceSettings(commonSettings);
     }
 
     public AzureOpenAiCompletionServiceSettings(
@@ -90,8 +91,8 @@ public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSett
         );
     }
 
-    private AzureOpenAiCompletionServiceSettings(CommonFields commonFields) {
-        super(commonFields);
+    private AzureOpenAiCompletionServiceSettings(CommonSettings commonSettings) {
+        super(commonSettings);
     }
 
     @Override
@@ -113,8 +114,13 @@ public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSett
     }
 
     @Override
-    protected AzureOpenAiCompletionServiceSettings createInstance(@Nullable AzureOpenAiOAuth2Settings newOAuth2Settings) {
-        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, newOAuth2Settings);
+    public AzureOpenAiCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+        return new AzureOpenAiCompletionServiceSettings(updatedCommonSettings);
     }
 
     @Override

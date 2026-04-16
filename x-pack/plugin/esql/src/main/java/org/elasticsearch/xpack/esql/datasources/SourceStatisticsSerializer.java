@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -111,7 +114,7 @@ public final class SourceStatisticsSerializer {
         if (sourceMetadata == null) {
             return OptionalLong.empty();
         }
-        return toLong(sourceMetadata.get(STATS_COL_PREFIX + columnName + NULL_COUNT_SUFFIX));
+        return toLong(sourceMetadata.get(columnNullCountKey(columnName)));
     }
 
     /**
@@ -121,7 +124,7 @@ public final class SourceStatisticsSerializer {
         if (sourceMetadata == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(sourceMetadata.get(STATS_COL_PREFIX + columnName + MIN_SUFFIX));
+        return Optional.ofNullable(sourceMetadata.get(columnMinKey(columnName)));
     }
 
     /**
@@ -131,7 +134,108 @@ public final class SourceStatisticsSerializer {
         if (sourceMetadata == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(sourceMetadata.get(STATS_COL_PREFIX + columnName + MAX_SUFFIX));
+        return Optional.ofNullable(sourceMetadata.get(columnMaxKey(columnName)));
+    }
+
+    /** Returns the flat key used for a column's null count statistic. */
+    public static String columnNullCountKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + NULL_COUNT_SUFFIX;
+    }
+
+    /** Returns the flat key used for a column's min statistic. */
+    public static String columnMinKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MIN_SUFFIX;
+    }
+
+    /** Returns the flat key used for a column's max statistic. */
+    public static String columnMaxKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MAX_SUFFIX;
+    }
+
+    /**
+     * Resolves the effective metadata for a set of splits. For single-split queries returns
+     * the given sourceMetadata directly; for multi-split queries merges per-split statistics
+     * from each {@link FileSplit}. Returns {@code null} if any split is not a {@code FileSplit}
+     * or if {@link #mergeStatistics} cannot produce a valid merged result (e.g. missing or
+     * non-numeric row counts).
+     */
+    public static Map<String, Object> resolveEffectiveMetadata(List<? extends ExternalSplit> splits, Map<String, Object> sourceMetadata) {
+        if (splits.size() <= 1) {
+            return sourceMetadata;
+        }
+        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                splitStats.add(fileSplit.statistics());
+            } else {
+                return null;
+            }
+        }
+        return mergeStatistics(splitStats);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats) {
+        if (splitStats == null || splitStats.isEmpty()) {
+            return null;
+        }
+        if (splitStats.size() == 1) {
+            Map<String, Object> single = splitStats.get(0);
+            return single != null && single.get(STATS_ROW_COUNT) instanceof Number ? single : null;
+        }
+
+        long totalRows = 0;
+        long totalSize = 0;
+        Map<String, long[]> nullCounts = new HashMap<>();
+        Map<String, Comparable[]> mins = new HashMap<>();
+        Map<String, Comparable[]> maxs = new HashMap<>();
+
+        for (Map<String, Object> stats : splitStats) {
+            if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
+                return null;
+            }
+            Object rc = stats.get(STATS_ROW_COUNT);
+            if (rc instanceof Number rcNum) {
+                totalRows += rcNum.longValue();
+            } else {
+                return null;
+            }
+            Object sb = stats.get(STATS_SIZE_BYTES);
+            if (sb instanceof Number sbNum) totalSize += sbNum.longValue();
+
+            for (Map.Entry<String, Object> entry : stats.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith(STATS_COL_PREFIX) == false) continue;
+                if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number ncNum) {
+                    nullCounts.merge(key, new long[] { ncNum.longValue() }, (a, b) -> {
+                        a[0] += b[0];
+                        return a;
+                    });
+                } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
+                    mins.merge(key, new Comparable[] { c }, (a, b) -> {
+                        int cmp = a[0].compareTo(b[0]);
+                        if (cmp > 0) a[0] = b[0];
+                        return a;
+                    });
+                } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
+                    maxs.merge(key, new Comparable[] { c }, (a, b) -> {
+                        int cmp = a[0].compareTo(b[0]);
+                        if (cmp < 0) a[0] = b[0];
+                        return a;
+                    });
+                }
+            }
+        }
+
+        Map<String, Object> merged = new HashMap<>();
+        merged.put(STATS_ROW_COUNT, totalRows);
+        if (totalSize > 0) {
+            merged.put(STATS_SIZE_BYTES, totalSize);
+        }
+        nullCounts.forEach((k, v) -> merged.put(k, v[0]));
+        mins.forEach((k, v) -> merged.put(k, v[0]));
+        maxs.forEach((k, v) -> merged.put(k, v[0]));
+        return merged;
     }
 
     private static OptionalLong toLong(Object value) {

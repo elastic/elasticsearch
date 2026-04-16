@@ -61,6 +61,11 @@ public class SparklineTests extends AbstractAggregationTestCase {
     }
 
     @Override
+    public void testFold() {
+        assumeTrue("Sparkline field must be an AggregateFunction, which cannot be expressed as a literal", false);
+    }
+
+    @Override
     public void testAggregate() {
         assumeTrue("Sparkline does not implement ToAggregator", false);
     }

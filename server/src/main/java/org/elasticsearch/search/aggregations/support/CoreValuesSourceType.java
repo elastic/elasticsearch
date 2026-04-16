@@ -332,7 +332,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                 isMultiValue = true;
                             }
                         } else if (fieldContext.fieldType().hasDocValues()) {
-                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                            if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(leaf.reader(), fieldContext.field())) == null) {
                                 isMultiValue = true;
                             }
                         }

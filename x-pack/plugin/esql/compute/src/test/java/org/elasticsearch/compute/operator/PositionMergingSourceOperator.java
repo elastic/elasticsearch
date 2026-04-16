@@ -24,25 +24,25 @@ import org.elasticsearch.compute.test.MappingSourceOperator;
  * <p>
  *     For example:
  * </p>
- * <pre>{@code
- *    a   |   b
- *  ----- | -----
- *    1   |   a
- *    2   |   b
- *   3, 4 | c, d
- *   5, 6 | e, f
- *    7   | null  <---- nulls count as empty lists
- *   null |   g
- *    4   |   d   <---- if the input is odd, trailing rows are dropped
- * }</pre>
+ * {@snippet lang="text":
+ * |   a   |   b   |
+ * | ----- | ----- |
+ * |   1   |   a   |
+ * |   2   |   b   |
+ * |  3, 4 | c, d  |
+ * |  5, 6 | e, f  |
+ * |   7   | null  | <---- nulls count as empty lists
+ * |  null |   g   |
+ * |   4   |   d   | <---- if the input is odd, trailing rows are dropped
+ * }
  * becomes
- * <pre>{@code
- *       a     |     b
- *  ---------- | ----------
- *     1, 2    |   a, b
- *  3, 4, 5, 6 | c, d, e, f
- *       7     |     g
- * }</pre>
+ * {@snippet lang="markdown":
+ * |      a     |     b      |
+ * | ---------- | ---------- |
+ * |    1, 2    |   a, b     |
+ * | 3, 4, 5, 6 | c, d, e, f |
+ * |      7     |     g      |
+ * }
  */
 public class PositionMergingSourceOperator extends MappingSourceOperator {
     final BlockFactory blockFactory;

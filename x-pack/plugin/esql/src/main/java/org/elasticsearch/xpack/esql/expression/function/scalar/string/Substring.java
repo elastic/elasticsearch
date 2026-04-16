@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -44,13 +43,13 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
         "Substring",
         Substring::new
     );
-    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.ternary(Substring.class, Substring::new, "substring")
-        .withSubCapabilities(
-            List.of(
-                // Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
-                "empty_null"
-            )
-        );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Substring.class)
+        .ternary(Substring::new)
+        .capabilities(
+            // Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+            "empty_null"
+        )
+        .name("substring");
 
     private final Expression str, start, length;
 

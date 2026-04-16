@@ -314,7 +314,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe(":server:test - IndexTests (x100)");
     expect(command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
     );
   });
 
@@ -327,7 +327,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe("test - 2 tests (x100)");
     expect(command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
     );
   });
 
@@ -340,7 +340,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe("test - 2 tests (x100)");
     expect(command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
     );
   });
 
@@ -357,7 +357,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe(":server:internalClusterTest - ClusterIT (x20)");
     expect(command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=20 --rerun :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=20 :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
 
@@ -374,7 +374,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe(":modules:transport-netty4:javaRestTest - RestIT (x10)");
     expect(command).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun"
     );
   });
 
@@ -387,7 +387,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe("javaRestTest - 2 tests (x10)");
     expect(command).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun :mod:a:javaRestTest :mod:b:javaRestTest --tests org.es.FooIT --tests org.es.BarIT"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest :mod:b:javaRestTest --tests org.es.FooIT --tests org.es.BarIT --rerun"
     );
   });
 
@@ -399,7 +399,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe(":x-pack:plugin:ml:yamlRestTest (x10)");
     expect(command).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun :x-pack:plugin:ml:yamlRestTest"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun"
     );
   });
 
@@ -416,7 +416,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe(":x-pack:plugin:ml:yamlRestTest - ml/anomaly_detectors_get (x10)");
     expect(command).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/anomaly_detectors_get"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/anomaly_detectors_get --rerun"
     );
   });
 
@@ -439,7 +439,7 @@ describe("generateBatchStep", () => {
     const { label, command } = generateBatchStep(batch);
     expect(label).toBe("yamlRestTest - 2 suites (x10)");
     expect(command).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/test1,ml/test2"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/test1,ml/test2 --rerun"
     );
   });
 });
@@ -458,7 +458,7 @@ describe("generatePipeline", () => {
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe(":server:test - IndexTests (x100)");
     expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
     );
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
@@ -478,7 +478,7 @@ describe("generatePipeline", () => {
     const step = pipeline.steps[0].steps[0];
     expect(step.label).toBe("test - 2 tests (x100)");
     expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun :server:test --tests org.elasticsearch.SomeTests --tests org.elasticsearch.OtherTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.SomeTests --tests org.elasticsearch.OtherTests"
     );
   });
 

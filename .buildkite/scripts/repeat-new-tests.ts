@@ -174,7 +174,7 @@ export function generateBatchStep(batch: ClassifiedTest[]): { label: string; com
           count === 1
             ? `${batch[0].gradleProject}:test - ${batch[0].fqcn!.split(".").pop()} (x100)`
             : `test - ${count} tests (x100)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=100 --rerun ${projects.join(" ")} ${testFilters}`,
+        command: `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${projects.join(" ")} ${testFilters}`,
       };
     }
     case "internalClusterTest": {
@@ -185,7 +185,7 @@ export function generateBatchStep(batch: ClassifiedTest[]): { label: string; com
           count === 1
             ? `${batch[0].gradleProject}:internalClusterTest - ${batch[0].fqcn!.split(".").pop()} (x20)`
             : `internalClusterTest - ${count} tests (x20)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=20 --rerun ${projects.join(" ")} ${testFilters}`,
+        command: `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${projects.join(" ")} ${testFilters}`,
       };
     }
     case "javaRestTest": {
@@ -196,13 +196,13 @@ export function generateBatchStep(batch: ClassifiedTest[]): { label: string; com
           count === 1
             ? `${batch[0].gradleProject}:javaRestTest - ${batch[0].fqcn!.split(".").pop()} (x10)`
             : `javaRestTest - ${count} tests (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${projects.join(" ")} ${testFilters}`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`,
       };
     }
     case "yamlRestTestRunner": {
       return {
         label: `${batch[0].gradleProject}:yamlRestTest (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${batch[0].gradleProject}:yamlRestTest`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`,
       };
     }
     case "yamlRestTestSuite": {
@@ -213,7 +213,7 @@ export function generateBatchStep(batch: ClassifiedTest[]): { label: string; com
           count === 1
             ? `${batch[0].gradleProject}:yamlRestTest - ${batch[0].suitePath} (x10)`
             : `yamlRestTest - ${count} suites (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh --rerun ${projects.join(" ")} -Dtests.rest.suite=${suitePaths}`,
+        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} -Dtests.rest.suite=${suitePaths} --rerun`,
       };
     }
   }
@@ -278,12 +278,15 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
 
 function main() {
   console.log("Computing merge base...");
-  const targetBranch = process.env.GITHUB_PR_TARGET_BRANCH || "main";
-  const mergeBase = execSync(`git merge-base origin/${targetBranch} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
+  const targetBranch = process.env.GITHUB_PR_TARGET_BRANCH;
+  if (!targetBranch) {
+    throw new Error("GITHUB_PR_TARGET_BRANCH environment variable is required");
+  }
+  const mergeBase = execSync(`git merge-base ${targetBranch} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");
-  const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
+  const changedFilesOutput = execSync(`git diff --diff-filter=d --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
   const changedFiles = changedFilesOutput
     .split("\n")
     .map((f) => f.trim())

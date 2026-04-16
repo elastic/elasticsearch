@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -185,17 +186,30 @@ final class RemoteRequestBuilders {
         return request;
     }
 
-    // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
-    static Request openPit(String[] indices, TimeValue keepAlive, @Nullable String projectRouting) {
+    /**
+     * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
+     */
+    static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest) {
         StringBuilder path = new StringBuilder("/");
         addIndices(path, indices);
         path.append("_pit");
         Request request = new Request("POST", path.toString());
         request.addParameter("keep_alive", keepAlive.getStringRep());
         request.addParameter("allow_partial_search_results", "false");
-        if (projectRouting != null) {
+
+        String projectRouting = searchRequest.getProjectRouting();
+        QueryBuilder indexFilter = searchRequest.source() != null ? searchRequest.source().query() : null;
+        if (projectRouting != null || indexFilter != null) {
             try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-                entity.startObject().field("project_routing", projectRouting).endObject();
+                entity.startObject();
+                if (projectRouting != null) {
+                    entity.field("project_routing", projectRouting);
+                }
+                if (indexFilter != null) {
+                    entity.field("index_filter");
+                    indexFilter.toXContent(entity, ToXContent.EMPTY_PARAMS);
+                }
+                entity.endObject();
                 request.setJsonEntity(Strings.toString(entity));
             } catch (IOException e) {
                 throw new ElasticsearchException("unexpected error building open pit entity", e);

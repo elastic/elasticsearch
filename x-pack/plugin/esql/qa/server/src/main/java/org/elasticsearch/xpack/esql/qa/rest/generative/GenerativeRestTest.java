@@ -20,9 +20,17 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -108,7 +116,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
         // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[\\], which is not a field from an index mapping",
+        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
+        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -226,22 +235,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
 
-                    // Strip the artificial query approximation columns, that are added after
-                    // query execution, and trailing all other columns. These columns confuse
-                    // follow-up command generation (that try to reference them), and result
-                    // validation (that expect columns added after them).
-                    if (FromGenerator.hasApproximationSettings(result.query())) {
-                        result = stripApproximationColumns(result);
-                    }
-
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
+                            .success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkException(result, commands, currentSchema);
+                            checkPipelineException(result, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
@@ -284,14 +286,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
-                boolean knownError = false;
-                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                    if (isAllowedError(e.getMessage(), allowedError)) {
-                        knownError = true;
-                        break;
-                    }
-                }
-                if (knownError == false) {
+                if (isAllowedError(e.getMessage()) == false) {
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
@@ -330,6 +325,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
+    protected CommandGenerator.ValidationResult checkPipelineResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        return checkResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+    }
+
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousCommands, currentSchema);
+    }
+
     private record FailureContext(
         String errorMessage,
         String query,
@@ -342,14 +356,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> {
-        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (isAllowedError(ctx.errorMessage, allowedError)) {
-                return true;
-            }
-        }
-        return false;
-    },
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
+        ctx -> isAllowedError(ctx.errorMessage),
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
@@ -385,13 +393,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.outputSchema(),
             result.result()
         );
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
+    }
+
+    protected static void failOnUnexpectedValidationError(
+        CommandGenerator.ValidationResult outputValidation,
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         if (outputValidation.success() == false) {
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
-                return outputValidation;
+                return;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
-        return outputValidation;
     }
 
     protected void checkException(
@@ -415,7 +432,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
     }
 
-    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+    protected static boolean isAllowedError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (isAllowedError(errorMessage, allowedError)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
@@ -434,7 +463,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage, String query) {
-        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+        return isUnmappedFieldPrefixError(errorMessage, query, SET_UNMAPPED_FIELDS_PREFIX);
+    }
+
+    protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
+        if (query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
@@ -553,19 +586,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Set<String> createdColumns = new HashSet<>();
 
         switch (commandName) {
-            case "eval" -> {
+            case EvalGenerator.EVAL -> {
                 Object newCols = command.context().get(EvalGenerator.NEW_COLUMNS);
                 if (newCols instanceof List<?> list) {
                     list.forEach(name -> createdColumns.add((String) name));
                 }
             }
-            case "grok" -> {
+            case GrokGenerator.GROK -> {
                 Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (gm.find()) {
                     createdColumns.add(unquote(gm.group(1)));
                 }
             }
-            case "dissect" -> {
+            case DissectGenerator.DISSECT -> {
                 Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (dm.find()) {
                     String generated = dm.group(1);
@@ -574,19 +607,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "mv_expand" -> {
+            case MvExpandGenerator.MV_EXPAND -> {
                 String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
                 // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
                 // https://github.com/elastic/elasticsearch/issues/142713
                 createdColumns.add(unquote(expanded));
             }
-            case "stats", "inline stats" -> {
+            case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
             }
-            case "rename" -> {
+            case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
             }
-            case "registered_domain" -> {
+            case RegisteredDomainGenerator.REGISTERED_DOMAIN -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (String subField : List.of("domain", "registered_domain", "top_level_domain", "subdomain")) {
@@ -594,7 +627,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "uri_parts" -> {
+            case UriPartsGenerator.URI_PARTS -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (Column col : newSchema) {
@@ -604,7 +637,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "enrich" -> {
+            case EnrichGenerator.ENRICH -> {
                 // Enrich fields can shadow existing index columns, so we use the policy's declared enrich_fields
                 // from the context to ensure they are marked as non-index-mapped even when names collide.
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
@@ -612,7 +645,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
                 }
             }
-            case "lookup join" -> {
+            case LookupJoinGenerator.LOOKUP_JOIN -> {
                 // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
                 // left-side key columns with lookup index key names. Process these renames so that
                 // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
@@ -746,6 +779,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @Override
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
+        QueryExecuted result;
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
@@ -755,14 +789,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             );
             List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new QueryExecuted(query, depth, outputSchema, values, null);
+            result = new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new QueryExecuted(query, depth, null, null, e);
+            result = new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
+            result = new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
-
+        // Strip the artificial query approximation columns that are added after query execution and trail all
+        // other columns. These columns confuse follow-up command generation (that try to reference them) and
+        // result validation (that expect columns added after them).
+        if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
+            result = stripApproximationColumns(result);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

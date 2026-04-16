@@ -152,6 +152,6 @@
   "examples" : [
     "TS k8s\n| STATS max_cost=MAX(LAST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

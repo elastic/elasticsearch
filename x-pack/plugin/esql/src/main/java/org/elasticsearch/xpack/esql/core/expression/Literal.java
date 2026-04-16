@@ -179,8 +179,8 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString(format) + "[" + dataType + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(toString(format)).append("[").append(dataType).append("]");
     }
 
     @Override

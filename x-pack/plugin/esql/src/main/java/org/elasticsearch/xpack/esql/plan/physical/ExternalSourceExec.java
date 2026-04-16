@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -61,6 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> config;
     private final Map<String, Object> sourceMetadata;
     private final Object pushedFilter; // Opaque filter - NOT serialized, created locally on data nodes
+    private final List<Expression> pushedExpressions; // NOT serialized - ESQL expressions for per-file re-translation
     private final int pushedLimit; // NOT serialized, set locally on data nodes
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
@@ -105,6 +107,36 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         FileList fileList,
         List<ExternalSplit> splits
     ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            List.of(),
+            pushedLimit,
+            estimatedRowSize,
+            fileList,
+            splits
+        );
+    }
+
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        List<ExternalSplit> splits
+    ) {
         super(source);
         if (sourcePath == null) {
             throw new IllegalArgumentException("sourcePath must not be null");
@@ -121,6 +153,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.config = config != null ? Map.copyOf(config) : Map.of();
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
         this.pushedLimit = pushedLimit;
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
@@ -249,6 +282,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return pushedFilter;
     }
 
+    public List<Expression> pushedExpressions() {
+        return pushedExpressions;
+    }
+
     public int pushedLimit() {
         return pushedLimit;
     }
@@ -274,6 +311,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             estimatedRowSize,
             fileList,
@@ -290,6 +328,24 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             newFilter,
+            pushedExpressions,
+            pushedLimit,
+            estimatedRowSize,
+            fileList,
+            splits
+        );
+    }
+
+    public ExternalSourceExec withPushedFilterAndExpressions(Object newFilter, List<Expression> newPushedExpressions) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            newFilter,
+            newPushedExpressions,
             pushedLimit,
             estimatedRowSize,
             fileList,
@@ -306,6 +362,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             newLimit,
             estimatedRowSize,
             fileList,
@@ -329,6 +386,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             newEstimatedRowSize,
             fileList,
@@ -347,6 +405,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             estimatedRowSize,
             fileList,
@@ -363,6 +422,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedExpressions,
             pushedLimit,
             estimatedRowSize,
             fileList,
@@ -387,6 +447,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(config, other.config)
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
+            && Objects.equals(pushedExpressions, other.pushedExpressions)
             && pushedLimit == other.pushedLimit
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
@@ -394,19 +455,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
-        String limitStr = pushedLimit != FormatReader.NO_LIMIT ? "[limit=" + pushedLimit + "]" : "";
-        String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
-        return nodeName()
-            + "["
-            + sourcePath
-            + "]["
-            + sourceType
-            + "]"
-            + filterStr
-            + limitStr
-            + splitsStr
-            + NodeUtils.toString(attributes, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+        if (pushedFilter != null) {
+            sb.append("[filter=").append(pushedFilter).append("]");
+        }
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            sb.append("[limit=").append(pushedLimit).append("]");
+        }
+        if (splits.isEmpty() == false) {
+            sb.append("[splits=").append(splits.size()).append("]");
+        }
+        NodeUtils.toString(sb, attributes, format);
     }
 }

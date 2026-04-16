@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Latest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Latest";
     private final Expression timestamp;
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Latest.class).binary(Latest::new).name("latest");
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,

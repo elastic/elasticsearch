@@ -4,7 +4,7 @@ ProjectExec[[message{f}#0, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#
     \_ProjectExec[[message{f}#0, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1]]
       \_FieldExtractExec[message{f}#0]<[],[],[]>
         \_LimitExec[1000[INTEGER],70]
-          \_FilterExec[TOSTRING(does_not_exist{f}#1) == foo[KEYWORD]]
+          \_FilterExec[TOSTRING(does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1) == foo[KEYWORD]]
             \_FieldExtractExec[does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#1]<[],[],[]>
               \_EsQueryExec[sample_data], indexMode[standard], [_doc{f}#2], limit[], sort[] estimatedRowSize[104] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {

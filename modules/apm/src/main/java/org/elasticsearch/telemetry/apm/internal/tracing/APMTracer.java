@@ -9,7 +9,6 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
@@ -33,10 +32,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportTracerSupplier;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -46,25 +46,23 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
- * the OpenTelemetry API to capture spans.
+ * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
+ * module ({@code modules/apm}). It records spans using the OpenTelemetry API. Export is separate: spans may be
+ * shipped by the Elasticsearch APM Java agent (via {@link AgentExportTracerSupplier}) or by an OpenTelemetry
+ * SDK implementation.
  * <p>
- * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
- * API's default, no-op implementation would be used. However, when the APM Java is attached, it
- * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
+ * Elasticsearch does not bundle an OpenTelemetry API implementation by default. Normally the API's default
+ * no-op applies. When the Elasticsearch APM Java agent is attached, it intercepts {@code GlobalOpenTelemetry}
+ * and supplies a real implementation for export to Elastic APM.
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
-    /** Default interval when agent export timing is unknown; same semantics as APMMeterService. */
-    private static final TimeValue DEFAULT_AGENT_INTERVAL = TimeValue.timeValueSeconds(10);
-
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
-    /** Time to wait in attemptFlushTraces when using the agent (2× export interval). */
-    private final long agentFlushWaitMs;
+    private final TraceSupplier traceSupplier;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -92,6 +90,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
+        this(settings, new AgentExportTracerSupplier(settings));
+    }
+
+    // package-private for testing
+    APMTracer(Settings settings, TraceSupplier traceSupplier) {
+        this.traceSupplier = traceSupplier;
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
@@ -99,19 +103,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        this.agentFlushWaitMs = 2 * agentExportIntervalMs(settings);
-    }
-
-    private static long agentExportIntervalMs(Settings settings) {
-        String intervalStr = settings.get("telemetry.agent.metrics_interval");
-        if (intervalStr != null && intervalStr.isEmpty() == false) {
-            try {
-                return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval").millis();
-            } catch (Exception e) {
-                logger.debug("Could not parse telemetry.agent.metrics_interval [{}], using default", intervalStr);
-            }
-        }
-        return DEFAULT_AGENT_INTERVAL.millis();
     }
 
     /**
@@ -122,11 +113,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (enabled == false) {
             return;
         }
-        try {
-            Thread.sleep(agentFlushWaitMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        traceSupplier.attemptFlushTraces();
     }
 
     public void setEnabled(boolean enabled) {
@@ -167,6 +154,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStop() {
+        if (enabled) {
+            try {
+                traceSupplier.attemptFlushTraces();
+            } catch (Exception e) {
+                logger.warn("Exception flushing trace supplier", e);
+            }
+        }
+        try {
+            traceSupplier.close();
+        } catch (Exception e) {
+            logger.warn("Exception closing trace supplier", e);
+        }
         destroyApmServices();
     }
 
@@ -178,7 +177,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert this.enabled;
         assert this.services == null;
 
-        var openTelemetry = GlobalOpenTelemetry.get();
+        var openTelemetry = traceSupplier.get();
         var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
         return new APMServices(tracer, openTelemetry);
     }

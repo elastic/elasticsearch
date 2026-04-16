@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -583,7 +584,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     private RoutingAllocation createRoutingAllocation(ClusterState state) {
-        var allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         return allocation;
     }

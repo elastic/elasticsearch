@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.ietf.jgss.GSSException;
 
 import java.net.InetAddress;
@@ -41,8 +40,9 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         simpleKdcLdapServer.createPrincipal(workDir.resolve("p1p2.keytab"), "p1", "p2");
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (
-            LDAPConnection ldapConn = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection(NetworkAddress.format(InetAddress.getLoopbackAddress()), simpleKdcLdapServer.getLdapListenPort())
+            LDAPConnection ldapConn = new LDAPConnection(
+                NetworkAddress.format(InetAddress.getLoopbackAddress()),
+                simpleKdcLdapServer.getLdapListenPort()
             );
         ) {
             assertThat(ldapConn.isConnected(), is(true));

@@ -960,7 +960,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdCorrectSettings() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -984,9 +983,8 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdDefaultValueTrue() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
@@ -1007,8 +1005,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdDefaultValueFalse() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
 
@@ -1025,7 +1022,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
@@ -1054,7 +1050,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -1095,7 +1090,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -1127,7 +1121,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersSetting() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var disabled = randomBoolean();
@@ -1141,7 +1134,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersImpliesDocValuesOnly() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
@@ -1154,7 +1146,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnly() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
@@ -1177,7 +1168,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
@@ -1206,7 +1196,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersValidationWithInvalidVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
 
         Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();

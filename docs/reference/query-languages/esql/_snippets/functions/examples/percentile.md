@@ -24,4 +24,28 @@ FROM employees
 | --- |
 | 12.132 |
 
+`PERCENTILE` can also operate on `exponential_histogram` fields, approximating the percentile of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS p99 = ROUND(PERCENTILE(responseTime, 99), 4)
+```
+
+| p99:double |
+| --- |
+| 1.0433 |
+
+`PERCENTILE` can also operate on `tdigest` and casted `histogram` fields, approximating the percentile of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS p95 = ROUND(PERCENTILE(responseTime::tdigest, 95), 2)
+```
+
+| p95:double |
+| --- |
+| 0.7 |
+
 

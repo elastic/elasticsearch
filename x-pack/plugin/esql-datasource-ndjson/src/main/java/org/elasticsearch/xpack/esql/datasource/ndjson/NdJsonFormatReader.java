@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -108,17 +109,28 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        return read(
+            object,
+            FormatReadContext.builder().projectedColumns(projectedColumns).batchSize(batchSize).errorPolicy(defaultErrorPolicy()).build()
+        );
+    }
+
+    @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         boolean skipFirstLine = context.firstSplit() == false;
         boolean trimLastPartialLine = context.lastSplit() == false;
+        ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
             context.batchSize(),
+            context.rowLimit(),
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object)
+            inferSchemaIfNeeded(resolvedSchema, object),
+            errorPolicy
         );
     }
 

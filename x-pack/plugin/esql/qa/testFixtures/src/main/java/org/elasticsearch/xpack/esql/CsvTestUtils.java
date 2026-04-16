@@ -413,7 +413,8 @@ public final class CsvTestUtils {
                         for (int i = 0; i < entries.length; i++) {
                             String[] header = entries[i].split(":");
                             String name = header[0].trim();
-                            String typeName = (typeMapping != null && typeMapping.containsKey(name)) ? typeMapping.get(name)
+                            String typeName = (typeMapping != null && typeMapping.containsKey(name) && typeMapping.get(name) != null)
+                                ? typeMapping.get(name)
                                 : header.length > 1 ? header[1].trim()
                                 : null;
 

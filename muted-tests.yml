@@ -397,6 +397,72 @@ tests:
 - class: org.elasticsearch.action.search.TransportSearchActionTests
   method: testCollectSearchShards
   issue: https://github.com/elastic/elasticsearch/issues/146541
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testShouldPreFilterSearchShardsWithReadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/146543
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testIntrospectCompoundRetrieverBuilderDepthLimit
+  issue: https://github.com/elastic/elasticsearch/issues/146544
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:inlinestats.filterSometimesMatches}
+  issue: https://github.com/elastic/elasticsearch/issues/146545
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesTargetOnly
+  issue: https://github.com/elastic/elasticsearch/issues/146546
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesKnnRetriever
+  issue: https://github.com/elastic/elasticsearch/issues/146547
+- class: org.elasticsearch.action.support.RefCountingListenerTests
+  method: testNullCheck
+  issue: https://github.com/elastic/elasticsearch/issues/146548
+- class: org.elasticsearch.action.support.RefCountingListenerTests
+  method: testBasicOperation
+  issue: https://github.com/elastic/elasticsearch/issues/146549
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesTimestampSortedTimeRangeFilterConstantScore
+  issue: https://github.com/elastic/elasticsearch/issues/146550
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testIntrospectQueryBuilderDepthLimit
+  issue: https://github.com/elastic/elasticsearch/issues/146551
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/146553
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testAdjustSearchType
+  issue: https://github.com/elastic/elasticsearch/issues/146554
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testIntrospectTimeRange
+  issue: https://github.com/elastic/elasticsearch/issues/146556
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testMergeShardsIterators
+  issue: https://github.com/elastic/elasticsearch/issues/146557
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testLocalShardIteratorFromPointInTimeAllowsPartialResultsWhenNodeMissing
+  issue: https://github.com/elastic/elasticsearch/issues/146558
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testLocalShardIteratorFromPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/146560
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCreateSearchResponseMerger
+  issue: https://github.com/elastic/elasticsearch/issues/146561
+- class: org.elasticsearch.action.support.nodes.BaseNodesXContentResponseTests
+  method: testFragmentFlag
+  issue: https://github.com/elastic/elasticsearch/issues/146562
+- class: org.elasticsearch.action.support.RefCountingListenerTests
+  method: testJavaDocExample
+  issue: https://github.com/elastic/elasticsearch/issues/146563
+- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
+  method: testApproximationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/146564
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesTimestampSortedTimeRangeFilter
+  issue: https://github.com/elastic/elasticsearch/issues/146565
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/146568
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145900
 
 # Examples:
 #

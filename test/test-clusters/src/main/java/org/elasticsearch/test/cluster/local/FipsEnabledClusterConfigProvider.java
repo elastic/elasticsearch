@@ -20,10 +20,8 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 "fips_java.security",
                 Resource.fromClasspath(isOracleJvm() ? "fips/fips_java_oracle.security" : "fips/fips_java.security")
             )
-                .configFile("fips_java.policy", Resource.fromClasspath("fips/fips_java.policy"))
                 .configFile("cacerts.bcfks", Resource.fromClasspath("fips/cacerts.bcfks"))
                 .systemProperty("java.security.properties", "=${ES_PATH_CONF}/fips_java.security")
-                .systemProperty("java.security.policy", "=${ES_PATH_CONF}/fips_java.policy")
                 .systemProperty("javax.net.ssl.trustStore", "${ES_PATH_CONF}/cacerts.bcfks")
                 .systemProperty("javax.net.ssl.trustStorePassword", "password")
                 .systemProperty("javax.net.ssl.keyStorePassword", "password")

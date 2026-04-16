@@ -14,14 +14,11 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -540,60 +537,6 @@ public class SearchServiceTests extends IndexShardTestCase {
         } finally {
             closeShards(indexShard);
         }
-    }
-
-    public void testScrollIdKeptWhenShardsExist() {
-        String expectedScrollId = "FGluY2x1ZGVfY29udGV4dF91dWlkDnF1ZXJ5VGhlbkZldGNoAA==";
-        SearchHits emptyHits = new SearchHits(
-            new SearchHit[0],
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            Float.NaN
-        );
-        SearchResponse response = new SearchResponse(
-            emptyHits,
-            null,
-            null,
-            false,
-            null,
-            null,
-            1,
-            expectedScrollId,
-            5,    // totalShards > 0
-            5,
-            0,
-            100,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null,
-            null,
-            null
-        );
-
-        assertEquals("scrollId should be preserved when totalShards > 0", expectedScrollId, response.getScrollId());
-    }
-
-    public void testScrollIdNullWhenNoShards() {
-        String providedScrollId = "scroll-id-should-be-null";
-        SearchHits emptyHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0f);
-        SearchResponse response = new SearchResponse(
-            emptyHits,
-            null,
-            null,
-            false,
-            null,
-            null,
-            1,
-            providedScrollId,
-            0,    // totalShards == 0
-            2,
-            0,
-            100,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null,
-            null,
-            null
-        );
-
-        assertNull("scrollId should be null when totalShards == 0", response.getScrollId());
     }
 
     private CircuitBreaker createQueryConstructionBreaker(String limit) {

@@ -42,6 +42,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -563,6 +564,37 @@ public class SearchScrollIT extends ESIntegTestCase {
             ensureGreen("test");
         } else {
             assertAcked(indicesAdmin().prepareDelete("test"));
+        }
+    }
+
+    public void testScrollReturnsEmptyWhenNoShards() throws Exception {
+        createIndex("test");
+        prepareIndex("test").setId("1").setSource("field", "value").get();
+        refresh();
+
+        SearchResponse searchResponse = prepareSearch("test")
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
+
+        String scrollId = searchResponse.getScrollId();
+        searchResponse.decRef();
+
+        // delete index and removes all shards behind the scroll
+        assertAcked(indicesAdmin().prepareDelete("test"));
+
+        SearchResponse scrollResponse = client().prepareSearchScroll(scrollId)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
+
+        try {
+            assertThat(scrollResponse.getHits().getHits().length, equalTo(0));
+            assertThat(Objects.requireNonNull(scrollResponse.getHits().getTotalHits()).value(), equalTo(0L));
+            assertThat(scrollResponse.getTotalShards(), equalTo(0));
+            assertThat(scrollResponse.getSuccessfulShards(), equalTo(0));
+            assertThat(scrollResponse.getFailedShards(), equalTo(0));
+        } finally {
+            scrollResponse.decRef();
         }
     }
 

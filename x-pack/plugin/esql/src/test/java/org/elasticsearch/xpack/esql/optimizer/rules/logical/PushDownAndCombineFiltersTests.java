@@ -2456,14 +2456,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     *
-     * <pre>{@code
+     {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#18 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#10,languages{r}#18]
      *     \_Filter[emp_no{f}#7 > 10[INTEGER]]
      *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     * }</pre>
+     * }
      */
     public void testPushDownFilterPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2481,8 +2480,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     *
-     * <pre>{@code
+     {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[first_name{r}#41 == John[KEYWORD]]
      *   \_MvExpand[first_name{f}#30,first_name{r}#41]
@@ -2490,7 +2488,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_MvExpand[languages{f}#32,languages{r}#40]
      *         \_Filter[emp_no{f}#29 > 10[INTEGER]]
      *           \_EsRelation[test][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
-     * }</pre>
+     * }
      */
     public void testPushDownFilterPastSequentialMvExpands() {
         LogicalPlan plan = optimizedPlan("""
@@ -2511,13 +2509,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     *
-     * <pre>{@code
+     {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[emp_no{f}#63 > 10[INTEGER] OR languages{r}#74 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#66,languages{r}#74]
      *     \_EsRelation[test][_meta_field{f}#69, emp_no{f}#63, first_name{f}#64, ..]
-     * }</pre>
+     * }
      */
     public void testDontPushDownOrFilterPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2535,15 +2532,14 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     *
-     * <pre>{@code
+     {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#21 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#13,languages{r}#21]
      *     \_Filter[double_emp{r}#5 > 20[INTEGER]]
      *       \_Eval[[emp_no{f}#10 * 2[INTEGER] AS double_emp#5]]
      *         \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     * }</pre>
+     * }
      */
     public void testPushDownFilterPastMvExpandWithEval() {
         LogicalPlan plan = optimizedPlan("""
@@ -2563,14 +2559,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     *
-     * <pre>{@code
+     {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#58 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#50,languages{r}#58]
      *     \_Filter[emp_no{f}#47 > 10[INTEGER] AND salary{f}#52 > 50000[INTEGER]]
      *       \_EsRelation[test][_meta_field{f}#53, emp_no{f}#47, first_name{f}#48, ..]
-     * }</pre>
+     * }
      */
     public void testPushDownChainedWherePastMvExpand() {
         LogicalPlan plan = optimizedPlan("""

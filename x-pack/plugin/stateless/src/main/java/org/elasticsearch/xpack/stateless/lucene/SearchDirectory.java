@@ -505,6 +505,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return metadata;
     }
 
+    @Nullable
+    public BlobLocation getBlobLocationForFile(String fileName) {
+        BlobFileRanges blobFileRanges = currentMetadata.get(fileName);
+        if (blobFileRanges != null) {
+            return blobFileRanges.blobLocation();
+        }
+        return null;
+    }
+
     /**
      * Merge the incoming metadata into the current metadata.
      * This is used to merge file metadata from other PIT contexts coming from other nodes.

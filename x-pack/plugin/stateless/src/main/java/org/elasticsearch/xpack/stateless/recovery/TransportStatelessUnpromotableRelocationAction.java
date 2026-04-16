@@ -21,7 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionResponse.Empty;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchContextIdForNode;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -64,18 +65,22 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.StatelessComponents;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction.TYPE;
 import static org.elasticsearch.search.SearchService.PIT_RELOCATION_ENABLED;
 
@@ -109,6 +114,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     private final TimeValue startHandoffRequestTimeout;
     private final SearchService searchService;
     private final PITRelocationService pitRelocationService;
+    private final ObjectStoreService objectStoreService;
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessUnpromotableRelocationAction.class);
 
@@ -121,7 +127,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         PeerRecoveryTargetService peerRecoveryTargetService,
         ProjectResolver projectResolver,
         SearchService searchService,
-        PITRelocationService pitRelocationService
+        PITRelocationService pitRelocationService,
+        StatelessComponents statelessComponents
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -130,6 +137,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         this.searchService = searchService;
         this.pitRelocationService = pitRelocationService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
+        this.objectStoreService = statelessComponents.getObjectStoreService();
         var threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -322,53 +330,100 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
-        ActionListener.completeWith(listener, () -> {
-            if (searchService.isPitRelocationEnabled()) {
+        if (searchService.isPitRelocationEnabled() == false) {
+            listener.onResponse(EMPTY_RESPONSE);
+            return;
+        }
 
-                ShardId shardId = request.getShardId();
-                final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
-                final var indexShard = indexService.getShard(shardId.id());
-                final var shardRouting = indexShard.routingEntry();
+        try {
+            ShardId shardId = request.getShardId();
+            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final var indexShard = indexService.getShard(shardId.id());
+            final var shardRouting = indexShard.routingEntry();
 
-                assert shardRouting.isPromotableToPrimary() == false;
+            assert shardRouting.isPromotableToPrimary() == false;
 
-                final var targetShardRouting = clusterService.state()
-                    .routingTable(projectResolver.getProjectId())
-                    .shardRoutingTable(request.getShardId())
-                    .getByAllocationId(request.getTargetAllocationId());
+            final var targetShardRouting = clusterService.state()
+                .routingTable(projectResolver.getProjectId())
+                .shardRoutingTable(request.getShardId())
+                .getByAllocationId(request.getTargetAllocationId());
 
-                if (targetShardRouting == null || shardRouting.isRelocationSourceOf(targetShardRouting) == false) {
-                    throw new IllegalStateException(
-                        "Invalid relocation state: expected [" + shardRouting + "] to be relocation source of [" + targetShardRouting + "]"
-                    );
-                }
+            if (targetShardRouting == null || shardRouting.isRelocationSourceOf(targetShardRouting) == false) {
+                throw new IllegalStateException(
+                    "Invalid relocation state: expected [" + shardRouting + "] to be relocation source of [" + targetShardRouting + "]"
+                );
+            }
 
-                List<ReaderContext> activeContexts = this.searchService.getActivePITContexts(shardId);
-                List<OpenPITContextInfo> pitContextInfos = new ArrayList<>();
+            getOpenPITContextInfos(shardId, listener.map(RelocationHandoffResponse::new));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
-                for (ReaderContext context : activeContexts) {
-                    try (Searcher searcher = context.acquireSearcher("pit_handoff")) {
-                        DirectoryReader reader = searcher.getDirectoryReader();
-                        IndexCommit indexCommit = reader.getIndexCommit();
-                        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
-                        Map<String, BlobLocation> metadata = searchDirectory.getBlobLocationForFiles(indexCommit.getFileNames());
-                        pitContextInfos.add(
-                            new OpenPITContextInfo(
-                                shardId,
-                                indexCommit.getSegmentsFileName(),
-                                context.keepAlive(),
-                                new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                metadata
+    private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
+        List<ReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
+
+        try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
+            for (ReaderContext context : activeContexts) {
+                fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(pitContextInfos::add)));
+            }
+        }
+    }
+
+    private void fetchOpenPitContextInfo(ShardId shardId, ReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+        // In case of a failure we want just to ignore this PIT and continue with the relocation process
+        listener = listener.delegateResponse((l, e) -> {
+            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            l.onResponse(Optional.empty());
+        });
+
+        try (Searcher searcher = context.acquireSearcher("pit_handoff")) {
+            final DirectoryReader reader = searcher.getDirectoryReader();
+            final IndexCommit indexCommit = reader.getIndexCommit();
+            final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
+
+            final var luceneCommitPointBlobLocation = searchDirectory.getBlobLocationForFile(indexCommit.getSegmentsFileName());
+            assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
+            final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
+            final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+
+            // We need to fetch the CC header to get the canonical blob location for all the files in the open PIT
+            // reader. We have to do that instead of relying on the SearchDirectory#metadata because generational files
+            // are pinned to the first BCC blob that contains them, this means that generational files from a commit
+            // might point towards different BCCs.
+            recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
+                final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
+                    shardId,
+                    bccTermAndGen,
+                    // We're just interested in fetching up to the CC header of the commit point,
+                    // hence we set the max offset to the Lucene commit point offset
+                    new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
+                );
+                while (bccIterator.hasNext()) {
+                    var statelessCompoundCommit = bccIterator.next();
+                    if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
+                        innerListener.onResponse(
+                            Optional.of(
+                                new OpenPITContextInfo(
+                                    shardId,
+                                    indexCommit.getSegmentsFileName(),
+                                    context.keepAlive(),
+                                    new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
+                                    statelessCompoundCommit.commitFiles()
+                                )
                             )
                         );
-                    } catch (AlreadyClosedException e) {
-                        logger.debug("Context was closed while preparing PIT handoff for shard " + shardId, e);
+                        return;
                     }
                 }
-                return new RelocationHandoffResponse(new PITHandoffResponse(pitContextInfos));
-            }
-            return EMPTY_RESPONSE;
-        });
+                throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
+            }));
+        } catch (Exception e) {
+            // Ignore the exception and continue with the next context
+            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            listener.onResponse(Optional.empty());
+        }
     }
 
     static class RelocationHandoffResponse extends ActionResponse {
@@ -381,10 +436,6 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
         RelocationHandoffResponse(StreamInput in) throws IOException {
             this.pitHandoffResponse = new PITHandoffResponse(in);
-        }
-
-        PITHandoffResponse getPitHandoffResponse() {
-            return this.pitHandoffResponse;
         }
 
         @Override

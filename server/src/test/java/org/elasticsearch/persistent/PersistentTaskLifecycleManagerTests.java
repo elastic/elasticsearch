@@ -711,7 +711,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
     private static ClusterState stateWithClusterTask(ClusterState clusterState) {
         final var tasks = ClusterPersistentTasksCustomMetadata.builder()
-            .addTask(TASK_NAME, TASK_NAME, TestParams.INSTANCE, new PersistentTasksCustomMetadata.Assignment(LOCAL_NODE_ID, ""))
+            .addTask(
+                TASK_NAME,
+                TASK_NAME,
+                TestParams.INSTANCE,
+                new PersistentTasksCustomMetadata.Assignment(LOCAL_NODE_ID, PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "")
+            )
             .build();
         final var metadata = Metadata.builder(clusterState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks);
         return ClusterState.builder(clusterState).metadata(metadata).build();
@@ -719,7 +724,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
     private static ClusterState stateWithProjectTask(ClusterState clusterState, ProjectId projectId, String taskId) {
         final var tasks = PersistentTasksCustomMetadata.builder()
-            .addTask(taskId, TASK_NAME, TestParams.INSTANCE, new PersistentTasksCustomMetadata.Assignment(LOCAL_NODE_ID, ""))
+            .addTask(
+                taskId,
+                TASK_NAME,
+                TestParams.INSTANCE,
+                new PersistentTasksCustomMetadata.Assignment(LOCAL_NODE_ID, PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "")
+            )
             .build();
         final var projectMetadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .putCustom(PersistentTasksCustomMetadata.TYPE, tasks);

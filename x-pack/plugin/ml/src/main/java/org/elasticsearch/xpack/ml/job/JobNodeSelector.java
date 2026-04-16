@@ -153,7 +153,11 @@ public class JobNodeSelector {
             memoryTracker.asyncRefresh();
             String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
             logger.debug(reason);
-            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                reason
+            );
         }
         Map<String, String> reasons = new TreeMap<>();
         long maxAvailableMemory = Long.MIN_VALUE;
@@ -291,7 +295,11 @@ public class JobNodeSelector {
     ) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
-            PersistentTasksCustomMetadata.Assignment currentAssignment = new PersistentTasksCustomMetadata.Assignment(null, explanation);
+            PersistentTasksCustomMetadata.Assignment currentAssignment = new PersistentTasksCustomMetadata.Assignment(
+                null,
+                PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                explanation
+            );
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
             if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > mostAvailableMemoryForML) {
                 String message = format(
@@ -304,7 +312,11 @@ public class JobNodeSelector {
                 List<String> newReasons = new ArrayList<>(reasons);
                 newReasons.add(message);
                 explanation = String.join("|", newReasons);
-                return new PersistentTasksCustomMetadata.Assignment(null, explanation);
+                return new PersistentTasksCustomMetadata.Assignment(
+                    null,
+                    PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                    explanation
+                );
             }
             return considerLazyAssignment(currentAssignment, maxNodeSize);
         }

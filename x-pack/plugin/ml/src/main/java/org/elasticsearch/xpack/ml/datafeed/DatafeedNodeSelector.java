@@ -132,7 +132,11 @@ public class DatafeedNodeSelector {
         }
         LOGGER.debug(assignmentFailure.reason);
         assert assignmentFailure.reason.isEmpty() == false;
-        return new PersistentTasksCustomMetadata.Assignment(null, assignmentFailure.reason);
+        return new PersistentTasksCustomMetadata.Assignment(
+            null,
+            PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+            assignmentFailure.reason
+        );
     }
 
     @Nullable

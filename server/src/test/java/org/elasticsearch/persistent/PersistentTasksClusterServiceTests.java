@@ -159,7 +159,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             "_task_1",
             TestPersistentTasksExecutor.NAME,
             null,
-            new Assignment(unassigned ? null : "_node", "_reason")
+            new Assignment(
+                unassigned ? null : "_node",
+                unassigned ? Assignment.Reason.UNEXPECTED_PRE_9_5 : Assignment.Reason.ASSIGNED,
+                "_reason"
+            )
         );
 
         Metadata metadata = updateTasksCustomMetadata(Metadata.builder(), tasks).persistentSettings(
@@ -335,7 +339,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
 
-        var tasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment(null, "_reason"));
+        var tasks = tasksBuilder(null).addTask(
+            "_task_1",
+            "test",
+            null,
+            new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "_reason")
+        );
 
         ClusterState current = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
@@ -351,17 +360,26 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             .add(DiscoveryNodeUtils.create("_node_2"))
             .build();
 
-        var previousTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", "_reason"))
-            .addTask("_task_2", "test", null, new Assignment("_node_1", "_reason"))
-            .addTask("_task_3", "test", null, new Assignment("_node_2", "_reason"));
+        var previousTasks = tasksBuilder(null).addTask(
+            "_task_1",
+            "test",
+            null,
+            new Assignment("_node_1", Assignment.Reason.ASSIGNED, "_reason")
+        )
+            .addTask("_task_2", "test", null, new Assignment("_node_1", Assignment.Reason.ASSIGNED, "_reason"))
+            .addTask("_task_3", "test", null, new Assignment("_node_2", Assignment.Reason.ASSIGNED, "_reason"));
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
             .metadata(updateTasksCustomMetadata(Metadata.builder(), previousTasks))
             .build();
 
-        var currentTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", "_reason"))
-            .addTask("_task_3", "test", null, new Assignment("_node_2", "_reason"));
+        var currentTasks = tasksBuilder(null).addTask(
+            "_task_1",
+            "test",
+            null,
+            new Assignment("_node_1", Assignment.Reason.ASSIGNED, "_reason")
+        ).addTask("_task_3", "test", null, new Assignment("_node_2", Assignment.Reason.ASSIGNED, "_reason"));
 
         ClusterState current = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
@@ -377,16 +395,16 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             .add(DiscoveryNodeUtils.create("_node_2"))
             .build();
 
-        var previousTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", ""))
-            .addTask("_task_2", "test", null, new Assignment(null, "unassigned"));
+        var previousTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", Assignment.Reason.ASSIGNED, ""))
+            .addTask("_task_2", "test", null, new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "unassigned"));
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
             .metadata(updateTasksCustomMetadata(Metadata.builder(), previousTasks))
             .build();
 
-        var currentTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", ""))
-            .addTask("_task_2", "test", null, new Assignment("_node_2", ""));
+        var currentTasks = tasksBuilder(null).addTask("_task_1", "test", null, new Assignment("_node_1", Assignment.Reason.ASSIGNED, ""))
+            .addTask("_task_2", "test", null, new Assignment("_node_2", Assignment.Reason.ASSIGNED, ""));
 
         ClusterState current = ClusterState.builder(new ClusterName("_name"))
             .nodes(nodes)
@@ -516,7 +534,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         Metadata.Builder metadata = updateTasksCustomMetadata(Metadata.builder(clusterState.metadata()), tasks);
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
-        PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        PersistentTasksClusterService service = createService(
+            (params, candidateNodes, currentState) -> new Assignment("_node_2", Assignment.Reason.ASSIGNED, "test")
+        );
         final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(
             Metadata.DEFAULT_PROJECT_ID,
@@ -547,7 +567,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         Metadata.Builder metadata = updateTasksCustomMetadata(Metadata.builder(clusterState.metadata()), tasks);
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
-        PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        PersistentTasksClusterService service = createService(
+            (params, candidateNodes, currentState) -> new Assignment("_node_2", Assignment.Reason.ASSIGNED, "test")
+        );
         final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(
             Metadata.DEFAULT_PROJECT_ID,
@@ -648,15 +670,20 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             "t1",
             TestPersistentTasksExecutor.NAME,
             new TestParams("test"),
-            new Assignment(null, "unassigned")
+            new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "unassigned")
         )
             .addTask(
                 "t2",
                 TestPersistentTasksExecutor.NAME,
                 new TestParams("test"),
-                new Assignment("_node_left", "assigned to a node that left")
+                new Assignment("_node_left", Assignment.Reason.ASSIGNED, "assigned to a node that left")
             )
-            .addTask("t3", TestPersistentTasksExecutor.NAME, new TestParams("test"), new Assignment("_node_1", "assigned"))
+            .addTask(
+                "t3",
+                TestPersistentTasksExecutor.NAME,
+                new TestParams("test"),
+                new Assignment("_node_1", Assignment.Reason.ASSIGNED, "assigned")
+            )
             .build();
 
         assertTrue(service.needsReassignment(tasks.getTask("t1"), nodes, null));
@@ -705,7 +732,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 "_task_1",
                 taskName,
                 taskParams,
-                new Assignment(workerNode.getId(), "assigned to worker")
+                new Assignment(workerNode.getId(), Assignment.Reason.ASSIGNED, "assigned to worker")
             );
             final var previousState = ClusterState.builder(new ClusterName("_name"))
                 .nodes(nodes)
@@ -789,7 +816,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 "_task_1",
                 taskName,
                 taskParams,
-                new Assignment(workerNode.getId(), "assigned to worker")
+                new Assignment(workerNode.getId(), Assignment.Reason.ASSIGNED, "assigned to worker")
             );
 
             final var shutdownMeta = SingleNodeShutdownMetadata.builder()
@@ -975,7 +1002,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         ).isEmpty()) {
             return randomNodeAssignment(candidateNodes);
         } else {
-            return new Assignment(null, "only one task can be assigned at a time");
+            return new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "only one task can be assigned at a time");
         }
     }
 
@@ -983,7 +1010,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         if (nonClusterStateCondition) {
             return randomNodeAssignment(candidateNodes);
         } else {
-            return new Assignment(null, "non-cluster state condition prevents assignment");
+            return new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "non-cluster state condition prevents assignment");
         }
     }
 
@@ -991,7 +1018,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         if (nodes.isEmpty()) {
             return NO_NODE_FOUND;
         }
-        return Optional.ofNullable(randomFrom(nodes)).map(node -> new Assignment(node.getId(), "test assignment")).orElse(NO_NODE_FOUND);
+        return Optional.ofNullable(randomFrom(nodes))
+            .map(node -> new Assignment(node.getId(), Assignment.Reason.ASSIGNED, "test assignment"))
+            .orElse(NO_NODE_FOUND);
     }
 
     private String dumpEvent(ClusterChangedEvent event) {
@@ -1033,7 +1062,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                     builder,
                     Metadata.builder(clusterState.metadata()),
                     tasksBuilder(tasks),
-                    new Assignment(null, "change me"),
+                    new Assignment(null, Assignment.Reason.UNEXPECTED_PRE_9_5, "change me"),
                     "never_assign"
                 );
                 tasksOrNodesChanged = true;
@@ -1188,7 +1217,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasks.Builder<?> tasks,
         String node
     ) {
-        return addRandomTask(clusterStateBuilder, metadata, tasks, new Assignment(node, randomAlphaOfLength(10)), randomAlphaOfLength(10));
+        return addRandomTask(
+            clusterStateBuilder,
+            metadata,
+            tasks,
+            new Assignment(node, Assignment.Reason.ASSIGNED, randomAlphaOfLength(10)),
+            randomAlphaOfLength(10)
+        );
     }
 
     private ClusterState.Builder addRandomTask(
@@ -1210,7 +1245,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private String addTask(PersistentTasks.Builder<?> tasks, String param, String node) {
         String id = UUIDs.base64UUID();
-        tasks.addTask(id, TestPersistentTasksExecutor.NAME, new TestParams(param), new Assignment(node, "explanation: " + param));
+        tasks.addTask(
+            id,
+            TestPersistentTasksExecutor.NAME,
+            new TestParams(param),
+            new Assignment(node, Assignment.Reason.ASSIGNED, "explanation: " + param)
+        );
         return id;
     }
 

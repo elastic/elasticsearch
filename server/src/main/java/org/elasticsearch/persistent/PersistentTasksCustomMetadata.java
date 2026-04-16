@@ -273,10 +273,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this.explanation = explanation;
         }
 
-        public Assignment(String executorNode, String explanation) {
-            this(executorNode, Reason.UNEXPECTED_PRE_9_5, explanation);
-        }
-
         @Nullable
         public String getExecutorNode() {
             return executorNode;

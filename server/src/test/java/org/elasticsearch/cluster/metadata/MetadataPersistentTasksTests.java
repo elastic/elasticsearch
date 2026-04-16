@@ -268,7 +268,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
             TestClusterPersistentTasksParams.NAME,
             new TestClusterPersistentTasksParams(randomInt()),
             allocationId,
-            new Assignment(randomAlphaOfLength(10), randomAlphaOfLengthBetween(10, 20))
+            new Assignment(randomAlphaOfLength(10), Assignment.Reason.ASSIGNED, randomAlphaOfLengthBetween(10, 20))
         );
     }
 
@@ -278,7 +278,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
             TestProjectPersistentTasksParams.NAME,
             new TestProjectPersistentTasksParams(randomInt()),
             allocationId,
-            new Assignment(randomAlphaOfLength(10), randomAlphaOfLengthBetween(10, 20))
+            new Assignment(randomAlphaOfLength(10), Assignment.Reason.ASSIGNED, randomAlphaOfLengthBetween(10, 20))
         );
     }
 

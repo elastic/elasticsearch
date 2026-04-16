@@ -620,19 +620,31 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-1-tasks",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    ""
+                )
             )
             .addTask(
                 "transform-task-2",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-2-tasks",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    ""
+                )
             )
             .addTask(
                 "transform-task-3",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-3", TransformConfigVersion.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "current-data-node-with-2-tasks",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    ""
+                )
             );
 
         PersistentTasksCustomMetadata pTasks = pTasksBuilder.build();

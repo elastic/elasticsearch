@@ -259,7 +259,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
         if (jobState != null) {
             builder.updateTaskState(
@@ -481,6 +485,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
         PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
             null,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
             "some other failure reason"
         );
         Optional<ElasticsearchException> result = checkAssignmentState(assignment, "test_job", logger);
@@ -509,7 +514,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testCheckAssignmentState_GivenAssignedTask() {
         Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
-        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment("node_1", "test assignment");
+        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
+            "node_1",
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            "test assignment"
+        );
         Optional<ElasticsearchException> result = checkAssignmentState(assignment, "test_job", logger);
         assertFalse(result.isPresent());
     }

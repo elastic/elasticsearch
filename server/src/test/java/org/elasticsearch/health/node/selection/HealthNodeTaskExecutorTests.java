@@ -41,6 +41,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     private static final String LOCAL_NODE_ID = "local";
     private static final PersistentTasksCustomMetadata.Assignment LOCAL_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
         LOCAL_NODE_ID,
+        PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
         ""
     );
 

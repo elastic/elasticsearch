@@ -1347,7 +1347,11 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 MlTasks.datafeedTaskId(jobId + "-datafeed"),
                 MlTasks.DATAFEED_TASK_NAME,
                 dfParams,
-                new PersistentTasksCustomMetadata.Assignment(nodeAssignment, "test")
+                new PersistentTasksCustomMetadata.Assignment(
+                    nodeAssignment,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test"
+                )
             );
         }
         for (String analyticsId : analyticsTasks) {
@@ -1409,7 +1413,13 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.CURRENT, true),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null
+                ? AWAITING_LAZY_ASSIGNMENT
+                : new PersistentTasksCustomMetadata.Assignment(
+                    nodeId,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
         );
         if (jobState != null) {
             builder.updateTaskState(
@@ -1424,7 +1434,13 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null
+                ? AWAITING_LAZY_ASSIGNMENT
+                : new PersistentTasksCustomMetadata.Assignment(
+                    nodeId,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
         );
         if (jobState != null) {
             builder.updateTaskState(

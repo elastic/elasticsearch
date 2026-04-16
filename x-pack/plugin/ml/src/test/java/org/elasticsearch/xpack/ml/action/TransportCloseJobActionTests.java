@@ -332,7 +332,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams(datafeedId, startTime),
-            new Assignment(nodeId, "test assignment")
+            new Assignment(nodeId, Assignment.Reason.ASSIGNED, "test assignment")
         );
         tasks.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);
     }

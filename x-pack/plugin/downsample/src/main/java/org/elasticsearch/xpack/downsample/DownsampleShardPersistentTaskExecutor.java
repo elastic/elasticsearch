@@ -150,7 +150,11 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
-            return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
+            return new PersistentTasksCustomMetadata.Assignment(
+                node.getId(),
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "a node to fail and stop this persistent task"
+            );
         }
 
         // We find the nodes that hold the eligible shards.
@@ -163,7 +167,13 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             .map(ShardRouting::currentNodeId)
             .filter(nodeId -> isCandidateNode(candidateNodes, nodeId))
             .findAny()
-            .map(nodeId -> new PersistentTasksCustomMetadata.Assignment(nodeId, "downsampling using node holding shard [" + shardId + "]"))
+            .map(
+                nodeId -> new PersistentTasksCustomMetadata.Assignment(
+                    nodeId,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "downsampling using node holding shard [" + shardId + "]"
+                )
+            )
             .orElse(NO_NODE_FOUND);
     }
 

@@ -118,7 +118,11 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
                 "task-id",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "node1",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
             );
 
         final ProjectId projectId = randomProjectIdOrDefault();
@@ -150,13 +154,21 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
                 "assigned-task",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "node1",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
             )
             .addTask(
                 "task-on-deceased-node",
                 taskName,
                 emptyTaskParams(taskName),
-                new PersistentTasksCustomMetadata.Assignment("left-the-cluster", "test assignment")
+                new PersistentTasksCustomMetadata.Assignment(
+                    "left-the-cluster",
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
             );
 
         final ProjectId projectId = randomProjectIdOrDefault();

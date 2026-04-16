@@ -178,7 +178,8 @@ public interface PersistentTasks {
                     try {
                         reason = Assignment.Reason.valueOf(reasonStr);
                     } catch (IllegalArgumentException e) {
-                        reason = Assignment.Reason.UNEXPECTED_PRE_9_5;
+                        assert false : e;
+                        throw e;
                     }
                     return new Assignment(executorNode, reason, explanation);
                 }

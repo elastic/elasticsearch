@@ -821,7 +821,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     private static Assignment unassignedAssignment(String reason) {
-        return new Assignment(null, reason);
+        return new Assignment(null, Assignment.Reason.fromExplanation(null, reason), reason);
     }
 
     /**

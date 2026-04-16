@@ -96,7 +96,16 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
 
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
         for (int i = 0; i < nbTasks; i++) {
-            tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetadata.Assignment(null, "initialized"));
+            tasks.addTask(
+                "_task_" + i,
+                "test",
+                null,
+                new PersistentTasksCustomMetadata.Assignment(
+                    null,
+                    PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+                    "initialized"
+                )
+            );
         }
 
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build()).build();

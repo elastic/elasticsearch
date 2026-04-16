@@ -238,7 +238,9 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return Optional.of(new PersistentTasksCustomMetadata.Assignment(null, reason));
+            return Optional.of(
+                new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND, reason)
+            );
         }
         return Optional.empty();
     }
@@ -249,7 +251,13 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
             if (scheduledRefresh) {
                 String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
                 logger.debug(reason);
-                return Optional.of(new PersistentTasksCustomMetadata.Assignment(null, reason));
+                return Optional.of(
+                    new PersistentTasksCustomMetadata.Assignment(
+                        null,
+                        PersistentTasksCustomMetadata.Assignment.Reason.NO_NODE_FOUND,
+                        reason
+                    )
+                );
             }
         }
         return Optional.empty();

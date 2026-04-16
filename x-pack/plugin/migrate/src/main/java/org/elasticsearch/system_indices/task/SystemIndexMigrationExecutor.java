@@ -111,7 +111,11 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+            return new PersistentTasksCustomMetadata.Assignment(
+                discoveryNode.getId(),
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                ""
+            );
         }
     }
 

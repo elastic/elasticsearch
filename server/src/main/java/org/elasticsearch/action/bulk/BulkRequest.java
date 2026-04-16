@@ -144,7 +144,6 @@ public class BulkRequest extends LegacyActionRequest
             case UpdateRequest updateRequest -> add(updateRequest);
             case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
-        indices.add(request.index());
         return this;
     }
 

@@ -1109,7 +1109,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
             if (strategy == TieredMergeStrategy.Strategy.CONCATENATION) {
                 logger.info(
-                    "DiskBBQ merge for field [{}]: selected strategy [{}], requested experiment [{}], effective experiment [{}], segments={}, totalVectors={}, totalCentroids={}",
+                    "DiskBBQ merge for field [{}]: selected strategy [{}], requested experiment [{}], "
+                        + "effective experiment [{}], segments={}, totalVectors={}, totalCentroids={}",
                     fieldInfo.name,
                     strategy,
                     requestedExperiment,
@@ -1120,7 +1121,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 );
                 if (mergeSignalStats != null) {
                     logger.info(
-                        "DiskBBQ merge signals for field [{}]: segmentsWithCentroids={}, interSegmentSpread={}, intraSegmentCentroidSpread={}, interToIntraSpreadRatio={}, signalSuggestedExperiment=[{}]",
+                        "DiskBBQ merge signals for field [{}]: segmentsWithCentroids={}, interSegmentSpread={}, "
+                            + "intraSegmentCentroidSpread={}, interToIntraSpreadRatio={}, signalSuggestedExperiment=[{}]",
                         fieldInfo.name,
                         mergeSignalStats.segmentsWithCentroids(),
                         mergeSignalStats.interSegmentSpread(),
@@ -1131,7 +1133,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
             } else {
                 logger.info(
-                    "DiskBBQ merge for field [{}]: selected strategy [{}], experiment [{}], segments={}, totalVectors={}, totalCentroids={}",
+                    "DiskBBQ merge for field [{}]: selected strategy [{}], experiment [{}], "
+                        + "segments={}, totalVectors={}, totalCentroids={}",
                     fieldInfo.name,
                     strategy,
                     requestedExperiment,

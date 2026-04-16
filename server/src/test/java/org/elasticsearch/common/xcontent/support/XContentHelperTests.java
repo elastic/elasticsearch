@@ -15,8 +15,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;

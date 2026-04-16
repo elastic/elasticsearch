@@ -90,8 +90,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
     }
 
-    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
-        throws IOException {
+    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(null, b -> {
             f.accept(b);

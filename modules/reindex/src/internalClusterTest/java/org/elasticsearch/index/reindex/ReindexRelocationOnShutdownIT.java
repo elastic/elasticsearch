@@ -154,8 +154,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         waitForRootReindexTask(coordNodeName);
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
+        // This function only returns once all hooks have completed, including marking the reindexing task for relocation.
+        // This triggers the reindexing task to relocate rather than continuing to reindex after it completes a page of reindexing
+        // (and we have a page size of 1 so can guarantee that the task is not completed at this point). However, due to the
+        // high throttle, we would have to wait for the between-pages sleep (which is a long time).
         shutdownPrepareService.prepareForShutdown();
-        // Removes the throttle so the task completes quickly once relocated to the new node
+        // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
         internalCluster().stopNode(coordNodeName);
 
@@ -273,8 +277,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             ShutdownPrepareService.class,
             dataNodeRunningReindex
         );
+        // This function only returns once all hooks have completed, including marking the reindexing task for relocation.
+        // This triggers the reindexing task to relocate rather than continuing to reindex after it completes a page of reindexing
+        // (and we have a page size of 1 so can guarantee that the task is not completed at this point). However, due to the
+        // high throttle, we would have to wait for the between-pages sleep (which is a long time).
         shutdownPrepareService.prepareForShutdown();
-        // The reindexing task still uses the extreme throttle. This removes it so the task completes quickly on the new node
+        // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
 
         // We wait until the reindexing task has been relocated before actually stopping the node
@@ -323,6 +331,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
         final Settings coordSettings = Settings.builder()
+            /*
+             * On the coordinating node, {@link ShutdownPrepareService} registers several shutdown hooks that run in parallel
+             * (each on its own thread). {@code prepareForShutdown()} waits until all of them finish (or until an overall time limit is
+             * hit). Waiting for task completion is one of these hooks, specifically waiting on the throttled reindexing task. If
+             * {@link #MAXIMUM_REINDEXING_TIMEOUT_SETTING} is not set to something small like 2 seconds, then it would wait for the entire
+             * task to finish. Setting the limit to be 2 seconds + heavy throttling guarantees that the task cannot succeed before shutdown
+             * without making the test run too long
+             */
             .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(2))
             .build();
         final String coordNodeName = internalCluster().startCoordinatingOnlyNode(coordSettings);
@@ -371,16 +387,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
         NodeShutdownTestUtils.putShutdownForRemovalMetadata(dataNodeName, clusterService);
 
-        /**
-         * On the coordinating node, {@link ShutdownPrepareService} registers several shutdown hooks that run in parallel
-         * (each on its own thread). {@code prepareForShutdown()} waits until all of them finish (or until an overall time limit is
-         * hit). Waiting for task completion is one of these hooks, specifically waiting on the throttled reindexing task. If
-         * {@link #MAXIMUM_REINDEXING_TIMEOUT_SETTING} is not set to something small like 2 seconds, then it would wait for the entire
-         * task to finish. Setting the limit to be 2 seconds + heavy throttling guarantees that the task cannot succeed before shutdown
-         * without making the test run too long
-         */
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
+        // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
 
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));

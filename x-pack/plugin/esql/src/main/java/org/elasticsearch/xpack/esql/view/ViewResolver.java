@@ -36,12 +36,15 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -155,8 +158,18 @@ public class ViewResolver {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
         // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
         HashSet<String> seenWildcards = new HashSet<>();
+        // Tracks plans already resolved by view handlers (Fork, UR) to prevent double-processing.
+        // Without this, transformDown recurses into the children of resolved plans, causing wildcards
+        // in view subqueries to be re-resolved against sibling view names, producing false circular
+        // reference errors and deeply nested duplicate resolution.
+        Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.transformDown((p, planListener) -> {
+            if (resolvedPlans.contains(p)) {
+                // This plan was already resolved by a handler — skip it to prevent double-processing.
+                planListener.onResponse(p);
+                return;
+            }
             switch (p) {
                 case ViewUnionAll viewUnion -> {
                     // ViewUnionAll is the result of view resolution, so we skip it.
@@ -166,11 +179,25 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener);
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                        plan.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    }));
                     return;
                 }
                 case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(ur, parser, seenInner, seenWildcards, viewQueries, depth, planListener);
+                    replaceViewsUnresolvedRelation(
+                        ur,
+                        parser,
+                        seenInner,
+                        seenWildcards,
+                        viewQueries,
+                        depth,
+                        planListener.delegateFailureAndWrap((l, result) -> {
+                            plan.forEachDown(resolvedPlans::add);
+                            l.onResponse(result);
+                        })
+                    );
                     return;
                 }
                 default -> {
@@ -259,7 +286,6 @@ public class ViewResolver {
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
                 chain = chain.andThen(l2 -> {
-                    seenViews.add(view.name());
                     // Make sure we don't block sibling branches from containing the same views
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
@@ -608,20 +634,22 @@ public class ViewResolver {
         // Trial pass: collect all entries from full flattening and check for conflicts.
         // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
         // eliminating nesting that the runtime doesn't yet support.
+        // Inner Forks/UnionAlls (from user-written subqueries inside views) are also lifted,
+        // with each child becoming a separate named entry suffixed from the parent view name.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
-        boolean hasInnerVua = false;
+        boolean hasInnerFork = false;
 
-        // Process non-VUA entries first so that all outer keys are in `flat` before we attempt
-        // to flatten inner ViewUnionAlls. This makes the conflict check order-independent —
-        // without it, an inner VUA processed before a later outer entry with the same key would
+        // Process non-fork entries first so that all outer keys are in `flat` before we attempt
+        // to flatten inner forks. This makes the conflict check order-independent —
+        // without it, an inner fork processed before a later outer entry with the same key would
         // miss the conflict, producing extra branches that can exceed the Fork limit.
-        List<Map.Entry<String, LogicalPlan>> vuaEntries = new ArrayList<>();
+        List<Map.Entry<String, LogicalPlan>> forkEntries = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof ViewUnionAll) {
-                vuaEntries.add(entry);
+            if (inner instanceof Fork) {
+                forkEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 flat.put(makeUniqueKey(flat, key), value);
             } else {
@@ -632,17 +660,29 @@ public class ViewResolver {
             }
         }
 
-        for (Map.Entry<String, LogicalPlan> entry : vuaEntries) {
+        for (Map.Entry<String, LogicalPlan> entry : forkEntries) {
+            String parentKey = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            ViewUnionAll innerVua = (ViewUnionAll) inner;
-            hasInnerVua = true;
-            for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
-                flat.put(makeUniqueKey(flat, innerEntry.getKey()), innerEntry.getValue());
+            hasInnerFork = true;
+            if (inner instanceof ViewUnionAll innerVua) {
+                // Named branches from inner ViewUnionAll: lift with their own names
+                for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
+                    flat.put(makeUniqueKey(flat, innerEntry.getKey()), innerEntry.getValue());
+                }
+            } else {
+                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed parent name
+                Fork fork = (Fork) inner;
+                int childIndex = 1;
+                for (LogicalPlan child : fork.children()) {
+                    LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
+                    String childKey = parentKey + "#" + childIndex++;
+                    flat.put(makeUniqueKey(flat, childKey), unwrapped);
+                }
             }
         }
 
-        if (hasInnerVua == false) {
+        if (hasInnerFork == false) {
             return vua;
         }
 

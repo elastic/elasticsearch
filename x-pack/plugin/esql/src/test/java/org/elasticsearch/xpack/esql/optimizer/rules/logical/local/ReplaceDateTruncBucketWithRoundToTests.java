@@ -243,21 +243,28 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     }
 
     private void verifySubstitution(Alias a, int roundToPointsSize) {
-        FieldAttribute fa = null;
         Expression e = a.child();
         if (roundToPointsSize > 0) {
             RoundTo roundTo = as(e, RoundTo.class);
-            fa = as(roundTo.field(), FieldAttribute.class);
+            FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else if (roundToPointsSize == 0) {
+            // Predicates exclude all rounding points so DateTrunc/Bucket was kept as-is
+            FieldAttribute fa;
             if (e instanceof DateTrunc dateTrunc) {
                 fa = as(dateTrunc.field(), FieldAttribute.class);
             } else if (e instanceof Bucket bucket) {
                 fa = as(bucket.field(), FieldAttribute.class);
             } else {
                 fail(e.getClass() + " is not supported");
+                return;
             }
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else {
+            // DateTrunc/Bucket applied to a non-field expression so substitution was not possible
             if (e instanceof DateTrunc dateTrunc) {
                 assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
             } else if (e instanceof Bucket bucket) {
@@ -266,14 +273,9 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
                 fail(e.getClass() + " is not supported");
             }
         }
-        if (roundToPointsSize >= 0) {
-            assertEquals("hire_date", fa.name());
-            assertEquals(DATETIME, fa.dataType());
-        }
     }
 
     private static SearchStats searchStats() {
-        // create a SearchStats with min and max millis
         Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
         Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
         return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);

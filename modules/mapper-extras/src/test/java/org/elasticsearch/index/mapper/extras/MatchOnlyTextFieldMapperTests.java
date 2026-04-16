@@ -137,10 +137,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
 
-        var reader = fields.get(0).readerValue();
-        char[] buff = new char[20];
-        assertEquals(4, reader.read(buff));
-        assertEquals("1234", new String(buff, 0, 4));
+        assertEquals("1234", fields.get(0).stringValue());
 
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));

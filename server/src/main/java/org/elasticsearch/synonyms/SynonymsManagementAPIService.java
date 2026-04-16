@@ -114,7 +114,7 @@ public class SynonymsManagementAPIService {
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
     static final int PIT_BATCH_SIZE = 10_000;
-    static final int BULK_CHUNK_SIZE = 5_000;
+    static final int BULK_CHUNK_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";

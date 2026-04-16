@@ -22,14 +22,20 @@ import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
 
-final class PanamaESVectorizationProvider extends ESVectorizationProvider {
+public final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     private final ESVectorUtilSupport vectorUtilSupport;
+    private final boolean nativeEnabled;
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    PanamaESVectorizationProvider() {
+    public PanamaESVectorizationProvider() {
+        this(true);
+    }
+
+    public PanamaESVectorizationProvider(boolean nativeEnabled) {
         vectorUtilSupport = new PanamaESVectorUtilSupport();
+        this.nativeEnabled = nativeEnabled;
     }
 
     @Override
@@ -59,7 +65,8 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding
+                    int4Encoding,
+                    nativeEnabled
                 );
             }
         }

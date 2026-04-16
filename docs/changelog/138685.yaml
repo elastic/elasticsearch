@@ -1,5 +1,0 @@
-pr: 138685
-summary: Introduce an adaptive HNSW Patience collector
-area: Vector Search
-type: enhancement
-issues: []

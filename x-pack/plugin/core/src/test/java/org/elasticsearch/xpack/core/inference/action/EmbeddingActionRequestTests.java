@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.elasticsearch.xpack.core.inference.action.EmbeddingAction.Request.parseRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -34,11 +36,11 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
     public void testParseRequest() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
                 "input": [
                     {
-                        "content": {"type": "image", "format": "base64", "value": "some image input" }
+                        "content": {"type": "image", "format": "base64", "value": "%s" }
                     }
                 ],
                 "input_type": "search",
@@ -46,7 +48,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                   "field": "value"
                 }
             }
-            """;
+            """, TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var inferenceId = randomAlphanumericOfLength(8);
             var taskType = randomFrom(TaskType.values());
@@ -57,7 +59,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                 inferenceId,
                 taskType,
                 new EmbeddingRequest(
-                    List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "some image input"))),
+                    List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI))),
                     InputType.SEARCH,
                     Map.of("field", "value")
                 ),

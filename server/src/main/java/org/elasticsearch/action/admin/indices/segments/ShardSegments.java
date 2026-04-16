@@ -25,7 +25,7 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
 
     private final List<Segment> segments;
 
-    ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
+    public ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
         this.shardRouting = shardRouting;
         this.segments = segments;
     }

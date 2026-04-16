@@ -1,5 +1,0 @@
-pr: 139466
-summary: Use binary doc values for `pattern_text` args column
-area: Mapping
-type: enhancement
-issues: []

@@ -28,7 +28,7 @@ public enum PromqlDataType {
      * rate(http_requests_total[5m])
      * </pre>
      */
-    INSTANT_VECTOR("instant vector"),
+    INSTANT_VECTOR("instant_vector"),
 
     /**
      * A range vector is a set of time series containing a range of data points over time for each time series.
@@ -46,7 +46,7 @@ public enum PromqlDataType {
      * http_requests_total[1m:10s]
      * </pre>
      */
-    RANGE_VECTOR("range vector"),
+    RANGE_VECTOR("range_vector"),
 
     /**
      * A scalar is a simple numeric floating point value.

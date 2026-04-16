@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -43,6 +44,9 @@ toolchainManagement {
       repository('archivedOracleJdks') {
         resolverClass = ArchivedOracleJdkToolchainResolver
       }
+      repository('earlyAccessJdks') {
+        resolverClass = EarlyAccessCatalogJdkToolchainResolver
+      }
     }
   }
 }
@@ -56,6 +60,7 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
+  'benchmarks:processor',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
   'distribution:archives:darwin-tar',
@@ -89,6 +94,7 @@ List projects = [
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',
+  'distribution:tools:server-launcher',
   'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:plugin-cli:bc',

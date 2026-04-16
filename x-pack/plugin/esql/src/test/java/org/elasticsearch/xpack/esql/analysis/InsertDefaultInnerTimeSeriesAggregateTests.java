@@ -69,8 +69,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             | SORT s
             | LIMIT 10
             """;
-        var plan1 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats1)));
-        var plan2 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats2)));
+        var plan1 = metricsAnalyzer().query(String.format(Locale.ROOT, baseQuery, stats1));
+        var plan2 = metricsAnalyzer().query(String.format(Locale.ROOT, baseQuery, stats2));
         Function<Alias, Expression> ignoreAliasName = (Alias a) -> new Alias(a.source(), "dummy", a.child(), a.id());
         plan1 = plan1.transformExpressionsDown(Alias.class, ignoreAliasName);
         plan2 = plan2.transformExpressionsDown(Alias.class, ignoreAliasName);

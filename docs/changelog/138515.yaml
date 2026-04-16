@@ -1,5 +1,0 @@
-pr: 138515
-summary: Integrate stored fields format bloom filter with synthetic `_id`
-area: Codec
-type: enhancement
-issues: []

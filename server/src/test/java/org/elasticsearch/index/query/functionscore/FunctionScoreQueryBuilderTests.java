@@ -154,7 +154,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             case 0:
                 FilterFunctionBuilder[] functions = new FilterFunctionBuilder[randomIntBetween(0, 3)];
                 for (int i = 0; i < functions.length; i++) {
-                    functions[i] = new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
+                    functions[i] = new FilterFunctionBuilder(
+                        RandomQueryBuilder.createQuery(random()),
+                        randomBoolean() ? randomAlphanumericOfLength(10) : null,
+                        randomScoreFunction()
+                    );
                 }
                 if (randomBoolean()) {
                     return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), functions);

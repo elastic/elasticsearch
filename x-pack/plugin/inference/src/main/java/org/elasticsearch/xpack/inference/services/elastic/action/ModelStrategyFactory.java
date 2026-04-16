@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceDenseTextEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -22,10 +20,12 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUnifiedCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseTextEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDenseEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -106,20 +106,20 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         }
     };
 
-    private static final String DENSE_TEXT_EMBEDDINGS_REQUEST_DESCRIPTION = Strings.format(
-        "%s dense text embeddings",
+    private static final String DENSE_EMBEDDINGS_REQUEST_DESCRIPTION = Strings.format(
+        "%s dense embeddings",
         ELASTIC_INFERENCE_SERVICE_IDENTIFIER
     );
 
-    private static final ResponseHandler DENSE_TEXT_EMBEDDINGS_HANDLER = new ElasticInferenceServiceResponseHandler(
-        DENSE_TEXT_EMBEDDINGS_REQUEST_DESCRIPTION,
-        ElasticInferenceServiceDenseTextEmbeddingsResponseEntity::fromResponse
+    private static final ResponseHandler DENSE_EMBEDDINGS_HANDLER = new ElasticInferenceServiceResponseHandler(
+        DENSE_EMBEDDINGS_REQUEST_DESCRIPTION,
+        ElasticInferenceServiceDenseEmbeddingsResponseEntity::fromResponse
     );
 
-    private static final Strategy<ElasticInferenceServiceDenseTextEmbeddingsModel> EMBEDDING_STRATEGY = new Strategy<>() {
+    private static final Strategy<ElasticInferenceServiceDenseEmbeddingsModel> EMBEDDING_STRATEGY = new Strategy<>() {
         @Override
         public RequestManager createRequestManager(
-            ElasticInferenceServiceDenseTextEmbeddingsModel model,
+            ElasticInferenceServiceDenseEmbeddingsModel model,
             ServiceComponents serviceComponents,
             TraceContext traceContext,
             CCMAuthenticationApplierFactory.AuthApplier authApplier
@@ -128,10 +128,10 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             return new GenericRequestManager<>(
                 serviceComponents.threadPool(),
                 model,
-                DENSE_TEXT_EMBEDDINGS_HANDLER,
-                (embeddingsInput) -> new ElasticInferenceServiceDenseTextEmbeddingsRequest(
+                DENSE_EMBEDDINGS_HANDLER,
+                (embeddingsInput) -> new ElasticInferenceServiceDenseEmbeddingsRequest(
                     model,
-                    embeddingsInput.getTextInputs(),
+                    embeddingsInput.getInputs(),
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),
@@ -143,7 +143,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
 
         @Override
         public String requestDescription() {
-            return DENSE_TEXT_EMBEDDINGS_REQUEST_DESCRIPTION;
+            return DENSE_EMBEDDINGS_REQUEST_DESCRIPTION;
         }
     };
 
@@ -179,7 +179,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         return switch (model) {
             case ElasticInferenceServiceSparseEmbeddingsModel ignored -> (Strategy<T>) SPARSE_EMBEDDINGS_STRATEGY;
             case ElasticInferenceServiceRerankModel ignored -> (Strategy<T>) RERANK_STRATEGY;
-            case ElasticInferenceServiceDenseTextEmbeddingsModel ignored -> (Strategy<T>) EMBEDDING_STRATEGY;
+            case ElasticInferenceServiceDenseEmbeddingsModel ignored -> (Strategy<T>) EMBEDDING_STRATEGY;
             case ElasticInferenceServiceCompletionModel ignored -> (Strategy<T>) CHAT_COMPLETIONS_STRATEGY;
             default -> throw new IllegalArgumentException("No strategy found for model type: " + model.getClass().getSimpleName());
         };

@@ -555,7 +555,9 @@ public final class SourceDestValidator {
 
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
-            if (context.resolveRemoteSource().isEmpty() == false) {
+            // _origin: is the CPS local-project qualifier — it must not be treated as a remote cluster reference
+            boolean hasNonOriginRemoteSource = context.resolveRemoteSource().stream().anyMatch(idx -> idx.startsWith("_origin:") == false);
+            if (hasNonOriginRemoteSource) {
                 context.addValidationError(REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED);
             }
             listener.onResponse(context);

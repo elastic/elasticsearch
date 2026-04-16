@@ -42,8 +42,13 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     @Override
-    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+    public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new UnionAll(source(), subPlans, output);
+    }
+
+    @Override
+    public UnionAll refreshOutput() {
+        return new UnionAll(source(), children(), refreshedOutput());
     }
 
     @Override
@@ -80,7 +85,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
 
                     // UnionAll with unsupported types should not be allowed, otherwise runtime couldn't handle it
                     // Verifier checkUnresolvedAttributes should have caught it already, this check is similar to Fork
-                    if (expected == DataType.UNSUPPORTED) {
+                    if (expected == null || expected == DataType.UNSUPPORTED) {
                         continue;
                     }
 

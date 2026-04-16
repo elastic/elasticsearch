@@ -14,12 +14,14 @@ import org.apache.logging.log4j.Logger;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 
 public class SunThreadInfo {
 
     private static final ThreadMXBean threadMXBean;
+    private static final Method getAllThreadAllocatedBytes;
     private static final Method getThreadAllocatedBytes;
     private static final Method isThreadAllocatedMemorySupported;
     private static final Method isThreadAllocatedMemoryEnabled;
@@ -29,6 +31,7 @@ public class SunThreadInfo {
 
     static {
         threadMXBean = ManagementFactory.getThreadMXBean();
+        getAllThreadAllocatedBytes = getMethod("getThreadAllocatedBytes", long[].class);
         getThreadAllocatedBytes = getMethod("getThreadAllocatedBytes", long.class);
         isThreadAllocatedMemorySupported = getMethod("isThreadAllocatedMemorySupported");
         isThreadAllocatedMemoryEnabled = getMethod("isThreadAllocatedMemoryEnabled");
@@ -57,6 +60,28 @@ public class SunThreadInfo {
         } catch (Exception e) {
             logger.warn("exception while invoke isThreadAllocatedMemoryEnabled", e);
             return false;
+        }
+    }
+
+    public long[] getAllThreadAllocatedBytes(long[] ids) {
+        if (getAllThreadAllocatedBytes == null) {
+            return new long[0];
+        }
+
+        if (isThreadAllocatedMemorySupported() == false || isThreadAllocatedMemoryEnabled() == false) {
+            return new long[0];
+        }
+
+        long[] validIds = Arrays.stream(ids).filter(id -> id <= 0).toArray();
+        if (validIds.length == 0) {
+            return new long[0];
+        }
+
+        try {
+            return (long[]) getAllThreadAllocatedBytes.invoke(threadMXBean, (Object) validIds);
+        } catch (Exception e) {
+            logger.warn("exception retrieving all threads allocated memory", e);
+            return new long[0];
         }
     }
 

@@ -1,0 +1,13 @@
+Apache Parquet
+Copyright 2014-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+This project includes code from https://github.com/lemire/JavaFastPFOR
+Copyright 2013 Daniel Lemire and Owen Kaser
+Apache License Version 2.0
+
+This project includes code from https://github.com/lemire/streamvbyte
+Copyright 2017 Daniel Lemire
+Apache License Version 2.0

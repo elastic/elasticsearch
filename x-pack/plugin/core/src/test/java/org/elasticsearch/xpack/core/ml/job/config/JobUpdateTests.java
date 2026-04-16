@@ -396,6 +396,53 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(10000L, ByteSizeUnit.MB));
     }
 
+    public void testUpdate_WithNullUpdateCategorizationExamplesLimitAndAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(3L));
+    }
+
+    public void testUpdate_WithNullAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
+    }
+
+    public void testUpdate_WithNullUpdateModelMemoryLimitAndAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(null, 5L)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(1024L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
+    }
+
     public void testUpdate_givenEmptySnapshot() {
         Job.Builder jobBuilder = new Job.Builder("my_job");
         Detector.Builder d1 = new Detector.Builder("count", null);

@@ -23,6 +23,6 @@ public class DocVectorEncoder extends DefaultUnsortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "DocVectorEncoder";
+        return "Doc";
     }
 }

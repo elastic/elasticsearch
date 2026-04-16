@@ -76,9 +76,7 @@ public class ShardBulkSplitHelperTests extends ESTestCase {
 
         // Fabricate some results for the requests
         splitBulkRequests.forEach((shardId, bulkShardRequest) -> {
-            // TODO: Right now ShardBulkSplitHelper#combineResponses expects the bulk shard request for the source shard to always succeed
-            // There is a TODO there to handle that
-            if (shardId.equals(sourceShardId) == false && randomBoolean()) {
+            if (randomBoolean()) {
                 // Fail shard request
                 bulkShardResponses.put(shardId, new Tuple<>(null, shardException));
             } else {

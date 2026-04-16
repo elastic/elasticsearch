@@ -52,6 +52,19 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(repositorySnapshotStats);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RepositoriesStats that = (RepositoriesStats) o;
+        return repositorySnapshotStats.equals(that.repositorySnapshotStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return repositorySnapshotStats.hashCode();
+    }
+
     public record SnapshotStats(
         long shardSnapshotsStarted,
         long shardSnapshotsCompleted,
@@ -64,7 +77,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalUploadReadTimeInMillis
     ) implements ToXContentObject, Writeable {
 
-        private static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
+        static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
             "extended_snapshot_stats_in_node_info"
         );
 

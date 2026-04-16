@@ -248,15 +248,14 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
     }
 
     @Override
-    public TDigestHolder getTDigestHolder(int offset) {
-        return new TDigestHolder(
-            // TODO: Memory tracking? creating a new bytes ref here doesn't seem great
-            encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(offset), new BytesRef()),
-            minima.isNull(offset) ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(offset)),
-            maxima.isNull(offset) ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(offset)),
-            sums.isNull(offset) ? Double.NaN : sums.getDouble(sums.getFirstValueIndex(offset)),
-            valueCounts.getLong(valueCounts.getFirstValueIndex(offset))
-        );
+    public TDigestHolder getTDigestHolder(int offset, TDigestHolder scratch) {
+        var encoded = encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(offset), scratch.scratchBytesRef());
+        double min = minima.isNull(offset) ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(offset));
+        double max = maxima.isNull(offset) ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(offset));
+        double sum = sums.isNull(offset) ? Double.NaN : sums.getDouble(sums.getFirstValueIndex(offset));
+        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(offset));
+        scratch.reset(encoded, min, max, sum, valueCount);
+        return scratch;
     }
 
     public static TDigestBlock createConstant(TDigestHolder histogram, int positionCount, BlockFactory blockFactory) {
@@ -267,7 +266,7 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
         BytesRefBlock encodedDigestsBlock = null;
         boolean success = false;
         try {
-            countBlock = blockFactory.newConstantLongBlockWith(histogram.getValueCount(), positionCount);
+            countBlock = blockFactory.newConstantLongBlockWith(histogram.size(), positionCount);
             if (Double.isNaN(histogram.getMin())) {
                 minBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
             } else {

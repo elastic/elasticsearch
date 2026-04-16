@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 
 public final class ElasticInferenceServiceSettingsUtils {
 
-    public static final int MAX_BATCH_SIZE_UPPER_BOUND = 512;
+    public static final int MAX_BATCH_SIZE_UPPER_BOUND = 1024;
     public static final String MAX_BATCH_SIZE = "max_batch_size";
     public static final TransportVersion INFERENCE_API_EIS_MAX_BATCH_SIZE = TransportVersion.fromName("inference_api_eis_max_batch_size");
 

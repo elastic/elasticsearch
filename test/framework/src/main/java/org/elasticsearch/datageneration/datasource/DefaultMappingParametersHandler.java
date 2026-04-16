@@ -307,6 +307,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 mapping.put("split_queries_on_whitespace", ESTestCase.randomBoolean());
             }
 
+            if (ESTestCase.randomDouble() < 0.2) {
+                mapping.put("preserve_leaf_arrays", ESTestCase.randomFrom("lossy", "exact"));
+            }
+
             return mapping;
         };
     }
@@ -317,11 +321,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        return switch (ESTestCase.randomInt(3)) {
+        return switch (ESTestCase.randomInt(5)) {
             case 0 -> false;
             case 1 -> Map.of("cardinality", "low");
             case 2 -> Map.of("cardinality", "high");
             case 3 -> true;
+            case 4 -> Map.of("cardinality", "low", "multi_value", "arrays");
+            case 5 -> Map.of("cardinality", "high", "multi_value", "arrays");
             default -> throw new IllegalStateException();
         };
     }

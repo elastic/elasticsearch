@@ -1070,6 +1070,11 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
 
         var rightRelation = as(join.right(), EsRelation.class);
         assertThat(rightRelation.concreteQualifiedIndices(), is(Set.of("languages_lookup")));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 4:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testFailureWhenSortAndSortBreakerBeforeInlineStats() {
@@ -1092,6 +1097,13 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
                 "line 5:3: INLINE STATS [INLINE STATS max_lang = MAX(languages) BY gender] cannot yet have an unbounded SORT"
                     + " [SORT emp_no] before it"
             );
+            if (cmd.startsWith("LOOKUP JOIN")) {
+                assertWarnings(
+                    "No limit defined, adding default limit of [1000]",
+                    "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                        + "add another SORT after the LOOKUP JOIN if order is required"
+                );
+            }
         }
     }
 }

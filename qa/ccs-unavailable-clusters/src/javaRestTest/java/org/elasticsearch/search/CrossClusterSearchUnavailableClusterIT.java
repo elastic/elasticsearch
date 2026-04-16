@@ -91,7 +91,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    var searchShardsResponse = new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap());
+                    var searchShardsResponse = new SearchShardsResponse(List.of(), 0, List.of(), Collections.emptyMap());
                     try {
                         channel.sendResponse(searchShardsResponse);
                     } finally {

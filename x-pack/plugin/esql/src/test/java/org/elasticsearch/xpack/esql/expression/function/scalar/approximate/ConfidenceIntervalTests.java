@@ -24,6 +24,7 @@ import static java.lang.Double.NaN;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -66,7 +67,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                 double confidenceLevel = randomDoubleBetween(0.8, 0.95, true);
                 double bestEstimate = bucketCount / 2.0;
                 List<Double> estimates = IntStream.range(0, trialCount * bucketCount)
-                    .mapToDouble(i -> randomDoubleBetween((i % bucketCount), (i % bucketCount) + 1, true))
+                    .mapToDouble(i -> randomDoubleBetween((i % bucketCount) + 0.4, (i % bucketCount) + 0.6, true))
                     .boxed()
                     .toList();
                 return new TestCaseSupplier.TestCase(
@@ -82,7 +83,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     contains(
                         both(greaterThan(0.0)).and(lessThan(bestEstimate)),
                         both(greaterThan(bestEstimate)).and(lessThan((double) bucketCount)),
-                        closeTo(1.0, 1e-9)
+                        equalTo(1.0)
                     )
                 );
             }

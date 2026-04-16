@@ -1,6 +1,0 @@
-pr: 140892
-summary: Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting`
-area: ILM
-type: bug
-issues:
- - 140885

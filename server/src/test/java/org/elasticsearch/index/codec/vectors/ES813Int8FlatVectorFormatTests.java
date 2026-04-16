@@ -35,6 +35,11 @@ public class ES813Int8FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813Int8FlatRWVectorFormat());
 
     @Override

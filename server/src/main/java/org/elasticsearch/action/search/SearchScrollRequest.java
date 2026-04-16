@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SearchScrollRequest extends LegacyActionRequest implements ToXContentObject, IndicesRequest.CrossProjectCandidate {
+public class SearchScrollRequest extends LegacyActionRequest implements ToXContentObject {
 
     private String scrollId;
     private TimeValue scroll;
@@ -160,10 +159,5 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
                 }
             }
         }
-    }
-
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
     }
 }

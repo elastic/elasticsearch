@@ -2,8 +2,11 @@ setup:
   - requires:
       cluster_features: [ "mapper.exponential_histogram_type" ]
       reason: exponential_histogram field type was introduced
+      test_runner_features: [ allowed_warnings ]
   # Create an index template for the data stream with aggregate_metric_double field
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.put_index_template:
         name: test_data_stream_template
         body:
@@ -19,6 +22,8 @@ setup:
 
   # Create the data stream
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create_data_stream:
         name: test-data-stream
 
@@ -30,7 +35,7 @@ setup:
         body:
           '@timestamp': "2023-01-01T00:00:00Z"
           histo_or_aggregate_metric:
-            min: 1.0
+            min: 0.9
             max: 10.0
             sum: 20.0
             value_count: 3
@@ -107,3 +112,52 @@ setup:
               avg:
                 field: histo_or_aggregate_metric
   - match: { aggregations.avg_metric.value: 12.0 }
+
+---
+"Min aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            min_agg:
+              min:
+                field: histo_or_aggregate_metric
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.min_agg.value: 0.9 }
+
+---
+"Max aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            max_agg:
+              max:
+                field: histo_or_aggregate_metric
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.max_agg.value: 10.0 }
+
+---
+"Exists query over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: histo_or_aggregate_metric
+
+  - match: { hits.total.value: 2 }
+

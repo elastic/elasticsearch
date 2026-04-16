@@ -11,12 +11,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,15 +42,30 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         // There aren't any parameters
     }
 
+    @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+    }
+
     private DocumentMapper createMapper(XContentBuilder mappings) throws IOException {
-        return createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                .build(),
-            mappings
-        ).documentMapper();
+        return createMapper(mappings, null);
+    }
+
+    /**
+     * Create a DocumentMapper for the test. Set syntheticId setting explicitly if true/false. Leave unset if null.
+     */
+    private DocumentMapper createMapper(XContentBuilder mappings, Boolean syntheticId) throws IOException {
+        Settings.Builder settingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z");
+        if (syntheticId != null) {
+            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
+        }
+        return createMapperService(settingsBuilder.build(), mappings).documentMapper();
     }
 
     private static ParsedDocument parseDocument(int hash, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
@@ -87,21 +104,29 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     public void testRetrievedFromIdInTimeSeriesMode() throws Exception {
+        boolean syntheticId = randomBoolean();
         DocumentMapper docMapper = createMapper(mapping(b -> {
             b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
-        }));
+        }), syntheticId);
 
-        int hash = randomInt();
-        ParsedDocument doc = parseDocument(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, docMapper, b -> b.field("a", "value"));
+        String id;
+        int routingHash = randomInt();
+        if (syntheticId) {
+            // This synthetic id is not correct for the document, but we only care about the routing hash in this test
+            id = TsidExtractingIdFieldMapper.createSyntheticId(new BytesRef("some tsid"), Instant.now().toEpochMilli(), routingHash);
+        } else {
+            id = TimeSeriesRoutingHashFieldMapper.encode(routingHash);
+        }
+        ParsedDocument doc = parseDocument(id, docMapper, b -> b.field("a", "value"));
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
-        assertEquals(0, getRoutingHash(doc));
+        assertEquals(routingHash, getRoutingHash(doc));
     }
 
     public void testDisabledInStandardMode() throws Exception {
-        DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
-            mapping(b -> {})
-        ).documentMapper();
+        Settings.Builder builder = getIndexSettingsBuilder();
+        builder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name());
+        builder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        DocumentMapper docMapper = createMapperService(builder.build(), mapping(b -> {})).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesRoutingHashFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));

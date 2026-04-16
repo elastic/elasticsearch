@@ -1,0 +1,6 @@
+area: Task Management
+issues:
+ - 142079
+pr: 144629
+summary: Ensure cancellation reason visible when task is canceled
+type: bug

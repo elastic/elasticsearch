@@ -6,19 +6,19 @@ remote_search_cross_cluster_inference:
       privileges: ['read', 'view_index_metadata']
   remote_indices:
     - names: ['test-*']
-      privileges: ['read', 'read_cross_cluster', 'view_index_metadata']
+      privileges: ['read', 'view_index_metadata']
       clusters: ['*']
 
 read_remote_shared_logs:
   remote_indices:
     - names: [ 'shared-logs' ]
-      privileges: [ 'read', 'read_cross_cluster' ]
+      privileges: [ 'read' ]
       clusters: [ 'my_*' ]
 
 read_remote_shared_metrics:
   remote_indices:
     - names: [ 'shared-metrics' ]
-      privileges: [ 'read', 'read_cross_cluster' ]
+      privileges: [ 'read' ]
       clusters: [ 'my_*' ]
 
 transform_remote_shared_index:
@@ -27,7 +27,7 @@ transform_remote_shared_index:
       privileges: [ 'create_index', 'index', 'read' ]
   remote_indices:
     - names: [ 'shared-transform-index' ]
-      privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
+      privileges: [ 'read', 'view_index_metadata' ]
       clusters: [ 'my_*' ]
 
 ml_jobs_shared_airline_data:
@@ -37,7 +37,7 @@ ml_jobs_shared_airline_data:
       privileges: [ 'all' ]
   remote_indices:
     - names: [ 'shared-airline-data' ]
-      privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
+      privileges: [ 'read', 'view_index_metadata' ]
       clusters: [ 'my_*' ]
 
 ccr_user_role:

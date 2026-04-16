@@ -98,6 +98,30 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
         assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 
+    public void testReverseIterator() {
+        FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(10, breaker());
+        autoReleaseOnTestEnd(histogram);
+
+        assertTrue(histogram.tryAddBucket(1, 2, false));
+        assertTrue(histogram.tryAddBucket(3, 4, false));
+
+        assertTrue(histogram.tryAddBucket(2, 10, true));
+        assertTrue(histogram.tryAddBucket(7, 20, true));
+        assertTrue(histogram.tryAddBucket(12, 30, true));
+
+        BucketIterator it = histogram.positiveBuckets().reverseIterator();
+        assertThat(it.peekIndex(), equalTo(12L));
+        assertThat(it.peekCount(), equalTo(30L));
+        it.advance();
+        assertThat(it.peekIndex(), equalTo(7L));
+        assertThat(it.peekCount(), equalTo(20L));
+        it.advance();
+        assertThat(it.peekIndex(), equalTo(2L));
+        assertThat(it.peekCount(), equalTo(10L));
+        it.advance();
+        assertFalse(it.hasNext());
+    }
+
     protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {
         int threads = 5;
         int tasks = threads * 2;

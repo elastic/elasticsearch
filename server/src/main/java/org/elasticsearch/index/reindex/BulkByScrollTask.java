@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -43,24 +44,41 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 /**
  * Task storing information about a currently running BulkByScroll request.
  *
- * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
+ * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
- * When the request is sliced, this task can either represent a coordinating task (using
+ * <p>When the request is sliced, this task can either represent a coordinating task (using
  * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
- * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
+ * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
+    private final boolean eligibleForRelocationOnShutdown;
+    private final boolean relocatedTask;
+    // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
+    private final ResumeInfo.RelocationOrigin relocationOrigin;
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private volatile boolean relocationHandoffInitiated = false;
 
-    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public BulkByScrollTask(
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        boolean eligibleForRelocationOnShutdown,
+        @Nullable ResumeInfo.RelocationOrigin relocationOrigin
+    ) {
+        super(taskId.getId(), type, action, description, parentTaskId, headers);
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.relocatedTask = relocationOrigin != null;
+        this.relocationOrigin = relocationOrigin != null ? relocationOrigin : new ResumeInfo.RelocationOrigin(taskId, this.startTime);
     }
 
     @Override
@@ -183,15 +201,25 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
      * Marks this task as requiring relocation to another node, e.g. because this node is about to shut down.
      *
      * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
-     * as whether: the task considers itself eligible for relocation; whether a suitable new node is available; and whether the task is able
-     * to get to an appropriate point to stop work and trigger the relocation in time.)
+     * as whether a suitable new node is available, and whether the task is able to get to an appropriate point to stop work and trigger the
+     * relocation in time.)
+     *
+     * <p>This should only be called on tasks where {@link #isEligibleForRelocationOnShutdown() returns true}.
      */
     public void requestRelocation() {
-        // N.B. This method can be called regardless of whether the feature flag that gates this work is enabled or not (see
-        // org.elasticsearch.reindex.ReindexPlugin#REINDEX_RESILIENCE_ENABLED}). If it is not, calling this method should have no effect.
+        if (eligibleForRelocationOnShutdown == false) {
+            throw new IllegalStateException("Called requestRelocation when eligibleForRelocationOnShutdown is false");
+        }
         relocationRequested = true;
     }
 
@@ -200,6 +228,41 @@ public class BulkByScrollTask extends CancellableTask {
      */
     public boolean isRelocationRequested() {
         return relocationRequested;
+    }
+
+    /**
+     * Marks that this task has initiated a relocation handoff (the resume request has been sent to the destination).
+     */
+    public void setRelocationHandoffInitiated() {
+        this.relocationHandoffInitiated = true;
+    }
+
+    /**
+     * If relocation handoff has started, the destination may have already stored the task result, so the source should
+     * use create-if-absent semantics to avoid overwriting it.
+     */
+    @Override
+    public boolean useCreateSemanticsForResultStorage() {
+        return relocationHandoffInitiated;
+    }
+
+    /** Returns the relocation origin if this task is a relocated continuation. */
+    public ResumeInfo.RelocationOrigin relocationOrigin() {
+        return relocationOrigin;
+    }
+
+    /** Returns true if this task was created via relocation from another node. */
+    public boolean isRelocatedTask() {
+        return relocatedTask;
+    }
+
+    @Override
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        if (relocatedTask) {
+            return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

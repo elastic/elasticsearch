@@ -59,6 +59,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
+    /**
+     * The TCP port to open to indicate this node is ready to do work.
+     * 0 means any port will do; -1 disables this feature.
+     */
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {

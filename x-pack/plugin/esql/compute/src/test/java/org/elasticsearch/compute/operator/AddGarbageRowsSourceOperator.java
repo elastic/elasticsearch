@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -30,11 +31,11 @@ import org.elasticsearch.test.ESTestCase;
  * garbage inserted by this operator.
  */
 public class AddGarbageRowsSourceOperator extends SourceOperator {
-    public static EvalOperator.ExpressionEvaluator.Factory filterFactory() {
+    public static ExpressionEvaluator.Factory filterFactory() {
         /*
          * Grabs the filter from the last block. That's where we put it.
          */
-        return ctx -> new EvalOperator.ExpressionEvaluator() {
+        return ctx -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block block = page.getBlock(page.getBlockCount() - 1);

@@ -20,7 +20,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
  *
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
@@ -36,7 +37,7 @@ public class LastExponentialHistogramByTimestampAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.WithLongSingleState current, ExponentialHistogram value, long timestamp) {
-        if (timestamp > current.longValue()) {
+        if (current.isSeen() == false || timestamp > current.longValue()) {
             current.set(timestamp, value);
         }
     }

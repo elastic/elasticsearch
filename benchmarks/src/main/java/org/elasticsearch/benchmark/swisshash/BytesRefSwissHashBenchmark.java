@@ -10,8 +10,8 @@
 package org.elasticsearch.benchmark.swisshash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -50,7 +50,7 @@ import java.util.function.Consumer;
 public class BytesRefSwissHashBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1000", "10000", "100000", "1000000", "10000000" })

@@ -10,14 +10,22 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
 
 public class SearchExecutionContextHelper {
+    public static final ShardSearchStats SHARD_SEARCH_STATS = new ShardSearchStats(
+        new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+    );
+
     /**
      * Factory method generating a dummy context with partial functionality.
      */
@@ -46,7 +54,9 @@ public class SearchExecutionContextHelper {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SHARD_SEARCH_STATS
         );
     }
 

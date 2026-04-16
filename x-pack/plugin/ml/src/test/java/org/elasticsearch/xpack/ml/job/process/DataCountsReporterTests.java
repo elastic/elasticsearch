@@ -18,8 +18,13 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -302,6 +307,92 @@ public class DataCountsReporterTests extends ESTestCase {
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
         verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc), eq(false));
         assertEquals(dc, dataCountsReporter.incrementalStats());
+    }
+
+    /**
+     * Tests that concurrent reads of stats are not blocked by a long-running persistence.
+     *
+     * <p>
+     * Intent:
+     * <ul>
+     *   <li>Simulate a scenario where persisting stats is slow by blocking the persistence thread with CountDownLatch.</li>
+     *   <li>Ensure that, while one thread is blocked persisting stats (writeUnreportedCounts), multiple threads can still
+     *       read stats (runningTotalStats) concurrently and quickly.</li>
+     *   <li>Verify that all concurrent reads complete well before the simulated slow persistence finishes, ensuring no
+     *       shared contention or unnecessary synchronization blocks reads.</li>
+     * </ul>
+     */
+    public void testConcurrentReadsDuringPersistence() throws Exception {
+        // Setup mock to simulate a slow persistence operation by blocking until permitted to finish
+        CountDownLatch persistStarted = new CountDownLatch(1);
+        CountDownLatch persistCanFinish = new CountDownLatch(1);
+
+        Mockito.when(jobDataCountsPersister.persistDataCounts(anyString(), any(), eq(true))).thenAnswer(invocation -> {
+            persistStarted.countDown(); // signal persistence has started
+            assertTrue("Timed out waiting for persistence to be released", persistCanFinish.await(5, TimeUnit.SECONDS));
+            return true;
+        });
+
+        // Simulate a persistence-in-progress case for mustWait=false
+        Mockito.when(jobDataCountsPersister.persistDataCounts(anyString(), any(), eq(false))).thenReturn(false);
+
+        DataCountsReporter reporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
+
+        // Add some data to accumulate unreported stats
+        reporter.reportRecordWritten(5, 1000, 1000);
+        reporter.finishReporting(); // This will not persist due to mock, leaving unreportedStats populated
+
+        // Begin persistence on a separate thread, which will block until released
+        Thread persistThread = new Thread(() -> {
+            try {
+                reporter.writeUnreportedCounts();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        persistThread.start();
+
+        // Wait until persistence begins and is blocked by persistCanFinish
+        assertTrue("Timed out waiting for persistence to start", persistStarted.await(5, TimeUnit.SECONDS));
+
+        // Now, while persistence is blocked, ensure simultaneous reads are not blocked
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        List<Future<DataCounts>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < 100; i++) {
+                futures.add(executor.submit(() -> reporter.runningTotalStats()));
+            }
+
+            // Check that all reads complete promptly, even though persistence is ongoing and blocked
+            long startTime = System.nanoTime();
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    DataCounts counts = futures.get(i).get(500, TimeUnit.MILLISECONDS);
+                    assertNotNull(counts);
+                } catch (java.util.concurrent.TimeoutException e) {
+                    fail(
+                        "Read #"
+                            + (i + 1)
+                            + " of "
+                            + futures.size()
+                            + " timed out after 500ms. "
+                            + "This suggests runningTotalStats() is blocked by the persistence thread. "
+                            + "Expected all reads to complete quickly while writeUnreportedCounts() is blocked on persistence."
+                    );
+                }
+            }
+            long duration = System.nanoTime() - startTime;
+
+            // Reads should finish much faster than persistence, validating non-blocking design
+            assertTrue("Reads should complete quickly without blocking", duration < TimeUnit.SECONDS.toNanos(1));
+        } finally {
+            // Release the blocked persistence and perform thread cleanup
+            persistCanFinish.countDown();
+            persistThread.join(1000);
+            assertFalse("Persistence thread should have terminated", persistThread.isAlive());
+            executor.shutdown();
+            executor.awaitTermination(1, TimeUnit.SECONDS);
+        }
     }
 
     private void assertAllCountFieldsEqualZero(DataCounts stats) {

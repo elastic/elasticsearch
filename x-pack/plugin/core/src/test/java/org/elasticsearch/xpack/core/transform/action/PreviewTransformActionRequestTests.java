@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,9 +27,11 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Requ
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -42,7 +45,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
+        return Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false, new TransformParsingContext(false));
     }
 
     @Override
@@ -90,6 +93,21 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             : new Request(instance.getConfig(), instance.ackTimeout(), instance.previewAsIndexRequest() == false);
     }
 
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        return new Request(
+            TransformConfigTests.mutateForVersion(instance.getConfig(), version),
+            instance.ackTimeout(),
+            instance.previewAsIndexRequest()
+        );
+    }
+
+    // versions before PREVIEW_AS_INDEX_REQUEST throw an exception - those are tested in testAsIndexRequestIsNotBackwardsCompatible
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(Request.PREVIEW_AS_INDEX_REQUEST)).toList();
+    }
+
     public void testAsIndexRequestIsNotBackwardsCompatible() throws IOException {
         var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
             .filter(Predicate.not(version -> version.supports(Request.PREVIEW_AS_INDEX_REQUEST)))
@@ -110,16 +128,6 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
                                 + "Please upgrade the node to 9.3.0+ and try again."
                         )
                     );
-                } else {
-                    var deserializedInstance = copyWriteable(
-                        testInstance,
-                        getNamedWriteableRegistry(),
-                        instanceReader(),
-                        unsupportedVersion
-                    );
-                    assertNotSame(unsupportedVersion.toString(), deserializedInstance, testInstance);
-                    assertEquals(unsupportedVersion.toString(), deserializedInstance, testInstance);
-                    assertEquals(unsupportedVersion.toString(), deserializedInstance.hashCode(), testInstance.hashCode());
                 }
             }
         }
@@ -186,7 +194,12 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             )
         ) {
 
-            Request request = Request.fromXContent(parser, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
+            Request request = Request.fromXContent(
+                parser,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                false,
+                new TransformParsingContext(false)
+            );
             assertThat(request.getConfig().getId(), is(equalTo(expectedTransformId)));
             assertThat(request.getConfig().getDestination().getIndex(), is(equalTo(expectedDestIndex)));
             assertThat(request.getConfig().getDestination().getPipeline(), is(equalTo(expectedDestPipeline)));

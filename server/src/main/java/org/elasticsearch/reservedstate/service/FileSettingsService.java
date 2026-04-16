@@ -14,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
@@ -23,15 +21,9 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -39,9 +31,9 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
-import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -226,17 +218,12 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     protected void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
-        try {
-            if (e != null) {
-                healthIndicatorTracker.failureOccurred(e.toString());
-                completion.onFailure(e);
-            } else {
-                completion.onResponse(null);
-                healthIndicatorTracker.successOccurred();
-            }
-        } finally {
-            logger().debug("Publishing to health node");
-            healthIndicatorTracker.publish();
+        if (e != null) {
+            healthIndicatorTracker.failureOccurred(e.toString());
+            completion.onFailure(e);
+        } else {
+            completion.onResponse(null);
+            healthIndicatorTracker.successOccurred();
         }
     }
 
@@ -265,49 +252,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         logger().info("setting file [{}] not found, initializing [{}] as empty", watchedFile, NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);
         completion.get();
-    }
-
-    public record FileSettingsHealthInfo(boolean isActive, long changeCount, long failureStreak, String mostRecentFailure)
-        implements
-            Writeable {
-
-        /**
-         * Indicates that no conclusions can be drawn about the health status.
-         */
-        public static final FileSettingsHealthInfo INDETERMINATE = new FileSettingsHealthInfo(false, 0L, 0, null);
-
-        /**
-         * Indicates that the health info system is active and no changes have occurred yet, so all is well.
-         */
-        public static final FileSettingsHealthInfo INITIAL_ACTIVE = new FileSettingsHealthInfo(true, 0L, 0, null);
-
-        public FileSettingsHealthInfo(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readVLong(), in.readVLong(), in.readOptionalString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(isActive);
-            out.writeVLong(changeCount);
-            out.writeVLong(failureStreak);
-            out.writeOptionalString(mostRecentFailure);
-        }
-
-        public FileSettingsHealthInfo inactive() {
-            return new FileSettingsHealthInfo(false, changeCount, failureStreak, mostRecentFailure);
-        }
-
-        public FileSettingsHealthInfo changed() {
-            return new FileSettingsHealthInfo(isActive, changeCount + 1, failureStreak, mostRecentFailure);
-        }
-
-        public FileSettingsHealthInfo successful() {
-            return new FileSettingsHealthInfo(isActive, changeCount, 0, null);
-        }
-
-        public FileSettingsHealthInfo failed(String failureDescription) {
-            return new FileSettingsHealthInfo(isActive, changeCount, failureStreak + 1, failureDescription);
-        }
     }
 
     /**
@@ -358,107 +302,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                     ),
                     STALE_SETTINGS_IMPACT,
                     List.of()
-                );
-            }
-        }
-    }
-
-    /**
-     * Houses the current {@link FileSettingsHealthInfo} and provides a means to <i>publish</i> it to the health node.
-     */
-    public static class FileSettingsHealthTracker {
-        /**
-         * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
-         * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
-         * the operator could override it and retry the operation without necessarily restarting the cluster.
-         */
-        public static final String DESCRIPTION_LENGTH_LIMIT_KEY = "fileSettings.descriptionLengthLimit";
-        static final Setting<Integer> DESCRIPTION_LENGTH_LIMIT = Setting.intSetting(
-            DESCRIPTION_LENGTH_LIMIT_KEY,
-            100,
-            1, // Need room for the ellipsis
-            Setting.Property.OperatorDynamic
-        );
-
-        private final Settings settings;
-        private final FileSettingsHealthIndicatorPublisher publisher;
-        private FileSettingsHealthInfo currentInfo = FileSettingsHealthInfo.INDETERMINATE;
-
-        public FileSettingsHealthTracker(Settings settings, FileSettingsHealthIndicatorPublisher publisher) {
-            this.settings = settings;
-            this.publisher = publisher;
-        }
-
-        public FileSettingsHealthInfo getCurrentInfo() {
-            return currentInfo;
-        }
-
-        public synchronized void startOccurred() {
-            currentInfo = FileSettingsHealthInfo.INITIAL_ACTIVE;
-        }
-
-        public synchronized void stopOccurred() {
-            currentInfo = currentInfo.inactive();
-        }
-
-        public synchronized void changeOccurred() {
-            currentInfo = currentInfo.changed();
-        }
-
-        public synchronized void successOccurred() {
-            currentInfo = currentInfo.successful();
-        }
-
-        public synchronized void failureOccurred(String description) {
-            currentInfo = currentInfo.failed(limitLength(description));
-        }
-
-        private String limitLength(String description) {
-            int descriptionLengthLimit = DESCRIPTION_LENGTH_LIMIT.get(settings);
-            if (description.length() > descriptionLengthLimit) {
-                return description.substring(0, descriptionLengthLimit - 1) + "…";
-            } else {
-                return description;
-            }
-        }
-
-        /**
-         * Sends the current health info to the health node.
-         */
-        public void publish() {
-            publisher.publish(
-                currentInfo,
-                ActionListener.wrap(
-                    r -> logger.debug("Successfully published health indicator"),
-                    e -> logger.warn("Failed to publish health indicator", e)
-                )
-            );
-        }
-    }
-
-    public static class FileSettingsHealthIndicatorPublisherImpl implements FileSettingsHealthIndicatorPublisher {
-        private final ClusterService clusterService;
-        private final Client client;
-
-        public FileSettingsHealthIndicatorPublisherImpl(ClusterService clusterService, Client client) {
-            this.clusterService = clusterService;
-            this.client = client;
-        }
-
-        public void publish(FileSettingsHealthInfo info, ActionListener<AcknowledgedResponse> actionListener) {
-            DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterService.state());
-            if (currentHealthNode == null) {
-                logger.debug(
-                    "Unable to report file settings health because there is no health node in the cluster;"
-                        + " will retry next time file settings health changes."
-                );
-            } else {
-                logger.debug("Publishing file settings health indicators: [{}]", info);
-                String localNode = clusterService.localNode().getId();
-                client.execute(
-                    UpdateHealthInfoCacheAction.INSTANCE,
-                    new UpdateHealthInfoCacheAction.Request(localNode, info),
-                    actionListener
                 );
             }
         }

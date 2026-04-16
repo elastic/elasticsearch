@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Holder for all transform services that need to get injected via guice.
@@ -27,21 +29,16 @@ public record TransformServices(
     TransformAuditor auditor,
     TransformScheduler scheduler,
     TransformNode transformNode,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    Function<ProjectId, Boolean> hasLinkedProjects
 ) {
-    public TransformServices(
-        TransformConfigManager configManager,
-        TransformCheckpointService checkpointService,
-        TransformAuditor auditor,
-        TransformScheduler scheduler,
-        TransformNode transformNode,
-        CrossProjectModeDecider crossProjectModeDecider
-    ) {
-        this.configManager = Objects.requireNonNull(configManager);
-        this.checkpointService = Objects.requireNonNull(checkpointService);
-        this.auditor = Objects.requireNonNull(auditor);
-        this.scheduler = Objects.requireNonNull(scheduler);
-        this.transformNode = Objects.requireNonNull(transformNode);
-        this.crossProjectModeDecider = Objects.requireNonNull(crossProjectModeDecider);
+    public TransformServices {
+        Objects.requireNonNull(configManager);
+        Objects.requireNonNull(checkpointService);
+        Objects.requireNonNull(auditor);
+        Objects.requireNonNull(scheduler);
+        Objects.requireNonNull(transformNode);
+        Objects.requireNonNull(crossProjectModeDecider);
+        Objects.requireNonNull(hasLinkedProjects);
     }
 }

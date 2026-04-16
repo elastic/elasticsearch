@@ -91,6 +91,11 @@ public class MvExpandOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return prev != null;
+    }
+
+    @Override
     public final Page getOutput() {
         Page result = getOutputInternal();
         if (result != null) {
@@ -156,7 +161,7 @@ public class MvExpandOperator implements Operator {
             }
             nextItemOnExpanded += expandedMask.length;
             for (int b = 0; b < result.length; b++) {
-                result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+                result[b] = b == channel ? expandedBlock.filter(true, expandedMask) : prev.getBlock(b).filter(true, duplicateFilter);
             }
             success = true;
         } finally {

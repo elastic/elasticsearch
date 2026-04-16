@@ -32,15 +32,24 @@ The default and maximum limits can be changed using these dynamic cluster settin
 * `esql.query.result_truncation_default_size`
 * `esql.query.result_truncation_max_size`
 
-However, doing so involves trade-offs. A larger result-set involves a higher memory pressure and increased processing times; the internode traffic within and across clusters can also increase.
+For time-series aggregations under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command specifically, the default and maximum limits are higher and can be changed using these cluster settings:
+
+* `esql.query.timeseries_result_truncation_default_size`
+* `esql.query.timeseries_result_truncation_max_size`
+
+Modifying these values involves trade-offs. A larger result-set involves a higher memory pressure and increased processing times; the internode traffic within and across clusters can also increase.
 
 These limitations are similar to those enforced by the [search API for pagination](/reference/elasticsearch/rest-apis/paginate-search-results.md).
 
-| Functionality                    | Search                  | {{esql}}                                  |
-|----------------------------------|-------------------------|-------------------------------------------|
-| Results returned by default      | 10                      | 1.000                                     |
-| Default upper limit              | 10,000                  | 10,000                                    |
-| Specify number of results        | `size`                  | `LIMIT`                                   |
-| Change default number of results | n/a                     | esql.query.result_truncation_default_size |
-| Change default upper limit       | index-max-result-window | esql.query.result_truncation_max_size     |
+| Functionality                                               | Search                  | {{esql}}                                             |
+|-------------------------------------------------------------|-------------------------|------------------------------------------------------|
+| Results returned by default                                 | 10                      | 1,000                                                |
+| Results returned by default (time-series aggregations)      | 10                      | 10,000                                               |
+| Default upper limit                                         | 10,000                  | 10,000                                               |
+| Default upper limit (time-series aggregations)              | 10,000                  | 10,000,000                                           |
+| Specify number of results                                   | `size`                  | `LIMIT`                                              |
+| Change default number of results                            | n/a                     | esql.query.result_truncation_default_size            |
+| Change default number of results (time-series aggregations) | n/a                     | esql.query.timeseries_result_truncation_default_size |
+| Change default upper limit                                  | index-max-result-window | esql.query.result_truncation_max_size                |
+| Change default upper limit  (time-series aggregations)      | index-max-result-window | esql.query.timeseries_result_truncation_max_size     |
 

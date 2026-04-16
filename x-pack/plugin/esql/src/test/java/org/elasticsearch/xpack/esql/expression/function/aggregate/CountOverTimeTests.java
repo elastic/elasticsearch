@@ -13,7 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -24,9 +26,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CountOverTimeTests extends AbstractFunctionTestCase {
+public class CountOverTimeTests extends AbstractAggregationTestCase {
     public CountOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -73,8 +76,7 @@ public class CountOverTimeTests extends AbstractFunctionTestCase {
             DataType.TEXT,
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
-            DataType.UNSIGNED_LONG,
-            DataType.AGGREGATE_METRIC_DOUBLE
+            DataType.UNSIGNED_LONG
         )) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -97,5 +99,13 @@ public class CountOverTimeTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+    }
+
+    public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        ArrayList<DocsV3Support.Param> copies = new ArrayList<>(params);
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        copies.add(window);
+        return copies;
     }
 }

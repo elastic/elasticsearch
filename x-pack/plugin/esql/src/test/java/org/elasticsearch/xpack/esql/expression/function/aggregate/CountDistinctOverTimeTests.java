@@ -12,13 +12,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class CountDistinctOverTimeTests extends AbstractFunctionTestCase {
+public class CountDistinctOverTimeTests extends AbstractAggregationTestCase {
     public CountDistinctOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -33,4 +33,5 @@ public class CountDistinctOverTimeTests extends AbstractFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new CountDistinctOverTime(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
+
 }

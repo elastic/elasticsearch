@@ -318,9 +318,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     } else if (dft.hasDocValuesSkipper()) {
                         log.trace("Attempting to apply skipper-based data rounding");
                         range[0] = dft.resolution()
-                            .roundDownToMillis(DocValuesSkipper.globalMinValue(context.searcher(), fieldContext.field()));
+                            .roundDownToMillis(DocValuesSkipper.globalMinValue(context.searcher().getIndexReader(), fieldContext.field()));
                         range[1] = dft.resolution()
-                            .roundDownToMillis(DocValuesSkipper.globalMaxValue(context.searcher(), fieldContext.field()));
+                            .roundDownToMillis(DocValuesSkipper.globalMaxValue(context.searcher().getIndexReader(), fieldContext.field()));
                     }
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
@@ -332,7 +332,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                 isMultiValue = true;
                             }
                         } else if (fieldContext.fieldType().hasDocValues()) {
-                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                            if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(leaf.reader(), fieldContext.field())) == null) {
                                 isMultiValue = true;
                             }
                         }

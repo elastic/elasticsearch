@@ -29,12 +29,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class MetadataAttribute extends TypedAttribute {
+public final class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
+    public static final String SIZE = "_size";
+    public static final String DOC = "_doc";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -43,6 +45,7 @@ public class MetadataAttribute extends TypedAttribute {
     );
 
     public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = createMetadataAttributes(
+        // Regular attributes
         List.of(
             Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
             Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
@@ -52,8 +55,12 @@ public class MetadataAttribute extends TypedAttribute {
             Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
             Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
             Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-            Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
+            Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)),
+            // Searchable field added by the mapper-size plugin.
+            // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
+            Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true))
         ),
+        // Snapshot only attributes
         List.of(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)))
     );
 
@@ -185,8 +192,12 @@ public class MetadataAttribute extends TypedAttribute {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
+    public static boolean isTimeSeriesAttributeName(String name) {
+        return TIMESERIES.equals(name);
+    }
+
     public static boolean isTimeSeriesAttribute(Expression a) {
-        return a instanceof Attribute ma && ma.name().equals(TIMESERIES);
+        return a instanceof TimeSeriesMetadataAttribute || a instanceof NamedExpression named && isTimeSeriesAttributeName(named.name());
     }
 
     @Override

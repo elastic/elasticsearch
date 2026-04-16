@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -33,36 +35,32 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
     }
 
     @Override
-    public final AllReader reader(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
-            }
-            return sortedReader(docValues);
+    public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
         }
-        NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton());
         }
-        return ConstantNull.READER;
+        return sortedReader(dv.sorted());
     }
 
-    protected abstract AllReader singletonReader(NumericDocValues docValues);
+    protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(SortedNumericDocValues docValues);
+    protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues);
 
     public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
-        private final NumericDocValues numericDocValues;
+        private final TrackingNumericDocValues numericDocValues;
 
-        public Singleton(NumericDocValues numericDocValues) {
+        public Singleton(TrackingNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (numericDocValues instanceof OptionalColumnAtATimeReader direct) {
+            if (numericDocValues.docValues() instanceof OptionalColumnAtATimeReader direct) {
                 Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true, false);
                 if (result != null) {
                     return result;
@@ -71,8 +69,8 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
             try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (numericDocValues.advanceExact(doc)) {
-                        builder.appendInt(Math.toIntExact(numericDocValues.longValue()));
+                    if (numericDocValues.docValues().advanceExact(doc)) {
+                        builder.appendInt(Math.toIntExact(numericDocValues.docValues().longValue()));
                     } else {
                         builder.appendNull();
                     }
@@ -82,18 +80,8 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            IntBuilder blockBuilder = (IntBuilder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
-            } else {
-                blockBuilder.appendNull();
-            }
-        }
-
-        @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
@@ -103,14 +91,20 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
 
         @Override
         public NumericDocValues numericDocValues() {
-            return numericDocValues;
+            return numericDocValues.docValues();
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 
     public static class Sorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        Sorted(SortedNumericDocValues numericDocValues) {
+        Sorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -125,36 +119,36 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
             }
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
-        }
-
         private void read(int doc, IntBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            int count = numericDocValues.docValueCount();
+            int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+                builder.appendInt(Math.toIntExact(numericDocValues.docValues().nextValue()));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+                builder.appendInt(Math.toIntExact(numericDocValues.docValues().nextValue()));
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "IntsFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

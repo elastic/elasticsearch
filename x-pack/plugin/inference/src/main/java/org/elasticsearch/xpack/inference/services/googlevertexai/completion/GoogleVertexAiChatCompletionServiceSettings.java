@@ -157,9 +157,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
         validateServiceSettings(provider, uri, streamingUri, projectId, location, modelId, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiChatCompletionServiceSettings(
             projectId,

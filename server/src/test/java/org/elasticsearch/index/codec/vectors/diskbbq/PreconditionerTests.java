@@ -47,13 +47,17 @@ public class PreconditionerTests extends LuceneTestCase {
         preconditioner.applyTransform(query, out);
 
         assertEquals(blockDim, preconditioner.blockDim);
-        assertEquals(dim / blockDim + 1, preconditioner.permutationMatrix.length);
+        assertEquals(dim / blockDim + (dim % blockDim == 0 ? 0 : 1), preconditioner.permutationMatrix.length);
         assertEquals(Math.min(blockDim, dim), preconditioner.permutationMatrix[0].length);
-        assertEquals(
-            dim - (long) (dim / blockDim) * blockDim,
-            preconditioner.permutationMatrix[preconditioner.permutationMatrix.length - 1].length
-        );
-        assertEquals(dim / blockDim + 1, preconditioner.blocks.length);
+        if (dim % blockDim == 0) {
+            assertEquals(blockDim, preconditioner.permutationMatrix[preconditioner.permutationMatrix.length - 1].length);
+        } else {
+            assertEquals(
+                dim - (long) (dim / blockDim) * blockDim,
+                preconditioner.permutationMatrix[preconditioner.permutationMatrix.length - 1].length
+            );
+        }
+        assertEquals(dim / blockDim + (dim % blockDim == 0 ? 0 : 1), preconditioner.blocks.length);
         assertEquals(Math.min(blockDim, dim), preconditioner.blocks[0].length);
         assertEquals(Math.min(blockDim, dim), preconditioner.blocks[0][0].length);
 

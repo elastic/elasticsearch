@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
@@ -49,6 +51,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -162,6 +166,20 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> firstVector = randomBoolean() ? null : randomDenseVector(dimensions);
+            List<Float> secondVector = randomDenseVector(dimensions);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstVector, DataType.DENSE_VECTOR, "first"),
+                    new TestCaseSupplier.TypedData(secondVector, DataType.DENSE_VECTOR, "second")
+                ),
+                "CoalesceFloatEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DENSE_VECTOR,
+                equalTo(firstVector == null ? secondVector : firstVector)
+            );
+        }));
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
             for (int nullUpTo = 1; nullUpTo < s.types().size(); nullUpTo++) {
@@ -195,6 +213,15 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
+            DataType type = typedData.type();
+            if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            return typedData;
+        }).toList()));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -268,9 +295,9 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout layout = builder.build();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
-            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+            public ExpressionEvaluator.Factory apply(Expression expression) {
                 if (expression == evil) {
-                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    return dvrCtx -> new ExpressionEvaluator() {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
@@ -294,7 +321,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             }
         };
         try (
-            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
+            ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
             Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
@@ -353,10 +380,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 );
                 blocksIndex++;
             }
-            try (
-                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, blocks))
-            ) {
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(positions, blocks))) {
                 assertThat(block.getPositionCount(), is(positions));
                 assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
                 assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));

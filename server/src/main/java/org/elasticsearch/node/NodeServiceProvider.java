@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -38,6 +39,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -89,6 +91,7 @@ class NodeServiceProvider {
     ClusterInfoService newClusterInfoService(
         PluginsService pluginsService,
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         NodeClient client
@@ -99,6 +102,7 @@ class NodeServiceProvider {
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,
@@ -136,6 +140,7 @@ class NodeServiceProvider {
         TelemetryProvider telemetryProvider,
         String nodeId,
         LinkedProjectConfigService linkedProjectConfigService,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         return new TransportService(
@@ -149,6 +154,7 @@ class NodeServiceProvider {
             taskManager,
             linkedProjectConfigService,
             telemetryProvider,
+            crossProjectModeDecider,
             projectResolver
         );
     }

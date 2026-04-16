@@ -1435,7 +1435,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 () -> false,
                 aggregationBuilder,
                 b -> {},
-                PipelineTree.EMPTY
+                PipelineTree.EMPTY,
+                null
             );
             InternalAggregation mergedAggs = InternalAggregationTestCase.reduce(aggs, ctx);
             assertTrue(mergedAggs instanceof DoubleTerms);

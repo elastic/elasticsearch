@@ -15,8 +15,14 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -139,6 +145,66 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             pipelineId,
             (builder, params) -> builder.startArray("processors").startObject().startObject("test").endObject().endObject().endArray()
         );
+    }
+
+    /**
+     * Verifies that bulk index and delete operations replicate correctly when sequence numbers are disabled,
+     * and that the responses contain unassigned seqNo and primaryTerm sentinel values in XContent output.
+     */
+    public void testBulkReplicationWithSequenceNumbersDisabled() throws IOException {
+        int numReplicas = Math.min(between(1, 2), cluster().numDataNodes() - 1);
+        assumeTrue("Need at least 2 data nodes for replication", numReplicas > 0);
+        indicesAdmin().prepareCreate("test-repl")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            )
+            .get();
+        ensureGreen("test-repl");
+
+        int numDocs = between(5, 20);
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkBuilder.add(new IndexRequest("test-repl").id(Integer.toString(i)).source(Map.of("value", i)));
+        }
+        BulkResponse bulkResponse = bulkBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            assertThat(item.getResponse().getResult(), equalTo(CREATED));
+            assertSeqNoRedactedFromXContent(item);
+        }
+
+        // verify all docs are visible on all copies
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(client().prepareGet("test-repl", Integer.toString(i)).get().isExists(), is(true));
+        }
+
+        // bulk delete
+        bulkBuilder = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkBuilder.add(client().prepareDelete("test-repl", Integer.toString(i)));
+        }
+        bulkResponse = bulkBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            assertSeqNoRedactedFromXContent(item);
+        }
+
+        // verify deletes replicated
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(client().prepareGet("test-repl", Integer.toString(i)).get().isExists(), is(false));
+        }
+    }
+
+    private static void assertSeqNoRedactedFromXContent(BulkItemResponse item) throws IOException {
+        String xcontent = Strings.toString(item);
+        assertThat(xcontent, containsString("\"_seq_no\":" + SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(xcontent, containsString("\"_primary_term\":" + SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
     }
 
     /** This test ensures that index deletion makes indexing fail quickly, not wait on the index that has disappeared */

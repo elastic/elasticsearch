@@ -146,6 +146,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
+            if (queryList.getBulkKeywordLookup() != null) {
+                return processBulkQueries(inputPage, positionsBuilder, segmentsBuilder, docsBuilder);
+            }
             int totalMatches = 0;
             do {
                 Query query;
@@ -193,6 +196,40 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         }
     }
 
+    private Page processBulkQueries(
+        Page inputPage,
+        IntVector.Builder positionsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder docsBuilder
+    ) throws IOException {
+        BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
+
+        if (queryPosition < 0) {
+            queryPosition = 0;
+            bulkKeywordLookup.initializeCaches(indexReader);
+        }
+
+        int totalMatches = 0;
+        do {
+            if (queryPosition >= queryList.getPositionCount(inputPage)) break;
+
+            final int matches = bulkKeywordLookup.processQuery(
+                inputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
+            );
+            totalMatches += matches;
+            queryPosition++;
+
+        } while (totalMatches < maxPageSize);
+
+        final Page result = buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+        return result;
+    }
+
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
         IntVector positionsVector = null;
         IntVector shardsVector = null;
@@ -209,7 +246,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, DocVector.config().mayContainDuplicates()).asBlock(),
                 positionsVector.asBlock()
             );
         } finally {

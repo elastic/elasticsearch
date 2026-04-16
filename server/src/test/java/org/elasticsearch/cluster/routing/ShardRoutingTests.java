@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNullElseGet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.randomHasRelocatingNodeId;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -40,14 +41,15 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
     protected ShardRouting createTestInstance() {
         var state = randomFrom(ShardRoutingState.values());
         var primary = randomBoolean();
+        var hasRelocatingNodeId = randomHasRelocatingNodeId(state);
         return new ShardRouting(
             new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99)),
             state == ShardRoutingState.UNASSIGNED ? null : randomIdentifier(),
-            state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.STARTED ? null : randomIdentifier(),
+            hasRelocatingNodeId ? randomIdentifier() : null,
             primary,
             state,
             TestShardRouting.buildRecoverySource(primary, state),
-            TestShardRouting.buildUnassignedInfo(state),
+            TestShardRouting.buildUnassignedInfo(state, hasRelocatingNodeId),
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),
@@ -89,12 +91,11 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     private static ShardRouting mutateState(ShardRouting instance) {
         var newState = randomValueOtherThan(instance.state(), () -> randomFrom(ShardRoutingState.values()));
+        var newHasRelocatingNodeId = randomHasRelocatingNodeId(newState);
         return new ShardRouting(
             instance.shardId(),
             newState == ShardRoutingState.UNASSIGNED ? null : requireNonNullElseGet(instance.currentNodeId(), ESTestCase::randomIdentifier),
-            newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.STARTED
-                ? null
-                : requireNonNullElseGet(instance.relocatingNodeId(), ESTestCase::randomIdentifier),
+            newHasRelocatingNodeId ? requireNonNullElseGet(instance.relocatingNodeId(), ESTestCase::randomIdentifier) : null,
             instance.primary(),
             newState,
             newState == ShardRoutingState.STARTED || newState == ShardRoutingState.RELOCATING
@@ -103,9 +104,14 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     instance.recoverySource(),
                     () -> TestShardRouting.buildRecoverySource(instance.primary(), newState)
                 ),
-            newState == ShardRoutingState.STARTED || newState == ShardRoutingState.RELOCATING
-                ? null
-                : requireNonNullElseGet(instance.unassignedInfo(), () -> TestShardRouting.buildUnassignedInfo(newState)),
+            newState == ShardRoutingState.STARTED
+                || newState == ShardRoutingState.RELOCATING
+                || (newState == ShardRoutingState.INITIALIZING && newHasRelocatingNodeId)
+                    ? null
+                    : requireNonNullElseGet(
+                        instance.unassignedInfo(),
+                        () -> TestShardRouting.buildUnassignedInfo(newState, newHasRelocatingNodeId)
+                    ),
             instance.relocationFailureInfo(),
             switch (newState) {
                 case UNASSIGNED -> null;

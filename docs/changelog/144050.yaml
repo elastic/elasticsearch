@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144050
+summary: CSV schema inference and parsing enhancements
+type: enhancement

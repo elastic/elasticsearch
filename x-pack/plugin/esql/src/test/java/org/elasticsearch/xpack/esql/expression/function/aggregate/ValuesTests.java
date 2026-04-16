@@ -76,7 +76,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var expected = new HashSet<>(fieldTypedData.multiRowData());
+            var expected = new HashSet<>(fieldTypedData.originalMultiRowData());
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorNameAllBytesTheSame("Values", fieldSupplier.type()),

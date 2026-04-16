@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,15 +29,66 @@ import java.util.Objects;
  */
 public class ParameterizedQueryExec extends LeafExec {
     private final List<Attribute> output;
+    private final List<MatchConfig> matchFields;
+    @Nullable
+    private final Expression joinOnConditions;
+    @Nullable
+    private final QueryBuilder query;
+    private final boolean emptyResult;
 
-    public ParameterizedQueryExec(Source source, List<Attribute> output) {
+    public ParameterizedQueryExec(
+        Source source,
+        List<Attribute> output,
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        @Nullable QueryBuilder query
+    ) {
+        this(source, output, matchFields, joinOnConditions, query, false);
+    }
+
+    public ParameterizedQueryExec(
+        Source source,
+        List<Attribute> output,
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        @Nullable QueryBuilder query,
+        boolean emptyResult
+    ) {
         super(source);
         this.output = output;
+        this.matchFields = matchFields;
+        this.joinOnConditions = joinOnConditions;
+        this.query = query;
+        this.emptyResult = emptyResult;
     }
 
     @Override
     public List<Attribute> output() {
         return output;
+    }
+
+    public List<MatchConfig> matchFields() {
+        return matchFields;
+    }
+
+    @Nullable
+    public Expression joinOnConditions() {
+        return joinOnConditions;
+    }
+
+    @Nullable
+    public QueryBuilder query() {
+        return query;
+    }
+
+    public boolean emptyResult() {
+        return emptyResult;
+    }
+
+    public ParameterizedQueryExec withQuery(QueryBuilder query) {
+        return Objects.equals(this.query, query)
+            ? this
+            : new ParameterizedQueryExec(source(), output, matchFields, joinOnConditions, query, emptyResult);
     }
 
     @Override
@@ -48,7 +103,7 @@ public class ParameterizedQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<ParameterizedQueryExec> info() {
-        return NodeInfo.create(this, ParameterizedQueryExec::new, output);
+        return NodeInfo.create(this, ParameterizedQueryExec::new, output, matchFields, joinOnConditions, query, emptyResult);
     }
 
     @Override
@@ -56,11 +111,15 @@ public class ParameterizedQueryExec extends LeafExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ParameterizedQueryExec that = (ParameterizedQueryExec) o;
-        return Objects.equals(output, that.output);
+        return Objects.equals(output, that.output)
+            && Objects.equals(matchFields, that.matchFields)
+            && Objects.equals(joinOnConditions, that.joinOnConditions)
+            && Objects.equals(query, that.query)
+            && emptyResult == that.emptyResult;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output);
+        return Objects.hash(output, matchFields, joinOnConditions, query, emptyResult);
     }
 }

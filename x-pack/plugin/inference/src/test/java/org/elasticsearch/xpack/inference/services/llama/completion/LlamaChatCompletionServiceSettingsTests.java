@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<LlamaChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final String CORRECT_URL = "https://www.elastic.co";
-    public static final int RATE_LIMIT = 2;
+    private static final String MODEL_ID = "some model";
+    private static final String CORRECT_URL = "https://www.elastic.co";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = LlamaChatCompletionServiceSettings.fromMap(

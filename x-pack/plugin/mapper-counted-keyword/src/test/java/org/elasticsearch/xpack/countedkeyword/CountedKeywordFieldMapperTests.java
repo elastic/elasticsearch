@@ -68,8 +68,8 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // Nothing to do
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override

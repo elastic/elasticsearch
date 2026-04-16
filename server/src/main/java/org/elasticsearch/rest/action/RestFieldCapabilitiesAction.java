@@ -13,7 +13,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -33,12 +32,10 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 @ServerlessScope(Scope.PUBLIC)
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
-    private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestFieldCapabilitiesAction(Settings settings) {
-        this.settings = settings;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestFieldCapabilitiesAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

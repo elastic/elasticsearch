@@ -31,13 +31,13 @@ public final class ValuesFloatAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public ValuesFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesFloatAggregatorFunction.create(driverContext, channels);
+    return new ValuesFloatAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public ValuesFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesFloatGroupingAggregatorFunction.create(channels, driverContext);
+    return new ValuesFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

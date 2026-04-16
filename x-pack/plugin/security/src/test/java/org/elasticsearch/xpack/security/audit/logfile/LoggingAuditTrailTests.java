@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -151,6 +153,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -769,6 +772,49 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedGrantKeyAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        final String cloneKeyName = randomAlphaOfLength(12);
+        final TimeValue cloneExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        final String sourceKeyId = randomAlphaOfLength(12);
+        final String sourceKeySecret = randomAlphanumericOfLength(18);
+        final String sourceCredential = Base64.getEncoder()
+            .encodeToString((sourceKeyId + ":" + sourceKeySecret).getBytes(StandardCharsets.UTF_8));
+        cloneRequest.setApiKey(new SecureString(sourceCredential.toCharArray()));
+        cloneRequest.setName(cloneKeyName);
+        cloneRequest.setExpiration(cloneExpiration);
+        cloneRequest.setMetadata(metadataWithSerialization.metadata());
+        cloneRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, CloneApiKeyAction.NAME, cloneRequest, authorizationInfo);
+        final String expectedCloneKeyAuditEventString = String.format(
+            Locale.ROOT,
+            """
+                "create":{"apikey":{"id":"%s","name":"%s","type":"rest","expiration":%s,"source":{"id":"%s"}%s}}\
+                """,
+            cloneRequest.getId(),
+            cloneKeyName,
+            cloneExpiration != null ? "\"" + cloneExpiration + "\"" : "null",
+            sourceKeyId,
+            cloneRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+        );
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedCloneKeyAuditEventString = output.get(1);
+        assertThat(generatedCloneKeyAuditEventString, containsString(expectedCloneKeyAuditEventString));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString("\"api_key\"")));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceKeySecret)));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceCredential)));
+        generatedCloneKeyAuditEventString = generatedCloneKeyAuditEventString.replace(", " + expectedCloneKeyAuditEventString, "");
+        checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedCloneKeyAuditEventString, checkedFields);
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 

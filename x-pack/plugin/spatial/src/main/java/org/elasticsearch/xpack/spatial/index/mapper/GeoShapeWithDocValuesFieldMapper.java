@@ -171,6 +171,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
+            if (incoming instanceof LegacyGeoShapeFieldMapper.Builder) {
+                throw new IllegalArgumentException(
+                    "mapper [" + fullName + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
+                );
+            }
+            super.throwMergeTypeConflict(incoming, fullName);
+        }
+
+        @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 /*
@@ -314,6 +329,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new GeoBoundsBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
+                return new GeoCentroidBlockLoader(name());
+            }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID) {
+                return new GeoBoundsAndCentroidBlockLoader(name());
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
@@ -326,6 +347,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
             GeoBoundsBlockLoader(String fieldName) {
                 super(fieldName);
+            }
+        }
+
+        static class GeoCentroidBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.CentroidBlockLoader {
+
+            GeoCentroidBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.GEO);
+            }
+        }
+
+        static class GeoBoundsAndCentroidBlockLoader extends
+            AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsAndCentroidBlockLoader {
+
+            GeoBoundsAndCentroidBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.GEO);
             }
         }
     }

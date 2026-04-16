@@ -34,13 +34,13 @@ public final class DerivDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public DerivDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivDoubleAggregatorFunction.create(driverContext, channels, dateNanos);
+    return new DerivDoubleAggregatorFunction(driverContext, channels, dateNanos);
   }
 
   @Override
   public DerivDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivDoubleGroupingAggregatorFunction.create(channels, driverContext, dateNanos);
+    return new DerivDoubleGroupingAggregatorFunction(channels, driverContext, dateNanos);
   }
 
   @Override

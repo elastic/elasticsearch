@@ -84,18 +84,22 @@ public class Ai21ChatCompletionModel extends Ai21Model {
         );
     }
 
-    public Ai21ChatCompletionModel(
+    Ai21ChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         Ai21ChatCompletionServiceSettings serviceSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
             new ModelSecrets(secrets)
         );
-        setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    public Ai21ChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
+        setPropertiesFromServiceSettings((Ai21ChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     private void setPropertiesFromServiceSettings(Ai21ChatCompletionServiceSettings serviceSettings) {

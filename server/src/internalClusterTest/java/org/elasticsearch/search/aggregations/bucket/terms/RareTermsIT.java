@@ -74,7 +74,7 @@ public class RareTermsIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalAggregationWithScore() {
-        createIndex("global", Settings.EMPTY, "_doc", "keyword", "type=keyword");
+        createIndex("global", Settings.EMPTY, "keyword", "type=keyword");
         prepareIndex("global").setSource("keyword", "a").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("global").setSource("keyword", "c").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("global").setSource("keyword", "e").setRefreshPolicy(IMMEDIATE).get();

@@ -171,7 +171,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 configAndVersion.v2(),
                 false, // defer validation
                 dryRun,
-                false, // check access,
+                false, // check access
+                false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
                 listener

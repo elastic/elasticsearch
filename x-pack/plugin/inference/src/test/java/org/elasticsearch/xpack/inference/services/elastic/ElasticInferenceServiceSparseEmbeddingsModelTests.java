@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -41,10 +39,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             "id",
             TaskType.SPARSE_EMBEDDING,
-            "service",
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             chunkingSettings
         );

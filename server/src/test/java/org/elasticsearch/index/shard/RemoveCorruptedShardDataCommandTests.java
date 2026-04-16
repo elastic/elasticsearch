@@ -264,7 +264,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             failOnShardFailures();
             final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-            final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+            final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
             final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
             assertThat(matcher.find(), equalTo(true));
@@ -325,7 +325,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         assertThat(shardDocUIDs.size(), equalTo(numDocsToKeep));
 
@@ -381,7 +381,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
         assertThat(matcher.find(), equalTo(true));
@@ -504,7 +504,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
         assertEquals(numDocs, shardDocUIDs.size());
 
         assertThat(t.getOutput(), containsString("This shard has been marked as corrupted but no corruption can now be detected."));

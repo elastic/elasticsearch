@@ -217,7 +217,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
                     // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
                     // "close_job" flag set to false, to avoid recursion)
-                    if (request.closeJob()) {
+                    if (Boolean.TRUE.equals(request.closeJob())) {
                         List<String> jobIds = getJobIdsFromDatafeedIds(
                             request.isForce() ? notStoppedDatafeeds : startedDatafeeds,
                             tasks,
@@ -319,7 +319,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         List<String> jobIds = new ArrayList<>();
         for (String datafeedId : datafeedIds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            if (datafeedTask != null && PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+            if (datafeedTask != null
+                && PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
                 jobIds.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
             }
         }
@@ -347,7 +348,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 String msg = "Requested datafeed [" + datafeedId + "] be stopped, but datafeed's task could not be found.";
                 assert datafeedTask != null : msg;
                 logger.error(msg);
-            } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+            } else if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
                 resolvedStartedDatafeeds.add(datafeedId);
                 executorNodes.add(datafeedTask.getExecutorNode());
                 allDataFeedsToWaitFor.add(datafeedTask);
@@ -497,7 +498,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     ActionListener.wrap(persistentTask -> {
                         // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
                         // If the datafeed was active then it audits itself on being cancelled.
-                        if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
+                        if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes)) {
                             auditDatafeedStopped(datafeedTask);
                         }
                         if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
@@ -532,6 +533,16 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }
     }
 
+    /**
+     * Runs the stop sequence for a single datafeed task: persist {@link DatafeedState#STOPPING}, then invoke
+     * {@link TransportStartDatafeedAction.DatafeedTask#stop(String, org.elasticsearch.core.TimeValue, Boolean)} so
+     * {@code close_job} on the request controls whether lookback-only jobs are auto-closed.
+     *
+     * @param actionTask   the coordinating task for this transport action (unused here but required by the tasks framework)
+     * @param request      the stop request for one or more datafeeds, including timeout, force, and {@code close_job}
+     * @param datafeedTask the persistent datafeed task running on this node that should stop
+     * @param listener     receives {@link StopDatafeedAction.Response} when the local stop has been initiated successfully
+     */
     @Override
     protected void taskOperation(
         CancellableTask actionTask,
@@ -557,7 +568,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
 
                 @Override
                 protected void doRun() {
-                    datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                    // Honor close_job on the request: when false, do not auto-close lookback-only jobs (see #139024).
+                    datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout(), request.closeJob());
                     listener.onResponse(new StopDatafeedAction.Response(true));
                 }
             });

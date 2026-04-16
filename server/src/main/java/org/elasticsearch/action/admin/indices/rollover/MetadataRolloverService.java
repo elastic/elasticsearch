@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -265,12 +266,11 @@ public class MetadataRolloverService {
             rolloverIndexName,
             createIndexRequest
         );
-        assert createIndexClusterStateRequest.performReroute() == false
-            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             projectState.cluster(),
             createIndexClusterStateRequest,
             silent,
+            RerouteBehavior.SKIP_REROUTE,
             rerouteCompletionIsNotRequired()
         );
 
@@ -419,9 +419,6 @@ public class MetadataRolloverService {
                 now
             );
             createIndexClusterStateRequest.setMatchingTemplate(templateV2);
-            assert createIndexClusterStateRequest.performReroute() == false
-                : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
-
             newState = createIndexService.applyCreateIndexRequest(
                 projectState.cluster(),
                 createIndexClusterStateRequest,
@@ -437,6 +434,7 @@ public class MetadataRolloverService {
                         )
                     );
                 },
+                RerouteBehavior.SKIP_REROUTE,
                 rerouteCompletionIsNotRequired()
             );
         }
@@ -481,9 +479,10 @@ public class MetadataRolloverService {
                 && index.getIndexMode() == IndexMode.TIME_SERIES
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
-                settingsBuilder.remove(IndexSettings.MODE.getKey());
-                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                final Settings.Builder settingsBuilder = Settings.builder()
+                    .put(originalSettings)
+                    .remove(IndexSettings.MODE.getKey())
+                    .remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
                 projectBuilder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }
@@ -581,8 +580,7 @@ public class MetadataRolloverService {
         return new CreateIndexClusterStateUpdateRequest(cause, projectId, targetIndexName, providedIndexName).settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings())
-            .performReroute(false);
+            .mappings(createIndexRequest.mappings());
     }
 
     /**

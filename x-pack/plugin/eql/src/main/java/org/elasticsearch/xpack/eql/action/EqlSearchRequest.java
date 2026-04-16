@@ -48,6 +48,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
+    private String[] originalIndices;
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -301,6 +302,9 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
 
     @Override
     public EqlSearchRequest indices(String... indices) {
+        if (originalIndices == null) {
+            originalIndices = indices;
+        }
         this.indices = indices;
         return this;
     }
@@ -572,6 +576,10 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    public String[] originalIndices() {
+        return originalIndices;
     }
 
     public EqlSearchRequest indicesOptions(IndicesOptions indicesOptions) {

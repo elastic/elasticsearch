@@ -17,6 +17,8 @@ Painless scripts run as script processors within ingest pipelines that support s
 
 Ingest pipelines consist of multiple processors that can transform documents sequentially. The script processor allows Painless scripts to access and modify document fields using the `ctx` variable during this transformation process.
 
+For help debugging errors in this context, refer to [Debug ingest pipeline failures in Painless](docs-content://explore-analyze/scripting/painless-ingest-pipeline-failures.md).
+
 ## Processing workflow
 
 The pipelines processing proceeds through four steps.

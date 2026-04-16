@@ -230,6 +230,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
                         TaskType.CHAT_COMPLETION,
                         TaskType.SPARSE_EMBEDDING,
                         TaskType.TEXT_EMBEDDING,
+                        TaskType.EMBEDDING,
                         TaskType.RERANK,
                         TaskType.COMPLETION
                     )
@@ -339,6 +340,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
                         TaskType.CHAT_COMPLETION,
                         TaskType.SPARSE_EMBEDDING,
                         TaskType.TEXT_EMBEDDING,
+                        TaskType.EMBEDDING,
                         TaskType.RERANK,
                         TaskType.COMPLETION
                     )

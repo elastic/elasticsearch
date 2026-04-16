@@ -1,6 +1,0 @@
-pr: 140331
-summary: "[Inference API] Include rerank in supported tasks for IBM watsonx integration"
-area: Inference
-type: bug
-issues:
- - 140328

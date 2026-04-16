@@ -100,6 +100,10 @@ public class NodeRoles {
         return onlyRole(settings, DiscoveryNodeRole.DATA_ROLE);
     }
 
+    public static Settings indexOnlyNode(final Settings settings) {
+        return onlyRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+    }
+
     public static Settings nonDataNode() {
         return nonDataNode(Settings.EMPTY);
     }

@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 141736
+summary: Refresh PIT id after each response
+type: bug

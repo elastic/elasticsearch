@@ -1107,30 +1107,30 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.fieldSort("field"));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.geoDistanceSort("field", 0, 0));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
-        }
-        {
-            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
-            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {

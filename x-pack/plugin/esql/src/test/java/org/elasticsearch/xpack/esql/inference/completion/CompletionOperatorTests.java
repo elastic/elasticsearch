@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
@@ -24,6 +24,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +42,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), Map.of());
     }
 
     @Override
@@ -112,15 +113,13 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         Operator.OperatorFactory factory = new CompletionOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            evaluatorFactory(inputChannel)
+            evaluatorFactory(inputChannel),
+            Map.of()
         );
 
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
-        Exception actualException = expectThrows(
-            ElasticsearchException.class,
-            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
-        );
+        var runner = new TestDriverRunner().builder(driverContext).input(simpleInput(driverContext.blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
 
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }

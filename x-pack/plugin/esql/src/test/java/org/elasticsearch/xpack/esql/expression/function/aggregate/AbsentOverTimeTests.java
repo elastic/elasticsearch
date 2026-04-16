@@ -13,7 +13,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -24,9 +27,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AbsentOverTimeTests extends AbstractFunctionTestCase {
+public class AbsentOverTimeTests extends AbstractAggregationTestCase {
     public AbsentOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,6 +39,8 @@ public class AbsentOverTimeTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO Use AbsentTests.parameters() once absent over time allows for dense_vectors
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -56,9 +62,18 @@ public class AbsentOverTimeTests extends AbstractFunctionTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
             MultiRowTestCaseSupplier.histogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(AbsentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -84,16 +99,16 @@ public class AbsentOverTimeTests extends AbstractFunctionTestCase {
             DataType.TDIGEST
         );
         for (var dataType : types) {
+            var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
+                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                    .withAppliesTo(histogramPreviewAppliesTo)
+                    .withAppliesTo(histogramGaAppliesTo)
+                : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
                     List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "Present",
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
+                    () -> new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true))
                 )
             );
         }
@@ -105,5 +120,13 @@ public class AbsentOverTimeTests extends AbstractFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new AbsentOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+    }
+
+    public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
+        ArrayList<DocsV3Support.Param> copies = new ArrayList<>(params);
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        copies.add(window);
+        return copies;
     }
 }

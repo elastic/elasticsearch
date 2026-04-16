@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.junit.Assert;
 
@@ -24,17 +23,18 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
+import static org.hamcrest.Matchers.equalTo;
 
-public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializingTestCase<ElasticRerankerServiceSettings> {
-    public static ElasticRerankerServiceSettings createRandomWithoutChunkingConfiguration() {
-        return createRandom(null, null);
+public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<ElasticRerankerServiceSettings> {
+    public static ElasticRerankerServiceSettings createRandomWithoutChunkingConfiguration(String modelId) {
+        return createRandom(null, null, modelId);
     }
 
     public static ElasticRerankerServiceSettings createRandomWithChunkingConfiguration(
         ElasticRerankerServiceSettings.LongDocumentStrategy longDocumentStrategy,
         Integer maxChunksPerDoc
     ) {
-        return createRandom(longDocumentStrategy, maxChunksPerDoc);
+        return createRandom(longDocumentStrategy, maxChunksPerDoc, randomAlphaOfLength(8));
     }
 
     public static ElasticRerankerServiceSettings createRandom() {
@@ -42,17 +42,17 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
         var maxChunksPerDoc = ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(longDocumentStrategy) && randomBoolean()
             ? randomIntBetween(1, 10)
             : null;
-        return createRandom(longDocumentStrategy, maxChunksPerDoc);
+        return createRandom(longDocumentStrategy, maxChunksPerDoc, randomAlphaOfLength(8));
     }
 
     private static ElasticRerankerServiceSettings createRandom(
         ElasticRerankerServiceSettings.LongDocumentStrategy longDocumentStrategy,
-        Integer maxChunksPerDoc
+        Integer maxChunksPerDoc,
+        String modelId
     ) {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);
-        var modelId = randomAlphaOfLength(8);
         var adaptiveAllocationsSettings = withAdaptiveAllocations
             ? new AdaptiveAllocationsSettings(true, randomIntBetween(0, 2), randomIntBetween(2, 5))
             : null;
@@ -321,5 +321,11 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
     @Override
     protected ElasticRerankerServiceSettings mutateInstance(ElasticRerankerServiceSettings instance) throws IOException {
         return randomValueOtherThan(instance, ElasticRerankerServiceSettingsTests::createRandom);
+    }
+
+    @Override
+    protected void assertUpdated(ElasticRerankerServiceSettings original, ElasticRerankerServiceSettings updated) {
+        assertThat(updated.getLongDocumentStrategy(), equalTo(original.getLongDocumentStrategy()));
+        assertThat(updated.getMaxChunksPerDoc(), equalTo(original.getMaxChunksPerDoc()));
     }
 }

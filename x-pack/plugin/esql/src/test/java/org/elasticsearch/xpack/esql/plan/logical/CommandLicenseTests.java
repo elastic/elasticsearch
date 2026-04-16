@@ -49,6 +49,7 @@ public class CommandLicenseTests extends ESTestCase {
                 checkLicense(commandName, createInstance(commandClass, arg));
             } catch (Exception e) {
                 Throwable c = e.getCause();
+                log.error("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c, e);
                 fail("Failed to create instance of command class: " + commandClass.getName() + " - " + e.getMessage() + " - " + c);
             }
         }
@@ -136,7 +137,17 @@ public class CommandLicenseTests extends ESTestCase {
             "MvExpand",
             "MV_EXPAND",
             "InlineStats",
-            "INLINE_STATS"
+            "INLINE_STATS",
+            "RegisteredDomain",
+            "REGISTERED_DOMAIN",
+            "UriParts",
+            "URI_PARTS",
+            "MetricsInfo",
+            "METRICS_INFO",
+            "TsInfo",
+            "TS_INFO",
+            "UserAgent",
+            "USER_AGENT"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");

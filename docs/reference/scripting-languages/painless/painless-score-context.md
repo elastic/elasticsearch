@@ -12,7 +12,7 @@ products:
 
 Use a Painless script in a [function score](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) to apply a new score to documents returned from a query.
 
-Check the troubleshooting guide for help with script score calculation errors.
+For help debugging errors in this context, refer to [Debug script score calculation errors in Painless](docs-content://explore-analyze/scripting/painless-script-score-calculation-errors.md).
 
 ## Variables
 

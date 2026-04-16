@@ -1,5 +1,0 @@
-pr: 141157
-summary: Fix folding of case() function with date period and time duration
-area: ES|QL
-type: bug
-issues: []

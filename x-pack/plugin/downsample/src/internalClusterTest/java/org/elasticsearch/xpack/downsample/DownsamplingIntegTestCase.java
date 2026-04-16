@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -92,8 +91,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             EsqlPlugin.class,
-            AnalyticsPlugin.class,
-            ExponentialHistogramMapperPlugin.class
+            AnalyticsPlugin.class
         );
     }
 
@@ -305,7 +303,10 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                             assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
                         }
                     }
-                    case HISTOGRAM -> assertThat(fieldMapping.get("type"), anyOf(equalTo("exponential_histogram"), equalTo("histogram")));
+                    case HISTOGRAM -> assertThat(
+                        fieldMapping.get("type"),
+                        anyOf(equalTo("exponential_histogram"), equalTo("histogram"), equalTo("tdigest"))
+                    );
                     default -> fail("Unsupported field type");
                 }
                 assertThat(fieldMapping.get("time_series_metric"), equalTo(metricType.toString()));

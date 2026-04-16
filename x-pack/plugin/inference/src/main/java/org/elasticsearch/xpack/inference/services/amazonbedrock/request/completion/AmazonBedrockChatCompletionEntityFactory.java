@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.util.List;
@@ -55,14 +56,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
 
         var messages = request.messages()
             .stream()
-            .map(
-                message -> new UnifiedCompletionRequest.Message(
-                    message.content(),
-                    message.role(),
-                    message.toolCallId(),
-                    message.toolCalls()
-                )
-            )
+            .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
             .toList();
 
         switch (serviceSettings.provider()) {

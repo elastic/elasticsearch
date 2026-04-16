@@ -1,0 +1,6 @@
+area: Downsampling
+issues:
+ - 141541
+pr: 141873
+summary: Fix downsampling configuration validation
+type: bug

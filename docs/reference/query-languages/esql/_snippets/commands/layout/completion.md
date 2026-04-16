@@ -51,7 +51,7 @@ Best practices:
 ::::
 :::::
 
-**Syntax**
+## Syntax
 
 ::::{applies-switch}
 
@@ -73,7 +73,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 
 ::::
 
-**Parameters**
+## Parameters
 
 `column`
 :   (Optional) The name of the output column containing the LLM's response.
@@ -88,7 +88,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-**Description**
+## Description
 
 The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
@@ -103,13 +103,13 @@ including:
 - Content rewriting
 - Creative generation
 
-**Requirements**
+## Requirements
 
 To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
 
-#### Handling timeouts
+### Handling timeouts
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
 
@@ -141,9 +141,13 @@ If you don't want to increase the timeout limit, try the following:
 * Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
 
-**Examples**
+## Examples
 
-Use the default column name (results stored in `completion` column):
+The following examples show common `COMPLETION` patterns.
+
+### Use the default output column name
+
+If no column name is specified, the response is stored in `completion`:
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -155,7 +159,9 @@ ROW question = "What is Elasticsearch?"
 |------------------------|-------------------------------------------|
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Specify the output column (results stored in `answer` column):
+### Specify the output column name
+
+Use `column =` to assign the response to a named column:
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -167,7 +173,9 @@ ROW question = "What is Elasticsearch?"
 | --- | --- |
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Summarize the top 10 highest-rated movies using a prompt:
+### Summarize documents with a prompt
+
+Use `CONCAT` to build a prompt from field values before calling `COMPLETION`:
 
 ```esql
 FROM movies

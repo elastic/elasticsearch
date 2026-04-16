@@ -1,0 +1,5 @@
+FROM employees
+| keep hire_date, salary, emp_no
+| WHERE salary > 10000
+| SORT hire_date
+| LIMIT 20

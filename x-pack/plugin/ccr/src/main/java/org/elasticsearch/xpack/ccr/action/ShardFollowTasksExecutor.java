@@ -591,6 +591,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final ShardFollowTask params, final PersistentTaskState state) {
         Client followerClient = wrapClient(client, params.getHeaders(), clusterService.state());
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;

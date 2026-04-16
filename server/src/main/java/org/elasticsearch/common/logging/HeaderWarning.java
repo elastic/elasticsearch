@@ -54,8 +54,8 @@ public class HeaderWarning {
     static Pattern getPatternWithSemanticVersion() {
         return Pattern.compile("299 " + // log level code
             "Elasticsearch-" + // warn agent
-            semanticVersionPattern + "-" + // warn agent: semantic version
-            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            "(?:" + semanticVersionPattern + "-)?" + // warn agent: optional semantic version
+            "(?:[a-f0-9]{7,40}|unknown) " + // warn agent: hash
             // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
             "\"(?<quotedStringValue>.*)\"( " +
             // quoted RFC 1123 date format

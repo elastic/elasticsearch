@@ -47,9 +47,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
@@ -253,6 +251,16 @@ public class AbstractAuditorTests extends ESTestCase {
         // the back log will be written some point later
         assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
 
+        // Replace the template put mock with a synchronous response. The latch-based
+        // mock was needed for the first round to avoid blocking the test thread, but
+        // the latch is already open and submitting to threadPool.generic() introduces
+        // a race between the generic thread completing and the test thread proceeding.
+        doAnswer(ans -> {
+            ActionListener<AcknowledgedResponse> listener = ans.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
+
         // "delete" the index
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(2);
@@ -413,9 +421,9 @@ public class AbstractAuditorTests extends ESTestCase {
                     NotificationsIndex.mapping()
                 )
             );
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            try {
                 return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(parser)
+                    templateConfig.load(ComposableIndexTemplate::parse)
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

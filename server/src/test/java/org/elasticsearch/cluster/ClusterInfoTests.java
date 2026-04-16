@@ -11,15 +11,33 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
+
+    public void testShardHeapUsageIsDefaultedForMissingShards() {
+        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong());
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .estimatedShardHeapUsages(Map.of())
+            .defaultShardHeapUsageForShardsWithoutMetrics(defaultHeapUsage)
+            .build();
+
+        assertThat(
+            clusterInfo.getEstimatedShardHeapUsage(new ShardId(new Index(randomIndexName(), "_na_"), randomNonNegativeInt())),
+            equalTo(defaultHeapUsage)
+        );
+    }
 
     @Override
     protected Writeable.Reader<ClusterInfo> instanceReader() {
@@ -45,9 +63,12 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomRoutingToDataPath(),
             randomReservedSpace(),
             randomNodeHeapUsage(),
+            randomShardHeapUsages(),
+            new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()),
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
-            randomMaxHeapSizes()
+            randomMaxHeapSizes(),
+            randomNodeIdsWriteLoadHotspottingSet()
         );
     }
 
@@ -67,6 +88,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeMaxHeapSizes.put(randomAlphaOfLength(32), randomByteSizeValue());
         }
         return nodeMaxHeapSizes;
+    }
+
+    private static Map<ShardId, ShardAndIndexHeapUsage> randomShardHeapUsages() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+        }
+        return shardHeapUsageBuilder;
     }
 
     private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
@@ -100,6 +130,16 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
         }
         return nodeUsageStatsForThreadPools;
+    }
+
+    private static Set<String> randomNodeIdsWriteLoadHotspottingSet() {
+        int numEntries = randomIntBetween(0, 128);
+        Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeId = randomAlphaOfLength(32);
+            nodeIdsWriteLoadHotspotting.add(nodeId);
+        }
+        return nodeIdsWriteLoadHotspotting;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

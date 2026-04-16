@@ -1,0 +1,42 @@
+LimitExec[1000[INTEGER],null]
+\_MergeExec[[avg_worked_seconds{r}#0, birth_date{r}#1, emp_no{r}#2, first_name{r}#3, gender{r}#4, height{r}#5, height.float{r}#6, height.half_float{r}#7, height.scaled_float{r}#8, hire_date{r}#9, is_rehired{r}#10, job_positions{r}#11, languages{r}#12, languages.byte{r}#13, languages.long{r}#14, languages.short{r}#15, last_name{r}#16, salary{r}#17, salary_change{r}#18, salary_change.int{r}#19, salary_change.keyword{r}#20, salary_change.long{r}#21, still_hired{r}#22, _fork{r}#23]]
+  |_ProjectExec[[avg_worked_seconds{f}#24, birth_date{f}#25, emp_no{f}#26, first_name{f}#27, gender{f}#28, height{f}#29, height.float{f}#30, height.half_float{f}#31, height.scaled_float{f}#32, hire_date{f}#33, is_rehired{f}#34, job_positions{f}#35, languages{f}#36, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{f}#40, salary{f}#41, salary_change{f}#42, salary_change.int{f}#43, salary_change.keyword{f}#44, salary_change.long{f}#45, still_hired{f}#46, _fork{r}#47]]
+  | \_EvalExec[[fork1[KEYWORD] AS _fork#47]]
+  |   \_LimitExec[1000[INTEGER],null]
+  |     \_ExchangeExec[[avg_worked_seconds{f}#24, birth_date{f}#25, emp_no{f}#26, first_name{f}#27, gender{f}#28, height{f}#29, height.float{f}#30, height.half_float{f}#31, height.scaled_float{f}#32, hire_date{f}#33, is_rehired{f}#34, job_positions{f}#35, languages{f}#36, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{f}#40, salary{f}#41, salary_change{f}#42, salary_change.int{f}#43, salary_change.keyword{f}#44, salary_change.long{f}#45, still_hired{f}#46],false]
+  |       \_ProjectExec[[avg_worked_seconds{f}#24, birth_date{f}#25, emp_no{f}#26, first_name{f}#27, gender{f}#28, height{f}#29, height.float{f}#30, height.half_float{f}#31, height.scaled_float{f}#32, hire_date{f}#33, is_rehired{f}#34, job_positions{f}#35, languages{f}#36, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{f}#40, salary{f}#41, salary_change{f}#42, salary_change.int{f}#43, salary_change.keyword{f}#44, salary_change.long{f}#45, still_hired{f}#46]]
+  |         \_FieldExtractExec[avg_worked_seconds{f}#24, birth_date{f}#25, emp_no{f}#26, first_name{f}#27, gender{f}#28, height{f}#29, height.float{f}#30, height.half_float{f}#31, height.scaled_float{f}#32, hire_date{f}#33, is_rehired{f}#34, job_positions{f}#35, languages{f}#36, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{f}#40, salary{f}#41, salary_change{f}#42, salary_change.int{f}#43, salary_change.keyword{f}#44, salary_change.long{f}#45, still_hired{f}#46]<[],[],[]>
+  |           \_EsQueryExec[employees], indexMode[standard], [_doc{f}#48], limit[1000], sort[] estimatedRowSize[360] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "term" : {
+        "emp_no" : {
+          "value" : 1,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "emp_no == 1@2:16"
+  }
+}, tags=[]]]]
+  \_ProjectExec[[avg_worked_seconds{f}#49, birth_date{f}#50, emp_no{f}#51, first_name{f}#52, gender{f}#53, height{f}#54, height.float{f}#55, height.half_float{f}#56, height.scaled_float{f}#57, hire_date{f}#58, is_rehired{f}#59, job_positions{f}#60, languages{f}#61, languages.byte{f}#62, languages.long{f}#63, languages.short{f}#64, last_name{f}#65, salary{f}#66, salary_change{f}#67, salary_change.int{f}#68, salary_change.keyword{f}#69, salary_change.long{f}#70, still_hired{f}#71, _fork{r}#72]]
+    \_EvalExec[[fork2[KEYWORD] AS _fork#72]]
+      \_LimitExec[1000[INTEGER],null]
+        \_ExchangeExec[[avg_worked_seconds{f}#49, birth_date{f}#50, emp_no{f}#51, first_name{f}#52, gender{f}#53, height{f}#54, height.float{f}#55, height.half_float{f}#56, height.scaled_float{f}#57, hire_date{f}#58, is_rehired{f}#59, job_positions{f}#60, languages{f}#61, languages.byte{f}#62, languages.long{f}#63, languages.short{f}#64, last_name{f}#65, salary{f}#66, salary_change{f}#67, salary_change.int{f}#68, salary_change.keyword{f}#69, salary_change.long{f}#70, still_hired{f}#71],false]
+          \_ProjectExec[[avg_worked_seconds{f}#49, birth_date{f}#50, emp_no{f}#51, first_name{f}#52, gender{f}#53, height{f}#54, height.float{f}#55, height.half_float{f}#56, height.scaled_float{f}#57, hire_date{f}#58, is_rehired{f}#59, job_positions{f}#60, languages{f}#61, languages.byte{f}#62, languages.long{f}#63, languages.short{f}#64, last_name{f}#65, salary{f}#66, salary_change{f}#67, salary_change.int{f}#68, salary_change.keyword{f}#69, salary_change.long{f}#70, still_hired{f}#71]]
+            \_FieldExtractExec[avg_worked_seconds{f}#49, birth_date{f}#50, emp_no{f}#51, first_name{f}#52, gender{f}#53, height{f}#54, height.float{f}#55, height.half_float{f}#56, height.scaled_float{f}#57, hire_date{f}#58, is_rehired{f}#59, job_positions{f}#60, languages{f}#61, languages.byte{f}#62, languages.long{f}#63, languages.short{f}#64, last_name{f}#65, salary{f}#66, salary_change{f}#67, salary_change.int{f}#68, salary_change.keyword{f}#69, salary_change.long{f}#70, still_hired{f}#71]<[],[],[]>
+              \_EsQueryExec[employees], indexMode[standard], [_doc{f}#73], limit[1000], sort[] estimatedRowSize[360] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "term" : {
+        "emp_no" : {
+          "value" : 2,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "emp_no == 2@3:16"
+  }
+}, tags=[]]]]

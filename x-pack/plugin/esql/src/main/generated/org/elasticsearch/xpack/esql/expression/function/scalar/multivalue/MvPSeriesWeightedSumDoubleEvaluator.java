@@ -12,23 +12,23 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPSeriesWeightedSum}.
+ * {@link ExpressionEvaluator} implementation for {@link MvPSeriesWeightedSum}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvPSeriesWeightedSumDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPSeriesWeightedSumDoubleEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator block;
+  private final ExpressionEvaluator block;
 
   private final CompensatedSum sum;
 
@@ -38,7 +38,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
 
   private Warnings warnings;
 
-  public MvPSeriesWeightedSumDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator block,
+  public MvPSeriesWeightedSumDoubleEvaluator(Source source, ExpressionEvaluator block,
       CompensatedSum sum, double p, DriverContext driverContext) {
     this.source = source;
     this.block = block;
@@ -95,26 +95,21 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory block;
+    private final ExpressionEvaluator.Factory block;
 
     private final Function<DriverContext, CompensatedSum> sum;
 
     private final double p;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory block,
+    public Factory(Source source, ExpressionEvaluator.Factory block,
         Function<DriverContext, CompensatedSum> sum, double p) {
       this.source = source;
       this.block = block;

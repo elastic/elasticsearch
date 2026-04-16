@@ -2226,9 +2226,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (profile) return false;
 
         if (sorts != null) {
-            // the implicit sorting is by _score, which supports parallel collection
-            for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) return false;
+            var primarySort = sorts.stream().findFirst();
+            if (primarySort.map(SortBuilder::supportsParallelCollection).orElse(true) == false) {
+                return false;
             }
         }
 

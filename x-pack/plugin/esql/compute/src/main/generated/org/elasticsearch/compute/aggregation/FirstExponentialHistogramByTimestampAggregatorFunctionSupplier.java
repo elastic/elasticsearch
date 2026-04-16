@@ -31,13 +31,13 @@ public final class FirstExponentialHistogramByTimestampAggregatorFunctionSupplie
   @Override
   public FirstExponentialHistogramByTimestampAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstExponentialHistogramByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstExponentialHistogramByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstExponentialHistogramByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstExponentialHistogramByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstExponentialHistogramByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

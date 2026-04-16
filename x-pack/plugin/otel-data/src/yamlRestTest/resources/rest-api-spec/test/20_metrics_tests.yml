@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: [allowed_warnings]
   - do:
       cluster.health:
         wait_for_events: languid
@@ -194,6 +196,8 @@ IP dimensions:
 ---
 "Dynamic templates":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         index: metrics-generic.otel-default
         refresh: true

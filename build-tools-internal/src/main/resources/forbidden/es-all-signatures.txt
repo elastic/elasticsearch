@@ -73,3 +73,7 @@ org.apache.lucene.search.MatchNoDocsQuery#<init>()
 
 @defaultMessage Use org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE instead
 org.apache.lucene.search.MatchAllDocsQuery#<init>()
+
+@defaultMessage Do not use java.util.logging.Logger, use ES Logger instead
+java.util.logging.Logger#getLogger(java.lang.String)
+java.util.logging.Logger#getLogger(java.lang.String, java.lang.String)

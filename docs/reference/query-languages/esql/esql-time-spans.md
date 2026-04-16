@@ -16,12 +16,12 @@ Time spans represent intervals between two datetime values. There are currently 
 
 A time span requires two elements: an integer value and a temporal unit.
 
-Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket),
-scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/functions-operators/date-time-functions.md#esql-date_trunc)
+Time spans work with grouping functions such as [BUCKET](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md),
+scalar functions such as [DATE_TRUNC](/reference/query-languages/esql/functions-operators/date-time-functions/date_trunc.md)
 and arithmetic operators such as [`+`](/reference/query-languages/esql/functions-operators/operators.md#esql-add)
 and [`-`](/reference/query-languages/esql/functions-operators/operators.md#esql-sub).
-Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dateperiod),
-[TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_timeduration),
+Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dateperiod.md),
+[TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_timeduration.md),
 or the [cast operators](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) `::DATE_PERIOD`, `::TIME_DURATION`.
 
 

@@ -57,16 +57,18 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(EmbeddingAction.Request request, Model model) {
-        return request.getTaskType().isAnyOrSame(TaskType.EMBEDDING) == false || model.getTaskType() != TaskType.EMBEDDING;
+        assert request.getTaskType().isAnyOrSame(TaskType.EMBEDDING);
+        return model.getTaskType() != TaskType.EMBEDDING;
     }
 
     @Override
     protected ElasticsearchStatusException createInvalidTaskTypeException(EmbeddingAction.Request request, Model model) {
         return new ElasticsearchStatusException(
-            "Incompatible task_type for embedding API, the requested type [{}] must be one of [{}]",
+            "Incompatible task_type for embedding API, the inference endpoint [{}] has task type [{}], expected [{}]",
             RestStatus.BAD_REQUEST,
-            request.getTaskType(),
-            TaskType.EMBEDDING.toString()
+            request.getInferenceEntityId(),
+            model.getTaskType(),
+            TaskType.EMBEDDING
         );
     }
 

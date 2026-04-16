@@ -61,6 +61,11 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, SystemIndexMigrationTaskParams params, PersistentTaskState state) {
         SystemIndexMigrator upgrader = (SystemIndexMigrator) task;
         SystemIndexMigrationTaskState upgraderState = (SystemIndexMigrationTaskState) state;

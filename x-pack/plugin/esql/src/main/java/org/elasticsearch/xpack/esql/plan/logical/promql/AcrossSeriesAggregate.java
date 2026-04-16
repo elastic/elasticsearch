@@ -113,8 +113,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         if (grouping == Grouping.WITHOUT) {
             return List.of(timeseriesAttribute);
         }
-        assert expressionsResolved() : "output() called on unresolved plan";
-        return groupings.stream().filter(a -> a.dataType() != DataType.NULL).toList();
+        return groupings.stream().filter(a -> a.resolved() == false || a.dataType() != DataType.NULL).toList();
     }
 
     @Override

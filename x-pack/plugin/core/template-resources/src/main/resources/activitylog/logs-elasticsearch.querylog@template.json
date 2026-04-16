@@ -1,0 +1,21 @@
+{
+  "index_patterns": ["${xpack.stack.querylog.template.pattern}"],
+  "priority": 250,
+  "data_stream": {
+    "hidden": false
+  },
+  "composed_of": [
+    "logs@mappings",
+    "logs@settings",
+    "ecs@mappings",
+    "logs-elasticsearch.querylog@mappings",
+    "logs-elasticsearch.querylog@settings"
+  ],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "Default index template for the Elasticsearch query logs installed by x-pack",
+    "managed": true
+  },
+  "deprecated": ${xpack.stack.querylog.template.deprecated},
+  "version": ${xpack.stack.querylog.template.version}
+}

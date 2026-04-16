@@ -22,7 +22,7 @@ import java.util.Deque;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
- *
+ * <p>
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
  * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
@@ -35,10 +35,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        private XContentParser delegate; // cached top of stack — avoids peek() on every delegate() call
 
         WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
             this.contentPath = contentPath;
             parsers.push(in);
+            this.delegate = in;
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
@@ -52,12 +54,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
+            while ((token = (this.delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
+                    this.delegate = null;
                     return null;
                 }
             }
@@ -143,7 +145,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+            var expanded = new DotExpandingXContentParser(subParser, subpaths, location, contentPath);
+            parsers.push(expanded);
+            this.delegate = expanded;
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -174,7 +178,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         protected XContentParser delegate() {
-            return parsers.peek();
+            return delegate;
         }
 
         /*
@@ -401,7 +405,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             return null;
         }
     }

@@ -16,8 +16,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.lang.reflect.Field;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * An Arrow memory allocation manager that always fails.
@@ -44,16 +42,13 @@ public class AllocationManagerShim implements AllocationManager.Factory {
             logger.info("We're in tests, not disabling Arrow memory manager so we can use a real runtime for testing");
         } catch (ClassNotFoundException notfound) {
             logger.debug("Disabling Arrow's allocation manager");
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    Field field = DefaultAllocationManagerOption.class.getDeclaredField("DEFAULT_ALLOCATION_MANAGER_FACTORY");
-                    field.setAccessible(true);
-                    field.set(null, new AllocationManagerShim());
-                } catch (Exception e) {
-                    throw new AssertionError("Can't init Arrow", e);
-                }
-                return null;
-            });
+            try {
+                Field field = DefaultAllocationManagerOption.class.getDeclaredField("DEFAULT_ALLOCATION_MANAGER_FACTORY");
+                field.setAccessible(true);
+                field.set(null, new AllocationManagerShim());
+            } catch (Exception e) {
+                throw new AssertionError("Can't init Arrow", e);
+            }
         }
     }
 

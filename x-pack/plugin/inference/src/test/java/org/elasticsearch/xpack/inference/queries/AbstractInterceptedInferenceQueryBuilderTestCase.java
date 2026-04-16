@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQuer
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -669,9 +672,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertCoordinatorNodeRewriteOnNonInferenceField(originalSerializedQuery, serializedQuery);
     }
 
-    protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
-        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
+    protected static <T extends Rewriteable<T>> T rewriteAndFetch(T rewritable, QueryRewriteContext queryRewriteContext) {
+        PlainActionFuture<T> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(rewritable, queryRewriteContext, future);
         return future.actionGet();
     }
 
@@ -696,6 +699,24 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
 
         return result;
+    }
+
+    protected static QueryRewriteContext instrumentQueryRewriteContext(
+        QueryRewriteContext queryRewriteContext,
+        Answer<?> executeAsyncActionsAnswer
+    ) {
+        QueryRewriteContext instrumented = spy(queryRewriteContext);
+        doAnswer(executeAsyncActionsAnswer).when(instrumented).executeAsyncActions(any());
+        return instrumented;
+    }
+
+    protected static Answer<?> assertSingleUniqueAsyncAction(QueryRewriteContext queryRewriteContext) {
+        return invocation -> {
+            var uniqueAsyncActions = QueryRewriteContextTestUtils.getUniqueAsyncActions(queryRewriteContext);
+            assertThat(uniqueAsyncActions.size(), equalTo(1));
+            uniqueAsyncActions.forEach((k, v) -> assertThat(v.size(), equalTo(1)));
+            return invocation.callRealMethod();
+        };
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {

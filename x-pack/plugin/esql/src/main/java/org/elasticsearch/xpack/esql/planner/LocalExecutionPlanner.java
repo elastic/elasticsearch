@@ -1397,6 +1397,7 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
+            .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)

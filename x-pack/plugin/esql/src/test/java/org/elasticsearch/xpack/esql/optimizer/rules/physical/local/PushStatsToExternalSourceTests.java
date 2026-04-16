@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -33,9 +36,12 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -153,25 +159,9 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertThat(result, instanceOf(AggregateExec.class));
     }
 
-    public void testNotPushedWithMultipleSplits() {
+    public void testNotPushedWithMultipleSplitsWithoutStats() {
         Map<String, Object> metadata = statsMetadata(1000L, null, null, null);
-        List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
-        ExternalSourceExec ext = new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            attrs,
-            Map.of(),
-            metadata,
-            null,
-            -1,
-            null,
-            null,
-            List.of(
-                new FileSplit("parquet", StoragePath.of("file:///split1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
-                new FileSplit("parquet", StoragePath.of("file:///split2.parquet"), 0, 100, "parquet", Map.of(), Map.of())
-            )
-        );
+        ExternalSourceExec ext = externalSourceWithSplits(metadata, null, null);
         AggregateExec agg = aggregateExec(ext, countStarAlias());
 
         PhysicalPlan result = applyRule(agg);
@@ -179,22 +169,62 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertThat(result, instanceOf(AggregateExec.class));
     }
 
+    public void testPushedWithMultipleSplitsWithStats() {
+        Map<String, Object> stats1 = statsMetadata(100L, null, null, null);
+        Map<String, Object> stats2 = statsMetadata(200L, null, null, null);
+        Map<String, Object> stats3 = statsMetadata(300L, null, null, null);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), stats1, stats2, stats3);
+        AggregateExec agg = aggregateExec(ext, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(600L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    public void testNotPushedWithMixedStatsAndNoStats() {
+        Map<String, Object> stats1 = statsMetadata(100L, null, null, null);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), stats1, null);
+        AggregateExec agg = aggregateExec(ext, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(AggregateExec.class));
+    }
+
+    public void testMinMaxPushedWithMultipleSplitsWithStats() {
+        Map<String, Object> stats1 = statsMetadata(100L, "age", 5L, null);
+        stats1.put("_stats.columns.age.min", 18);
+        stats1.put("_stats.columns.age.max", 50);
+
+        Map<String, Object> stats2 = statsMetadata(200L, "age", 10L, null);
+        stats2.put("_stats.columns.age.min", 22);
+        stats2.put("_stats.columns.age.max", 65);
+
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), stats1, stats2);
+
+        ReferenceAttribute ageField = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        AggregateExec agg = aggregateExec(
+            ext,
+            new Alias(Source.EMPTY, "mn", new Min(Source.EMPTY, ageField)),
+            new Alias(Source.EMPTY, "mx", new Max(Source.EMPTY, ageField))
+        );
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        assertEquals(2, local.output().size());
+        Page page = local.supplier().get();
+        assertEquals(18, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(65, ((IntBlock) page.getBlock(1)).getInt(0));
+    }
+
     public void testPushedWithSingleSplit() {
         Map<String, Object> metadata = statsMetadata(1000L, null, null, null);
-        List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
-        ExternalSourceExec ext = new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            attrs,
-            Map.of(),
-            metadata,
-            null,
-            -1,
-            null,
-            null,
-            List.of(new FileSplit("parquet", StoragePath.of("file:///test.parquet"), 0, 100, "parquet", Map.of(), Map.of()))
-        );
+        ExternalSourceExec ext = externalSourceWithSplits(metadata, (Map<String, Object>) null);
         AggregateExec agg = aggregateExec(ext, countStarAlias());
 
         PhysicalPlan result = applyRule(agg);
@@ -228,57 +258,50 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         Map<String, Object> original = new HashMap<>();
         original.put("existing_key", "value");
 
-        Map<String, Object> enriched = SourceStatisticsSerializer.embedStatistics(
-            original,
-            new org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics() {
-                @Override
-                public java.util.OptionalLong rowCount() {
-                    return java.util.OptionalLong.of(42);
-                }
-
-                @Override
-                public java.util.OptionalLong sizeInBytes() {
-                    return java.util.OptionalLong.of(1024);
-                }
-
-                @Override
-                public
-                    java.util.Optional<Map<String, org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics>>
-                    columnStatistics() {
-                    return java.util.Optional.of(
-                        Map.of("col1", new org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics() {
-                            @Override
-                            public java.util.OptionalLong nullCount() {
-                                return java.util.OptionalLong.of(5);
-                            }
-
-                            @Override
-                            public java.util.OptionalLong distinctCount() {
-                                return java.util.OptionalLong.empty();
-                            }
-
-                            @Override
-                            public java.util.Optional<Object> minValue() {
-                                return java.util.Optional.of(10);
-                            }
-
-                            @Override
-                            public java.util.Optional<Object> maxValue() {
-                                return java.util.Optional.of(100);
-                            }
-                        })
-                    );
-                }
+        Map<String, Object> enriched = SourceStatisticsSerializer.embedStatistics(original, new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(42);
             }
-        );
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(1024);
+            }
+
+            @Override
+            public Optional<Map<String, SourceStatistics.ColumnStatistics>> columnStatistics() {
+                return Optional.of(Map.of("col1", new SourceStatistics.ColumnStatistics() {
+                    @Override
+                    public OptionalLong nullCount() {
+                        return OptionalLong.of(5);
+                    }
+
+                    @Override
+                    public OptionalLong distinctCount() {
+                        return OptionalLong.empty();
+                    }
+
+                    @Override
+                    public Optional<Object> minValue() {
+                        return Optional.of(10);
+                    }
+
+                    @Override
+                    public Optional<Object> maxValue() {
+                        return Optional.of(100);
+                    }
+                }));
+            }
+        });
 
         assertEquals("value", enriched.get("existing_key"));
         assertEquals(42L, enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertEquals(1024L, enriched.get(SourceStatisticsSerializer.STATS_SIZE_BYTES));
-        assertEquals(java.util.OptionalLong.of(42), SourceStatisticsSerializer.extractRowCount(enriched));
-        assertEquals(java.util.OptionalLong.of(5), SourceStatisticsSerializer.extractColumnNullCount(enriched, "col1"));
-        assertEquals(java.util.Optional.of(10), SourceStatisticsSerializer.extractColumnMin(enriched, "col1"));
-        assertEquals(java.util.Optional.of(100), SourceStatisticsSerializer.extractColumnMax(enriched, "col1"));
+        assertEquals(OptionalLong.of(42), SourceStatisticsSerializer.extractRowCount(enriched));
+        assertEquals(OptionalLong.of(5), SourceStatisticsSerializer.extractColumnNullCount(enriched, "col1"));
+        assertEquals(Optional.of(10), SourceStatisticsSerializer.extractColumnMin(enriched, "col1"));
+        assertEquals(Optional.of(100), SourceStatisticsSerializer.extractColumnMax(enriched, "col1"));
     }
 
     // --- EvalExec intermediate node tests ---
@@ -495,6 +518,44 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     // --- helpers ---
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private static ExternalSourceExec externalSourceWithSplits(Map<String, Object> sourceMetadata, Map<String, Object>... perSplitStats) {
+        List<Attribute> attrs = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER)
+        );
+        List<ExternalSplit> splits = new ArrayList<>(perSplitStats.length);
+        for (int i = 0; i < perSplitStats.length; i++) {
+            splits.add(
+                new FileSplit(
+                    "parquet",
+                    StoragePath.of("file:///split" + (i + 1) + ".parquet"),
+                    0,
+                    100,
+                    "parquet",
+                    Map.of(),
+                    Map.of(),
+                    null,
+                    perSplitStats[i]
+                )
+            );
+        }
+        return new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            sourceMetadata,
+            null,
+            -1,
+            null,
+            null,
+            splits
+        );
+    }
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         List<Attribute> attrs = List.of(

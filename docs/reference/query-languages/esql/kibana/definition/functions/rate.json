@@ -62,6 +62,6 @@
   "examples" : [
     "TS k8s\n| STATS max_rate=MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

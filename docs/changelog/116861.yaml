@@ -1,0 +1,9 @@
+area: ES|QL
+issues:
+ - 112672
+ - 108519
+ - 99758
+pr: 116861
+summary: Make `EvaluatorMapper.fold()` throw `VerificationException` for folding time
+  errors Option#1
+type: enhancement

@@ -463,6 +463,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.esql.plan.QuerySettingsTests
+  issue: https://github.com/elastic/elasticsearch/issues/146570
 
 # Examples:
 #

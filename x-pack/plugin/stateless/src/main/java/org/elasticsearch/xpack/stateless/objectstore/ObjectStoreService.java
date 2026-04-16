@@ -910,6 +910,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         );
     }
 
+    public Iterator<StatelessCompoundCommit> readBatchedCompoundCommitFromStoreIncrementally(
+        ShardId shardId,
+        PrimaryTermAndGeneration bccPrimaryTermAndGeneration,
+        BlobMetadata blobMetadata
+    ) {
+        final BlobContainer blobContainer = getProjectBlobContainer(shardId, bccPrimaryTermAndGeneration.primaryTerm());
+        return BatchedCompoundCommit.readFromStoreIncrementally(
+            blobMetadata.name(),
+            blobMetadata.length(),
+            // The following issues a new call to blobstore for each CC as suggested by the BlobReader interface.
+            (name, offset, length) -> new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, name, offset, length)),
+            true
+        );
+    }
+
     private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)
         throws IOException {
         return shardContainer.children(OperationPurpose.INDICES).entrySet().stream().filter(e -> {

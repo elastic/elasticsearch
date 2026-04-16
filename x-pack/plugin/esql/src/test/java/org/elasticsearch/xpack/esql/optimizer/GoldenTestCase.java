@@ -915,7 +915,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         );
     }
 
-    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are type defs when you need them! */
+    /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are typedefs when you need them! */
     private static Map<String, Map<String, EsField>> getSubNameToIndexToSubField(Map<String, EsField> fieldByIndex) {
         Map<String, Map<String, EsField>> result = new HashMap<>();
         for (var entry : fieldByIndex.entrySet()) {
@@ -927,7 +927,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         return result;
     }
 
-    /** Returns {@code Map<FieldName, Set<IndexName>>}; where are type defs when you need them! */
+    /** Returns {@code Map<FieldName, Set<IndexName>>}; where are typedefs when you need them! */
     private static Map<String, Set<String>> getFieldToUnmappedIndices(
         String parentName,
         Set<String> parentIndices,
@@ -958,7 +958,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         );
     }
 
-    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are type defs when you need them! */
+    /** Returns {@code Map<TypeName, Set<IndexName>>}; where are typedefs when you need them! */
     private static Map<String, Set<String>> getTypesToIndices(Map<String, EsField> fieldByIndex) {
         var result = new HashMap<String, Set<String>>();
         for (var entry : fieldByIndex.entrySet()) {

@@ -634,6 +634,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """);
+    }
+
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
@@ -645,6 +653,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
             """);
     }

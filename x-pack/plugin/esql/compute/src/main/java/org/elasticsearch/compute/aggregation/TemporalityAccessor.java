@@ -15,6 +15,11 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.function.Function;
 
+/**
+ * Helper class for efficiently resolving metric temporality (CUMULATIVE or DELTA) from a {@link BytesRefBlock}.
+ * Optimizes for common access patterns by detecting constant blocks, ordinal-based blocks, or falling back
+ * to dynamic per-position lookups.
+ */
 public class TemporalityAccessor {
 
     // Visible for testing
@@ -24,7 +29,7 @@ public class TemporalityAccessor {
         DYNAMIC
     }
 
-    // Vis
+    // Visible for testing
     final Mode mode;
     /**
      * For {@code mode == CONSTANT} this stores the constant temporality, which will be returned by {@link #get(int)}.
@@ -39,10 +44,20 @@ public class TemporalityAccessor {
     private int cachedDeltaOrdinal = -1;
     private int cachedCumulativeOrdinal = -1;
 
+    /**
+     * Creates an accessor that always returns the given constant temporality.
+     */
     public static TemporalityAccessor constant(Temporality constantTemporality) {
         return new TemporalityAccessor(Mode.CONSTANT, constantTemporality, null, null, null);
     }
 
+    /**
+     * Creates an accessor for the given temporality block, automatically selecting the most efficient access mode.
+     *
+     * @param temporalityBlock the block containing temporality values as BytesRef strings ("cumulative" or "delta")
+     * @param defaultTemporality the temporality to use for null values
+     * @param invalidTemporalityHandler called when an unrecognized temporality value is encountered
+     */
     public static TemporalityAccessor create(
         BytesRefBlock temporalityBlock,
         Temporality defaultTemporality,
@@ -90,6 +105,9 @@ public class TemporalityAccessor {
         this.invalidTemporalityHandler = invalidTemporalityHandler;
     }
 
+    /**
+     * Returns the temporality for the given position.
+     */
     public Temporality get(int position) {
         return switch (mode) {
             case CONSTANT -> constantOrDefaultTemporality;

@@ -74,6 +74,9 @@ import static org.mockito.Mockito.when;
 
 public class HttpRequestSenderTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "id";
+    private static final TimeValue ONE_NANOSECOND = TimeValue.timeValueNanos(1);
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -365,7 +368,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(
-                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
                 new EmbeddingsInput(List.of(), null),
                 TimeValue.timeValueNanos(1),
                 listener
@@ -373,7 +376,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
+            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }
@@ -392,7 +395,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(
-                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
                 new EmbeddingsInput(List.of(), null),
                 TimeValue.timeValueNanos(1),
                 listener
@@ -400,7 +403,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
+            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }
@@ -417,10 +420,12 @@ public class HttpRequestSenderTests extends ESTestCase {
         try (var sender = senderFactory.createSender()) {
             sender.startSynchronously();
 
+            var request = mock(Request.class);
+            when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(
                 mock(Logger.class),
-                mock(Request.class),
+                request,
                 mock(ResponseHandler.class),
                 TimeValue.timeValueNanos(1),
                 listener
@@ -428,7 +433,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
+            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID)));
             assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
         }
     }

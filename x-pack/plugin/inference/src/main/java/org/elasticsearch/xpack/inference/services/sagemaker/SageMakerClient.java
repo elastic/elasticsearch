@@ -71,6 +71,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<InvokeEndpointResponse> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -95,7 +96,12 @@ public class SageMakerClient implements Closeable {
             ignored -> {
                 FutureUtils.cancel(awsFuture);
                 contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
+                    new ElasticsearchStatusException(
+                        "Request timed out after [{}] for inference id [{}]",
+                        RestStatus.GATEWAY_TIMEOUT,
+                        timeout,
+                        inferenceId
+                    )
                 );
             }
         );
@@ -130,6 +136,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointWithResponseStreamRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<SageMakerStream> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -155,7 +162,12 @@ public class SageMakerClient implements Closeable {
             ignored -> {
                 FutureUtils.cancel(cancelAwsRequestListener.get());
                 contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
+                    new ElasticsearchStatusException(
+                        "Request timed out after [{}] for inference id [{}]",
+                        RestStatus.GATEWAY_TIMEOUT,
+                        timeout,
+                        inferenceId
+                    )
                 );
             }
         );

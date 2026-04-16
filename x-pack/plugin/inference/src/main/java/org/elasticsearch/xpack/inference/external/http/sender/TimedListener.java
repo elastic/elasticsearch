@@ -32,14 +32,15 @@ public class TimedListener<Response> {
     private final ActionListener<Response> listenerWithTimeout;
     private final AtomicBoolean completed = new AtomicBoolean();
 
-    public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool) {
-        listenerWithTimeout = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+    public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool, String inferenceId) {
+        listenerWithTimeout = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool), inferenceId);
     }
 
     private ActionListener<Response> getListener(
         ActionListener<Response> origListener,
         @Nullable TimeValue timeout,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        String inferenceId
     ) {
         ActionListener<Response> notificationListener = ActionListener.wrap(result -> {
             completed.set(true);
@@ -59,7 +60,10 @@ public class TimedListener<Response> {
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
             (ignored) -> notificationListener.onFailure(
-                new ElasticsearchStatusException(Strings.format("Request timed out after [%s]", timeout), RestStatus.GATEWAY_TIMEOUT)
+                new ElasticsearchStatusException(
+                    Strings.format("Request timed out after [%s] for inference id [%s]", timeout, inferenceId),
+                    RestStatus.GATEWAY_TIMEOUT
+                )
             )
         );
     }

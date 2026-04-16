@@ -184,6 +184,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                     regionAndSecrets,
                     request,
                     timeout,
+                    model.getInferenceEntityId(),
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.streamResponse(sageMakerModel, response)),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -196,6 +197,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                     regionAndSecrets,
                     request,
                     timeout,
+                    model.getInferenceEntityId(),
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -253,6 +255,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                 regionAndSecrets,
                 sagemakerRequest,
                 timeout != null ? timeout : DEFAULT_TIMEOUT,
+                model.getInferenceEntityId(),
                 ActionListener.wrap(
                     response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),
                     e -> listener.onFailure(schema.chatCompletionError(sageMakerModel, e))

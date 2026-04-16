@@ -97,7 +97,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
-            new IndexBoosts(Map.of("foo", 2.0f), Map.of(), Map.of()),
+            new IndexBoosts(Map.of("foo", 2.0f)),
             null,
             request,
             listener,

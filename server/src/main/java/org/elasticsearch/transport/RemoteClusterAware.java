@@ -33,12 +33,6 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
-    /**
-     * Reserved "cluster" prefix in index expressions (for example in {@code indices_boost}) meaning indices on the cluster
-     * that received the user's search request.
-     */
-    public static final String CCS_ORIGIN_CLUSTER_ALIAS = "_origin";
-
     protected final Settings settings;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;

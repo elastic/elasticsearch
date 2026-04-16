@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
 
@@ -34,8 +33,8 @@ import static org.junit.Assert.fail;
 
 /**
  * End-to-end {@code indices_boost} checks for cross-cluster search with {@code ccs_minimize_roundtrips=true}.
- * Each cluster resolves boosts on its own leg (via {@link SearchRequest#subSearchRequest}), so local and remote
- * indices can be boosted independently, including {@link RemoteClusterAware#CCS_ORIGIN_CLUSTER_ALIAS} qualified
+ * Each cluster resolves boosts on its own leg (via subrequest), so local and remote
+ * indices can be boosted independently, including _origin: qualified
  * entries on the querying cluster. The {@code ccs_minimize_roundtrips=false} path is not covered here; it does
  * not apply remote-targeted boosts correctly from the coordinating node.
  */
@@ -165,11 +164,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Remote-only: search executes on the remote cluster; compare baseline score to boosted score.
      */
-    public void testRemoteOnlySearchAppliesUnqualifiedIndicesBoost() throws Exception {
+    public void testRemoteOnly_Unqualified() throws Exception {
         setupRemoteOnlyIndex();
         SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(true);
+        baseline.setCcsMinimizeRoundtrips(randomBoolean());
         baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
@@ -192,11 +191,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Remote-only: mismatched qualified boost entries are ignored on the remote leg.
      */
-    public void testRemoteOnlySearchIgnoresMismatchedQualifiedBoost() throws Exception {
+    public void testRemoteOnly_MissingQualified() throws Exception {
         setupRemoteOnlyIndex();
         SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(true);
+        baseline.setCcsMinimizeRoundtrips(randomBoolean());
         baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
@@ -223,11 +222,11 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Remote-only: {@code _origin:index} does not match the remote cluster alias, so it is ignored on the remote leg.
      */
-    public void testRemoteOnlySearchIgnoresOriginQualifiedBoost() throws Exception {
+    public void testRemoteOnly_IgnoresOrigin() throws Exception {
         setupRemoteOnlyIndex();
         SearchRequest baseline = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         baseline.allowPartialSearchResults(false);
-        baseline.setCcsMinimizeRoundtrips(true);
+        baseline.setCcsMinimizeRoundtrips(randomBoolean());
         baseline.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1).trackScores(true));
         final float[] baseScoreHolder = new float[1];
         assertResponse(client(LOCAL_CLUSTER).search(baseline), r -> {
@@ -237,12 +236,12 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
 
         SearchRequest boosted = new SearchRequest(REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         boosted.allowPartialSearchResults(false);
-        boosted.setCcsMinimizeRoundtrips(true);
+        boosted.setCcsMinimizeRoundtrips(randomBoolean());
         boosted.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(1)
                 .trackScores(true)
-                .indexBoost(RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS + ":" + REMOTE_ONLY, 900.0f)
+                .indexBoost("_origin:" + REMOTE_ONLY, 900.0f)
                 .indexBoost(REMOTE_ONLY, 8.0f)
         );
         assertResponse(client(LOCAL_CLUSTER).search(boosted), response -> {
@@ -254,13 +253,13 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Local + remote: {@code cluster:remote_index} boost applies on the remote leg; unqualified local boost on the local leg.
      */
-    public void testMinimizeRoundTrips_localAndRemote_qualifiedRemoteBoostRaisesRemoteScores() throws Exception {
+    public void testLocalAndRemote_qualifiedRemoteBoostRaisesRemoteScores() throws Exception {
         setupDistinctIndices();
         final float localBoost = 1.0f;
         final float remoteBoost = 34.0f;
         SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
@@ -275,31 +274,31 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Local + remote: {@code _origin:local_index} is resolved on the local CCS leg the same way as an unqualified local index.
      */
-    public void testMinimizeRoundTrips_localAndRemote_originSyntaxBoostsLocalIndex() throws Exception {
+    public void testLocalAndRemote_originSyntaxBoostsLocalIndex() throws Exception {
         setupDistinctIndices();
         final float localBoost = 30.0f;
         final float remoteBoost = 1.0f;
         SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
                 .trackScores(true)
                 .sort("_score", SortOrder.DESC)
-                .indexBoost(RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS + ":" + LOCAL_ONLY, localBoost)
+                .indexBoost("_origin:" + LOCAL_ONLY, localBoost)
                 .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
     }
 
-    public void testMinimizeRoundTrips_localAndRemote_unqualifiedLocalBoostRaisesLocalScores() throws Exception {
+    public void testLocalAndRemote_unqualifiedLocalBoostRaisesLocalScores() throws Exception {
         setupDistinctIndices();
         final float localBoost = 30.0f;
         final float remoteBoost = 1.0f;
         SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
@@ -314,13 +313,13 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Local + remote: only the boost qualified for this cluster's alias should affect the remote index score.
      */
-    public void testMinimizeRoundTrips_localAndRemote_ignoresDecoyQualifiedBoostOnRemoteLeg() throws Exception {
+    public void testLocalAndRemote_MissingQualifiedBoostOnRemoteLeg() throws Exception {
         setupDistinctIndices();
         final float localBoost = 1.0f;
         final float remoteBoost = 7.0f;
         SearchRequest request = new SearchRequest(LOCAL_ONLY, REMOTE_CLUSTER + ":" + REMOTE_ONLY);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
@@ -328,6 +327,7 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
                 .sort("_score", SortOrder.DESC)
                 .indexBoost(LOCAL_ONLY, localBoost)
                 .indexBoost("cluster_z:" + REMOTE_ONLY, 800.0f)
+                .indexBoost(REMOTE_CLUSTER + ":missing", 800.0f)
                 .indexBoost(REMOTE_CLUSTER + ":" + REMOTE_ONLY, remoteBoost)
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> assertLocalRemoteScores(response, localBoost, remoteBoost));
@@ -336,12 +336,12 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
     /**
      * Same index name on both clusters: unqualified boost applies on each leg, so scores match after merging.
      */
-    public void testMinimizeRoundTrips_sharedIndexName_unqualifiedBoostEqualScores() throws Exception {
+    public void testSharedIndexName_UnqualifiedBoostEqualScores() throws Exception {
         setupSharedNameIndices();
         final float boost = 13.0f;
         SearchRequest request = new SearchRequest(SHARED_NAME, REMOTE_CLUSTER + ":" + SHARED_NAME);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
@@ -376,18 +376,18 @@ public class CrossClusterSearchIndexBoostIT extends AbstractCrossClusterSearchTe
      * Same index name on both clusters: {@code _origin:} on the local leg and {@code cluster:} on the remote leg yield the same
      * effective boost on each side after merge.
      */
-    public void testMinimizeRoundTrips_sharedIndexName_originAndQualifiedRemoteBoostEqualScores() throws Exception {
+    public void testSharedIndexName_OriginAndQualifiedRemoteBoostEqualScores() throws Exception {
         setupSharedNameIndices();
         final float boost = 11.0f;
         SearchRequest request = new SearchRequest(SHARED_NAME, REMOTE_CLUSTER + ":" + SHARED_NAME);
         request.allowPartialSearchResults(false);
-        request.setCcsMinimizeRoundtrips(true);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.source(
             new SearchSourceBuilder().query(new MatchAllQueryBuilder())
                 .size(10)
                 .trackScores(true)
                 .sort("_score", SortOrder.DESC)
-                .indexBoost(RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS + ":" + SHARED_NAME, boost)
+                .indexBoost("_origin:" + SHARED_NAME, boost)
                 .indexBoost(REMOTE_CLUSTER + ":" + SHARED_NAME, boost)
         );
         assertResponse(client(LOCAL_CLUSTER).search(request), response -> {

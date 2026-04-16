@@ -308,7 +308,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
-    private IndexBoosts resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState, boolean keepRemotes) {
+    private IndexBoosts resolveIndexBoosts(
+        SearchRequest searchRequest,
+        ClusterState clusterState,
+        List<SearchShardIterator> remoteShardIterators
+    ) {
         if (searchRequest.source() == null) {
             return IndexBoosts.EMPTY;
         }
@@ -318,32 +322,53 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return IndexBoosts.EMPTY;
         }
 
+        final Map<String, Map<String, String>> remoteIndices;
+        if (remoteShardIterators.isEmpty()) {
+            remoteIndices = Collections.emptyMap();
+        } else {
+            remoteIndices = new HashMap<>();
+            for (SearchShardIterator remoteShardIterator : remoteShardIterators) {
+                var idx = remoteShardIterator.shardId().getIndex();
+                remoteIndices.computeIfAbsent(idx.getName(), a -> new HashMap<>())
+                    .put(remoteShardIterator.getClusterAlias(), idx.getUUID());
+            }
+        }
+
         String clusterAlias = searchRequest.getLocalClusterAlias();
         if (Strings.isNullOrEmpty(clusterAlias)) {
-            clusterAlias = RemoteClusterAware.CCS_ORIGIN_CLUSTER_ALIAS;
+            clusterAlias = ProjectRoutingResolver.ORIGIN;
         } else {
-            // No need to keep remotes if we're already on remote cluster
-            keepRemotes = false;
+            // We can't resolve remotes on remote cluster
+            assert remoteShardIterators.isEmpty() : "Unexpected: trying to resolve remote indices on remote cluster [" + clusterAlias + "]";
         }
         Map<String, Float> concreteIndexBoosts = new HashMap<>();
-        Map<String, Float> universalIndexBoosts = keepRemotes ? new HashMap<>() : Map.of();
-        Map<String, Map<String, Float>> remoteIndexBoosts = keepRemotes ? new HashMap<>() : Map.of();
         for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
             final String indexExpression;
             String[] split = RemoteClusterAware.splitIndexName(ib.getIndex());
             if (split[0] != null) {
-                // Have qualified index name
-                if (split[0].equals(clusterAlias)) {
-                    indexExpression = split[1];
-                } else {
-                    if (keepRemotes) {
-                        remoteIndexBoosts.computeIfAbsent(split[0], k -> new HashMap<>()).put(split[1], ib.getBoost());
+                // We have the qualified index name. For _origin we still go to the local branch, otherwise we look up for the remote index.
+                if (remoteIndices.isEmpty() == false && split[0].equals(ProjectRoutingResolver.ORIGIN) == false) {
+                    var rmap = remoteIndices.get(split[1]);
+                    if (rmap == null || rmap.containsKey(split[0]) == false) {
+                        // For now, we're just ignoring boosts that do not match anything.
+                        continue;
                     }
+                    concreteIndexBoosts.putIfAbsent(rmap.get(split[0]), ib.getBoost());
                     continue;
+                } else {
+                    if (split[0].equals(clusterAlias)) {
+                        indexExpression = split[1];
+                    } else {
+                        continue;
+                    }
                 }
             } else {
-                if (keepRemotes) {
-                    universalIndexBoosts.putIfAbsent(split[1], ib.getBoost());
+                // unqualified index
+                if (remoteIndices.isEmpty() == false) {
+                    // Add UUIDs from remote iterators with this index name directly
+                    remoteIndices.getOrDefault(split[1], Collections.emptyMap()).forEach((index, uuid) -> {
+                        concreteIndexBoosts.putIfAbsent(uuid, ib.getBoost());
+                    });
                 }
                 indexExpression = split[1];
             }
@@ -357,11 +382,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());
             }
         }
-        return new IndexBoosts(
-            concreteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(concreteIndexBoosts),
-            universalIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(universalIndexBoosts),
-            remoteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(remoteIndexBoosts)
-        );
+        return new IndexBoosts(concreteIndexBoosts.isEmpty() ? Map.of() : Collections.unmodifiableMap(concreteIndexBoosts));
     }
 
     /**
@@ -1904,7 +1925,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // Fan-out CCS (ccs_minimize_roundtrips=false): the merged search runs on the querying cluster with no
         // SearchRequest#localClusterAlias, so resolveIndexBoosts only maps local index UUIDs. Remote shard scores do not
         // receive cluster-qualified indices_boost entries from the coordinator; use ccs_minimize_roundtrips=true instead.
-        IndexBoosts indexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), remoteShardIterators.isEmpty() == false);
+        IndexBoosts indexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), remoteShardIterators);
 
         adjustSearchType(searchRequest, shardIterators.size() == 1);
 

@@ -73,8 +73,8 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     private final boolean secret;
 
     public DataSourceSetting(Object value, boolean secret) {
-        // Null check before the instanceof: null values are allowed for secret settings (explicit "no value"),
-        // and `null instanceof String` would throw NPE if the null-check were skipped.
+        // `value != null` is required: null values are allowed for secret settings (explicit "no value"), and without
+        // the null check `null instanceof String == false` evaluates to true, which would incorrectly reject nulls.
         if (secret && value != null && value instanceof String == false) {
             throw new IllegalArgumentException(
                 "secret data source settings must be String-valued; got [" + value.getClass().getName() + "]"

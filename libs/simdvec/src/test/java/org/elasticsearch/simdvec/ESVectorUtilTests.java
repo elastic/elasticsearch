@@ -844,7 +844,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
         defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
-        ;
 
         assertArrayEquals(y1, y2, 0);
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -29,9 +30,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -517,6 +523,49 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(1000L, ((LongBlock) page.getBlock(0)).getLong(0));
     }
 
+    // --- filter tests ---
+
+    public void testCountPushedThroughOrFilterAllResolve() {
+        Map<String, Object> split1 = splitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Map<String, Object> split2 = splitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Expression filterCondition = new Or(
+            Source.EMPTY,
+            new GreaterThan(Source.EMPTY, ageRef, new Literal(Source.EMPTY, 20L, DataType.LONG), null),
+            new LessThanOrEqual(Source.EMPTY, ageRef, new Literal(Source.EMPTY, 90L, DataType.LONG), null)
+        );
+        FilterExec filter = new FilterExec(Source.EMPTY, ext, filterCondition);
+        AggregateExec agg = aggregateExec(filter, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(1000L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    public void testCountPushedThroughNotFilter() {
+        Map<String, Object> split1 = splitStatsWithMinMax("age", 30L, 50L, 500L, 0L);
+        Map<String, Object> split2 = splitStatsWithMinMax("age", 60L, 80L, 500L, 0L);
+        ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Expression filterCondition = new Not(
+            Source.EMPTY,
+            new GreaterThan(Source.EMPTY, ageRef, new Literal(Source.EMPTY, 20L, DataType.LONG), null)
+        );
+        FilterExec filter = new FilterExec(Source.EMPTY, ext, filterCondition);
+        AggregateExec agg = aggregateExec(filter, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(0L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -583,6 +632,13 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     private static Alias countFieldAlias(ReferenceAttribute field) {
         return new Alias(Source.EMPTY, "c", new Count(Source.EMPTY, field));
+    }
+
+    private static Map<String, Object> splitStatsWithMinMax(String colName, Object min, Object max, long rowCount, long nullCount) {
+        Map<String, Object> metadata = statsMetadata(rowCount, colName, nullCount, null);
+        metadata.put("_stats.columns." + colName + ".min", min);
+        metadata.put("_stats.columns." + colName + ".max", max);
+        return metadata;
     }
 
     private static Map<String, Object> statsMetadata(Long rowCount, String colName, Long nullCount, Long sizeBytes) {

@@ -15,7 +15,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
-import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -47,15 +46,15 @@ public class DefaultLocalClusterHandleTests {
     }
 
     @Test
-    public void testCheckNodesAliveSkipsWhenNodeDead() throws Exception {
+    public void testCheckNodesAliveThrowsWhenNodeDead() throws Exception {
         DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", false)));
         setStarted(handle, true);
-        AssumptionViolatedException ex = assertThrows(AssumptionViolatedException.class, handle::checkNodesAlive);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, handle::checkNodesAlive);
         assertThat(ex.getMessage(), containsString("Elasticsearch cluster"));
     }
 
     @Test
-    public void testCheckNodesAliveSkipsWhenNodeDiesDuringHealthCheck() throws Exception {
+    public void testCheckNodesAliveThrowsWhenNodeDiesDuringHealthCheck() throws Exception {
         DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
             private boolean first = true;
 
@@ -79,7 +78,7 @@ public class DefaultLocalClusterHandleTests {
             }
         };
         setStarted(handle, true);
-        AssumptionViolatedException ex = assertThrows(AssumptionViolatedException.class, handle::checkNodesAlive);
+        IllegalStateException ex = assertThrows(IllegalStateException.class, handle::checkNodesAlive);
         assertThat(ex.getMessage(), containsString("Elasticsearch cluster"));
     }
 

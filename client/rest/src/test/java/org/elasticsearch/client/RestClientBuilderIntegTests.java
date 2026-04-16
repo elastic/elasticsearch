@@ -35,10 +35,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.AccessController;
 import java.security.KeyFactory;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -190,7 +188,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
     private static String getProtocol() {
-        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.version"));
+        String version = System.getProperty("java.version");
         String[] parts = version.split("-");
         String[] numericComponents;
         if (parts.length == 1) {

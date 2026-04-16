@@ -523,12 +523,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         });
     }
 
-    public void testNonCpsDatafeedHasNoCrossProjectStats() throws Exception {
-        String jobId = "no-cps-stats-job";
+    public void testNonCcsDatafeedHasNoCrossClusterStats() throws Exception {
+        String jobId = "no-ccs-stats-job";
         String datafeedId = jobId + "-datafeed";
         startRealtime(jobId);
 
-        // While the datafeed is running, remote_cluster_stats should be null for a non-CPS datafeed
+        // While the datafeed is running, remote_cluster_stats should be null for a non-CCS datafeed
         assertBusy(() -> {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
@@ -551,22 +551,22 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         });
     }
 
-    public void testLookbackOnlyHasNoCrossProjectStats() throws Exception {
-        client().admin().indices().prepareCreate("cps-check-data").setMapping("time", "type=date").get();
+    public void testLookbackOnlyHasNoCrossClusterStats() throws Exception {
+        client().admin().indices().prepareCreate("ccs-check-data").setMapping("time", "type=date").get();
         long numDocs = randomIntBetween(32, 512);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
-        indexDocs(logger, "cps-check-data", numDocs, oneWeekAgo, now);
+        indexDocs(logger, "ccs-check-data", numDocs, oneWeekAgo, now);
 
-        Job.Builder job = createScheduledJob("cps-lookback-job");
+        Job.Builder job = createScheduledJob("ccs-lookback-job");
         putJob(job);
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
         DatafeedConfig datafeedConfig = createDatafeed(
-            "cps-lookback-job-datafeed",
+            "ccs-lookback-job-datafeed",
             job.getId(),
-            Collections.singletonList("cps-check-data")
+            Collections.singletonList("ccs-check-data")
         );
         putDatafeed(datafeedConfig);
 

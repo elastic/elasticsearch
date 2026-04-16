@@ -1548,8 +1548,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
     }
 
-    public void testNonCpsDatafeedStatsOmitsCrossProjectStats() throws Exception {
-        String jobId = "job-no-cps-stats";
+    public void testNonCcsDatafeedStatsOmitsCrossClusterStats() throws Exception {
+        String jobId = "job-no-ccs-stats";
         createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
@@ -1569,7 +1569,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 String body = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(body, containsString("\"real_time_configured\":true"));
                 assertThat(body, containsString("\"running_state\""));
-                assertFalse("remote_cluster_stats should not appear for non-CPS datafeed", body.contains("remote_cluster_stats"));
+                assertFalse("remote_cluster_stats should not appear for non-CCS datafeed", body.contains("remote_cluster_stats"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1586,7 +1586,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         );
         String stoppedBody = EntityUtils.toString(stoppedStatsResponse.getEntity());
         assertThat(stoppedBody, containsString("\"state\":\"stopped\""));
-        assertFalse("remote_cluster_stats should not appear for stopped non-CPS datafeed", stoppedBody.contains("remote_cluster_stats"));
+        assertFalse("remote_cluster_stats should not appear for stopped non-CCS datafeed", stoppedBody.contains("remote_cluster_stats"));
 
         client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
     }

@@ -4,7 +4,7 @@ import {
   classifyChangedFiles,
   collapseYamlSuites,
   deduplicateYamlRunners,
-  generateBatchStep,
+  generateBatchCommand,
   generatePipeline,
   toGradleProject,
   toFqcn,
@@ -305,46 +305,37 @@ describe("deduplicateYamlRunners", () => {
   });
 });
 
-describe("generateBatchStep", () => {
-  test("single unit test", () => {
+describe("generateBatchCommand", () => {
+  test("unit test", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe(":server:test - IndexTests (x100)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
     );
   });
 
-  test("batch of unit tests across projects", () => {
+  test("unit tests across projects", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.FooTests" },
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe("test - 2 tests (x100)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
     );
   });
 
-  test("batch deduplicates projects", () => {
+  test("deduplicates projects", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe("test - 2 tests (x100)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
     );
   });
 
-  test("single internal cluster test", () => {
+  test("internal cluster test", () => {
     const batch: ClassifiedTest[] = [
       {
         gradleProject: ":server",
@@ -353,15 +344,12 @@ describe("generateBatchStep", () => {
         fqcn: "org.elasticsearch.cluster.ClusterIT",
       },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe(":server:internalClusterTest - ClusterIT (x20)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=20 :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
 
-  test("single Java REST test", () => {
+  test("java REST test", () => {
     const batch: ClassifiedTest[] = [
       {
         gradleProject: ":modules:transport-netty4",
@@ -370,40 +358,31 @@ describe("generateBatchStep", () => {
         fqcn: "org.elasticsearch.rest.RestIT",
       },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe(":modules:transport-netty4:javaRestTest - RestIT (x10)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun"
     );
   });
 
-  test("batch of Java REST tests", () => {
+  test("java REST tests across projects", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":mod:a", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.FooIT" },
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe("javaRestTest - 2 tests (x10)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest :mod:b:javaRestTest --tests org.es.FooIT --tests org.es.BarIT --rerun"
     );
   });
 
-  test("single YAML REST test runner", () => {
+  test("YAML REST test runner", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe(":x-pack:plugin:ml:yamlRestTest (x10)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun"
     );
   });
 
-  test("single YAML REST test suite", () => {
+  test("YAML REST test suite", () => {
     const batch: ClassifiedTest[] = [
       {
         gradleProject: ":x-pack:plugin:ml",
@@ -412,15 +391,12 @@ describe("generateBatchStep", () => {
         suitePath: "ml/anomaly_detectors_get",
       },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe(":x-pack:plugin:ml:yamlRestTest - ml/anomaly_detectors_get (x10)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/anomaly_detectors_get --rerun"
     );
   });
 
-  test("batch of YAML REST test suites", () => {
+  test("YAML REST test suites batched", () => {
     const batch: ClassifiedTest[] = [
       {
         gradleProject: ":x-pack:plugin:ml",
@@ -435,54 +411,30 @@ describe("generateBatchStep", () => {
         suitePath: "ml/test2",
       },
     ];
-
-    const { label, command } = generateBatchStep(batch);
-    expect(label).toBe("yamlRestTest - 2 suites (x10)");
-    expect(command).toBe(
+    expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/test1,ml/test2 --rerun"
     );
   });
 });
 
 describe("generatePipeline", () => {
-  test("generates correct pipeline for a single unit test", () => {
+  test("single batch uses type label without number", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("Unit Tests (tests.iters=100)");
-    expect(pipeline.steps[0].steps).toHaveLength(1);
+    expect(pipeline.steps[0].group).toBe("repeat-new-tests");
 
     const step = pipeline.steps[0].steps[0];
-    expect(step.label).toBe(":server:test - IndexTests (x100)");
-    expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.index.IndexTests"
-    );
+    expect(step.label).toBe("unit tests");
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
   });
 
-  test("batches multiple unit tests into one step", () => {
-    const tests: ClassifiedTest[] = [
-      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.SomeTests" },
-      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.OtherTests" },
-    ];
-
-    const pipeline = generatePipeline(tests);
-    expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].steps).toHaveLength(1);
-
-    const step = pipeline.steps[0].steps[0];
-    expect(step.label).toBe("test - 2 tests (x100)");
-    expect(step.command).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 :server:test --tests org.elasticsearch.SomeTests --tests org.elasticsearch.OtherTests"
-    );
-  });
-
-  test("splits batches that exceed cap", () => {
+  test("multiple batches get numbered", () => {
     const tests: ClassifiedTest[] = [];
     for (let i = 0; i < 5; i++) {
       tests.push({
@@ -494,18 +446,16 @@ describe("generatePipeline", () => {
     }
 
     const pipeline = generatePipeline(tests);
-    expect(pipeline.steps).toHaveLength(1);
     const group = pipeline.steps[0];
-    expect(group.group).toBe("Java REST Tests (x10)");
+    expect(group.group).toBe("repeat-new-tests");
     expect(group.steps).toHaveLength(2);
-    expect(group.steps[0].label).toBe("javaRestTest - 4 tests (x10)");
-    expect(group.steps[1].label).toBe(":mod:4:javaRestTest - Rest4IT (x10)");
+    expect(group.steps[0].label).toBe("java rest tests (1)");
+    expect(group.steps[1].label).toBe("java rest tests (2)");
   });
 
-  test("groups tests by source set type with batching", () => {
+  test("all test kinds appear in single group", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.SomeTests" },
-      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.OtherTests" },
       {
         gradleProject: ":server",
         kind: "internalClusterTest",
@@ -515,14 +465,14 @@ describe("generatePipeline", () => {
     ];
 
     const pipeline = generatePipeline(tests);
-    expect(pipeline.steps).toHaveLength(2);
-    expect(pipeline.steps[0].group).toBe("Unit Tests (tests.iters=100)");
-    expect(pipeline.steps[0].steps).toHaveLength(1);
-    expect(pipeline.steps[1].group).toBe("Internal Cluster Tests (tests.iters=20)");
-    expect(pipeline.steps[1].steps).toHaveLength(1);
+    expect(pipeline.steps).toHaveLength(1);
+    expect(pipeline.steps[0].group).toBe("repeat-new-tests");
+    expect(pipeline.steps[0].steps).toHaveLength(2);
+    expect(pipeline.steps[0].steps[0].label).toBe("unit tests");
+    expect(pipeline.steps[0].steps[1].label).toBe("integ tests");
   });
 
-  test("combines YAML REST runners and suites in same group", () => {
+  test("yaml runners and suites get separate labels", () => {
     const tests: ClassifiedTest[] = [
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
       {
@@ -535,12 +485,15 @@ describe("generatePipeline", () => {
 
     const pipeline = generatePipeline(tests);
     expect(pipeline.steps).toHaveLength(1);
-    expect(pipeline.steps[0].group).toBe("YAML REST Tests (x10)");
     expect(pipeline.steps[0].steps).toHaveLength(2);
+    expect(pipeline.steps[0].steps[0].label).toBe("yaml rest test runner");
+    expect(pipeline.steps[0].steps[1].label).toBe("yaml rest tests");
   });
 
-  test("returns empty steps for empty input", () => {
+  test("returns empty group for empty input", () => {
     const pipeline = generatePipeline([]);
-    expect(pipeline.steps).toEqual([]);
+    expect(pipeline.steps).toHaveLength(1);
+    expect(pipeline.steps[0].group).toBe("repeat-new-tests");
+    expect(pipeline.steps[0].steps).toEqual([]);
   });
 });

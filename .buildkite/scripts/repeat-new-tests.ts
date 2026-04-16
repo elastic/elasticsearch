@@ -57,13 +57,8 @@ interface PipelineStep {
   agents: typeof AGENTS;
 }
 
-interface PipelineGroup {
-  group: string;
-  steps: PipelineStep[];
-}
-
 interface Pipeline {
-  steps: PipelineGroup[];
+  steps: [{ group: string; steps: PipelineStep[] }];
 }
 
 export function toGradleProject(path: string): string {
@@ -161,73 +156,45 @@ export function deduplicateYamlRunners(tests: ClassifiedTest[]): ClassifiedTest[
   });
 }
 
-export function generateBatchStep(batch: ClassifiedTest[]): { label: string; command: string } {
+const KIND_LABELS: Record<TestKind, string> = {
+  test: "unit tests",
+  internalClusterTest: "integ tests",
+  javaRestTest: "java rest tests",
+  yamlRestTestRunner: "yaml rest test runner",
+  yamlRestTestSuite: "yaml rest tests",
+};
+
+export function generateBatchCommand(batch: ClassifiedTest[]): string {
   const kind = batch[0].kind;
-  const count = batch.length;
 
   switch (kind) {
     case "test": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return {
-        label:
-          count === 1
-            ? `${batch[0].gradleProject}:test - ${batch[0].fqcn!.split(".").pop()} (x100)`
-            : `test - ${count} tests (x100)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${projects.join(" ")} ${testFilters}`,
-      };
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 ${projects.join(" ")} ${testFilters}`;
     }
     case "internalClusterTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return {
-        label:
-          count === 1
-            ? `${batch[0].gradleProject}:internalClusterTest - ${batch[0].fqcn!.split(".").pop()} (x20)`
-            : `internalClusterTest - ${count} tests (x20)`,
-        command: `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${projects.join(" ")} ${testFilters}`,
-      };
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 ${projects.join(" ")} ${testFilters}`;
     }
     case "javaRestTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:javaRestTest`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return {
-        label:
-          count === 1
-            ? `${batch[0].gradleProject}:javaRestTest - ${batch[0].fqcn!.split(".").pop()} (x10)`
-            : `javaRestTest - ${count} tests (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`,
-      };
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`;
     }
     case "yamlRestTestRunner": {
-      return {
-        label: `${batch[0].gradleProject}:yamlRestTest (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`,
-      };
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`;
     }
     case "yamlRestTestSuite": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))];
       const suitePaths = batch.map((t) => t.suitePath).join(",");
-      return {
-        label:
-          count === 1
-            ? `${batch[0].gradleProject}:yamlRestTest - ${batch[0].suitePath} (x10)`
-            : `yamlRestTest - ${count} suites (x10)`,
-        command: `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} -Dtests.rest.suite=${suitePaths} --rerun`,
-      };
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} -Dtests.rest.suite=${suitePaths} --rerun`;
     }
   }
 }
 
 export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
-  const GROUP_NAMES: Record<TestKind, string> = {
-    test: "Unit Tests (tests.iters=100)",
-    internalClusterTest: "Internal Cluster Tests (tests.iters=20)",
-    javaRestTest: "Java REST Tests (x10)",
-    yamlRestTestRunner: "YAML REST Tests (x10)",
-    yamlRestTestSuite: "YAML REST Tests (x10)",
-  };
-
   const KIND_ORDER: TestKind[] = ["test", "internalClusterTest", "javaRestTest", "yamlRestTestRunner", "yamlRestTestSuite"];
 
   const byKind = new Map<TestKind, ClassifiedTest[]>();
@@ -238,42 +205,32 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
     byKind.get(test.kind)!.push(test);
   }
 
-  const groupOrder: string[] = [];
-  const groups = new Map<string, PipelineStep[]>();
+  const allSteps: PipelineStep[] = [];
 
   for (const kind of KIND_ORDER) {
     const kindTests = byKind.get(kind);
     if (!kindTests) continue;
 
     const cap = BATCH_CAPS[kind];
-    const groupName = GROUP_NAMES[kind];
-
-    if (!groups.has(groupName)) {
-      groups.set(groupName, []);
-      groupOrder.push(groupName);
-    }
+    const totalBatches = Math.ceil(kindTests.length / cap);
+    const typeLabel = KIND_LABELS[kind];
 
     for (let i = 0; i < kindTests.length; i += cap) {
       const batch = kindTests.slice(i, i + cap);
-      const { label, command } = generateBatchStep(batch);
-      groups.get(groupName)!.push({
+      const batchNum = Math.floor(i / cap) + 1;
+      const label = totalBatches === 1 ? typeLabel : `${typeLabel} (${batchNum})`;
+      allSteps.push({
         label,
-        command,
+        command: generateBatchCommand(batch),
         timeout_in_minutes: 60,
         agents: { ...AGENTS },
       });
     }
   }
 
-  const steps: PipelineGroup[] = [];
-  for (const groupName of groupOrder) {
-    steps.push({
-      group: groupName,
-      steps: groups.get(groupName)!,
-    });
-  }
-
-  return { steps };
+  return {
+    steps: [{ group: "repeat-new-tests", steps: allSteps }],
+  };
 }
 
 function main() {

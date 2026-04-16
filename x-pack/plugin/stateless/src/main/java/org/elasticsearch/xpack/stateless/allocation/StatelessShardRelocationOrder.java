@@ -35,18 +35,9 @@ public class StatelessShardRelocationOrder extends ShardRelocationOrder.DefaultO
      * then normal, then DS read). If disabled, a custom ordering is applied that interleaves half of the DS read shards
      * with DS write and normal index shards (with write-load spreading), keeping the other half of DS read at the end.
      */
-    // DEPRECATED, do not use
-    public static final Setting<Boolean> SERVERLESS_PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING = Setting.boolSetting(
-        "serverless.cluster.routing.allocation.prioritize_write_shard_necessary_relocations",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
-
     public static Setting<Boolean> PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING = Setting.boolSetting(
         "stateless.cluster.routing.allocation.prioritize_write_shard_necessary_relocations",
-        SERVERLESS_PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

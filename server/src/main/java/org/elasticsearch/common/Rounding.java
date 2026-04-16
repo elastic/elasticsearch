@@ -1572,6 +1572,7 @@ public abstract class Rounding implements Writeable {
             }
             case Rounding.TimeUnitRounding unit -> unit.unit.isMillisBased
                 ? Map.of("date_range", "1 " + unit.unit.shortName, "date_range_ms", unit.unit.ratio)
+                // Some intervals (such as year or month) might have various length.
                 : Map.of("date_range", "1 " + unit.unit.shortName);
             case Rounding.OffsetRounding offset -> offset.delegate.getMetadata();
             default -> throw new RuntimeException("Unexpected Rounding implementation: " + getClass().getName());

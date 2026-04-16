@@ -457,7 +457,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
         var result = versionedResult.inner();
-        var bucketColumnMetadataResolver = BucketColumnMetadata.createResolver(result.plan(), result.configuration().newFoldContext());
+        var bucketColumnMetadataResolver = result.plan() != null
+            ? BucketColumnMetadata.createResolver(result.plan(), result.configuration().newFoldContext())
+            : null;
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
@@ -473,7 +475,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             // see https://github.com/elastic/elasticsearch/issues/138223
             Map<String, Object> columnMetadata = new LinkedHashMap<>();
             ApproximationPlan.addColumnMetadata(c, columnMetadata);
-            bucketColumnMetadataResolver.add(c.id(), columnMetadata);
+            if (bucketColumnMetadataResolver != null) {
+                bucketColumnMetadataResolver.add(c.id(), columnMetadata);
+            }
             return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata.isEmpty() ? null : columnMetadata);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled

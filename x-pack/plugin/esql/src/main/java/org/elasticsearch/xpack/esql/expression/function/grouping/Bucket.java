@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -420,7 +421,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     private double getNumberRoundTo(FoldContext foldContext) {
-        if (from != null && to != null) {
+        if (from != null) {
+            assert to != null : "Both from and to must be set";
             int b = ((Number) buckets.fold(foldContext)).intValue();
             double f = ((Number) from.fold(foldContext)).doubleValue();
             double t = ((Number) to.fold(foldContext)).doubleValue();
@@ -595,14 +597,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
-        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding rounding = getDateRounding(foldContext).getUnprepared();
-            return Map.of("bucket", rounding.getMetadata());
+        try {
+            if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+                Rounding rounding = getDateRounding(foldContext).getUnprepared();
+                return Map.of("bucket", rounding.getMetadata());
+            }
+            if (field.dataType().isNumeric()) {
+                double roundTo = getNumberRoundTo(foldContext);
+                return Map.of("bucket", Map.of("numeric_range", roundTo));
+            }
+            return null;
+        } catch (QlIllegalArgumentException e) {
+            return null;
         }
-        if (field.dataType().isNumeric()) {
-            double roundTo = getNumberRoundTo(foldContext);
-            return Map.of("bucket", Map.of("numeric_range", roundTo));
-        }
-        return null;
     }
 }

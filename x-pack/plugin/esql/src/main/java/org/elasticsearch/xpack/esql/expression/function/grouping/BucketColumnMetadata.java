@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -25,19 +24,23 @@ public class BucketColumnMetadata {
         Collection<Map<String, Object>> all();
     }
 
-    public static Resolver createResolver(@Nullable LogicalPlan plan, FoldContext foldContext) {
+    public static Resolver createResolver(LogicalPlan plan, FoldContext foldContext) {
         var resolved = new HashMap<NameId, Map<String, Object>>();
-        if (plan != null) {
-            plan.forEachDown(LogicalPlan.class, node -> node.forEachExpressionDown(Alias.class, alias -> {
-                if (alias.child() instanceof Bucket bucket) {
-                    resolved.put(alias.id(), bucket.getIntervalMetadata(foldContext));
+        plan.forEachExpressionDown(Alias.class, alias -> {
+            if (alias.child() instanceof Bucket bucket) {
+                Map<String, Object> intervalMetadata = bucket.getIntervalMetadata(foldContext);
+                if (intervalMetadata != null) {
+                    resolved.put(alias.id(), intervalMetadata);
                 }
-            }));
-        }
+            }
+        });
         return new Resolver() {
             @Override
             public void add(NameId id, Map<String, Object> metadata) {
-                metadata.putAll(resolved.getOrDefault(id, Map.of()));
+                Map<String, Object> intervalMetadata = resolved.get(id);
+                if (intervalMetadata != null) {
+                    metadata.putAll(intervalMetadata);
+                }
             }
 
             @Override

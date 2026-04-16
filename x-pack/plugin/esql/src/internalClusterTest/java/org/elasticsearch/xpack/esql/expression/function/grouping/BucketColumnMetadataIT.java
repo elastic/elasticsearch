@@ -157,6 +157,18 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBucketColumnMetadataWithNonFoldableRanges() {
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW number=1, date=TO_DATETIME("1985-07-09T00:00:00.000Z")
+            | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
+            | EVAL bucket_end = NOW()
+            | STATS COUNT(*) BY bucket = BUCKET(date, 5, bucket_start, bucket_end)
+            | SORT bucket
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
     private static ColumnInfoImpl findColumn(EsqlQueryResponse response, String name) {
         return response.columns().stream().filter(c -> Objects.equals(c.name(), name)).findFirst().orElseThrow();
     }

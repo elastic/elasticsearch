@@ -248,9 +248,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/400_synthetic_source/stored keyword with ignore_above}
   issue: https://github.com/elastic/elasticsearch/issues/150952
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/150955
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.partiallyPushDown_GroupingFilters_PastTwoInlineJoins2}
   issue: https://github.com/elastic/elasticsearch/issues/150956

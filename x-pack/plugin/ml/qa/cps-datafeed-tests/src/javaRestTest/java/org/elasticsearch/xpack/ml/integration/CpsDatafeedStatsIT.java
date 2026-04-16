@@ -187,11 +187,11 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
                 assertThat("no clusters should be skipped when both are up", skippedClusters, equalTo(0));
 
                 double availabilityRatio = (double) cpsStats.get("availability_ratio");
-                assertThat("all projects available → ratio should be 1.0", availabilityRatio, closeTo(1.0, 0.001));
+                assertThat("all clusters available → ratio should be 1.0", availabilityRatio, closeTo(1.0, 0.001));
 
                 List<String> stabilizedAliases = (List<String>) cpsStats.get("stabilized_cluster_aliases");
                 assertThat(stabilizedAliases, notNullValue());
-                assertThat("stabilized aliases should include at least one project", stabilizedAliases.size(), greaterThanOrEqualTo(1));
+                assertThat("stabilized aliases should include at least one cluster", stabilizedAliases.size(), greaterThanOrEqualTo(1));
 
                 Map<String, Object> consecutiveSkips = (Map<String, Object>) cpsStats.get("per_cluster_consecutive_skips");
                 assertThat(consecutiveSkips, notNullValue());
@@ -595,7 +595,7 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
                 assertThat(stats, hasKey("remote_cluster_stats"));
                 Map<String, Object> cps = (Map<String, Object>) stats.get("remote_cluster_stats");
                 int total = (int) cps.get("total_clusters");
-                assertThat("should now track only one project", total, equalTo(1));
+                assertThat("should now track only one cluster", total, equalTo(1));
                 List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
                 assertThat(aliases, hasItem("project_a"));
                 assertThat("project_b should no longer appear", aliases, not(hasItem("project_b")));

@@ -881,7 +881,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
         defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
         defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
-        ;
 
         assertArrayEquals(result1, result2, 1e-2f);
     }

@@ -202,8 +202,53 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS);
     }
 
+    /**
+     * When query-and-tags can't apply (TopN pushed down) and block loader is unsupported,
+     * RoundTo stays as-is in the EvalExec.
+     */
+    public void testDateTruncNotTransformToQueryAndTagsNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        for (var queryAndName : dateHistograms) {
+            var dateHistogram = queryAndName.query();
+            if (dateHistogram.contains("bucket")) {
+                continue;
+            }
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | sort date
+                | eval x = {}
+                | keep alias_integer, date, x
+                | limit 5
+                """, dateHistogram);
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS_NO_BLOCK_LOADER, queryAndName.name);
+        }
+    }
+
+    /**
+     * When query-and-tags can't apply (lookup join) and block loader is unsupported,
+     * RoundTo stays as-is in the EvalExec.
+     */
+    public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoinNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        for (var queryAndName : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | rename integer as language_code
+                | lookup join languages_lookup on language_code
+                | stats count(*) by x = {}
+                """, queryAndName.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS_NO_BLOCK_LOADER, queryAndName.name());
+        }
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))
+    );
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new EsqlTestUtils.TestSearchStatsWithMinMax(
+        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
+        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
+        false
     );
 }

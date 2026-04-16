@@ -98,8 +98,6 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
@@ -545,23 +543,14 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
     }
 
-    SemanticTextField parseSemanticTextField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return null;
-        }
+    @Override
+    protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
+        return new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType());
+    }
 
-        SemanticTextField semanticTextField;
-        boolean isWithinLeaf = context.path().isWithinLeafObject();
-        try {
-            context.path().setWithinLeafObject(true);
-            semanticTextField = SemanticTextField.parse(
-                context.parser(),
-                new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
-            );
-        } finally {
-            context.path().setWithinLeafObject(isWithinLeaf);
-        }
+    @Override
+    protected SemanticTextField parseSemanticTextField(DocumentParserContext context) throws IOException {
+        SemanticTextField semanticTextField = super.parseSemanticTextField(context);
 
         IndexVersion indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
         if (semanticTextField != null
@@ -579,122 +568,16 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         return semanticTextField;
     }
 
-    void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
-        throws IOException {
-        final String fullFieldName = fieldType().name();
-        if (field.inference().inferenceId().equals(fieldType().getInferenceId()) == false) {
-            throw new DocumentParsingException(
-                xContentLocation,
-                Strings.format(
-                    "The configured %s [%s] for field [%s] doesn't match the %s [%s] reported in the document.",
-                    INFERENCE_ID_FIELD,
-                    field.inference().inferenceId(),
-                    fullFieldName,
-                    INFERENCE_ID_FIELD,
-                    fieldType().getInferenceId()
-                )
-            );
-        }
-
-        final SemanticTextFieldMapper mapper;
-        if (fieldType().getModelSettings() == null && field.inference().modelSettings() != null) {
-            mapper = addDynamicUpdate(context, field);
-        } else {
-            Conflicts conflicts = new Conflicts(fullFieldName);
-            canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
-            try {
-                conflicts.check();
-            } catch (Exception exc) {
-                throw new DocumentParsingException(
-                    xContentLocation,
-                    "Incompatible model settings for field ["
-                        + fullPath()
-                        + "]. Check that the "
-                        + INFERENCE_ID_FIELD
-                        + " is not using different model settings",
-                    exc
-                );
-            }
-            mapper = this;
-        }
-
-        if (mapper.fieldType().getModelSettings() == null) {
-            for (var chunkList : field.inference().chunks().values()) {
-                if (chunkList.isEmpty() == false) {
-                    throw new DocumentParsingException(
-                        xContentLocation,
-                        "[" + MODEL_SETTINGS_FIELD + "] must be set for field [" + fullFieldName + "] when chunks are provided"
-                    );
-                }
-            }
-        }
-
-        var chunksField = mapper.fieldType().getChunksField();
-        var embeddingsField = mapper.fieldType().getEmbeddingsField();
-        var offsetsField = mapper.fieldType().getOffsetsField();
-        for (var entry : field.inference().chunks().entrySet()) {
-            for (var chunk : entry.getValue()) {
-                var nestedContext = context.createNestedContext(chunksField);
-                try (
-                    XContentParser subParser = XContentHelper.createParserNotCompressed(
-                        XContentParserConfiguration.EMPTY,
-                        chunk.rawEmbeddings(),
-                        context.parser().contentType()
-                    )
-                ) {
-                    DocumentParserContext subContext = nestedContext.switchParser(subParser);
-                    subParser.nextToken();
-                    embeddingsField.parse(subContext);
-                }
-
-                if (fieldType().useLegacyFormat) {
-                    continue;
-                }
-
-                try (XContentBuilder builder = XContentFactory.contentBuilder(context.parser().contentType())) {
-                    builder.startObject();
-                    builder.field("field", entry.getKey());
-                    builder.field("start", chunk.startOffset());
-                    builder.field("end", chunk.endOffset());
-                    builder.endObject();
-                    try (
-                        XContentParser subParser = XContentHelper.createParserNotCompressed(
-                            XContentParserConfiguration.EMPTY,
-                            BytesReference.bytes(builder),
-                            context.parser().contentType()
-                        )
-                    ) {
-                        DocumentParserContext subContext = nestedContext.switchParser(subParser);
-                        subParser.nextToken();
-                        offsetsField.parse(subContext);
-                    }
-                }
-            }
-        }
-    }
-
-    private SemanticTextFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        Builder builder = getMergeBuilder();
-        context.path().remove();
-        try {
-            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
-            if (context.mappingLookup().isMultiField(fullPath())) {
-                // The field is part of a multi-field, so the parent field must also be updated accordingly.
-                var fieldName = context.path().remove();
-                try {
-                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
-                        .getMergeBuilder();
-                    String parentFullPath = context.mappingLookup().parentField(fullPath());
-                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
-                    return builder.build(context.createDynamicMapperBuilderContext());
-                } finally {
-                    context.path().add(fieldName);
-                }
-            } else {
-                return (SemanticTextFieldMapper) context.getDynamicMapper(builder);
-            }
-        } finally {
-            context.path().add(leafName());
+    @Override
+    protected void parseChunkValueReference(
+        DocumentParserContext context,
+        SemanticFieldType fieldType,
+        String fieldName,
+        SemanticTextField.Chunk chunk
+    ) throws IOException {
+        SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldType) fieldType;
+        if (semanticTextFieldType.useLegacyFormat() == false) {
+            super.parseChunkValueReference(context, fieldType, fieldName, chunk);
         }
     }
 

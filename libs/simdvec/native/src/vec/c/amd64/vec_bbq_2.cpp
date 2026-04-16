@@ -60,7 +60,7 @@ static inline int64_t dotd1q4_inner_avx512(const int8_t* a, const int8_t* q, con
     return sum;
 }
 
-// Packed bulk: process 4 vectors at a time for length=16 (dims=128)
+// Packed bulk: process 4 vectors at a time for length<=16 (dims<=128)
 static inline void dotd1q4_bulk_packed4(
     const int8_t* a,
     const int8_t* query,
@@ -71,16 +71,20 @@ static inline void dotd1q4_bulk_packed4(
     constexpr int query_bits = 4;
     constexpr int vecs_per_reg = 4;
 
-    // Broadcast each query bit plane to fill a full 512-bit register
+    const uint64_t mask = (1ULL << length) - 1;
+    const __mmask16 queryByteMask = mask;
+    const __mmask64 dataByteMask = mask | (mask << 16) | (mask << 32) | (mask << 48);
+
+    // Broadcast each query bit plane x4 to fill a full 512-bit register
     __m512i bq[query_bits];
     apply_indexed<query_bits>([&](auto I) {
-        bq[I] = _mm512_broadcast_i32x4(_mm_loadu_si128((const __m128i*)(query + I * length)));
+        bq[I] = _mm512_broadcast_i32x4(_mm_maskz_expandloadu_epi8(queryByteMask, query + I * length));
     });
 
     int c = 0;
     for (; c + vecs_per_reg - 1 < count; c += vecs_per_reg) {
         // Load 4 contiguous doc vectors in one 512-bit load
-        __m512i docs = _mm512_loadu_si512((const __m512i_u*)(a + (int64_t)c * length));
+        __m512i docs = _mm512_maskz_expandloadu_epi8(dataByteMask, a + (int64_t)c * length);
 
         // Prefetch next batch
         if (c + 2 * vecs_per_reg - 1 < count) {
@@ -88,6 +92,7 @@ static inline void dotd1q4_bulk_packed4(
         }
 
         // Accumulate across all 4 query bit planes with bit-plane shifting
+        // no need to mask here, the extra bytes are already zero
         __m512i acc = _mm512_setzero_si512();
         apply_indexed<query_bits>([&](auto I) {
             __m512i res = _mm512_popcnt_epi64(_mm512_and_si512(docs, bq[I]));
@@ -113,7 +118,7 @@ static inline void dotd1q4_bulk_packed4(
     }
 }
 
-// Packed bulk: process 2 vectors at a time for length=32 (dims=256)
+// Packed bulk: process 2 vectors at a time for length<=32 (dims<=256)
 static inline void dotd1q4_bulk_packed2(
     const int8_t* a,
     const int8_t* query,
@@ -124,16 +129,20 @@ static inline void dotd1q4_bulk_packed2(
     constexpr int query_bits = 4;
     constexpr int vecs_per_reg = 2;
 
+    const uint64_t mask = (1ULL << length) - 1;
+    const __mmask32 queryByteMask = mask;
+    const __mmask64 dataByteMask = mask | (mask << 32);
+
     // Broadcast each query bit plane to fill a full 512-bit register
     __m512i bq[query_bits];
     apply_indexed<query_bits>([&](auto I) {
-        bq[I] = _mm512_broadcast_i64x4(_mm256_loadu_si256((const __m256i_u*)(query + I * length)));
+        bq[I] = _mm512_broadcast_i64x4(_mm256_maskz_expandloadu_epi8(queryByteMask, query + I * length));
     });
 
     int c = 0;
     for (; c + vecs_per_reg - 1 < count; c += vecs_per_reg) {
         // Load 2 contiguous doc vectors in one 512-bit load
-        __m512i docs = _mm512_loadu_si512((const __m512i_u*)(a + (int64_t)c * length));
+        __m512i docs = _mm512_maskz_expandloadu_epi8(dataByteMask, a + (int64_t)c * length);
 
         // Prefetch next batch
         if (c + 2 * vecs_per_reg - 1 < count) {
@@ -141,6 +150,7 @@ static inline void dotd1q4_bulk_packed2(
         }
 
         // Accumulate across all 4 query bit planes with bit-plane shifting
+        // no need to mask here, the extra bytes are already zero
         __m512i acc = _mm512_setzero_si512();
         apply_indexed<query_bits>([&](auto I) {
             __m512i res = _mm512_popcnt_epi64(_mm512_and_si512(docs, bq[I]));
@@ -182,16 +192,12 @@ EXPORT void vec_dotd1q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    switch (length) {
-    case 16:
+    if (length <= 16) {
         dotd1q4_bulk_packed4(a, query, length, count, results);
-        break;
-    case 32:
+    } else if (length <= 32) {
         dotd1q4_bulk_packed2(a, query, length, count, results);
-        break;
-    default:
+    } else {
         dotd1q4_inner_bulk<int8_t, sequential_mapper, dotd1q4_inner_avx512>(a, query, length, length, NULL, count, results);
-        break;
     }
 }
 

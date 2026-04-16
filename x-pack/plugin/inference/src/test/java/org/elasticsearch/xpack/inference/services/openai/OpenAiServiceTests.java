@@ -1182,7 +1182,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                     InputType.UNSPECIFIED,
                     Map.of()
                 ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1228,7 +1228,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                     InputType.UNSPECIFIED,
                     Map.of()
                 ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1256,7 +1256,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                     InputType.UNSPECIFIED,
                     Map.of()
                 ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1282,7 +1282,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             service.embeddingInfer(
                 mockModel,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 

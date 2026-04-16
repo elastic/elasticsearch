@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,7 +41,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
@@ -56,8 +54,6 @@ import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
-    private static final Logger logger = getLogger(ServiceUtils.class);
-
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException

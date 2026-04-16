@@ -371,6 +371,31 @@ POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))       | POLYGON ((1.0 1.0, 1.0 3.0, 3.0 3.0,
 // end::st_buffer-result[]
 ;
 
+// When expanding angular geometries like rectangles, we get rounded corners with many points
+// We assert on the number of points, rather than the exact geometry to cope with occasional floating points errors
+stBufferPositiveAndNegativeDistance
+required_capability: fn_st_buffer
+
+ROW wkt = "POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))"
+| EVAL bigger = ST_NPOINTS(ST_BUFFER(TO_GEOSHAPE(wkt), 1))
+| EVAL smaller = ST_NPOINTS(ST_BUFFER(TO_GEOSHAPE(wkt), -1))
+;
+
+wkt:keyword                         | bigger:integer | smaller:integer
+POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0)) | 37             | 5
+;
+
+stBufferLargeNegativeDistance
+required_capability: fn_st_buffer
+
+ROW wkt = "POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))"
+| EVAL buffered = ST_BUFFER(TO_GEOSHAPE(wkt), -4)
+;
+
+wkt:keyword                               | buffered:geo_shape
+POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))       | POLYGON EMPTY
+;
+
 stBufferCartesianSquareNegative
 required_capability: fn_st_buffer
 
@@ -419,6 +444,18 @@ result:geo_shape
 POINT (0.0 0.0)
 ;
 
+stBufferNegativeDistancePoint
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("POINT(0 0)")
+| EVAL result = ST_BUFFER(geom, -0.01)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
 stBufferZeroDistanceLineString
 required_capability: fn_st_buffer
 
@@ -429,6 +466,18 @@ ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 1)")
 
 result:geo_shape
 LINESTRING (0.0 0.0, 1.0 1.0)
+;
+
+stBufferNegativeDistanceLineString
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 1)")
+| EVAL result = ST_BUFFER(geom, -0.01)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
 ;
 
 stBufferZeroDistancePolygon

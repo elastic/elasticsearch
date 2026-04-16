@@ -13,8 +13,10 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
@@ -23,7 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
+public class GoogleAiStudioEmbeddingsRequest implements DenseEmbeddingRequest {
 
     private final Truncator truncator;
 
@@ -63,7 +65,7 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        GoogleAiStudioRequest.decorateWithApiKeyParameter(httpPost, model.getSecretSettings());
+        GoogleAiStudioRequestUtils.decorateWithApiKeyParameter(httpPost, model.getSecretSettings());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
@@ -88,5 +90,10 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

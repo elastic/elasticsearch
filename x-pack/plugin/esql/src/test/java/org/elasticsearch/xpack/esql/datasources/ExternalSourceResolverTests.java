@@ -190,9 +190,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Glob pattern matched no files"));
     }
 
-    // ===== Single-file resolution returns UNRESOLVED GenericFileList =====
+    // ===== Single-file resolution returns a resolved singleton FileList =====
 
-    public void testSingleFileResolutionReturnsUnresolvedGenericFileList() throws Exception {
+    public void testSingleFileResolutionReturnsResolvedSingletonFileList() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -202,7 +202,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
         assertNotNull(resolved);
-        assertFalse(resolved.fileList().isResolved());
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(1, fileList.fileCount());
+        assertEquals("s3://bucket/data/single.parquet", fileList.path(0).toString());
+        assertEquals(0L, fileList.size(0));
     }
 
     // ===== Schema type preservation =====

@@ -57,7 +57,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         false,
         (args, ctx) -> new Dataset(
             (String) args[0],
-            (DataSourceReference) args[1],
+            new DataSourceReference((String) args[1]),
             (String) args[2],
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of()
@@ -66,7 +66,10 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataSourceReference.fromXContent(p), DATASOURCE);
+        // The `data_source` field is emitted as a bare string — DataSourceReference is a single-field wrapper today;
+        // nested JSON would be verbose for users and there is no concrete near-term field to add to the reference.
+        // The wrapper provides compile-time type discipline in Java without imposing extra structure on the JSON shape.
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DATASOURCE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
@@ -138,7 +141,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
-        builder.field(DATASOURCE.getPreferredName(), dataSource);
+        builder.field(DATASOURCE.getPreferredName(), dataSource.getName());
         builder.field(RESOURCE.getPreferredName(), resource);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);

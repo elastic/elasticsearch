@@ -181,9 +181,11 @@ public class ExternalSourceResolver {
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             StorageProvider provider = resolveProvider(storagePath, config);
+            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             FileList raw = path.indexOf(',') >= 0
-                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning)
-                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
+                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion)
+                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
@@ -251,7 +253,9 @@ public class ExternalSourceResolver {
         StoragePath storagePath
     ) throws Exception {
         StorageProvider provider = resolveProvider(storagePath, config);
-        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+        int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+        int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {

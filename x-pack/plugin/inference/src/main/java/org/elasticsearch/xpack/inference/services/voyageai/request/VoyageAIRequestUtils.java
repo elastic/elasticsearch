@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public abstract class VoyageAIRequest implements Request {
+public final class VoyageAIRequestUtils {
 
     public static void decorateWithHeaders(HttpPost request, VoyageAIModel model) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -23,4 +22,5 @@ public abstract class VoyageAIRequest implements Request {
         request.setHeader(VoyageAIUtils.createRequestSourceHeader());
     }
 
+    private VoyageAIRequestUtils() {}
 }

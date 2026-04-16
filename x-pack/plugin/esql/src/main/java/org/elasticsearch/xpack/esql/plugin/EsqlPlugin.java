@@ -78,6 +78,16 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasource.DataSourceService;
+import org.elasticsearch.xpack.esql.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.GetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.RestDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.RestGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.RestPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.TransportDeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.TransportGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasource.TransportPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
@@ -86,6 +96,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
@@ -118,7 +129,9 @@ import org.elasticsearch.xpack.esql.view.ViewService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -266,6 +279,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .getClusterSettings()
             .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
 
+        // CRUD-time validators (one per data source type). Collected once at plugin construction; DataSourceService
+        // dispatches by type, DatasetService uses them to validate dataset settings against the parent data source's
+        // type. Duplicate type registrations are a configuration error — fail fast.
+        Map<String, DataSourceValidator> crudValidators = new HashMap<>();
+        for (DataSourcePlugin p : allDataSourcePlugins) {
+            p.datasourceValidators(settings).forEach((type, v) -> {
+                if (crudValidators.putIfAbsent(type, v) != null) {
+                    throw new IllegalStateException("duplicate DataSourceValidator for type [" + type + "]");
+                }
+            });
+        }
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
@@ -288,7 +313,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider,
             dataSourceModule,
             new ViewResolver(services.clusterService(), services.projectResolver(), services.client(), services.crossProjectModeDecider()),
-            new ViewService(services.clusterService(), parser)
+            new ViewService(services.clusterService(), parser),
+            new DataSourceService(services.clusterService(), crudValidators)
         );
     }
 
@@ -326,7 +352,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
-                ViewResolver.MAX_VIEW_DEPTH_SETTING
+                ViewResolver.MAX_VIEW_DEPTH_SETTING,
+                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -345,22 +372,30 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+        List<ActionHandler> actions = new ArrayList<>(
+            List.of(
+                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+            )
         );
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
+            actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
+            actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
+        }
+        return List.copyOf(actions);
     }
 
     @Override
@@ -370,17 +405,25 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        return List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
-            new RestEsqlGetAsyncResultAction(),
-            new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction()
+        List<RestHandler> handlers = new ArrayList<>(
+            List.of(
+                new RestEsqlQueryAction(capabilities),
+                new RestEsqlAsyncQueryAction(capabilities),
+                new RestEsqlGetAsyncResultAction(),
+                new RestEsqlStopAsyncAction(),
+                new RestEsqlDeleteAsyncResultAction(),
+                new RestEsqlListQueriesAction(),
+                new RestPutViewAction(),
+                new RestDeleteViewAction(),
+                new RestGetViewAction()
+            )
         );
+        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestGetDataSourceAction());
+            handlers.add(new RestDeleteDataSourceAction());
+        }
+        return List.copyOf(handlers);
     }
 
     @Override

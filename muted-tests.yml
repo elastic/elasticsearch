@@ -262,9 +262,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFilterCacheStats
-  issue: https://github.com/elastic/elasticsearch/issues/124447
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/146263

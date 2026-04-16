@@ -135,7 +135,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    static record MergeSignalStats(
+    record MergeSignalStats(
         int segmentsWithCentroids,
         int totalCentroids,
         double interSegmentSpread,

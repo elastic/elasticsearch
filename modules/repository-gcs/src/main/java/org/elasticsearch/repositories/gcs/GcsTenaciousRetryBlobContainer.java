@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
@@ -36,7 +37,7 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
 
     @Override
     protected boolean isExceptionRetryable(Exception e) {
-        return e instanceof UnknownHostException;
+        return ExceptionsHelper.unwrap(e, UnknownHostException.class) != null;
     }
 
     @Override

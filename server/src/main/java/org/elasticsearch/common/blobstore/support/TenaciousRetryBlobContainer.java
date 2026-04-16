@@ -71,6 +71,15 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         return super.listBlobsByPrefix(purpose, blobNamePrefix);
     }
 
+    @Override
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
+        if (shouldRetry(purpose)) {
+            return execute(() -> super.children(purpose));
+        }
+
+        return super.children(purpose);
+    }
+
     private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation) throws E {
         int attempts = INITIAL_ATTEMPT;
         final Iterator<TimeValue> iterator = backoffPolicy.iterator();

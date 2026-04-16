@@ -112,9 +112,11 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         final var repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
 
         final Map<String, BlobMetadata> answer = new HashMap<>();
+        final Map<String, BlobContainer> children = new HashMap<>();
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"));
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
+        when(blobContainer.children(any())).thenThrow(new IOException("children"));
 
         int maximumRetries = randomIntBetween(5, 9);
 
@@ -153,8 +155,11 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
                 () -> tenaciousRetryBlobContainer.listBlobsByPrefix(randomFrom(nonIndicesPurposes), randomIndexName())
             );
 
+            expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.children(randomFrom((nonIndicesPurposes))));
+
             verify(blobContainer, times(1)).listBlobs(any());
             verify(blobContainer, times(1)).listBlobsByPrefix(any(), any());
+            verify(blobContainer, times(1)).children(any());
             clearInvocations(blobContainer);
         }
 
@@ -180,6 +185,31 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         );
         assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM), equalTo(1));
 
+        // Key retryable method children()
+        reset(blobContainer);
+        recordingMeterRegistry.getRecorder().resetCalls();
+        when(blobContainer.children(any())).thenThrow(new IOException("children"))
+            .thenThrow(new IOException("children"))
+            .thenReturn(children);
+
+        assertThat(tenaciousRetryBlobContainer.children(OperationPurpose.INDICES), is(children));
+        verify(blobContainer, times(3)).children(any());
+        recordingMeterRegistry.getRecorder().collect();
+
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(2));
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM), equalTo(1));
+
+        reset(blobContainer);
+        recordingMeterRegistry.getRecorder().resetCalls();
+        when(blobContainer.children(any())).thenThrow(new IOException("children"));
+        expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.children(OperationPurpose.INDICES));
+        recordingMeterRegistry.getRecorder().collect();
+
+        assertThat(
+            getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
+            equalTo(maximumRetries - 1)
+        );
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM), equalTo(1));
     }
 
     private int getMeasurements(RecordingMeterRegistry meterRegistry, String name) {
@@ -195,11 +225,21 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         return args;
     }
 
+    private List<Method> retryableBlobContainerMethods() {
+        List<Method> methods = new ArrayList<>();
+        for (Method m : BlobContainer.class.getMethods()) {
+            if (m.getName().equals("listBlobs") || m.getName().equals("listBlobsByPrefix") || m.getName().equals("children")) {
+                methods.add(m);
+            }
+        }
+        return methods;
+    }
+
     private List<Method> nonRetryableBlobContainerMethods() {
         List<Method> methods = new ArrayList<>();
         for (Method m : BlobContainer.class.getMethods()) {
             // Retryable methods.
-            if (m.getName().equals("listBlobs") || m.getName().equals("listBlobsByPrefix")) {
+            if (m.getName().equals("listBlobs") || m.getName().equals("listBlobsByPrefix") || m.getName().equals("children")) {
                 continue;
             }
             // Not supported

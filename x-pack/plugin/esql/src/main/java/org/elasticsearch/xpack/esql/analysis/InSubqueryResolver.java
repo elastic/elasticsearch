@@ -246,11 +246,11 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Returns a complexity score for ordering disjuncts in the exclusive-partitioning rewrite:
+     * Returns a complexity score for ordering disjuncts in the exclusive query rewrite:
      * <ul>
-     *   <li>0 — no InSubquery (plain predicate, safe to negate)</li>
-     *   <li>1 — contains InSubquery but is not a composite AND (bare InSubquery or NOT(InSubquery), safe to negate)</li>
-     *   <li>2 — composite AND containing InSubquery (NOT(AND(...)) is not decomposable, must be last)</li>
+     *   <li>0 — no InSubquery (plain predicate, not expensive to negate)</li>
+     *   <li>1 — contains InSubquery but is not a composite AND (bare InSubquery or NOT(InSubquery), not expensive to negate)</li>
+     *   <li>2 — composite AND containing InSubquery (NOT(AND(...)) are the last)</li>
      * </ul>
      */
     private static int disjunctComplexity(Expression expr) {

@@ -1985,3 +1985,91 @@ emp_no:integer | first_name:keyword | salary:integer
 10019          | Lillian            | 73717
 10027          | Divier             | 73851
 ;
+
+//
+// KNN function combined with IN/NOT IN subquery
+//
+
+knnBeforeInSubquery
+required_capability: where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE knn(rgb_vector, [0, 128, 0]) AND color IN (FROM colors | WHERE primary == true | KEEP color)
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnInsideInSubquery
+required_capability: where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE id IN (FROM colors | WHERE knn(rgb_vector, [255, 0, 0]) AND primary == true | KEEP id)
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnAfterInSubquery
+required_capability: where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE color IN (FROM colors | WHERE primary == true | KEEP color)
+| WHERE knn(rgb_vector, [0, 0, 255])
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnBeforeNotInSubquery
+required_capability: where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors METADATA _score
+| WHERE knn(rgb_vector, [0, 128, 0]) AND color NOT IN (FROM colors | WHERE primary == true | KEEP color)
+| SORT _score DESC, color ASC
+| KEEP color
+| LIMIT 3
+;
+
+color:text
+lime
+olive
+teal
+;

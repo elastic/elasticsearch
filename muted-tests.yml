@@ -430,6 +430,33 @@ tests:
 - class: org.elasticsearch.action.search.TransportSearchActionTests
   method: testAdjustSearchType
   issue: https://github.com/elastic/elasticsearch/issues/146554
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testIntrospectTimeRange
+  issue: https://github.com/elastic/elasticsearch/issues/146556
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testMergeShardsIterators
+  issue: https://github.com/elastic/elasticsearch/issues/146557
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testLocalShardIteratorFromPointInTimeAllowsPartialResultsWhenNodeMissing
+  issue: https://github.com/elastic/elasticsearch/issues/146558
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testLocalShardIteratorFromPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/146560
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCreateSearchResponseMerger
+  issue: https://github.com/elastic/elasticsearch/issues/146561
+- class: org.elasticsearch.action.support.nodes.BaseNodesXContentResponseTests
+  method: testFragmentFlag
+  issue: https://github.com/elastic/elasticsearch/issues/146562
+- class: org.elasticsearch.action.support.RefCountingListenerTests
+  method: testJavaDocExample
+  issue: https://github.com/elastic/elasticsearch/issues/146563
+- class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
+  method: testApproximationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/146564
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesTimestampSortedTimeRangeFilter
+  issue: https://github.com/elastic/elasticsearch/issues/146565
 
 # Examples:
 #

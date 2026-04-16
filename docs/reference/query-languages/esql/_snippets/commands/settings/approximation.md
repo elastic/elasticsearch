@@ -14,7 +14,7 @@ Map entries:
 - `confidence_level` (`[double]`): Confidence level of the computed confidence intervals. Default is 0.90. Null disables computing confidence intervals.
 
 
-## Example
+#### Example
 
 Approximate the sum using default settings.
 
@@ -27,7 +27,7 @@ FROM many_numbers | STATS sum=SUM(sv)
 | --- | --- | --- |
 | 42284250 | [41622402, 43016433] | true |
 
-## Example
+#### Example
 
 Approximate the median based on 10,000 rows.
 

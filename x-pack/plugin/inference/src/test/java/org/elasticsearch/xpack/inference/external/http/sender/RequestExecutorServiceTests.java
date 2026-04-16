@@ -273,7 +273,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID)));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID))
+        );
         assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
     }
 

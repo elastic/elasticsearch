@@ -31,7 +31,77 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * This operator generates 0 values for all buckets that are not present in the input data for a sparkline graph.
+ * Fills in zero-valued buckets for data produced by the last sparkline aggregation
+ * phase and stops the {@code @timestamp} columns. Let's take an example:
+ * {@snippet lang="esql" :
+ * | STATS mi=SPARKLINE(   MAX(int), @timestamp, 3, "2025-01-01", "2025-01-03"),
+ *         md=SPARKLINE(MIN(double), @timestamp, 3, "2025-01-01", "2025-01-03")
+ *      BY hostname
+ * }
+ * <p>
+ *     That's going to produce output like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────┬──────────────────┬──────────┐
+ * │ MIN(int)      │ MAX(double)      │ hostname │
+ * ├───────────────┼──────────────────┼──────────┤
+ * │ [10, 20, 30]  │ [1.0, 2.0, 3.0]  │ yay      │
+ * │ [42,  0, 99]  │ [4.2, 0.0, 9.9]  │ server   │
+ * └───────────────┴──────────────────┴──────────┘
+ * }
+ * <p>
+ *     To get there the original ESQL is rewritten into:
+ * </p>
+ * {@snippet lang="esql" :
+ * | STATS mi=MAX(int), md=MIN(double), BY @timestamp=DATE_TRUNC(1 day, @timestamp), hostname
+ * | STATS TOP(@timestamp, 3, "asc", mi), TOP(@timestamp, 3, "asc", md), TOP(@timestamp, 3, "asc")
+        BY hostname
+ * | SPARKLINE_GENERATE_EMPTY_BUCKETS <-- you are here
+ * }
+ * <p>
+ *     The first {@code STATS} is just pretty normal agg. Imagine it returns something like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────┬──────────────────┬────────────┬──────────┐
+ * │ MIN(int)      │ MAX(double)      │ @timestamp │ hostname │
+ * ├───────────────┼──────────────────┼────────────┼──────────┤
+ * │ 10            │ 1.0              │ 2025-01-01 │ yay      │
+ * │ 20            │ 2.0              │ 2025-01-02 │ yay      │
+ * │ 30            │ 3.0              │ 2025-01-03 │ yay      │
+ * │ 42            │ 4.2              │ 2025-01-01 │ server   │
+ * │ 99            │ 9.9              │ 2025-01-03 │ server   │
+ * └───────────────┴──────────────────┴────────────┴──────────┘
+ * }
+ * <p>
+ *     The second {@code STATS} collects the results into the arrays that the output
+ *     layout expects. But have a look:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────┬──────────────────┬──────────────────────────────────────┬──────────┐
+ * │ MIN(int)      │ MAX(double)      │ @timestamp                           │ hostname │
+ * ├───────────────┼──────────────────┼──────────────────────────────────────┼──────────┤
+ * │ [10, 20, 30]  │ [1.0, 2.0, 3.0]  │ [2025-01-01, 2025-01-02, 2025-01-03] │ yay      │
+ * │ [42, 99]      │ [4.2, 9.9]       │ [2025-01-01, 2025-01-03]             │ server   │
+ * └───────────────┴──────────────────┴──────────────────────────────────────┴──────────┘
+ * }
+ * <p>
+ *     See?! The second row is complete - ready! It's what we want! Well, it has a
+ *     {@code @timestamp} we don't want, but it's close! But the second row is trouble.
+ *     It's missing the value for {@code 2025-01-02}. You can tell which day is missing
+ *     by looking at the timestamp. This operator fills in the 0. It'll consume the
+ *     data above and make:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────┬──────────────────┬──────────┐
+ * │ MIN(int)      │ MAX(double)      │ hostname │
+ * ├───────────────┼──────────────────┼──────────┤
+ * │ [10, 20, 30]  │ [1.0, 2.0, 3.0]  │ yay      │
+ * │ [42,  0, 99]  │ [4.2, 0.0, 9.9]  │ server   │
+ * └───────────────┴──────────────────┴──────────┘
+ * }
+ * <p>
+ *     And <strong>that</strong> is exactly what we want.
+ * </p>
  */
 public class SparklineGenerateEmptyBucketsOperator implements Operator {
     public record Factory(int numValueColumns, Rounding.Prepared dateBucketRounding, long minDate, long maxDate)

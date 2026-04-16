@@ -580,6 +580,10 @@ composite_id_parsed:
 
 ---
 profile includes coordinator request metadata:
+  - requires:
+      cluster_features: "search.profile.coordinator_request_metadata"
+      reason: coordinator profile.request requires TransportVersion include_original_query_indices_in_search_profile_results; not serialized on mixed 9.4.x BWC nodes
+
   - do:
       indices.put_alias:
         index: test

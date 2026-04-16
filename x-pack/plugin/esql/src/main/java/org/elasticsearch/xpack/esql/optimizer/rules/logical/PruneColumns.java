@@ -259,6 +259,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
             } else {
                 // otherwise, we first prune the projections of the top-level Project of each subplan
+                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+
                 Holder<Boolean> projectVisited = new Holder<>(false);
                 newSubPlan = subPlan.transformDown(Project.class, p -> {
                     if (projectVisited.get()) {
@@ -269,7 +271,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
                     p = new Project(p.source(), p.child(), prunedAttrs);
                     // add all output attributes to used set
-                    usedAttrs.addAll(p.output());
                     return p;
                 });
                 newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);

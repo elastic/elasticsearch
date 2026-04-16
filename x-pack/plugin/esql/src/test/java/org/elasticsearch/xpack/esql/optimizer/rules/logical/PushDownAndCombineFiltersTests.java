@@ -2456,7 +2456,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     {@snippet lang="text":
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#18 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#10,languages{r}#18]
@@ -2480,7 +2480,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     {@snippet lang="text":
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[first_name{r}#41 == John[KEYWORD]]
      *   \_MvExpand[first_name{f}#30,first_name{r}#41]
@@ -2509,7 +2509,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     {@snippet lang="text":
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[emp_no{f}#63 > 10[INTEGER] OR languages{r}#74 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#66,languages{r}#74]
@@ -2532,7 +2532,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     {@snippet lang="text":
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#21 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#13,languages{r}#21]
@@ -2559,7 +2559,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
     /**
      * Expects
-     {@snippet lang="text":
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Filter[languages{r}#58 == 1[INTEGER]]
      *   \_MvExpand[languages{f}#50,languages{r}#58]

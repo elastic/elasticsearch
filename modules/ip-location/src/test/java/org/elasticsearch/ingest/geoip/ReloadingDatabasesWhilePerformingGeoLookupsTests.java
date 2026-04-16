@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -27,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,11 +36,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -80,6 +82,11 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsTests extends ESTestCase
         databaseNodeService.updateDatabase(projectId, "GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(projectId, databaseNodeService);
 
+        IpDataLookup lookup1 = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-City.mmdb", null);
+        assertNotNull(lookup1);
+        IpDataLookup lookup2 = databaseNodeService.createIpDataLookup(projectId.id(), "GeoLite2-City-Test.mmdb", null);
+        assertNotNull(lookup2);
+
         final AtomicBoolean completed = new AtomicBoolean(false);
         final int numberOfDatabaseUpdates = randomIntBetween(2, 4);
         final AtomicInteger numberOfLookupRuns = new AtomicInteger();
@@ -91,24 +98,13 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsTests extends ESTestCase
             lookupThreads[id] = new Thread(() -> {
                 while (completed.get() == false) {
                     try {
-                        DatabaseReaderLazyLoader loader1 = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
-                        if (loader1 != null && loader1.preLookup()) {
-                            try {
-                                var result1 = loader1.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
-                                assertThat(result1, notNullValue());
-                            } finally {
-                                loader1.close();
-                            }
+                        Map<String, Object> result1 = lookup1.lookup("89.160.20.128");
+                        if (result1 != null) {
+                            assertThat(result1, not(anEmptyMap()));
                         }
-                        DatabaseReaderLazyLoader loader2 = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
-                        assertThat(loader2, notNullValue());
-                        if (loader2.preLookup()) {
-                            try {
-                                var result2 = loader2.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
-                                assertThat(result2, notNullValue());
-                            } finally {
-                                loader2.close();
-                            }
+                        Map<String, Object> result2 = lookup2.lookup("89.160.20.128");
+                        if (result2 != null) {
+                            assertThat(result2, not(anEmptyMap()));
                         }
                         numberOfLookupRuns.incrementAndGet();
                     } catch (Exception | AssertionError e) {

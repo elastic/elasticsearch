@@ -1,0 +1,144 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.datasource;
+
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+/**
+ * Create or replace an ES|QL data source. The request body carries raw (pre-validated) settings
+ * as a {@code Map<String, Object>}; per-type validation runs in {@code DataSourceService} via the
+ * {@code DataSourceValidator} SPI before the cluster-state task is submitted.
+ */
+public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
+
+    public static final PutDataSourceAction INSTANCE = new PutDataSourceAction();
+    public static final String NAME = EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME;
+
+    private PutDataSourceAction() {
+        super(NAME);
+    }
+
+    public static class Request extends AcknowledgedRequest<Request> {
+        private final String name;
+        private final String type;
+        @Nullable
+        private final String description;
+        private final Map<String, Object> rawSettings;
+
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String name,
+            String type,
+            @Nullable String description,
+            Map<String, Object> rawSettings
+        ) {
+            super(masterNodeTimeout, ackTimeout);
+            this.name = name;
+            this.type = type;
+            this.description = description;
+            this.rawSettings = rawSettings;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.name = in.readString();
+            this.type = in.readString();
+            this.description = in.readOptionalString();
+            this.rawSettings = in.readGenericMap();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(name);
+            out.writeString(type);
+            out.writeOptionalString(description);
+            out.writeGenericMap(rawSettings);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            if (Strings.hasText(name) == false) {
+                return addValidationError("data source name is missing", null);
+            }
+            // Data source names use the same restrictions as index/alias names so they can safely coexist with
+            // any other resource that might later surface in a shared namespace (conservative choice — today they
+            // live in their own ProjectCustom and don't collide with indices, but keeping the name rules aligned
+            // avoids surprises if a future change brings them into the index namespace).
+            try {
+                MetadataCreateIndexService.validateIndexOrAliasName(
+                    name,
+                    (dataSourceName, error) -> new IllegalArgumentException("invalid data source name [" + name + "], " + error)
+                );
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
+            if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
+                validationException = addValidationError("invalid data source name [" + name + "], must be lowercase", validationException);
+            }
+            if (Strings.hasText(type) == false) {
+                validationException = addValidationError("data source type is missing or empty", validationException);
+            }
+            if (rawSettings == null) {
+                validationException = addValidationError("data source settings are missing", validationException);
+            }
+            return validationException;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        @Nullable
+        public String description() {
+            return description;
+        }
+
+        public Map<String, Object> rawSettings() {
+            return rawSettings;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(name, request.name)
+                && Objects.equals(type, request.type)
+                && Objects.equals(description, request.description)
+                && Objects.equals(rawSettings, request.rawSettings);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type, description, rawSettings);
+        }
+    }
+}

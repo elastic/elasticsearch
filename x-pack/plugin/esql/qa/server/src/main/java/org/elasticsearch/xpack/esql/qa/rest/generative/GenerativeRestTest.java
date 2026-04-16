@@ -295,14 +295,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
-                boolean knownError = false;
-                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                    if (isAllowedError(e.getMessage(), allowedError)) {
-                        knownError = true;
-                        break;
-                    }
-                }
-                if (knownError == false) {
+                if (isAllowedError(e.getMessage()) == false) {
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
@@ -372,20 +365,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> {
-        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (isAllowedError(ctx.errorMessage, allowedError)) {
-                return true;
-            }
-        }
-        return false;
-    },
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> isAllowedError(ctx.errorMessage),
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
-        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query),
+        // https://github.com/elastic/elasticsearch/issues/146479
+        ctx -> isHashAggregationBug(ctx.errorMessage, ctx.query),
+        // https://github.com/elastic/elasticsearch/issues/146418
+        ctx -> isForkPruneColumnsBug(ctx.errorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -452,6 +442,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static String normalizeErrorMessage(String errorMessage) {
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+    }
+
+    protected static boolean isAllowedError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (isAllowedError(errorMessage, allowedError)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
@@ -784,6 +786,40 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern STATS_BY_PATTERN = Pattern.compile("\\bstats\\b[^|]*\\bby\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BLOCK_CAST_PATTERN = Pattern.compile("\\b\\w+Block cannot be cast to class \\S*\\w+Block\\b");
+
+    // https://github.com/elastic/elasticsearch/issues/146479
+    static boolean isHashAggregationBug(String errorMessage, String query) {
+        if (query == null || errorMessage == null) {
+            return false;
+        }
+        String normalized = normalizeErrorMessage(errorMessage);
+        if (normalized.contains("HashAggregationOperator") == false && normalized.contains("BlockHash") == false) {
+            return false;
+        }
+        boolean hasExpectedException = normalized.contains("ArrayIndexOutOfBoundsException")
+            || (normalized.contains("ClassCastException") && BLOCK_CAST_PATTERN.matcher(normalized).find());
+        if (hasExpectedException == false) {
+            return false;
+        }
+        return STATS_BY_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern FORK_PATTERN = Pattern.compile("\\bfork\\b", Pattern.CASE_INSENSITIVE);
+
+    // https://github.com/elastic/elasticsearch/issues/146418
+    static boolean isForkPruneColumnsBug(String errorMessage, String query) {
+        if (query == null || errorMessage == null) {
+            return false;
+        }
+        String normalized = normalizeErrorMessage(errorMessage);
+        if (normalized.contains("optimized incorrectly due to missing attributes in subplans") == false) {
+            return false;
+        }
+        return FORK_PATTERN.matcher(query).find();
     }
 
     @Override

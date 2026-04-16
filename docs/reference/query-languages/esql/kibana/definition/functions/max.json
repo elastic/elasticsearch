@@ -176,7 +176,8 @@
   "examples" : [
     "FROM employees\n| STATS MAX(languages)",
     "FROM employees\n| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))",
-    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS maximum = ROUND(MAX(responseTime), 4)"
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS maximum = ROUND(MAX(responseTime), 4)",
+    "TS histogram_timeseries_index\n| WHERE instance == \"instance-0\"\n| STATS maximum = ROUND(MAX(responseTime::tdigest), 4)"
   ],
   "preview" : false,
   "snapshot_only" : false

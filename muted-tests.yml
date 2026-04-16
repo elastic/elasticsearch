@@ -103,9 +103,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/142511
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
@@ -361,6 +358,21 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceMergeFails
+  issue: https://github.com/elastic/elasticsearch/issues/146510
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceWithDisconnectedRemoteClusters
+  issue: https://github.com/elastic/elasticsearch/issues/146513
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSCompatibilityCheck
+  issue: https://github.com/elastic/elasticsearch/issues/146514
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduce
+  issue: https://github.com/elastic/elasticsearch/issues/146516
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceWhereRemoteClustersFail
+  issue: https://github.com/elastic/elasticsearch/issues/146517
 
 # Examples:
 #

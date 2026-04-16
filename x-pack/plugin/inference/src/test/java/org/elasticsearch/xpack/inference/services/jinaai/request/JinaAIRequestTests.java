@@ -20,7 +20,7 @@ public class JinaAIRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader() {
         var request = new HttpPost("http://www.abc.com");
 
-        JinaAIRequest.decorateWithAuthHeader(request, new SecureString(new char[] { 'a', 'b', 'c' }));
+        JinaAIRequestUtils.decorateWithAuthHeader(request, new SecureString(new char[] { 'a', 'b', 'c' }));
 
         assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer abc"));

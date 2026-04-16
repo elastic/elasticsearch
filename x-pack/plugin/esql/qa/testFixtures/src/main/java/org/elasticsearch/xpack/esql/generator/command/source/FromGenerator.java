@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.source;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -34,10 +35,9 @@ public class FromGenerator implements CommandGenerator {
 
     public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
 
-    /**
-     * Probability of adding query approximation settings.
-     */
-    private static final double QUERY_APPROXIMATION_SETTING_PROBABILITY = 0.1;
+    public static final String SET_APPROXIMATION_PREFIX = "SET approximation=";
+
+    protected static final double QUERY_APPROXIMATION_SETTING_PROBABILITY = 0.1;
 
     /**
      * Returns {@code true} if the given command is a FROM source command.
@@ -59,20 +59,12 @@ public class FromGenerator implements CommandGenerator {
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
+        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled()
+            && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
             result.append(randomQueryApproximationSettings());
         }
-        result.append("from ");
-        int items = randomIntBetween(1, 3);
-        List<String> availableIndices = schema.baseIndices();
-        for (int i = 0; i < items; i++) {
-            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
-            if (i > 0) {
-                result.append(",");
-            }
-            result.append(pattern);
-        }
+        appendFromClause(result, schema);
         String query = result.toString();
         Map<String, Object> context = new HashMap<>();
         context.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
@@ -91,9 +83,22 @@ public class FromGenerator implements CommandGenerator {
         return VALIDATION_OK;
     }
 
-    private String randomQueryApproximationSettings() {
+    protected static void appendFromClause(StringBuilder result, QuerySchema schema) {
+        result.append("from ");
+        int items = randomIntBetween(1, 3);
+        List<String> availableIndices = schema.baseIndices();
+        for (int i = 0; i < items; i++) {
+            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
+            if (i > 0) {
+                result.append(",");
+            }
+            result.append(pattern);
+        }
+    }
+
+    protected String randomQueryApproximationSettings() {
         StringBuilder settings = new StringBuilder();
-        settings.append("SET approximation=");
+        settings.append(SET_APPROXIMATION_PREFIX);
         double x = randomDouble();
         if (x < 0.1) {
             settings.append("null");
@@ -120,5 +125,9 @@ public class FromGenerator implements CommandGenerator {
         }
         settings.append(";");
         return settings.toString();
+    }
+
+    public static boolean hasApproximationSettings(String query) {
+        return query.contains(SET_APPROXIMATION_PREFIX);
     }
 }

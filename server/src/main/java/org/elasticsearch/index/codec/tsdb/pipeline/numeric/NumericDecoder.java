@@ -9,33 +9,53 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
-import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
-
-import java.io.IOException;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 /**
- * Reverses an in-place transformation as a non-terminal stage of the decode pipeline.
+ * Read-path coordinator for pipeline-based numeric decoding. This is the
+ * entry point used by the doc values producer to decode numeric fields. It
+ * owns a {@link NumericDecodePipeline} and produces {@link NumericBlockDecoder}
+ * instances for per-block decoding.
  *
- * <p>Unlike {@link PayloadDecoder}, transform decoders do not read from a
- * {@link org.apache.lucene.store.DataInput} directly. They read metadata written
- * by the corresponding {@link NumericEncoder} via {@link DecodingContext#metadata()}.
+ * <p>Instances are immutable and thread-safe. Per-field mutable state lives in
+ * {@link NumericBlockDecoder}, which callers obtain via {@link #newBlockDecoder()}.
+ *
+ * <p>Created via {@link #fromDescriptor} or via {@link NumericCodecFactory#createDecoder}.
  */
-public interface NumericDecoder {
+public final class NumericDecoder {
+
+    private final NumericDecodePipeline pipeline;
+
+    NumericDecoder(final NumericDecodePipeline pipeline) {
+        this.pipeline = pipeline;
+    }
 
     /**
-     * Returns the unique stage identifier.
+     * Reconstructs a decoder from a persisted descriptor.
+     * Use {@link NumericCodecFactory#createDecoder} as the public entry point.
      *
-     * @return the stage ID byte
+     * @param descriptor the pipeline descriptor read from segment metadata
+     * @return the decoder
      */
-    byte id();
+    static NumericDecoder fromDescriptor(final PipelineDescriptor descriptor) {
+        return new NumericDecoder(NumericDecodePipeline.fromDescriptor(descriptor));
+    }
 
     /**
-     * Reverses the transformation on values in-place using metadata from the context.
+     * Creates a new block decoder with its own mutable decoding context.
      *
-     * @param values     the values to reverse-transform in-place
-     * @param valueCount the number of valid values in the array
-     * @param context    the decoding context for reading stage metadata
-     * @throws IOException if an I/O error occurs while reading metadata
+     * @return a fresh block decoder
      */
-    void decode(long[] values, int valueCount, DecodingContext context) throws IOException;
+    public NumericBlockDecoder newBlockDecoder() {
+        return new NumericBlockDecoder(pipeline);
+    }
+
+    /**
+     * Returns the number of values per block.
+     *
+     * @return the number of values per block
+     */
+    public int blockSize() {
+        return pipeline.blockSize();
+    }
 }

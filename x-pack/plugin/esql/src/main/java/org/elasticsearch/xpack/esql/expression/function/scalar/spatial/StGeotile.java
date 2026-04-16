@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -53,6 +54,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         "StGeotile",
         StGeotile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeotile.class).ternary(StGeotile::new).name("st_geotile");
 
     /**
      * When checking tiles with bounds, we need to check if the tile is valid (intersects with the bounds).

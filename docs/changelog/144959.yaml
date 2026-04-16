@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 144959
+summary: Create bfloat16-specific scorers
+type: enhancement

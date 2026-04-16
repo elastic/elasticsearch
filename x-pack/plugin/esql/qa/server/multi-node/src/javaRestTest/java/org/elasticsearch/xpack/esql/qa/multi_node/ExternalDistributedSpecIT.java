@@ -100,18 +100,16 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         assumeTrue("External source connectors not available", hasExternalSourceConnectors());
     }
 
+    // TODO: replace it with a better system
     private boolean hasExternalSourceConnectors() {
         try {
             Request request = new Request("POST", "/_query");
-            request.setJsonEntity("{\"query\": \"EXTERNAL \\\"s3://probe/test.parquet\\\"\"}");
+            request.setJsonEntity("{\"query\": \"EXTERNAL \\\"s3://THIS_IS_JUST_A_PROBING_QUERY/IT_SHOULD_FAIL.csv\\\"\"}");
             client().performRequest(request);
             return true;
         } catch (Exception e) {
             String msg = e.getMessage();
-            if (msg != null && msg.contains("Unsupported storage scheme")) {
-                return false;
-            }
-            return true;
+            return msg == null || msg.contains("Unsupported storage scheme") == false;
         }
     }
 

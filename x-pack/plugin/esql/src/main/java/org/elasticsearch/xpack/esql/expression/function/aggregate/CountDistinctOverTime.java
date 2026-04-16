@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -37,6 +38,9 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         "DistinctOverTime",
         CountDistinctOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinctOverTime.class)
+        .binary(CountDistinctOverTime::new)
+        .name("count_distinct_over_time");
 
     private final Expression precision;
 
@@ -44,8 +48,9 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
         description = "Calculates the count of distinct values over time for a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "count_distinct_over_time") }
     )
     public CountDistinctOverTime(

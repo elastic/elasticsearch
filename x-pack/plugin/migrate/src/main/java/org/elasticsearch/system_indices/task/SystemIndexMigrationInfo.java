@@ -198,10 +198,10 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
         final Settings settings;
         final String mapping;
         if (descriptor.isAutomaticallyManaged()) {
-            Settings.Builder settingsBuilder = Settings.builder();
-            settingsBuilder.put(descriptor.getSettings());
-            settingsBuilder.remove(IndexMetadata.SETTING_VERSION_CREATED); // Simplifies testing, should never impact real uses.
-            settings = settingsBuilder.build();
+            settings = Settings.builder()
+                .put(descriptor.getSettings())
+                .remove(IndexMetadata.SETTING_VERSION_CREATED) // Simplifies testing, should never impact real uses.
+                .build();
 
             mapping = descriptor.getMappings();
         } else {

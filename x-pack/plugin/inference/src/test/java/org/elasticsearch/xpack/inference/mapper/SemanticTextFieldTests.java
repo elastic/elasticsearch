@@ -9,19 +9,25 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,6 +57,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTextField> {
     private static final String NAME = "field";
@@ -187,6 +194,37 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
+    }
+
+    public void testModelSettingsXContentExcludesEndpointMetadata() throws IOException {
+        final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
+        final MinimalServiceSettings modelSettings = new MinimalServiceSettings(
+            "test-service",
+            TaskType.SPARSE_EMBEDDING,
+            null,
+            null,
+            null,
+            endpointMetadata
+        );
+        final SemanticTextField semanticTextField = new SemanticTextField(
+            useLegacyFormat,
+            NAME,
+            useLegacyFormat ? List.of("input text") : null,
+            new SemanticTextField.InferenceResult("test-inference-id", modelSettings, null, Map.of()),
+            XContentType.JSON
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        semanticTextField.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(builder);
+        assertThat(json, not(containsString(EndpointMetadata.METADATA_FIELD_NAME)));
+
+        XContentParser parser = createParser(XContentType.JSON.xContent(), json);
+        SemanticTextField parsed = SemanticTextField.parse(
+            parser,
+            new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
+        );
+        assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testGetDenseVectorsAsSupplier() throws IOException {

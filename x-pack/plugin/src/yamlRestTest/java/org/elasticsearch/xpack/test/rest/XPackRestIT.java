@@ -52,8 +52,6 @@ public class XPackRestIT extends AbstractXPackRestTest {
             final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
             return Objects.requireNonNullElse(enabled, "");
         })
-        .feature(FeatureFlag.ESQL_VIEWS)
-        .feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG)
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 

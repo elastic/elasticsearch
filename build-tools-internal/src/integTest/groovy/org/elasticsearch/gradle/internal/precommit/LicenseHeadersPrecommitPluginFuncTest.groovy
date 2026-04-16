@@ -39,6 +39,12 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
         assertOutputMissing(result.output, "./src/main/java/org/acme/DualLicensed.java")
+
+        and: "problems report contains license-headers group with per-file problems"
+        assertProblemsReportContains("license-headers")
+        assertProblemsReportContainsProblem("unapproved-license-header")
+        assertProblemsReportHasAtLeast(2)
+        assertProblemsReportSeverity("unapproved-license-header", "ERROR")
     }
 
     def "can filter source files"() {

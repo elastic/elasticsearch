@@ -242,18 +242,24 @@ public class ServerLauncher<D extends LaunchDescriptor> {
     }
 
     private void installShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            synchronized (shuttingDown) {
-                shuttingDown.set(true);
-                if (server != null) {
-                    try {
-                        server.stop();
-                    } catch (IOException e) {
-                        System.err.println("Error stopping server: " + e.getMessage());
-                    }
+        Runtime.getRuntime().addShutdownHook(new Thread(this::onShutdown, shutdownHookName()));
+    }
+
+    /**
+     * Called by the shutdown hook when the JVM is terminating. Stops the server process.
+     * Subclasses can override to add post-shutdown behavior (e.g. waiting for diagnostic collection).
+     */
+    protected void onShutdown() {
+        synchronized (shuttingDown) {
+            shuttingDown.set(true);
+            if (server != null) {
+                try {
+                    server.stop();
+                } catch (IOException e) {
+                    System.err.println("Error stopping server: " + e.getMessage());
                 }
             }
-        }, shutdownHookName()));
+        }
     }
 
     /**

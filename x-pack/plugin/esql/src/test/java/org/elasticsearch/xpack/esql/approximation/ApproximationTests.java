@@ -32,7 +32,7 @@ public class ApproximationTests extends ApproximationTestCase {
 
     public void testVerify_validQuery() throws Exception {
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
-        verify("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
+        verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x");
         verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
@@ -70,7 +70,7 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_exactlyOneStats() {
         assertError(
             "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
-            equalTo("line 1:1: approximation not supported: query without [STATS] cannot be approximated")
+            equalTo("line 1:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
@@ -121,6 +121,12 @@ public class ApproximationTests extends ApproximationTestCase {
             "FROM test | LIMIT 1000 | STATS COUNT()",
             equalTo("line 1:13: approximation not supported: query with [LIMIT 1000] before [STATS] cannot be approximated")
         );
+        assertError(
+            "FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x",
+            equalTo(
+                "line 1:13: approximation not supported: query with [CHANGE_POINT salary ON emp_no] before [STATS] cannot be approximated"
+            )
+        );
     }
 
     public void testVerify_incompatibleAggregation() {
@@ -135,6 +141,10 @@ public class ApproximationTests extends ApproximationTestCase {
         assertError(
             "FROM test | STATS 5+10*POW(MAX(emp_no), 2) BY gender",
             equalTo("line 1:28: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
+        );
+        assertError(
+            "ROW x=[1,2]::DENSE_VECTOR | STATS SUM(x)",
+            equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
         );
     }
 
@@ -278,6 +288,13 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
+
+        // Filtered count of 0, so increase the sample probability.
+        approximation.newMainPlan(newCountResult(0));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, not(hasPlan(Aggregate.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so no more subplans.
         mainPlan = approximation.newMainPlan(newCountResult(0));

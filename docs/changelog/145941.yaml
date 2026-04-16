@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 145941
+summary: Do not discard disjunction conditions when is null/is not null might invalidate
+  them
+type: bug

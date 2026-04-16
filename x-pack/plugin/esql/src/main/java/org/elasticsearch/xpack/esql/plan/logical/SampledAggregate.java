@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Aggregate, which upon execution is either:
@@ -78,7 +80,9 @@ public class SampledAggregate extends Aggregate {
 
     @Override
     public SampledAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new SampledAggregate(source(), child, newGroupings, newAggregates, originalAggregates, sampleProbability);
+        Set<Object> ids = originalAggregates.stream().map(NamedExpression::id).collect(Collectors.toSet());
+        List<? extends NamedExpression> newOriginalAggregates = newAggregates.stream().filter(agg -> ids.contains(agg.id())).toList();
+        return new SampledAggregate(source(), child, newGroupings, newAggregates, newOriginalAggregates, sampleProbability);
     }
 
     public List<? extends NamedExpression> originalAggregates() {

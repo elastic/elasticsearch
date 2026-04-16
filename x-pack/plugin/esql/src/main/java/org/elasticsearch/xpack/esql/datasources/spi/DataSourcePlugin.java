@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
  *   <li>Format readers (Parquet, CSV, ORC) for parsing data files - keyed by format name</li>
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
- *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
  *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)}</li>
  * </ul>
  *
@@ -99,7 +98,7 @@ public interface DataSourcePlugin {
 
     // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
     // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
-    // and from operatorFactories()/filterPushdownSupport() to ExternalSourceFactory methods.
+    // and from operatorFactories() to ExternalSourceFactory methods.
     default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
         return Map.of();
     }
@@ -109,10 +108,6 @@ public interface DataSourcePlugin {
     }
 
     default Map<String, ConnectorFactory> connectors(Settings settings) {
-        return Map.of();
-    }
-
-    default Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings) {
         return Map.of();
     }
 

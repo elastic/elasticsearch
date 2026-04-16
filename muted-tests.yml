@@ -28,9 +28,6 @@ tests:
 - class: org.elasticsearch.index.engine.CompletionStatsCacheTests
   method: testCompletionStatsCache
   issue: https://github.com/elastic/elasticsearch/issues/126910
-- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
-  method: testChangeFollowerHistoryUUID
-  issue: https://github.com/elastic/elasticsearch/issues/127680
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -106,9 +103,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/142511
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
@@ -208,9 +202,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/145889
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145901
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
@@ -343,6 +334,45 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.AzureRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/146430
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
+  method: testDateTruncNotTransformToQueryAndTags
+  issue: https://github.com/elastic/elasticsearch/issues/146458
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForDate {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146459
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForLong {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146460
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForDateNanos {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146461
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testDateTruncNotTransformToQueryAndTags {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146462
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
+  issue: https://github.com/elastic/elasticsearch/issues/146464
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/146466
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceMergeFails
+  issue: https://github.com/elastic/elasticsearch/issues/146510
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceWithDisconnectedRemoteClusters
+  issue: https://github.com/elastic/elasticsearch/issues/146513
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSCompatibilityCheck
+  issue: https://github.com/elastic/elasticsearch/issues/146514
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduce
+  issue: https://github.com/elastic/elasticsearch/issues/146516
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCCSRemoteReduceWhereRemoteClustersFail
+  issue: https://github.com/elastic/elasticsearch/issues/146517
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesTimestampSortedTimeRangeFilters
+  issue: https://github.com/elastic/elasticsearch/issues/146519
 
 # Examples:
 #

@@ -28,9 +28,6 @@ tests:
 - class: org.elasticsearch.index.engine.CompletionStatsCacheTests
   method: testCompletionStatsCache
   issue: https://github.com/elastic/elasticsearch/issues/126910
-- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
-  method: testChangeFollowerHistoryUUID
-  issue: https://github.com/elastic/elasticsearch/issues/127680
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -232,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/145948
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
@@ -343,6 +337,30 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
   method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
   issue: https://github.com/elastic/elasticsearch/issues/146419
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.AzureRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/146430
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToGoldenTests
+  method: testDateTruncNotTransformToQueryAndTags
+  issue: https://github.com/elastic/elasticsearch/issues/146458
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForDate {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146459
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForLong {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146460
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testBlockLoaderFallbackForDateNanos {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146461
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToTests
+  method: testDateTruncNotTransformToQueryAndTags {default}
+  issue: https://github.com/elastic/elasticsearch/issues/146462
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
+  issue: https://github.com/elastic/elasticsearch/issues/146464
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/146466
 
 # Examples:
 #

@@ -21,6 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -392,6 +393,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public boolean get(long index, int len, BytesRef ref) {
             return in.get(index, len, ref);
+        }
+
+        @Override
+        public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
+            return in.get(index, len, scratch);
         }
 
         @Override

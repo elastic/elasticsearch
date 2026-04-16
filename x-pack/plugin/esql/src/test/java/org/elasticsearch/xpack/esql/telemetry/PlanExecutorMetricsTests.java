@@ -18,21 +18,28 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -43,16 +50,19 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
-import org.junit.After;
-import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -61,6 +71,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -70,23 +81,59 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
-    private ThreadPool threadPool;
+    private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices();
 
-    @Before
-    public void setUpThreadPool() throws Exception {
-        threadPool = new TestThreadPool(PlanExecutorMetricsTests.class.getSimpleName());
+    private static TransportActionServices createTransportActionServices() {
+        ClusterService clusterService = createMockClusterService();
+        return new TransportActionServices(
+            createMockTransportService(),
+            mock(SearchService.class),
+            null,
+            clusterService,
+            mock(ProjectResolver.class),
+            mock(IndexNameExpressionResolver.class),
+            null,
+            new InferenceService(mock(Client.class), clusterService),
+            UserAgentParserRegistry.NOOP,
+            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            new PlannerSettings.Holder(clusterService),
+            CrossProjectModeDecider.NOOP
+        );
     }
 
-    @After
-    public void shutdownThreadPool() throws Exception {
-        terminate(threadPool);
+    private static ClusterService createMockClusterService() {
+        var service = mock(ClusterService.class);
+        doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
+
+        // Create ClusterSettings with the required inference settings
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(InferenceSettings.getSettings());
+        settings.addAll(PlannerSettings.settings());
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
+        doReturn(clusterSettings).when(service).getClusterSettings();
+        return service;
+    }
+
+    private static TransportService createMockTransportService() {
+        var service = mock(TransportService.class);
+        doReturn(createMockThreadPool()).when(service).getThreadPool();
+        return service;
+    }
+
+    private static ThreadPool createMockThreadPool() {
+        var threadPool = mock(ThreadPool.class);
+        doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
+        return threadPool;
     }
 
     @SuppressWarnings("unchecked")
@@ -179,7 +226,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
-                    EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                    MOCK_TRANSPORT_ACTION_SERVICES,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -213,7 +260,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
-                    EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                    MOCK_TRANSPORT_ACTION_SERVICES,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -530,7 +577,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 createEsqlExecutionInfo(randomBoolean()),
                 groupIndicesByCluster,
                 runPhase,
-                EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                MOCK_TRANSPORT_ACTION_SERVICES,
                 listener
             );
         }
@@ -579,7 +626,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
-            TEST_PARSER
+            TEST_PARSER,
+            null
         );
     }
 

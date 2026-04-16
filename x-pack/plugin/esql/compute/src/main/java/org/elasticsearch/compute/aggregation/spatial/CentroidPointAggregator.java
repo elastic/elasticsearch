@@ -266,7 +266,6 @@ abstract class CentroidPointAggregator {
             return encode(x, y);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             CentroidPointAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }

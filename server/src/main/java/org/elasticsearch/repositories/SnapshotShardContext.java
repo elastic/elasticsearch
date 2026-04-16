@@ -97,8 +97,6 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
     public abstract ShardId shardId();
 
-    public abstract Releasable withCommitRef();
-
     public abstract boolean isSearchableSnapshot();
 
     public abstract Store.MetadataSnapshot metadataSnapshot();

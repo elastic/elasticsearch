@@ -255,7 +255,11 @@ public final class S3StorageProvider implements StorageProvider {
             String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + s3Object.key();
             StoragePath objectPath = StoragePath.of(fullPath);
 
-            return new StorageEntry(objectPath, s3Object.size(), s3Object.lastModified());
+            Instant lastModified = s3Object.lastModified();
+            if (lastModified == null) {
+                lastModified = Instant.EPOCH;
+            }
+            return new StorageEntry(objectPath, s3Object.size(), lastModified);
         }
 
         @Override

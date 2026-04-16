@@ -18,7 +18,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -45,10 +44,9 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
         var initialSettings = createRandom();
-        var newSettings = new VoyageAIEmbeddingsTaskSettings((InputType) null, null);
         Map<String, Object> newSettingsMap = new HashMap<>();
         VoyageAIEmbeddingsTaskSettings updatedSettings = (VoyageAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
     }
@@ -59,7 +57,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         Map<String, Object> newSettingsMap = new HashMap<>();
         newSettingsMap.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
         VoyageAIEmbeddingsTaskSettings updatedSettings = (VoyageAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
     }

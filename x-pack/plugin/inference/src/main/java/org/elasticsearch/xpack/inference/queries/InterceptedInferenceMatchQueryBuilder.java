@@ -46,7 +46,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     private InterceptedInferenceMatchQueryBuilder(
-        InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
+        InterceptedInferenceMatchQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest

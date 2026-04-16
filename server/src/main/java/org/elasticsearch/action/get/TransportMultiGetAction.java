@@ -9,14 +9,17 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,16 +30,20 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
 
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
@@ -68,6 +75,73 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
     @Override
     protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        executeOnce(request, listener.delegateFailure((delegate, response) -> {
+            // if the request succeeds overall but some shard requests are stale, then retry when index metadata has caught up
+            final HashMap<ShardId, StaleRequestException> staleRequestExceptions = new HashMap<>();
+            for (int i = 0; i < response.getResponses().length; i++) {
+                final var failure = response.getResponses()[i].getFailure();
+                if (failure != null && failure.getFailure() instanceof StaleRequestException sre) {
+                    // we just need one per shard, not one per item
+                    staleRequestExceptions.put(sre.getShardId(), sre);
+                }
+            }
+            if (staleRequestExceptions.isEmpty() == false) {
+                // todo: this retries the entire request on any StaleRequestException. It might be worth saving the other items
+                // and only retrying the ones that failed with StaleRequestException, then merging the results.
+                waitForRoutingUpdateAndRetry(staleRequestExceptions, request, listener);
+            } else {
+                listener.onResponse(response);
+            }
+        }));
+    }
+
+    // if any requests have failed with stale request exceptions, retry when all of them would be retried with newer summaries
+    // The retry strategy is the same as in TransportSingleShardAction.
+    private void waitForRoutingUpdateAndRetry(
+        HashMap<ShardId, StaleRequestException> staleRequestExceptions,
+        MultiGetRequest request,
+        ActionListener<MultiGetResponse> listener
+    ) {
+        // wait for the routing update to be processed and then retry the request
+        ClusterStateObserver.waitForState(clusterService, client.threadPool().getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                executeOnce(request, listener);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "gave up waiting for routing to refresh",
+                        staleRequestExceptions.values().iterator().next()
+                    )
+                );
+            }
+        }, (state) -> {
+            ProjectMetadata project = projectResolver.getProjectMetadata(state);
+            int newerSummaries = 0;
+            for (var entry : staleRequestExceptions.entrySet()) {
+                final var shardId = entry.getKey();
+                // BWC: the summary may be UNSET if the exception is generated by an older node.
+                // We'll do one potentially early retry in that case.
+                final var staleSummary = entry.getValue().getStaleSummary();
+                final var indexMetadata = project.index(shardId.getIndex());
+                final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.getId());
+                if (currentSummary.equals(staleSummary) == false) {
+                    newerSummaries++;
+                }
+            }
+            return newerSummaries == staleRequestExceptions.size();
+        }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+    }
+
+    private void executeOnce(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);

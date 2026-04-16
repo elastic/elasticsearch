@@ -13,16 +13,23 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -31,7 +38,7 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for GcsStorageObject.
  * Tests constructor validation, accessor methods, cached metadata behavior,
- * stream operations, and error handling.
+ * stream operations, readBytes, readBytesAsync, and error handling.
  */
 public class GcsStorageObjectTests extends ESTestCase {
 
@@ -266,5 +273,172 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         assertEquals(4096L, obj.length());
         verify(mockStorage, times(0)).get(any(BlobId.class));
+    }
+
+    // === readBytes tests ===
+
+    public void testReadBytesUsesReadChannel() throws IOException {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        doAnswer(invocation -> {
+            ByteBuffer buf = invocation.getArgument(0);
+            byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
+            buf.put(data);
+            return data.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(5);
+        int bytesRead = obj.readBytes(100, target);
+
+        assertEquals(5, bytesRead);
+        assertEquals(0, target.remaining());
+        verify(mockReader).seek(100);
+        verify(mockReader).limit(105);
+        verify(mockReader).close();
+    }
+
+    public void testReadBytesEmptyBufferReturnsZero() throws IOException {
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(0);
+        int result = obj.readBytes(0, target);
+        assertEquals(0, result);
+    }
+
+    public void testReadBytesReturnsMinusOneAtEof() throws IOException {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        when(mockReader.read(any(ByteBuffer.class))).thenReturn(-1);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        int result = obj.readBytes(9999, target);
+        assertEquals(-1, result);
+        verify(mockReader).close();
+    }
+
+    public void testReadBytesWraps404AsIOException() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(404, "Not Found"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("Object not found"));
+    }
+
+    public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("Failed to read bytes from"));
+    }
+
+    // === readBytesAsync tests ===
+
+    public void testReadBytesAsyncReturnsData() throws Exception {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        doAnswer(invocation -> {
+            ByteBuffer buf = invocation.getArgument(0);
+            byte[] data = "async".getBytes(StandardCharsets.UTF_8);
+            buf.put(data);
+            return data.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(10, 5, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNull(error.get());
+        assertNotNull(result.get());
+        assertEquals(5, result.get().remaining());
+        verify(mockReader).seek(10);
+        verify(mockReader).limit(15);
+    }
+
+    public void testReadBytesAsyncNegativePositionFails() throws Exception {
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(-1, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(error.get());
+        assertTrue(error.get() instanceof IllegalArgumentException);
+        assertTrue(error.get().getMessage().contains("position must be non-negative"));
+    }
+
+    public void testReadBytesAsyncNegativeLengthFails() throws Exception {
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(0, -1, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(error.get());
+        assertTrue(error.get() instanceof IllegalArgumentException);
+        assertTrue(error.get().getMessage().contains("length must be non-negative"));
+    }
+
+    public void testReadBytesAsync404Fails() throws Exception {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(404, "Not Found"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(0, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(error.get());
+        assertTrue(error.get() instanceof IOException);
+        assertTrue(error.get().getMessage().contains("Object not found"));
+    }
+
+    public void testSupportsNativeAsyncReturnsTrue() {
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+        assertTrue(obj.supportsNativeAsync());
     }
 }

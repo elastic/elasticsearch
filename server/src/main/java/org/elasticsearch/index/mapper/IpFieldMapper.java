@@ -76,10 +76,19 @@ public class IpFieldMapper extends FieldMapper {
         return (IpFieldMapper) in;
     }
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        DocValuesParameter.Values.MultiValue.SORTED_SET
+    );
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSet(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Boolean> ignoreMalformed;
@@ -109,9 +118,9 @@ public class IpFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
-            addScriptValidation(script, indexed, hasDocValues);
+            addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
         Builder nullValue(String nullValue) {
@@ -165,7 +174,7 @@ public class IpFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesParameters,
                 stored,
                 ignoreMalformed,
                 nullValue,
@@ -177,18 +186,18 @@ public class IpFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-                return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
+                return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
             }
             if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 return IndexType.skippers();
             }
-            if (indexed.get() == false && hasDocValues.get()) {
+            if (indexed.get() == false && docValuesParameters.get().enabled()) {
                 if (indexSettings.useDocValuesSkipper()
                     && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();
                 }
             }
-            return IndexType.points(indexed.get(), hasDocValues.get());
+            return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
         }
 
         @Override
@@ -207,7 +216,7 @@ public class IpFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                hasDocValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
@@ -589,7 +598,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private final boolean indexed;
-    private final boolean hasDocValues;
+    private final DocValuesParameter.Values docValuesParameters;
     private final boolean stored;
     private final boolean ignoreMalformed;
     private final boolean storeIgnored;
@@ -615,7 +624,7 @@ public class IpFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
@@ -632,6 +641,10 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed;
+    }
+
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
     }
 
     @Override
@@ -730,7 +743,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasDocValues) {
+        if (docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(() -> {
                 var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
                 if (offsetsFieldName != null) {

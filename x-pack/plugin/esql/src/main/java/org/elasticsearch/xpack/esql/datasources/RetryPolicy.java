@@ -20,8 +20,18 @@ import java.net.UnknownHostException;
 
 /**
  * Retry policy with exponential backoff and jitter for transient storage failures.
- * Recognizes HTTP 429 (Too Many Requests), 500 (Internal Server Error),
- * 503 (Service Unavailable), connection resets, and socket timeouts as retryable.
+ * Supports separate retry budgets for throttling errors (429/503/SlowDown) versus
+ * other transient errors (connection reset, socket timeout).
+ * <p>
+ * Throttling errors are expected under high parallelism and are always transient,
+ * so they get a higher retry budget (default 10) with longer backoff delays.
+ * Non-throttle transient errors use the standard budget (default 3).
+ * <p>
+ * Optionally integrates with {@link AdaptiveBackoff} to scale throttle retry delays
+ * based on the global throttling pressure observed across all requests on the same provider.
+ * <p>
+ * A total duration budget can also be applied to cap the cumulative time spent retrying,
+ * regardless of remaining attempt count.
  */
 class RetryPolicy {
 
@@ -31,26 +41,60 @@ class RetryPolicy {
     static final long DEFAULT_INITIAL_DELAY_MS = 200;
     static final long DEFAULT_MAX_DELAY_MS = 5000;
 
+    static final int DEFAULT_THROTTLE_MAX_RETRIES = 10;
+    static final long DEFAULT_THROTTLE_INITIAL_DELAY_MS = 500;
+    static final long DEFAULT_THROTTLE_MAX_DELAY_MS = 30_000;
+
     /** No total duration budget — retries are bounded only by attempt count. */
     static final long NO_BUDGET = 0;
 
-    static final RetryPolicy NONE = new RetryPolicy(0, 0, 0, NO_BUDGET);
-    static final RetryPolicy DEFAULT = new RetryPolicy(DEFAULT_MAX_RETRIES, DEFAULT_INITIAL_DELAY_MS, DEFAULT_MAX_DELAY_MS, NO_BUDGET);
+    static final RetryPolicy NONE = new RetryPolicy(0, 0, 0, 0, 0, 0, NO_BUDGET, null);
+    static final RetryPolicy DEFAULT = new RetryPolicy(
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_INITIAL_DELAY_MS,
+        DEFAULT_MAX_DELAY_MS,
+        DEFAULT_THROTTLE_MAX_RETRIES,
+        DEFAULT_THROTTLE_INITIAL_DELAY_MS,
+        DEFAULT_THROTTLE_MAX_DELAY_MS,
+        NO_BUDGET,
+        null
+    );
 
     private final int maxRetries;
     private final long initialDelayMs;
     private final long maxDelayMs;
+    private final int throttleMaxRetries;
+    private final long throttleInitialDelayMs;
+    private final long throttleMaxDelayMs;
     private final long maxTotalDurationMs;
+    private final AdaptiveBackoff adaptiveBackoff;
 
-    RetryPolicy(int maxRetries, long initialDelayMs, long maxDelayMs) {
-        this(maxRetries, initialDelayMs, maxDelayMs, NO_BUDGET);
-    }
-
-    RetryPolicy(int maxRetries, long initialDelayMs, long maxDelayMs, long maxTotalDurationMs) {
+    RetryPolicy(
+        int maxRetries,
+        long initialDelayMs,
+        long maxDelayMs,
+        int throttleMaxRetries,
+        long throttleInitialDelayMs,
+        long throttleMaxDelayMs,
+        long maxTotalDurationMs,
+        AdaptiveBackoff adaptiveBackoff
+    ) {
         this.maxRetries = maxRetries;
         this.initialDelayMs = initialDelayMs;
         this.maxDelayMs = maxDelayMs;
+        this.throttleMaxRetries = throttleMaxRetries;
+        this.throttleInitialDelayMs = throttleInitialDelayMs;
+        this.throttleMaxDelayMs = throttleMaxDelayMs;
         this.maxTotalDurationMs = maxTotalDurationMs;
+        this.adaptiveBackoff = adaptiveBackoff;
+    }
+
+    RetryPolicy(int maxRetries, long initialDelayMs, long maxDelayMs) {
+        this(maxRetries, initialDelayMs, maxDelayMs, maxRetries, initialDelayMs, maxDelayMs, NO_BUDGET, null);
+    }
+
+    RetryPolicy(int maxRetries, long initialDelayMs, long maxDelayMs, long maxTotalDurationMs) {
+        this(maxRetries, initialDelayMs, maxDelayMs, maxRetries, initialDelayMs, maxDelayMs, maxTotalDurationMs, null);
     }
 
     /**
@@ -59,25 +103,77 @@ class RetryPolicy {
      * rather than sleeping and retrying.
      */
     RetryPolicy withTotalDurationBudget(long budgetMs) {
-        return new RetryPolicy(maxRetries, initialDelayMs, maxDelayMs, budgetMs);
+        return new RetryPolicy(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            throttleMaxRetries,
+            throttleInitialDelayMs,
+            throttleMaxDelayMs,
+            budgetMs,
+            adaptiveBackoff
+        );
+    }
+
+    RetryPolicy withAdaptiveBackoff(AdaptiveBackoff backoff) {
+        return new RetryPolicy(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            throttleMaxRetries,
+            throttleInitialDelayMs,
+            throttleMaxDelayMs,
+            maxTotalDurationMs,
+            backoff
+        );
+    }
+
+    RetryPolicy withThrottleConfig(int throttleRetries, long throttleInitialMs, long throttleMaxMs) {
+        return new RetryPolicy(
+            maxRetries,
+            initialDelayMs,
+            maxDelayMs,
+            throttleRetries,
+            throttleInitialMs,
+            throttleMaxMs,
+            maxTotalDurationMs,
+            adaptiveBackoff
+        );
     }
 
     int maxRetries() {
         return maxRetries;
     }
 
+    int throttleMaxRetries() {
+        return throttleMaxRetries;
+    }
+
     long delayMillis(int attempt) {
-        if (maxRetries == 0) {
+        return delayMillis(attempt, false);
+    }
+
+    long delayMillis(int attempt, boolean isThrottle) {
+        if (maxRetries == 0 && throttleMaxRetries == 0) {
             return 0;
         }
-        long baseDelay = initialDelayMs * (1L << attempt);
-        long capped = Math.min(baseDelay, maxDelayMs);
+        long effectiveInitial = isThrottle ? throttleInitialDelayMs : initialDelayMs;
+        long effectiveMax = isThrottle ? throttleMaxDelayMs : maxDelayMs;
+
+        long baseDelay = effectiveInitial * (1L << attempt);
+        long capped = Math.min(baseDelay, effectiveMax);
         long jitter = Randomness.get().nextLong(capped / 4 + 1);
-        return Math.min(maxDelayMs, capped + jitter);
+        long delay = Math.min(effectiveMax, capped + jitter);
+
+        if (isThrottle && adaptiveBackoff != null && adaptiveBackoff.isEnabled()) {
+            delay *= adaptiveBackoff.currentMultiplier();
+            delay = Math.min(delay, effectiveMax);
+        }
+        return delay;
     }
 
     boolean isRetryable(Throwable t) {
-        if (maxRetries == 0) {
+        if (maxRetries == 0 && throttleMaxRetries == 0) {
             return false;
         }
         return isTransientStorageError(t);
@@ -88,18 +184,32 @@ class RetryPolicy {
     }
 
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path) throws IOException {
-        if (maxRetries == 0) {
+        if (maxRetries == 0 && throttleMaxRetries == 0) {
             return operation.get();
         }
         long startNanos = System.nanoTime();
-        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+        int maxAttempts = Math.max(maxRetries, throttleMaxRetries);
+        for (int attempt = 0; attempt <= maxAttempts; attempt++) {
             try {
-                return operation.get();
+                T result = operation.get();
+                if (adaptiveBackoff != null) {
+                    adaptiveBackoff.onSuccess();
+                }
+                return result;
             } catch (IOException e) {
-                if (isTransientStorageError(e) == false || attempt == maxRetries) {
+                boolean isThrottle = isThrottlingError(e);
+                boolean isTransient = isThrottle || isTransientStorageError(e);
+                int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
+
+                if (isTransient == false || attempt >= effectiveMaxRetries) {
                     throw e;
                 }
-                long delay = delayMillis(attempt);
+
+                if (isThrottle && adaptiveBackoff != null) {
+                    adaptiveBackoff.onThrottled();
+                }
+
+                long delay = delayMillis(attempt, isThrottle);
                 if (maxTotalDurationMs > 0) {
                     long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
                     if (elapsedMs + delay > maxTotalDurationMs) {
@@ -115,11 +225,12 @@ class RetryPolicy {
                     }
                 }
                 logger.debug(
-                    "retrying [{}] for [{}] after transient failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                    "retrying [{}] for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
                     operationName,
                     path,
+                    isThrottle ? "throttle" : "transient",
                     attempt + 1,
-                    maxRetries,
+                    effectiveMaxRetries,
                     delay,
                     e.getMessage()
                 );
@@ -131,8 +242,45 @@ class RetryPolicy {
                 }
             }
         }
-        // unreachable: loop always returns or throws
         throw new AssertionError("retry loop exited unexpectedly");
+    }
+
+    void notifySuccess() {
+        if (adaptiveBackoff != null) {
+            adaptiveBackoff.onSuccess();
+        }
+    }
+
+    void notifyThrottled() {
+        if (adaptiveBackoff != null) {
+            adaptiveBackoff.onThrottled();
+        }
+    }
+
+    static boolean isThrottlingError(Throwable t) {
+        for (Throwable current = t; current != null; current = current.getCause()) {
+            if (isThrottlingSingleCause(current)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isThrottlingSingleCause(Throwable t) {
+        String message = t.getMessage();
+        if (message == null) {
+            return false;
+        }
+        if (message.contains("429") || message.contains("Too Many Requests")) {
+            return true;
+        }
+        if (message.contains("503") || message.contains("Service Unavailable")) {
+            return true;
+        }
+        if (message.contains("SlowDown") || message.contains("Reduce your request rate")) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean isTransientStorageError(Throwable t) {
@@ -164,19 +312,10 @@ class RetryPolicy {
         if (message == null) {
             return false;
         }
-        if (message.contains("429") || message.contains("Too Many Requests")) {
-            return true;
-        }
         if (message.contains("500") || message.contains("Internal Server Error") || message.contains("InternalError")) {
             return true;
         }
-        if (message.contains("503") || message.contains("Service Unavailable")) {
-            return true;
-        }
-        if (message.contains("SlowDown") || message.contains("Reduce your request rate")) {
-            return true;
-        }
-        return false;
+        return isThrottlingSingleCause(t);
     }
 
     @FunctionalInterface

@@ -66,9 +66,7 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new LlamaChatCompletionServiceSettings(model, uri, rateLimitSettings);
     }

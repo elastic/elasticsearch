@@ -139,7 +139,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Option(
         option = "using-otel-sdk",
-        description = "Use the OTel SDK for metrics export instead of the APM agent (requires --with-apm-server)"
+        description = "Use the OTel SDK for metrics export instead of the APM agent. "
+            + "Can be combined with --with-apm-server (uses built-in mock server) or alone, manually "
+            + "setting telemetry.otel.metrics.endpoint."
     )
     public void setUsingOtelSdk(Boolean usingOtelSdk) {
         this.usingOtelSdk = usingOtelSdk;
@@ -260,10 +262,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
             getDataPath = n -> dataDir.resolve(n.getName());
         }
 
-        if (usingOtelSdk && apmServerEnabled == false) {
-            throw new GradleException("--using-otel-sdk requires --with-apm-server");
-        }
-
         if (apmServerEnabled) {
             try {
                 mockServer = new MockApmServer(apmServerMetrics, apmServerTransactions, apmServerTransactionsExcludes);
@@ -301,14 +299,16 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
+                if (usingOtelSdk) {
+                    node.systemProperty("telemetry.otel.metrics.enabled", "true");
+                    node.setting("telemetry.metrics.enabled", "true");
+                }
                 if (mockServer != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     if (usingOtelSdk) {
-                        node.systemProperty("telemetry.otel.metrics.enabled", "true");
                         node.setting("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + mockServer.getPort() + "/v1/metrics");
-                        node.setting("telemetry.otel.metrics.interval", "10s");
                     } else {
                         node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                         node.setting("telemetry.agent.transaction_max_spans", "100");

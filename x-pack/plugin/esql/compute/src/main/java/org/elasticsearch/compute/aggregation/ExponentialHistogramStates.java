@@ -138,7 +138,6 @@ public final class ExponentialHistogramStates {
             states = bigArrays.grow(states, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             try (
@@ -307,7 +306,6 @@ public final class ExponentialHistogramStates {
             longValues = bigArrays.grow(longValues, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 3;
             try (

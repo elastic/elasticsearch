@@ -7,12 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,17 +18,21 @@ import java.util.Map;
  */
 public class AzureConfigurationTests extends ESTestCase {
 
-    private static final Source SOURCE = Source.EMPTY;
-
-    public void testFromParamsWithAllFields() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("connection_string", literal("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key"));
-        params.put("account", literal("myaccount"));
-        params.put("key", literal("mykey"));
-        params.put("sas_token", literal("?sv=2020-01-01"));
-        params.put("endpoint", literal("https://myaccount.blob.core.windows.net"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of(
+                "connection_string",
+                "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key",
+                "account",
+                "myaccount",
+                "key",
+                "mykey",
+                "sas_token",
+                "?sv=2020-01-01",
+                "endpoint",
+                "https://myaccount.blob.core.windows.net"
+            )
+        );
 
         assertNotNull(config);
         assertEquals("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key", config.connectionString());
@@ -44,23 +43,18 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithConnectionStringOnly() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("connection_string", literal("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithConnectionStringOnly() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key")
+        );
 
         assertNotNull(config);
         assertEquals("DefaultEndpointsProtocol=https;AccountName=test;AccountKey=key", config.connectionString());
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithAccountAndKey() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("account", literal("myaccount"));
-        params.put("key", literal("mykey"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
+    public void testFromMapWithAccountAndKey() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("account", "myaccount", "key", "mykey"));
 
         assertNotNull(config);
         assertEquals("myaccount", config.account());
@@ -68,23 +62,16 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromParamsWithNullMapReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromParams(null);
-        assertNull(config);
+    public void testFromMapWithNullMapReturnsNull() {
+        assertNull(AzureConfiguration.fromMap(null));
     }
 
-    public void testFromParamsWithEmptyMapReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromParams(new HashMap<>());
-        assertNull(config);
+    public void testFromMapWithEmptyMapReturnsNull() {
+        assertNull(AzureConfiguration.fromMap(new HashMap<>()));
     }
 
-    public void testFromParamsWithNoAzureParamsReturnsNull() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("other_param", literal("value"));
-
-        AzureConfiguration config = AzureConfiguration.fromParams(params);
-
-        assertNull(config);
+    public void testFromMapWithUnknownParamsThrows() {
+        expectThrows(org.elasticsearch.common.ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromFieldsWithAllFields() {
@@ -100,8 +87,7 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testFromFieldsWithAllNullReturnsNull() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null);
-        assertNull(config);
+        assertNull(AzureConfiguration.fromFields(null, null, null, null, null));
     }
 
     public void testHasCredentialsWithConnectionString() {
@@ -153,15 +139,24 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none")
+        );
     }
 
     public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none")
+        );
     }
 
     public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none")
+        );
     }
 
     public void testAuthNoneAllowsEndpoint() {
@@ -172,14 +167,8 @@ public class AzureConfigurationTests extends ESTestCase {
 
     public void testUnsupportedAuthValueThrows() {
         expectThrows(
-            IllegalArgumentException.class,
+            org.elasticsearch.common.ValidationException.class,
             () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported")
         );
-    }
-
-    private Literal literal(Object value) {
-        Object literalValue = value instanceof String s ? new BytesRef(s) : value;
-        DataType dataType = value instanceof String ? DataType.KEYWORD : DataType.KEYWORD;
-        return new Literal(SOURCE, literalValue, dataType);
     }
 }

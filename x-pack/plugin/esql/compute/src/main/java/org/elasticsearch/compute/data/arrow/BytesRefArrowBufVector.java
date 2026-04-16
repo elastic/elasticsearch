@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -89,6 +90,17 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        int start = valueOffsetsBuffer.getInt((long) position * Integer.BYTES);
+        int end = valueOffsetsBuffer.getInt((long) (position + 1) * Integer.BYTES);
+        int length = end - start;
+        byte[] buf = new byte[length];
+        valueBuffer.getBytes(start, buf, 0, length);
+        scratch.init(buf, 0, length);
+        return scratch;
+    }
+
+    @Override
     protected int byteSize() {
         throw new UnsupportedOperationException("BytesRef values are variable-length");
     }
@@ -111,6 +123,21 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     @Override
     public long ramBytesUsed() {
         return super.ramBytesUsed() + valueOffsetsBuffer.getActualMemoryConsumed();
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
     }
 
     @Override

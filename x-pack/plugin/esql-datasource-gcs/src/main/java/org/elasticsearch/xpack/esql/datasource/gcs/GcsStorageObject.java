@@ -13,17 +13,34 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.time.Instant;
+import java.util.concurrent.Executor;
 
 /**
  * StorageObject implementation for Google Cloud Storage.
- * Supports full and range reads, and metadata retrieval with caching.
+ * Supports full and range reads, metadata retrieval with caching, and efficient positional
+ * byte reads via {@link ReadChannel#read(ByteBuffer)}.
+ * <p>
+ * In addition to the required stream-based API, this class overrides:
+ * <ul>
+ *   <li>{@link #readBytes(long, ByteBuffer)} — uses {@code ReadChannel.read(ByteBuffer)} for
+ *       direct buffer reads without intermediate byte[] allocation.</li>
+ *   <li>{@link #readBytesAsync(long, long, Executor, ActionListener)} — executor-wrapped
+ *       ReadChannel reads for the async API.</li>
+ *   <li>{@link #supportsNativeAsync()} — returns {@code true} because this class provides custom
+ *       async and byte-read implementations that are more efficient than the default InputStream
+ *       wrappers. Note: the async path is executor-based (blocking a worker thread), not truly
+ *       non-blocking like {@code HttpClient.sendAsync()} or {@code S3AsyncClient}.</li>
+ * </ul>
  */
 public final class GcsStorageObject implements StorageObject {
     private final Storage storage;
@@ -71,10 +88,7 @@ public final class GcsStorageObject implements StorageObject {
             ReadChannel reader = storage.reader(blobId);
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Failed to read object from " + path, e);
+            throw wrapException(e, "Failed to read object from");
         }
     }
 
@@ -94,10 +108,7 @@ public final class GcsStorageObject implements StorageObject {
             reader.limit(position + length);
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Range request failed for " + path, e);
+            throw wrapException(e, "Range request failed for");
         }
     }
 
@@ -131,6 +142,81 @@ public final class GcsStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        if (target.hasRemaining() == false) {
+            return 0;
+        }
+        try {
+            BlobId blobId = BlobId.of(bucket, objectName);
+            try (ReadChannel reader = storage.reader(blobId)) {
+                reader.seek(position);
+                reader.limit(position + target.remaining());
+                int totalRead = 0;
+                while (target.hasRemaining()) {
+                    int n = readFromChannel(reader, target);
+                    if (n < 0) {
+                        break;
+                    }
+                    totalRead += n;
+                }
+                return totalRead == 0 ? -1 : totalRead;
+            }
+        } catch (StorageException e) {
+            throw wrapException(e, "Failed to read bytes from");
+        }
+    }
+
+    @Override
+    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        if (position < 0) {
+            listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
+            return;
+        }
+        if (length < 0) {
+            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                BlobId blobId = BlobId.of(bucket, objectName);
+                try (ReadChannel reader = storage.reader(blobId)) {
+                    reader.seek(position);
+                    reader.limit(position + length);
+                    ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(length));
+                    while (buffer.hasRemaining()) {
+                        int n = readFromChannel(reader, buffer);
+                        if (n < 0) {
+                            break;
+                        }
+                    }
+                    buffer.flip();
+                    listener.onResponse(buffer);
+                }
+            } catch (StorageException e) {
+                listener.onFailure(wrapException(e, "Failed to read bytes from"));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
+    public boolean supportsNativeAsync() {
+        return true;
+    }
+
+    @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")
+    private static int readFromChannel(ReadChannel reader, ByteBuffer target) throws IOException {
+        return reader.read(target);
+    }
+
+    private IOException wrapException(StorageException e, String operation) {
+        String message = e.getCode() == 404 ? "Object not found: " + path : operation + " " + path;
+        return new IOException(message, e);
     }
 
     private void fetchMetadata() throws IOException {

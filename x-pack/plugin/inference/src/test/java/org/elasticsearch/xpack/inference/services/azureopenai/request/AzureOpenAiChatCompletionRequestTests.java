@@ -11,14 +11,18 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -51,6 +55,18 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     );
     private static final String INFERENCE_ENTITY_ID_VALUE = "inferenceEntityId";
     private static final String USER_VALUE = "some_user";
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
 
     public void testCreateRequest_Streaming_ApiKey() throws IOException {
         String input = randomAlphaOfLength(15);
@@ -124,7 +140,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(request.getURI().toString(), is(URL_DEFAULT_VALUE));
     }
 
-    private static AzureOpenAiChatCompletionRequest createRequest(String input, boolean stream, String apiKey, String entraId) {
+    private AzureOpenAiChatCompletionRequest createRequest(String input, boolean stream, String apiKey, String entraId) {
         var chatCompletionModel = AzureOpenAiCompletionModelTests.createChatCompletionModel(
             RESOURCE_NAME_VALUE,
             DEPLOYMENT_ID_VALUE,
@@ -132,7 +148,8 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
             USER_VALUE,
             apiKey,
             entraId,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
         return new AzureOpenAiChatCompletionRequest(new UnifiedChatInput(List.of(input), ROLE_VALUE, stream), chatCompletionModel);
     }

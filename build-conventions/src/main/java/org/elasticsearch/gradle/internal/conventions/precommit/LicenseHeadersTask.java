@@ -21,12 +21,17 @@ import org.apache.rat.report.RatReport;
 import org.apache.rat.report.claim.ClaimStatistic;
 import org.apache.rat.report.xml.XmlReportFactory;
 import org.apache.rat.report.xml.writer.impl.base.XmlWriter;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -92,11 +97,14 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private ListProperty<License> additionalLicenses;
 
+    private final ProblemReporter problemReporter;
+
     @Inject
-    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
+    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout, Problems problems) {
         additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
         reportFile = objectFactory.fileProperty().convention(projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml"));
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
+        this.problemReporter = problems.getReporter();
     }
 
     /**
@@ -196,8 +204,18 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
+            List<String> unapproved = unapprovedFiles(repFile);
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(repFile).forEach(getLogger()::error);
+            unapproved.forEach(file -> {
+                getLogger().error(file);
+                problemReporter.report(
+                    ProblemId.create("unapproved-license-header", "Unapproved license header", ElasticsearchBuildProblems.LICENSE_HEADERS),
+                    spec -> spec.contextualLabel("Unapproved license header in " + file)
+                        .severity(Severity.ERROR)
+                        .fileLocation(file)
+                        .solution("Add an approved license header to the file")
+                );
+            });
             throw new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath());
         }
     }

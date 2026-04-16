@@ -56,6 +56,19 @@ public final class MachineLearningField {
         Setting.Property.NodeScope
     );
 
+    /**
+     * When set to {@code false}, the pytorch_inference process skips TorchScript
+     * model graph validation (the operation allowlist/forbidden list check).
+     * This is an emergency escape hatch — disabling validation removes the
+     * security check that blocks models with dangerous operations.
+     */
+    public static final Setting<Boolean> MODEL_GRAPH_VALIDATION_ENABLED = Setting.boolSetting(
+        "xpack.ml.trained_models.graph_validation_enabled",
+        true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
     public static final String ML_FEATURE_FAMILY = "machine-learning";
     public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(

@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
@@ -68,13 +67,11 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertThat(status.limit(), equalTo(100));
         assertThat(status.limitRemaining(), equalTo(100));
         assertThat(status.pagesProcessed(), equalTo(0));
-
-        Page p = new Page(blockFactory.newConstantNullBlock(10));
-        try {
+        try (Page p = new Page(blockFactory.newConstantNullBlock(10))) {
             op.addInput(p);
-            assertSame(p, op.getOutput());
-        } finally {
-            p.releaseBlocks();
+            try (Page output = op.getOutput()) {
+                assertThat(output, equalTo(p));
+            }
         }
         status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -124,11 +121,8 @@ public class LimitOperatorTests extends OperatorTestCase {
                 Page p = new Page(randomBlock(blockFactory, 100));  // test doesn't close because operator returns same page
                 op.addInput(p);
                 assertFalse(op.needsInput());
-                Page result = op.getOutput();
-                try {
-                    assertThat(result, sameInstance(p));
-                } finally {
-                    result.releaseBlocks();
+                try (Page output = op.getOutput()) {
+                    assertThat(output, equalTo(p));
                 }
                 assertFalse(op.needsInput());
                 assertTrue(op.isFinished());

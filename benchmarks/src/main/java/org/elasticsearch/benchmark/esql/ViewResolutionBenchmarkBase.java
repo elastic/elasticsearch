@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -139,7 +139,6 @@ public abstract class ViewResolutionBenchmarkBase {
     private LogicalPlan preParsedPlan;
     private String queryString;
     private BiFunction<String, String, LogicalPlan> viewParser;
-    private PlanTelemetry telemetry;
     private Analyzer analyzer;
     private LogicalPlanOptimizer optimizer;
     private ThreadPool threadPool;
@@ -156,10 +155,8 @@ public abstract class ViewResolutionBenchmarkBase {
         SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
 
-        telemetry = new PlanTelemetry(functionRegistry);
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, telemetry, inferenceSettings, viewName)
-            .plan();
+        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, inferenceSettings, viewName).plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -171,7 +168,7 @@ public abstract class ViewResolutionBenchmarkBase {
             String name = "col" + i;
             mapping.put(name, new EsField(name, KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of());
 
         Configuration config = new Configuration(
             DateUtils.UTC,
@@ -268,7 +265,7 @@ public abstract class ViewResolutionBenchmarkBase {
     }
 
     private LogicalPlan parsePlan(String query) {
-        return parser.parseQuery(query, new QueryParams(), telemetry, new InferenceSettings(Settings.EMPTY));
+        return parser.parseQuery(query, new QueryParams(), new InferenceSettings(Settings.EMPTY));
     }
 
     private ViewResolver createResolver(boolean viewsEnabled, ViewMetadata viewMetadata) {
@@ -346,7 +343,7 @@ public abstract class ViewResolutionBenchmarkBase {
             boolean enabled,
             ViewResolutionService viewResolutionService
         ) {
-            super(clusterService, projectResolver, null);
+            super(clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;

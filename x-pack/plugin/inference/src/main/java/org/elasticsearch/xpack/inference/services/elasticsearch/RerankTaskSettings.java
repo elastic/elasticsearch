@@ -16,7 +16,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,9 +39,7 @@ public class RerankTaskSettings implements TaskSettings {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         if (returnDocuments == null) {
             returnDocuments = true;
@@ -141,7 +138,7 @@ public class RerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        RerankTaskSettings updatedSettings = RerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        RerankTaskSettings updatedSettings = RerankTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

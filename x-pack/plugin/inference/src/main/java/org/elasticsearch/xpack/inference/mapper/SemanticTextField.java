@@ -80,8 +80,8 @@ public record SemanticTextField(
 
     public record InferenceResult(
         String inferenceId,
-        MinimalServiceSettings modelSettings,
-        ChunkingSettings chunkingSettings,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
 
@@ -157,7 +157,7 @@ public record SemanticTextField(
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings != null ? inference.modelSettings.getFilteredXContentObject() : null);
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }

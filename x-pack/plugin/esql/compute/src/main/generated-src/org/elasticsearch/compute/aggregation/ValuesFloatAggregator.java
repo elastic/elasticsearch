@@ -80,8 +80,20 @@ class ValuesFloatAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        return state.toBlock(ctx.blockFactory(), selected);
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
+    }
+
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
     public static class SingleState implements AggregatorState {
@@ -146,11 +158,6 @@ class ValuesFloatAggregator {
             }
         }
 
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
-        }
-
         void addValue(int groupId, float v) {
             if (groupId > maxGroupId) {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
@@ -195,18 +202,35 @@ class ValuesFloatAggregator {
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
-                return buildOutputBlock(blockFactory, selected, prepared);
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(BlockFactory blockFactory, IntVector selected) {
+            return new PreparedForEmitting(selected, blockFactory);
+        }
+
+        private class PreparedForEmitting implements GroupingAggregatorFunction.PreparedForEvaluation {
+            private final BlockFactory blockFactory;
+            private final ValuesNextPreparedForEmitting next;
+
+            PreparedForEmitting(IntVector selected, BlockFactory blockFactory) {
+                this.blockFactory = blockFactory;
+                this.next = nextValues.prepareForEmitting(blockFactory, selected);
+            }
+
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+                blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
+            }
+
+            @Override
+            public void close() {
+                next.close();
             }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting prepared) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
             /*
              * Insert the ids in order.
              */
             try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
-                int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
                     if (group > maxGroupId || hasValue(group) == false) {
@@ -214,7 +238,8 @@ class ValuesFloatAggregator {
                         continue;
                     }
                     float firstValue = firstValues.get(group);
-                    final int nextValuesEnd = prepared.nextValuesEnd(group, nextValuesStart);
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendFloat(firstValue);
                     } else {
@@ -222,10 +247,9 @@ class ValuesFloatAggregator {
                         builder.appendFloat(firstValue);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendFloat(nextValues.getFloat(prepared, i));
+                            builder.appendFloat(nextValues.getFloat(next, i));
                         }
                         builder.endPositionEntry();
-                        nextValuesStart = nextValuesEnd;
                     }
                 }
                 return builder.build();

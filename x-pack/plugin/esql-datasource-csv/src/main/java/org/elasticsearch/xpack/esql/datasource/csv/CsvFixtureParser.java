@@ -21,7 +21,7 @@ import java.util.Locale;
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
  * multi-value support, matching the behavior of {@link CsvFormatReader}.
  * <p>
- * Used by OrcFixtureGenerator and ParquetFixtureGenerator to read CSV fixtures
+ * Used by OrcFixtureGenerator, ParquetFixtureGenerator, and NdJsonFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
  * <p>
  * Minimal dependencies: only java.util, java.io, java.nio. No esql-core or server.
@@ -190,6 +190,13 @@ public final class CsvFixtureParser {
         }
         if (current.length() > 0) {
             entries.add(current.toString().trim());
+        }
+        // Trailing delimiter (RFC 4180): one more empty field after the last comma, unless escaped as \,
+        if (line.endsWith(String.valueOf(delim)) && inQuotes == false) {
+            int last = line.length() - 1;
+            if (last == 0 || line.charAt(last - 1) != esc) {
+                entries.add("");
+            }
         }
         return entries.toArray(String[]::new);
     }

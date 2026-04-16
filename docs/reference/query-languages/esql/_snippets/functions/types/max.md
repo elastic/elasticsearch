@@ -9,12 +9,12 @@
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
-| exponential_histogram {applies_to}`stack: preview 9.3.0` | double |
+| exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | double |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |
 | long | long |
-| tdigest {applies_to}`stack: preview 9.3.0` | double |
+| tdigest {applies_to}`stack: preview 9.3.0, ga 9.4.0` | double |
 | text | keyword |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | unsigned_long |
 | version | version |

@@ -23,8 +23,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
-
 public class DatasetUtilsTests extends ESTestCase {
 
     DatasetUtils datasetUtils;
@@ -47,8 +45,7 @@ public class DatasetUtilsTests extends ESTestCase {
                 var ba = new byte[dims * Float.BYTES];
                 var seg = MemorySegment.ofArray(ba);
                 for (int v = 0; v < numVecs; v++) {
-                    var src = MemorySegment.ofArray(randomVector(dims));
-                    MemorySegment.copy(src, JAVA_FLOAT_UNALIGNED, 0L, seg, JAVA_FLOAT_LE, 0L, numVecs);
+                    MemorySegment.copy(randomVector(dims), 0, seg, JAVA_FLOAT_LE, 0L, numVecs);
                     out.writeBytes(ba, 0, ba.length);
                 }
             }

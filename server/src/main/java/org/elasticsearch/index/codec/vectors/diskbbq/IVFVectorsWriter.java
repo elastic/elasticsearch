@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -37,6 +38,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -197,7 +199,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 fieldWriter.fieldInfo,
                 fieldWriter.delegate,
                 maxDoc,
-                preconditionVectors(preconditioner)
+                preconditionVectors(preconditioner),
+                sortMap
             );
 
             // build centroids
@@ -257,20 +260,45 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
         int maxDoc,
-        Consumer<List<float[]>> vectorTransform
+        Consumer<List<float[]>> vectorTransform,
+        Sorter.DocMap sortMap
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         vectorTransform.accept(vectors);
-        if (vectors.size() == maxDoc) {
+        if (vectors.size() == maxDoc && sortMap == null) {
             return KMeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
+        } else if (sortMap == null) {
+            final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return KMeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
+        } else {
+            DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+            final int[] ordMap = new int[fieldVectorsWriter.getDocsWithFieldSet().cardinality()]; // new ord to old ord
+            KnnVectorsWriter.mapOldOrdToNewOrd(fieldVectorsWriter.getDocsWithFieldSet(), sortMap, null, ordMap, newDocsWithField);
+            final DocIdSetIterator iterator = newDocsWithField.iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            List<float[]> orderedVectors = new AbstractList<>() {
+
+                @Override
+                public int size() {
+                    return vectors.size();
+                }
+
+                @Override
+                public float[] get(int index) {
+                    return vectors.get(ordMap[index]);
+                }
+            };
+            return KMeansFloatVectorValues.build(orderedVectors, docIds, fieldInfo.getVectorDimension());
         }
-        final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
-        final int[] docIds = new int[vectors.size()];
-        for (int i = 0; i < docIds.length; i++) {
-            docIds[i] = iterator.nextDoc();
-        }
-        assert iterator.nextDoc() == NO_MORE_DOCS;
-        return KMeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
     }
 
     /**

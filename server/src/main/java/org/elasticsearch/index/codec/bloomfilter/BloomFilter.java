@@ -9,19 +9,12 @@
 
 package org.elasticsearch.index.codec.bloomfilter;
 
-import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 
-import java.io.Closeable;
 import java.io.IOException;
 
-public interface BloomFilter extends Closeable {
+public interface BloomFilter {
     BloomFilter NO_FILTER = new BloomFilter() {
-        @Override
-        public void close() {
-
-        }
 
         @Override
         public boolean mayContainValue(String field, BytesRef term) {
@@ -31,6 +24,12 @@ public interface BloomFilter extends Closeable {
         @Override
         public long sizeInBytes() {
             return 0;
+        }
+
+        @Override
+        public double saturation() {
+            // This always returns true in #mayContainValue, so we can safely return 1.
+            return 1;
         }
     };
 
@@ -48,41 +47,10 @@ public interface BloomFilter extends Closeable {
      */
     long sizeInBytes();
 
-    static BloomFilter getBloomFilterForId(SegmentReadState state) throws IOException {
-        var codec = state.segmentInfo.getCodec();
-        final var docValuesProducer = codec.docValuesFormat().fieldsProducer(state);
-        boolean success = false;
-        try {
-            var idFieldInfo = state.fieldInfos.fieldInfo(IdFieldMapper.NAME);
-            assert idFieldInfo != null;
+    /**
+     * Returns the saturation of the bloom filter as a value in [0, 1], i.e. the fraction of bits
+     * that are set. Higher saturation means a higher false positive rate.
+     */
+    double saturation() throws IOException;
 
-            var binaryDocValuesProducer = docValuesProducer.getBinary(idFieldInfo);
-            if (binaryDocValuesProducer instanceof BloomFilter bloomFilter) {
-                success = true;
-                return new BloomFilter() {
-                    @Override
-                    public boolean mayContainValue(String field, BytesRef term) throws IOException {
-                        return bloomFilter.mayContainValue(field, term);
-                    }
-
-                    @Override
-                    public long sizeInBytes() {
-                        return bloomFilter.sizeInBytes();
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        docValuesProducer.close();
-                    }
-                };
-            } else {
-                docValuesProducer.close();
-                return BloomFilter.NO_FILTER;
-            }
-        } finally {
-            if (success == false) {
-                docValuesProducer.close();
-            }
-        }
-    }
 }

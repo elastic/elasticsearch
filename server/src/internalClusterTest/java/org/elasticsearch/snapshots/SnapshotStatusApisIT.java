@@ -844,7 +844,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String repository = "test-repo";
         createRepository(repository, "mock");
         final String indexName = "test-idx";
-        indexRandomDocs(indexName, 100000);
+        createIndexWithContent(indexName, singleShardOneNode(dataNode));
         blockAndFailDataNode(repository, dataNode);
 
         String snapshotName = "failing-snapshot";

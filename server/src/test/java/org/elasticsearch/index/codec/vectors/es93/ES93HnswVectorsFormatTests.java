@@ -92,7 +92,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             + ", flatVectorFormat=%s)";
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
-        expected = format(Locale.ROOT, expected, "ES93FlatVectorScorer(delegate=%s)");
+        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorScorer(delegate=%s)");
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer()");
         String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer()");
 

@@ -29,6 +29,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.concurrent.TimeUnit;
 
@@ -60,12 +61,7 @@ public class VectorScorerInt7uOperationBenchmark {
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(byte[] vec1, byte[] vec2);
-    }
-
-    private LuceneFunction luceneImpl;
+    private LuceneFunction<byte[]> luceneImpl;
     private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
@@ -81,9 +77,9 @@ public class VectorScorerInt7uOperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(byteArrayA.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
+        MemorySegment.copy(byteArrayA, 0, nativeSegA, ValueLayout.JAVA_BYTE, 0L, byteArrayA.length);
         nativeSegB = arena.allocate(byteArrayB.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
+        MemorySegment.copy(byteArrayB, 0, nativeSegB, ValueLayout.JAVA_BYTE, 0L, byteArrayB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;

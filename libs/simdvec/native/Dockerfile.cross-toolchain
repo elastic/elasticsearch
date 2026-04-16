@@ -1,0 +1,43 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Cross-compilation toolchain image for libvec.
+# Contains clang-21 (all targets: Darwin, Linux x64, Linux aarch64).
+# No macOS SDK required — Darwin builds use a minimal C++ std library
+# (tinystd) bundled in the source tree, with clang's freestanding headers.
+#
+# To build and push (see also build_cross_toolchain_image.sh):
+#   docker build \
+#     -f Dockerfile.cross-toolchain \
+#     -t docker.elastic.co/es-dev/es-native-cross-toolchain:2 .
+#   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:2
+
+FROM debian:trixie-slim
+
+# clang-21 from the official LLVM apt repository.
+# libstdc++-14-dev-arm64-cross provides the aarch64 sysroot (C++ headers + libs)
+# for cross-compiling Linux aarch64 from x64.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gnupg \
+        wget \
+    && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+        | gpg --dearmor > /usr/share/keyrings/llvm-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] \
+        https://apt.llvm.org/trixie/ llvm-toolchain-trixie-21 main" \
+        > /etc/apt/sources.list.d/llvm-21.list \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        make \
+        clang-21 \
+        lld-21 \
+        llvm-21 \
+        libstdc++-14-dev-arm64-cross \
+    && rm -rf /var/lib/apt/lists/*

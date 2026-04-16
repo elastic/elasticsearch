@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -69,7 +70,8 @@ public interface ClusterPlugin {
     default Collection<WriteLoadForecaster> createWriteLoadForecasters(
         ThreadPool threadPool,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
     ) {
         return Collections.emptyList();
     }

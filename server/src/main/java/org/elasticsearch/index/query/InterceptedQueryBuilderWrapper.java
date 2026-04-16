@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -60,6 +61,11 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return queryBuilder.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        return queryBuilder.toQuery(context, visitor);
     }
 
     @Override

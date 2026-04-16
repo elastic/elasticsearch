@@ -38,7 +38,7 @@ import java.util.Objects;
  * Filter results of a query to include only those within a specific distance to some
  * geo point.
  */
-public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
+public class GeoDistanceQueryBuilder extends LeafQueryBuilder<GeoDistanceQueryBuilder> {
     public static final String NAME = "geo_distance";
 
     /** Default for distance unit computation. */

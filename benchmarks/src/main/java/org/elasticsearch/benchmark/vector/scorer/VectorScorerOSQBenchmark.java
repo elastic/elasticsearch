@@ -19,8 +19,8 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
@@ -80,6 +80,9 @@ public class VectorScorerOSQBenchmark {
     @Param({ "1", "2", "4", "7" })
     public byte bits;
 
+    @Param({ "STRIPED", "PACKED_NIBBLE" })
+    public ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+
     @Param
     public VectorImplementation implementation;
 
@@ -89,15 +92,15 @@ public class VectorScorerOSQBenchmark {
     @Param
     public VectorSimilarityFunction similarityFunction;
 
-    static final int BULK_SIZE = ESNextOSQVectorsScorer.BULK_SIZE;
-    static final int NUM_VECTORS = ESNextOSQVectorsScorer.BULK_SIZE * 10;
+    static final int BULK_SIZE = ES940OSQVectorsScorer.BULK_SIZE;
+    static final int NUM_VECTORS = ES940OSQVectorsScorer.BULK_SIZE * 10;
     static final int NUM_QUERIES = 10;
 
     VectorScorerTestUtils.OSQVectorData[] binaryQueries;
     float centroidDp;
 
     byte[] scratch;
-    ESNextOSQVectorsScorer scorer;
+    ES940OSQVectorsScorer scorer;
 
     Path tempDir;
     Directory directory;
@@ -121,8 +124,37 @@ public class VectorScorerOSQBenchmark {
         int sparseOffsetsCount
     ) {}
 
-    static VectorData generateRandomVectorData(Random random, int dims, byte bits, VectorSimilarityFunction similarityFunction) {
-        int binaryIndexLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
+    private static ES940OSQVectorsScorer.SymmetricInt4Encoding resolveInt4Encoding(
+        byte bits,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) {
+        return bits == 4 ? int4Encoding : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+    }
+
+    private static int docPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+            int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).discretizedDimensions(dims);
+            return 4 * ((discretized + 7) / 8);
+        }
+        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
+    }
+
+    private static int queryPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+            return docPackedLength(dims, bits, int4Encoding);
+        }
+        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+    }
+
+    static VectorData generateRandomVectorData(
+        Random random,
+        int dims,
+        byte bits,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
+        int binaryIndexLength = docPackedLength(dims, bits, resolvedEncoding);
 
         final float[] centroid = new float[dims];
         randomVector(random, centroid, similarityFunction);
@@ -133,16 +165,16 @@ public class VectorScorerOSQBenchmark {
         for (int i = 0; i < VectorScorerOSQBenchmark.NUM_VECTORS; i++) {
             var vector = new float[dims];
             randomVector(random, vector, similarityFunction);
-            indexVectors[i] = createOSQIndexData(vector, centroid, quantizer, dims, bits, binaryIndexLength);
+            indexVectors[i] = createOSQIndexData(vector, centroid, quantizer, dims, bits, binaryIndexLength, resolvedEncoding);
         }
 
-        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+        int binaryQueryLength = queryPackedLength(dims, bits, resolvedEncoding);
         byte queryBits = bits == 7 ? (byte) 7 : (byte) 4;
         VectorScorerTestUtils.OSQVectorData[] queryVectors = new VectorScorerTestUtils.OSQVectorData[VectorScorerOSQBenchmark.NUM_VECTORS];
         var query = new float[dims];
         for (int i = 0; i < VectorScorerOSQBenchmark.NUM_VECTORS; i++) {
             randomVector(random, query, similarityFunction);
-            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength);
+            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength, bits, resolvedEncoding);
         }
 
         var denseOffsetsCount = BULK_SIZE - 3;
@@ -217,7 +249,7 @@ public class VectorScorerOSQBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(generateRandomVectorData(new Random(123), dims, bits, similarityFunction));
+        setup(generateRandomVectorData(new Random(123), dims, bits, int4Encoding, similarityFunction));
     }
 
     void setup(VectorData data) throws IOException {
@@ -259,10 +291,27 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
+        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
         this.scorer = switch (implementation) {
-            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength);
+            case SCALAR -> new ES940OSQVectorsScorer(
+                input,
+                (byte) queryBits,
+                (byte) docBits,
+                dims,
+                data.binaryIndexLength,
+                ES940OSQVectorsScorer.BULK_SIZE,
+                resolvedEncoding
+            );
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength, BULK_SIZE);
+                .newES940OSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    BULK_SIZE,
+                    resolvedEncoding
+                );
         };
         this.scratchScores = new float[BULK_SIZE];
         this.denseOffsets = data.denseOffsets();

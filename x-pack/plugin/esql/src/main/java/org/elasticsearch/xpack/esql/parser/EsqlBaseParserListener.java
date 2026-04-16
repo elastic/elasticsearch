@@ -836,6 +836,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#userAgentCommand}.
+   * @param ctx the parse tree
+   */
+  void enterUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#userAgentCommand}.
+   * @param ctx the parse tree
+   */
+  void exitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    */

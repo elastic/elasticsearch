@@ -14,15 +14,18 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning.AutoStrategy;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -75,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -84,6 +88,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -238,6 +243,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
             fieldName = SourceFieldMapper.NAME;
+        } else if (attr instanceof TemporalityAttribute) {
+            return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
         } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
@@ -259,7 +266,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
-            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            Expression potentiallyUnmapped = unionTypes.getPotentiallyUnmappedExpression();
+            if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
+            fieldName = getFieldName((Attribute) convert.field());
+            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
@@ -287,6 +300,57 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter resolveTemporalitySource(
+        DefaultShardContext shardContext,
+        BlockLoaderWarnings warnings,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
+        Settings indexSettings = shardContext.indexSettings().getSettings();
+        String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings);
+        if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+            // index does not have a temporality field configured, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        MappedFieldType temporalityFieldType = shardContext.fieldType(temporalityFieldName);
+        if (temporalityFieldType == null) {
+            // configured field does not exist in this index, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (KeywordFieldMapper.CONTENT_TYPE.equals(temporalityFieldType.typeName()) == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] has type ["
+                    + temporalityFieldType.typeName()
+                    + "], expected ["
+                    + KeywordFieldMapper.CONTENT_TYPE
+                    + "]; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (temporalityFieldType.isDimension() == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] must be a time-series dimension; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        return ValuesSourceReaderOperator.load(
+            shardContext.blockLoader(
+                temporalityFieldName,
+                false,
+                fieldExtractPreference,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            )
+        );
     }
 
     static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
@@ -366,6 +430,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
+        int taskConcurrency = context.queryPragmas().taskConcurrency();
+        if (context.timeSeries()) {
+            // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
+            taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
+        }
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
@@ -386,7 +455,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 topNAutoStrategy(),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 sortBuilders,
@@ -397,8 +466,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit
             );
@@ -409,7 +479,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.autoPartitioningStrategy(),
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring
@@ -422,7 +492,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private static AutoStrategy topNAutoStrategy() {
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -507,13 +577,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context,
         int maxPageSize
     ) {
+        Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
+        Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());
+        boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
+            && outputRounding != null
+            && internalRounding != null
+            && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
-            ts.timeBucketRounding(context.foldCtx()),
+            internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize()),
+            needsOutputFiltering ? outputRounding : null,
+            ts.isCollapsed()
         );
     }
 

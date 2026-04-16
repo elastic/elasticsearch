@@ -24,7 +24,8 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Arrow buffer backed FloatVector.
+ * Implementation of FloatVector backed by an Arrow buffer holding 32 bits floats.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
 public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVector, FloatBlock> implements FloatVector {
@@ -56,8 +57,8 @@ public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVecto
     }
 
     @Override
-    public float getFloat(int position) {
-        return valueBuffer.getFloat((long) position * Float.BYTES);
+    public float getFloat(int valueIndex) {
+        return valueBuffer.getFloat((long) valueIndex * Float.BYTES);
     }
 
     @Override
@@ -73,6 +74,20 @@ public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVecto
     @Override
     public ReleasableIterator<FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new FloatLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
     }
 
 }

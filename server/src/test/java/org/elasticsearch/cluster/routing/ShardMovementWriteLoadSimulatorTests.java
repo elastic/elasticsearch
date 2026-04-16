@@ -15,16 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -277,13 +275,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

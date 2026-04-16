@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -1056,6 +1057,292 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var e = expectThrows(ParsingException.class, () -> run(query));
         assertTrue(e.getMessage().contains("Fork supports up to 8 branches"));
 
+    }
+
+    /**
+     * Batch size larger than branch count - all branches execute in a single batch.
+     */
+    public void testBatchSizeLargerThanBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 10).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Batch size equals branch count - exactly one batch, no recursion.
+     */
+    public void testBatchSizeEqualsBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 3).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork3", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Single branch with batch size 1 - minimal edge case.
+     */
+    public void testSingleBranchWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Three branches with batch size 1 - maximal sequential batching.
+     */
+    public void testThreeBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork3", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * All branches return empty results across multiple batches.
+     */
+    public void testAllEmptyBranchesWithBatching() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"rabbit" )
+               ( WHERE content:"lion" )
+               ( WHERE content:"tiger" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> empty = List.of();
+            assertValues(resp.values(), empty);
+        }
+    }
+
+    /**
+     * Empty batch followed by non-empty batch.
+     * First two branches (batch 1) return no rows, last two (batch 2) return rows.
+     */
+    public void testEmptyBatchFollowedByNonEmptyBatch() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"rabbit" )
+               ( WHERE content:"lion" )
+               ( WHERE content:"fox" )
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork3", 1, "This is a brown fox"),
+                List.of("fork3", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork4", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Non-empty batch followed by empty batch.
+     * First two branches (batch 1) return rows, last two (batch 2) return nothing.
+     */
+    public void testNonEmptyBatchFollowedByEmptyBatch() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+               ( WHERE content:"cat" )
+               ( WHERE content:"rabbit" )
+               ( WHERE content:"lion" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Different outputs (EVAL/STATS) across branches in different batches.
+     * Tests that schema merging works correctly across batch boundaries.
+     */
+    public void testDifferentOutputsAcrossBatches() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( STATS cnt = COUNT(*) )
+               ( WHERE id == 1 )
+               ( STATS mx = MAX(id) )
+            | KEEP _fork, cnt, id, mx
+            | SORT _fork
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "cnt", "id", "mx"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "fork1", 6L, null, null }).toList(),
+                Arrays.stream(new Object[] { "fork2", null, 1, null }).toList(),
+                Arrays.stream(new Object[] { "fork3", null, null, 6 }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Many branches (max 8) with batch size 1 - maximal sequential batching with many recursive calls.
+     */
+    public void testManyBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE id == 1 )
+               ( WHERE id == 2 )
+               ( WHERE id == 3 )
+               ( WHERE id == 4 )
+               ( WHERE id == 5 )
+               ( WHERE id == 6 )
+               ( WHERE id == 1 )
+               ( WHERE id == 2 )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork3", 3, "This dog is really brown"),
+                List.of("fork4", 4, "The dog is brown but this document is very very long"),
+                List.of("fork5", 5, "There is also a white cat"),
+                List.of("fork6", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork7", 1, "This is a brown fox"),
+                List.of("fork8", 2, "This is a brown dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    /**
+     * Branches with SORT and LIMIT inside, executed with batch size 1.
+     * Verifies that per-branch sort/limit works correctly across batch boundaries.
+     */
+    public void testSortAndLimitInBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" | SORT id DESC | LIMIT 1 )
+               ( WHERE content:"dog" | SORT id ASC | LIMIT 2 )
+               ( WHERE content:"cat" | SORT id | LIMIT 1 )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork3", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
     }
 
     private void createAndPopulateIndices() {

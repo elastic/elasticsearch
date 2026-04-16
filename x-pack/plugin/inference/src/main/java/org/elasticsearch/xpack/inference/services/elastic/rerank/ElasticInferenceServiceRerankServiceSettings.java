@@ -54,9 +54,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceRerankServiceSettings(modelId);
     }

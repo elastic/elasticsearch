@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.List;
@@ -60,6 +61,7 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +88,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final int MAX_BATCH_SIZE_INITIAL_VALUE = 2;
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.SEARCH;
     private static final Boolean AUTO_TRUNCATE_INITIAL_VALUE = Boolean.FALSE;
+    private static final String SERVICE_SETTINGS_KEY = "some_service_key";
+    private static final String SERVICE_SETTINGS_VALUE = "some_service_value";
+    private static final String TASK_SETTINGS_KEY = "some_task_key";
+    private static final String TASK_SETTINGS_VALUE = "some_task_value";
+    private static final String SECRET_SETTINGS_KEY = "some_secret_key";
+    private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -522,12 +530,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceAndTaskSettings_UpdatesConfig() {
-        Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value");
+        Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
         when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
 
-        Map<String, Object> newTaskSettingsMap = Map.of("some_task_key", "some_task_value");
+        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
         var originalTaskSettings = mock(TaskSettings.class);
         var updatedTaskSettings = mock(TaskSettings.class);
         when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
@@ -550,6 +558,52 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
     }
 
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceAndTaskSettings_UsesCopiedMap() {
+        Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
+        var originalServiceSettings = mock(ServiceSettings.class);
+        var updatedServiceSettings = mock(ServiceSettings.class);
+        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
+
+        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
+        var originalTaskSettings = mock(TaskSettings.class);
+        var updatedTaskSettings = mock(TaskSettings.class);
+        when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
+
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            new UpdateInferenceModelAction.Settings(newServiceSettingsMap, newTaskSettingsMap, TaskType.TEXT_EMBEDDING),
+            SERVICE_NAME_VALUE
+        );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> serviceSettingsCaptor = ArgumentCaptor.forClass(Map.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> taskSettingsCaptor = ArgumentCaptor.forClass(Map.class);
+
+        verify(originalServiceSettings).updateServiceSettings(serviceSettingsCaptor.capture());
+        var serviceSettingsValue = serviceSettingsCaptor.getValue();
+        assertThat(serviceSettingsValue, equalTo(newServiceSettingsMap));
+        assertThat(serviceSettingsValue, not(sameInstance(newServiceSettingsMap)));
+        // The map should be modifiable
+        assertThat(serviceSettingsValue.remove(SERVICE_SETTINGS_KEY), is(SERVICE_SETTINGS_VALUE));
+
+        verify(originalTaskSettings).updatedTaskSettings(taskSettingsCaptor.capture());
+        var taskSettingsValue = taskSettingsCaptor.getValue();
+        assertThat(taskSettingsValue, equalTo(newTaskSettingsMap));
+        assertThat(taskSettingsValue, not(sameInstance(newTaskSettingsMap)));
+        // The map should be modifiable
+        assertThat(taskSettingsValue.remove(TASK_SETTINGS_KEY), is(TASK_SETTINGS_VALUE));
+
+        assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
+        assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
+        assertThat(resultModelConfigurations.getService(), sameInstance(SERVICE_NAME_VALUE));
+        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
+
+        assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
+        assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
+    }
+
     public void testCombineExistingSecretsWithNewSecrets_NewSecretsMapIsNull_ReturnsExistingSecrets() {
         var secretSettings = mock(SecretSettings.class);
 
@@ -561,7 +615,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_ExistingSecretSettingsAreNull_ReturnsNull() {
-        Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
 
         var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), null);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
@@ -570,7 +624,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_NewSecretSettings_UpdatesSecrets() {
-        Map<String, Object> newSecretsMap = Map.of("some_secret_key", "some_secret_value");
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
         var originalSecretSettings = mock(SecretSettings.class);
         var updatedSecretSettings = mock(SecretSettings.class);
         when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
@@ -580,6 +634,29 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
         verify(originalSecretSettings).newSecretSettings(newSecretsMap);
+    }
+
+    public void testCombineExistingSecretsWithNewSecrets_NewSecretSettings_UpdatesSecrets_UsesCopiedMap() {
+        Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
+        var originalSecretSettings = mock(SecretSettings.class);
+        var updatedSecretSettings = mock(SecretSettings.class);
+        when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
+
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), originalSecretSettings);
+        var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
+
+        assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(originalSecretSettings).newSecretSettings(captor.capture());
+
+        var value = captor.getValue();
+        assertThat(value, equalTo(newSecretsMap));
+        assertThat(value, not(sameInstance(newSecretsMap)));
+
+        // The map should be modifiable
+        assertThat(value.remove(SECRET_SETTINGS_KEY), is(SECRET_SETTINGS_VALUE));
     }
 
     private static Model createMockedModel(

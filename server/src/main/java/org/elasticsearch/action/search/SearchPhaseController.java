@@ -233,7 +233,12 @@ public final class SearchPhaseController {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            var res = reducedQueryPhase.buildResponse(hits, fetchResults);
+            // Own refs for suggestion option hits so they survive fetch result release (caller exits try-with-resources).
+            // Refs are incremented inside Suggest#collectCompletionOptionHits when passed true, not in mergeSuggest above.
+            List<SearchHit> completionOptionHitsToRelease = reducedQueryPhase.suggest == null
+                ? List.of()
+                : Objects.requireNonNullElse(reducedQueryPhase.suggest.collectCompletionOptionHits(true), List.of());
+            var res = reducedQueryPhase.buildResponse(hits, fetchResults, completionOptionHitsToRelease);
             hits = null;
             return res;
         } finally {
@@ -263,8 +268,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit hit = fetchResult.hits().getHits()[index];
                 CompletionSuggestion.Entry.Option suggestOption = suggestionOptions.get(scoreDocIndex - currentOffset);
                 hit.score(shardDoc.score);
@@ -316,8 +323,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (shardDoc instanceof RankDoc) {
@@ -596,7 +605,11 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
          */
-        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+        public SearchResponseSections buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            @Nullable List<SearchHit> completionOptionHitsToRelease
+        ) {
             return new SearchResponseSections(
                 hits,
                 aggregations,
@@ -606,7 +619,8 @@ public final class SearchPhaseController {
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
-                topHitsToRelease
+                topHitsToRelease,
+                completionOptionHitsToRelease
             );
         }
 

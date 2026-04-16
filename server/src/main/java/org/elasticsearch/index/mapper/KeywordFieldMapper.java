@@ -27,6 +27,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -942,7 +943,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
-                    String stringValue = ((BytesRef) value).utf8ToString();
+                    // When _source is synthetic, unmapped numeric fields are provided as their native Java types (Long, Double, etc.)
+                    // rather than BytesRef. Since we treat all unmapped fields as keyword, we fall back to toString().
+                    String stringValue = value instanceof BytesRef br ? br.utf8ToString() : value.toString();
                     String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
                     if (adjusted != null) {
                         // TODO what if the value didn't change?
@@ -1124,6 +1127,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
@@ -1154,6 +1161,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 } else {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
@@ -1187,6 +1198,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                         maxDeterminizedStates
                     );
                 } else {
+                    if (context.getCircuitBreaker() != null) {
+                        Term term = new Term(name(), indexedValueForSearch(value));
+                        Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                            term,
+                            syntaxFlags,
+                            matchFlags,
+                            maxDeterminizedStates,
+                            context.getCircuitBreaker()
+                        );
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
                         syntaxFlags,
@@ -1362,13 +1384,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    // store the value in a binary doc values field, create one if it doesn't exist
-                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                    if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, keepDuplicatesInBinaryDocValues());
-                        context.doc().addWithKey(fieldName, field);
-                    }
-                    field.add(bytesRef);
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.doc(),
+                        fieldName,
+                        bytesRef,
+                        keepDuplicatesInBinaryDocValues()
+                            ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        indexCreatedVersion
+                    );
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
@@ -1411,10 +1435,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().usesBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                 context.doc(),
                 fieldType().name(),
-                binaryValue
+                binaryValue,
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
             );
         }
 

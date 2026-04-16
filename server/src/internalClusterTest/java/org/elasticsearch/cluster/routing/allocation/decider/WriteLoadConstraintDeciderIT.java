@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +59,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,13 +70,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING;
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -641,11 +652,79 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
     }
 
+    public void testAverageWriteLoadMetricIsPublished() {
+        final Settings settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE)))
+            .build();
+        final var dataNodes = internalCluster().startNodes(3, settings);
+        ensureStableCluster(3);
+
+        // Refresh cluster info (should trigger polling)
+        refreshClusterInfo();
+
+        Map<String, Double> mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
+        assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(equalTo(0d)));
+
+        // Generate some write-load on all nodes
+        final var indexName = randomIndexName();
+        createIndex(indexName, dataNodes.size(), 0);
+        indexRandom(true, indexName, randomIntBetween(1000, 5000));
+
+        refreshClusterInfo();
+        mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
+
+        final ThreadPool dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, randomFrom(dataNodes));
+        final int writePoolMaximumSize = asInstanceOf(ThreadPoolExecutor.class, dataNodeThreadPool.executor(ThreadPool.Names.WRITE))
+            .getMaximumPoolSize();
+        assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(
+            mostRecentAverageWriteLoadMetrics.values(),
+            everyItem(Matchers.allOf(greaterThan(0d), lessThanOrEqualTo((double) writePoolMaximumSize)))
+        );
+    }
+
+    public void testMaxSingleShardWriteLoadSetting() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+
+        String thresholdSettingKey = WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey();
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "0%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "90%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "100%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "51%"));
+
+        Consumer<String> testUnderFiftyRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(thresholdSettingKey + " may be between 50% and 100%, or 0% to disable"),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting))
+        );
+
+        testUnderFiftyRatio.accept("1%");
+        testUnderFiftyRatio.accept("50%");
+        testUnderFiftyRatio.accept(randomIntBetween(1, 50) + "%");
+
+        Consumer<Integer> testAboveOneHundredRatio = (setting) -> expectThrows(
+            IllegalArgumentException.class,
+            equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
+            () -> updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting + "%"))
+        );
+
+        testAboveOneHundredRatio.accept(101);
+        testAboveOneHundredRatio.accept(randomIntBetween(101, 1000));
+    }
+
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {
         final Map<String, Long> measurements = new HashMap<>();
         for (String nodeName : dataNodes) {
-            PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            final TestTelemetryPlugin telemetryPlugin = getTelemetryPluginForNode(nodeName);
             telemetryPlugin.collect();
             final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
                 DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
@@ -655,6 +734,25 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             }
         }
         return measurements;
+    }
+
+    private Map<String, Double> getMostRecentAverageWriteLoadMetrics() {
+        final var telemetryPlugin = getTelemetryPluginForNode(internalCluster().getMasterName());
+        telemetryPlugin.collect();
+        final var measurements = telemetryPlugin.getDoubleGaugeMeasurement(WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
+        return measurements.stream()
+            .collect(
+                Collectors.toMap(
+                    measurement -> (String) measurement.attributes().get("es_node_name"),
+                    Measurement::getDouble,
+                    (existingValue, newValue) -> newValue
+                )
+            );
+    }
+
+    private static TestTelemetryPlugin getTelemetryPluginForNode(String nodeName) {
+        final var pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
+        return pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
     }
 
     private void setUpMockTransportNodeUsageStatsResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStats) {

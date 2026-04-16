@@ -1817,7 +1817,8 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             dimensions,
             dimensionsSetByUser,
             maxTokens,
-            similarityMeasure
+            similarityMeasure,
+            null
         );
     }
 
@@ -1826,11 +1827,11 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     private static HashMap<String, Object> getChatCompletionServiceSettingsMap(String target, String provider, String endpointType) {
-        return AzureAiStudioChatCompletionServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType);
+        return AzureAiStudioChatCompletionServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType, null);
     }
 
     private static HashMap<String, Object> getRerankServiceSettingsMap(String target, String provider, String endpointType) {
-        return AzureAiStudioRerankServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType);
+        return AzureAiStudioRerankServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType, null);
     }
 
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
@@ -1949,18 +1950,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ID_VALUE,
-                        AzureAiStudioService.NAME,
-                        AzureAiStudioService.NAME,
-                        TaskType.CHAT_COMPLETION
-                    )
-                )
-
+                is(Strings.format("The [%s] service does not support task type [%s]", AzureAiStudioService.NAME, TaskType.CHAT_COMPLETION))
             );
         }
     }

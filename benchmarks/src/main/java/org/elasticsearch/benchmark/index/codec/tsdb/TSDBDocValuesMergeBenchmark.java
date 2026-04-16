@@ -54,8 +54,6 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
-
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
@@ -64,6 +62,8 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
 public class TSDBDocValuesMergeBenchmark {
+
+    private static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
 
     static {
         Utils.configureBenchmarkLogging();
@@ -264,7 +264,8 @@ public class TSDBDocValuesMergeBenchmark {
             optimizedMergeEnabled,
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
-            NUMERIC_LARGE_BLOCK_SHIFT
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            false
         );
         config.setCodec(new Elasticsearch93Lucene104Codec() {
             @Override

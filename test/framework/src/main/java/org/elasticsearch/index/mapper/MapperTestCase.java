@@ -688,11 +688,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private class UpdateCheck {
+        final String paramName;
         final XContentBuilder init;
         final XContentBuilder update;
         final Consumer<FieldMapper> check;
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) throws IOException {
+        private UpdateCheck(String paramName, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
+            throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(MapperTestCase.this::minimalMapping);
             this.update = fieldMapping(b -> {
                 minimalMapping(b);
@@ -702,10 +705,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         private UpdateCheck(
+            String paramName,
             CheckedConsumer<XContentBuilder, IOException> init,
             CheckedConsumer<XContentBuilder, IOException> update,
             Consumer<FieldMapper> check
         ) throws IOException {
+            this.paramName = paramName;
             this.init = fieldMapping(init);
             this.update = fieldMapping(update);
             this.check = check;
@@ -730,7 +735,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         public void registerUpdateCheck(String param, CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
             throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(update, check));
+            updateChecks.add(new UpdateCheck(param, update, check));
         }
 
         /**
@@ -748,7 +753,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Consumer<FieldMapper> check
         ) throws IOException {
             checkedParameters.add(param);
-            updateChecks.add(new UpdateCheck(init, update, check));
+            updateChecks.add(new UpdateCheck(param, init, update, check));
         }
 
         /**
@@ -802,13 +807,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
+    private static FieldMapper.Builder findChildBuilder(String name, MappingBuilder mappings) {
+        for (Mapper.Builder child : mappings.rootBuilder().getChildBuilders()) {
+            if (name.equals(child.leafName()) && child instanceof FieldMapper.Builder mb) {
+                return mb;
+            }
+        }
+        return null;
+    }
+
     public void testAllParametersAreChecked() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
 
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        FieldMapper.Builder builder = mapper.getMergeBuilder();
+        MappingBuilder rootBuilder = parseMappings(fieldMapping(this::minimalMapping));
+        FieldMapper.Builder builder = findChildBuilder("field", rootBuilder);
         assumeTrue("mapper does not provide a merge builder", builder != null);
         checker.ensureAllParametersAreCovered(builder);
         assertParseMinimalWarnings();
@@ -862,6 +875,52 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
         assertParseMaximalWarnings();
+    }
+
+    public void testParameterSerialization() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+
+        for (UpdateCheck updateCheck : checker.updateChecks) {
+            String initSerialized = serializeMapping(createMapperService(updateCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(updateCheck.update));
+            assertTrue(
+                "serialized mapping for update check on ["
+                    + updateCheck.paramName
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(updateCheck.paramName) || updateSerialized.contains(updateCheck.paramName)
+            );
+        }
+
+        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
+            String param = entry.getKey();
+            ConflictCheck conflictCheck = entry.getValue();
+            String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
+            String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
+            assertTrue(
+                "serialized mapping for conflict check on ["
+                    + param
+                    + "] should contain the parameter name"
+                    + " in either init or update mapping. Init: "
+                    + initSerialized
+                    + "; Update: "
+                    + updateSerialized,
+                initSerialized.contains(param) || updateSerialized.contains(param)
+            );
+        }
+
+        assertParseMaximalWarnings();
+    }
+
+    private static String serializeMapping(MapperService mapperService) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return Strings.toString(builder);
     }
 
     public final void testTextSearchInfoConsistency() throws IOException {
@@ -1747,6 +1806,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
                     iw.addDocument(doc);
                 }
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1778,6 +1838,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1822,6 +1883,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));

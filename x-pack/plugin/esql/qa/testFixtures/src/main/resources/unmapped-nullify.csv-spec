@@ -86,6 +86,25 @@ nanos:date_nanos
 2023-01-23T13:55:01.543123456Z
 ;
 
+unmappedNumericFromK8sSyntheticTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, network.cost
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:datetime      | cluster:keyword | network.cost:null
+2024-05-10T00:00:29.000Z | staging         | null
+2024-05-10T00:00:33.000Z | staging         | null
+2024-05-10T00:00:51.000Z | prod            | null
+2024-05-10T00:00:57.000Z | prod            | null
+2024-05-10T00:01:25.000Z | qa              | null
+;
+
 keepStar
 required_capability: optional_fields_nullify_tech_preview
 
@@ -179,21 +198,21 @@ null                      | null
 null                      | null
 ;
 
-keepWithPattern
+simpleUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 
 // tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
-FROM employees
-| KEEP emp_*, foo
-| SORT emp_no
+FROM partial_mapping_sample_data
+| KEEP event_duration, unmapped_message
+| SORT event_duration
 | LIMIT 1
 // end::unmapped-nullify-simple-keep[]
 ;
 
 // tag::unmapped-nullify-simple-keep-result[]
-emp_no:integer | foo:null
-10001          | null
+event_duration:long | unmapped_message:null
+725447              | null
 // end::unmapped-nullify-simple-keep-result[]
 ;
 
@@ -291,13 +310,14 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:double
+s:null
 null
 ;
 
@@ -315,13 +335,14 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:double | bar:null
+s:null   | bar:null
 null     | null
 ;
 
@@ -381,8 +402,8 @@ FROM languages
 | STATS c = COUNT(*) BY does_not_exist
 ;
 
-c:long         |does_not_exist:null
-4              |null
+c:long         | does_not_exist:null
+4              | null
 ;
 
 statsGroupAliasShadowingSourceColumnNoFilter
@@ -393,8 +414,8 @@ FROM languages
 | STATS c = COUNT(*) BY language_code = does_not_exist
 ;
 
-c:long         |language_code:null
-4              |null
+c:long         | language_code:null
+4              | null
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilter
@@ -406,8 +427,8 @@ FROM languages
 | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
 ;
 
-c:long         |language_code:null |language_name :keyword
-1              |null               |English
+c:long         | language_code:null | language_name :keyword
+1              | null               | English
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
@@ -420,8 +441,8 @@ FROM languages
         BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
 ;
 
-c:long         |language_code:integer |language_name :keyword
-1              |null                  |English
+c:long         | language_code:integer | language_name :keyword
+1              | null                  | English
 ;
 
 inlinestatsSum
@@ -550,11 +571,11 @@ FROM sample_data, sample_data_str,
 | SORT client_ip
 ;
 
-client_ip:ip   |foo:null       |bar:keyword    |baz:null
-172.21.0.5     |null           |null           |null
-172.21.2.113   |null           |null           |null
-172.21.2.162   |null           |null           |null
-172.21.3.15    |null           |null           |null
+client_ip:ip   | foo:null       | bar:keyword    | baz:null
+172.21.0.5     | null           | null           | null
+172.21.2.113   | null           | null           | null
+172.21.2.162   | null           | null           | null
+172.21.3.15    | null           | null           | null
 ;
 
 forkBranchesWithDifferentSchemas
@@ -583,13 +604,14 @@ null           | 1985           | null           | abc            | fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-x:integer      | does_not_exist:null | c:long         | s:double       | d:null
+x:integer      | does_not_exist:null | c:long         | s:null         | d:null
 1              | null                | 1              | null           | null
 ;
 
@@ -792,12 +814,12 @@ TS k8s_unmapped
 | LIMIT 5
 ;
 
-@timestamp:datetime      | cluster:null | network.cost:null
-2024-05-10T00:00:29.000Z | null         | null
-2024-05-10T00:00:33.000Z | null         | null
-2024-05-10T00:00:51.000Z | null         | null
-2024-05-10T00:00:57.000Z | null         | null
-2024-05-10T00:01:25.000Z | null         | null
+@timestamp:datetime      | cluster:keyword | network.cost:null
+2024-05-10T00:00:29.000Z | staging         | null
+2024-05-10T00:00:33.000Z | staging         | null
+2024-05-10T00:00:51.000Z | prod            | null
+2024-05-10T00:00:57.000Z | prod            | null
+2024-05-10T00:01:25.000Z | qa              | null
 ;
 
 rateOnUnmappedTsIndex
@@ -818,6 +840,7 @@ null     | 2024-05-10T00:00:00.000Z
 maxOverTimeOfDoubleNoGroupingUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped
@@ -825,7 +848,7 @@ TS k8s_unmapped
 | SORT time_bucket | LIMIT 10
 ;
 
-cost:double | time_bucket:datetime
+cost:null   | time_bucket:datetime
 null        | 2024-05-10T00:00:00.000Z
 null        | 2024-05-10T00:01:00.000Z
 null        | 2024-05-10T00:02:00.000Z
@@ -1005,7 +1028,7 @@ FROM employees
 | EVAL y = coalesce(bar, baz)
 ;
 
-avg_worked_seconds:long	| birth_date:date	| emp_no:integer	| first_name:keyword	| gender:keyword	| height:double	| height.float:double	| height.half_float:double	| height.scaled_float:double	| hire_date:date	| is_rehired:boolean	| job_positions:keyword	| languages:integer	| languages.byte:integer	| languages.long:long	| languages.short:integer	| last_name:keyword	| salary:integer	| salary_change:double	| salary_change.int:integer	| salary_change.keyword:keyword	| salary_change.long:long	| still_hired:boolean   | foo:null  | bar:null	| baz:null	| y:null 
+avg_worked_seconds:long  | birth_date:date  | emp_no:integer  | first_name:keyword  | gender:keyword  | height:double  | height.float:double  | height.half_float:double  | height.scaled_float:double  | hire_date:date  | is_rehired:boolean  | job_positions:keyword  | languages:integer  | languages.byte:integer  | languages.long:long  | languages.short:integer  | last_name:keyword  | salary:integer  | salary_change:double  | salary_change.int:integer  | salary_change.keyword:keyword  | salary_change.long:long  | still_hired:boolean   | foo:null  | bar:null  | baz:null  | y:null
 ;
 
 
@@ -1035,14 +1058,14 @@ required_capability: sample_v3
 SET unmapped_fields="nullify"\;
 FROM alerts
 | KEEP kibana.alert.risk_score
-| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5) 
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5)
 | STATS kibana.alert.risk_score = COUNT(*)
 | EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
 | KEEP kibana.alert.risk_score
 ;
 
 kibana.alert.risk_score:long
-10..20                           
+10..20
 ;
 
 
@@ -1057,6 +1080,72 @@ ROW a = 12::long
 | DROP a
 ;
 
-_fork:keyword	| x:long
-fork1        	| 12     
+_fork:keyword  | x:long
+fork1          | 12
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/142616
+flattenedSubfieldNullified
+required_capability: optional_fields_fix_nullify_flattened_subfield
+
+SET unmapped_fields="nullify"\;
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes.host.name
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date          | resource.attributes.host.name:null
+2020-01-01T00:02:48.461Z | null
+2020-01-01T00:07:43.000Z | null
+2020-01-01T00:31:18.303Z | null
+;
+
+propagateNullableOrDisjunctionUnmappedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE (foo IS NOT NULL OR emp_no > 10015) AND foo IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+85
+;
+
+propagateNullableOrDisjunctionUnmappedFieldSeparateWhereClauses
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| WHERE foo IS NOT NULL OR emp_no > 10015
+| WHERE foo IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+85
+;
+
+propagateNullableOrDisjunctionUnmappedFieldEvalAlias
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_propagate_nullable_or_disjunction
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL x = foo
+| WHERE (x IS NOT NULL OR emp_no > 10095) AND x IS NULL
+| SORT emp_no
+| KEEP emp_no, foo, x
+;
+
+emp_no:integer | foo:null | x:null
+10096          | null     | null
+10097          | null     | null
+10098          | null     | null
+10099          | null     | null
+10100          | null     | null
 ;

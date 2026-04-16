@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -39,6 +40,10 @@ public class FileSplit implements ExternalSplit {
     private final String format;
     private final Map<String, Object> config;
     private final Map<String, Object> partitionValues;
+    @Nullable
+    private final SchemaReconciliation.ColumnMapping columnMapping;
+    @Nullable
+    private final Map<String, Object> statistics;
 
     public FileSplit(
         String sourceType,
@@ -48,6 +53,33 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues
+    ) {
+        this(sourceType, path, offset, length, format, config, partitionValues, null, null);
+    }
+
+    public FileSplit(
+        String sourceType,
+        StoragePath path,
+        long offset,
+        long length,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping
+    ) {
+        this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null);
+    }
+
+    public FileSplit(
+        String sourceType,
+        StoragePath path,
+        long offset,
+        long length,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable Map<String, Object> statistics
     ) {
         if (sourceType == null) {
             throw new IllegalArgumentException("sourceType cannot be null");
@@ -64,6 +96,8 @@ public class FileSplit implements ExternalSplit {
         this.partitionValues = partitionValues != null && partitionValues.isEmpty() == false
             ? Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues))
             : Map.of();
+        this.columnMapping = columnMapping;
+        this.statistics = statistics != null ? Map.copyOf(statistics) : null;
     }
 
     public FileSplit(StreamInput in) throws IOException {
@@ -74,6 +108,16 @@ public class FileSplit implements ExternalSplit {
         this.format = in.readOptionalString();
         this.config = in.readGenericMap();
         this.partitionValues = in.readGenericMap();
+        if (in.readBoolean()) {
+            this.columnMapping = new SchemaReconciliation.ColumnMapping(in);
+        } else {
+            this.columnMapping = null;
+        }
+        if (in.readBoolean()) {
+            this.statistics = Map.copyOf(in.readGenericMap());
+        } else {
+            this.statistics = null;
+        }
     }
 
     @Override
@@ -85,6 +129,18 @@ public class FileSplit implements ExternalSplit {
         out.writeOptionalString(format);
         out.writeGenericMap(config);
         out.writeGenericMap(partitionValues);
+        if (columnMapping != null) {
+            out.writeBoolean(true);
+            columnMapping.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (statistics != null) {
+            out.writeBoolean(true);
+            out.writeGenericMap(statistics);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -121,6 +177,16 @@ public class FileSplit implements ExternalSplit {
         return partitionValues;
     }
 
+    @Nullable
+    public SchemaReconciliation.ColumnMapping columnMapping() {
+        return columnMapping;
+    }
+
+    @Nullable
+    public Map<String, Object> statistics() {
+        return statistics;
+    }
+
     @Override
     public long estimatedSizeInBytes() {
         return length;
@@ -141,12 +207,14 @@ public class FileSplit implements ExternalSplit {
             && Objects.equals(path, that.path)
             && Objects.equals(format, that.format)
             && Objects.equals(config, that.config)
-            && Objects.equals(partitionValues, that.partitionValues);
+            && Objects.equals(partitionValues, that.partitionValues)
+            && Objects.equals(columnMapping, that.columnMapping)
+            && Objects.equals(statistics, that.statistics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceType, path, offset, length, format, config, partitionValues);
+        return Objects.hash(sourceType, path, offset, length, format, config, partitionValues, columnMapping, statistics);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -31,6 +32,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 
 /**
  * Tests for {@link BytesRefArrowBufVector} and {@link BytesRefArrowBufBlock}, backed by Arrow's
@@ -63,6 +69,14 @@ public class BytesRefArrowBufTests extends ESTestCase {
         assertEquals(expected, actual.utf8ToString());
     }
 
+    private static void assertCursorBytes(String expected, PagedBytesCursor cursor) {
+        byte[] actual = new byte[cursor.remaining()];
+        for (int i = 0; i < actual.length; i++) {
+            actual[i] = cursor.readByte();
+        }
+        assertEquals(expected, new String(actual, StandardCharsets.UTF_8));
+    }
+
     // -- Vector tests (from VarCharVector without nulls) --
 
     public void testVectorBasics() {
@@ -81,6 +95,10 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("hello", vector, 0, scratch);
                 assertBytesRef("world", vector, 1, scratch);
                 assertBytesRef("", vector, 2, scratch);
+
+                // assertKeepMask(vector); TODO doesn't return "this"
+                assertFilter(vector);
+                assertSlice(vector);
             }
         }
     }
@@ -101,6 +119,43 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("def", block, 1, scratch);
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.mayHaveMultivaluedFields());
+
+                assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
+                assertDeepCopy(block);
+            }
+        }
+    }
+
+    public void testVectorGetCursor() {
+        try (VarCharVector arrowVec = new VarCharVector("test", allocator)) {
+            arrowVec.allocateNew();
+            arrowVec.set(0, "hello".getBytes(StandardCharsets.UTF_8));
+            arrowVec.set(1, "world".getBytes(StandardCharsets.UTF_8));
+            arrowVec.set(2, "".getBytes(StandardCharsets.UTF_8));
+            arrowVec.setValueCount(3);
+
+            try (var vector = BytesRefArrowBufVector.of(arrowVec, blockFactory)) {
+                PagedBytesCursor scratch = new PagedBytesCursor();
+                assertCursorBytes("hello", vector.get(0, scratch));
+                assertCursorBytes("world", vector.get(1, scratch));
+                assertCursorBytes("", vector.get(2, scratch));
+            }
+        }
+    }
+
+    public void testBlockGetCursor() {
+        try (VarCharVector arrowVec = new VarCharVector("test", allocator)) {
+            arrowVec.allocateNew();
+            arrowVec.set(0, "foo".getBytes(StandardCharsets.UTF_8));
+            arrowVec.set(1, "bar".getBytes(StandardCharsets.UTF_8));
+            arrowVec.setValueCount(2);
+
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
+                PagedBytesCursor scratch = new PagedBytesCursor();
+                assertCursorBytes("foo", block.get(0, scratch));
+                assertCursorBytes("bar", block.get(1, scratch));
             }
         }
     }

@@ -59,7 +59,11 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
 
     public void testReplicaShardsAvailabilityOnStateless() throws Exception {
         startMasterAndIndexNode();
-        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
+        updateClusterSettings(
+            Settings.builder()
+                .put("health.shards_availability.replica_unassigned_buffer_time", "0s")
+                .put("health.shards_availability.primary_unassigned_buffer_time", "0s")
+        );
 
         String indexName = "myindex";
         createIndex(indexName, 2, 0);
@@ -129,7 +133,11 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
-        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
+        updateClusterSettings(
+            Settings.builder()
+                .put("health.shards_availability.replica_unassigned_buffer_time", "0s")
+                .put("health.shards_availability.primary_unassigned_buffer_time", "0s")
+        );
 
         // We need to force there to be at least one truly unassigned replica. We create an index with two
         // replicas (there is only one search node) for this purpose.
@@ -284,7 +292,11 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         String indexNode = startIndexNode();
         startSearchNode();
         String searchNode = startSearchNode();
-        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
+        updateClusterSettings(
+            Settings.builder()
+                .put("health.shards_availability.replica_unassigned_buffer_time", "0s")
+                .put("health.shards_availability.primary_unassigned_buffer_time", "0s")
+        );
 
         // With this variable we choose if we want this experiment to affect the index or the search nodes
         boolean shutDownIndexNode = randomBoolean();
@@ -354,7 +366,11 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         String indexNode = startIndexNode();
         startSearchNode();
         String searchNode = startSearchNode();
-        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
+        updateClusterSettings(
+            Settings.builder()
+                .put("health.shards_availability.replica_unassigned_buffer_time", "0s")
+                .put("health.shards_availability.primary_unassigned_buffer_time", "0s")
+        );
 
         // With this variable we choose if we want this experiment to affect the index or the search nodes
         boolean shutDownIndexNode = randomBoolean();
@@ -421,7 +437,11 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
     public void testAddIndexNodes() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
-        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
+        updateClusterSettings(
+            Settings.builder()
+                .put("health.shards_availability.replica_unassigned_buffer_time", "0s")
+                .put("health.shards_availability.primary_unassigned_buffer_time", "0s")
+        );
 
         final List<String> indexNames = IntStream.range(0, between(1, 11)).mapToObj(i -> Strings.format("myindex-%02d", i)).toList();
         indexNames.forEach(indexName -> {

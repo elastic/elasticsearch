@@ -158,8 +158,8 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
             super(clusterMetadata, maxAffectedResourcesCount);
         }
 
-        /// Like the base indicator, treats provisionally unavailable shards (e.g. within the replica unassigned grace
-        /// window) as acceptable for [`GREEN`][HealthStatus#GREEN]. Otherwise, returns [`RED`][HealthStatus#RED] when
+        /// Like the base indicator, treats provisionally unavailable shards (within the primary and replica unassigned
+        /// grace windows) as acceptable for [`GREEN`][HealthStatus#GREEN]. Otherwise, returns [`RED`][HealthStatus#RED] when
         /// every replica of an index is unavailable in a non-provisional way and returns [`YELLOW`][HealthStatus#YELLOW]
         /// when some replica copies are unavailable but not all.
         @Override

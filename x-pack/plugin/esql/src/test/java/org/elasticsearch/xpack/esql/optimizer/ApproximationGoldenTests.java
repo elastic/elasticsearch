@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Golden tests for query approximation.
@@ -18,6 +20,27 @@ public class ApproximationGoldenTests extends GoldenTestCase {
         Stage.PHYSICAL_OPTIMIZATION,
         Stage.LOCAL_PHYSICAL_OPTIMIZATION
     );
+
+    protected List<String> filteredWarnings() {
+        List<String> warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("approximation not supported");
+        return warnings;
+    }
+
+    public void testApproximationDisabled() {
+        runGoldenTest("""
+            SET approximation=false;
+            FROM many_numbers
+              | STATS SUM(sv), MEDIAN(sv)
+            """, STAGES);
+    }
+
+    public void testApproximationNotSupported() {
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+            """, STAGES);
+    }
 
     public void testPushdown() {
         runGoldenTest("""

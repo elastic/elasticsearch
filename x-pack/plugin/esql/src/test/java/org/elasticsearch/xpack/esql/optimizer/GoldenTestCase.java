@@ -104,6 +104,13 @@ public abstract class GoldenTestCase extends ESTestCase {
      */
     private static final Pattern RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{seed=\\[[^\\]]+\\]\\})+$");
 
+    /**
+     * Fixed sample probability that is used for all query approximation plans.
+     * Normally it would be determined from subplan execution, but those are
+     * not supported in the golden tests.
+     */
+    private static final double SAMPLE_PROBABILITY = 0.0123456789;
+
     private final Path baseFile;
 
     public GoldenTestCase() {
@@ -282,7 +289,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // by literal sample probabilities. This is required for physical plan
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
-                logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, 0.0123456789);
+                logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))

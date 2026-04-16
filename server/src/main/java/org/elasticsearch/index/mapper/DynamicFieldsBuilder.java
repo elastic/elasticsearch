@@ -325,10 +325,10 @@ final class DynamicFieldsBuilder {
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            var indexSettings = context.indexSettings();
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
                 return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
-                var indexSettings = context.indexSettings();
                 return createDynamicField(
                     new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
                         new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)

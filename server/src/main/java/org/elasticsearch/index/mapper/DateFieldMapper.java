@@ -265,7 +265,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> index;
         private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
@@ -299,6 +299,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
         private final IndexSettings indexSettings;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
@@ -308,6 +309,8 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
+            this.indexDisabledByDefault = indexSettings.isIndexDisabledByDefault();
+            this.index = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -1116,6 +1119,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     private final boolean isDataStreamTimestampField;
     private final IndexSettings indexSettings;
+    private final boolean indexDisabledByDefault;
 
     private DateFieldMapper(
         String leafName,
@@ -1142,6 +1146,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     /**

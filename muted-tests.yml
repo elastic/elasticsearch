@@ -28,9 +28,6 @@ tests:
 - class: org.elasticsearch.index.engine.CompletionStatsCacheTests
   method: testCompletionStatsCache
   issue: https://github.com/elastic/elasticsearch/issues/126910
-- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
-  method: testChangeFollowerHistoryUUID
-  issue: https://github.com/elastic/elasticsearch/issues/127680
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -361,6 +358,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
   issue: https://github.com/elastic/elasticsearch/issues/146464
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/146466
 
 # Examples:
 #

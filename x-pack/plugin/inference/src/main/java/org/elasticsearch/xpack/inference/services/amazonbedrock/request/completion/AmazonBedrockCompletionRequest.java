@@ -13,7 +13,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamReques
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
@@ -25,7 +25,7 @@ import java.util.concurrent.Flow;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
-public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
+public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest implements CompletionRequest {
     private final AmazonBedrockCompletionRequestEntity requestEntity;
     private AmazonBedrockChatCompletionResponseListener listener;
     private final boolean stream;
@@ -46,11 +46,6 @@ public class AmazonBedrockCompletionRequest extends AmazonBedrockRequest {
         var converseRequest = getConverseRequest();
 
         client.converse(converseRequest, listener);
-    }
-
-    @Override
-    public TaskType taskType() {
-        return TaskType.COMPLETION;
     }
 
     private ConverseRequest getConverseRequest() {

@@ -11,15 +11,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
-import java.util.Arrays;
-
-public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final int dims;
@@ -29,14 +23,9 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
         this.dims = dims;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
-    }
-
     public void testSequential() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
             var bench = new VectorScorerInt8BulkOperationBenchmark();
             bench.function = function;
             bench.dims = dims;
@@ -55,7 +44,7 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
 
     public void testRandom() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
             var bench = new VectorScorerInt8BulkOperationBenchmark();
             bench.function = function;
             bench.dims = dims;
@@ -73,12 +62,10 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        String[] dims = Utils.possibleValues(VectorScorerInt8BulkOperationBenchmark.class, "dims").toArray(new String[0]);
-        String[] functions = Utils.possibleValues(VectorScorerInt8BulkOperationBenchmark.class, "function").toArray(new String[0]);
-        return () -> Arrays.stream(dims)
-            .map(Integer::parseInt)
-            .flatMap(d -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, d }))
-            .iterator();
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt8BulkOperationBenchmark.class.getField("function"),
+            VectorScorerInt8BulkOperationBenchmark.class.getField("dims")
+        );
     }
 }

@@ -33,7 +33,7 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
 
     private static final ResponseHandler RERANK_HANDLER = new ContextualAiResponseHandler(
         "contextualai rerank",
-        (request, response) -> ContextualAiRerankResponseEntity.fromResponse((ContextualAiRerankRequest) request, response),
+        (request, response) -> ContextualAiRerankResponseEntity.fromResponse(response),
         false
     );
 
@@ -53,7 +53,6 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
             rerankInput.getQuery(),
             rerankInput.getChunks(),
             rerankInput.getTopN(),
-            overriddenModel.getTaskSettings().getInstruction(),
             overriddenModel
         );
 

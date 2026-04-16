@@ -35,6 +35,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -99,6 +100,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
+    static final TransportVersion REPO_ANALYSIS_BLOB_OVERWRITE = TransportVersion.fromName("repo_analysis_blob_overwrite");
+
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
 
@@ -120,6 +123,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         // construct (and therefore implicitly register) the subsidiary actions
         new BlobAnalyzeAction(transportService, clusterService.getSettings(), actionFilters, repositoriesService);
+        new BlobOverwriteAction(transportService, actionFilters, repositoriesService);
         new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
         new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
         new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
@@ -387,6 +391,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final RefCountingRunnable requestRefs = new RefCountingRunnable(this::runCleanUp);
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobAnalyzeAction.Response> responses;
+        private final AtomicBoolean blobOverwriteSucceeded = new AtomicBoolean();
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
 
         private final RepositoryVerificationException analysisCancelledException;
@@ -550,6 +555,29 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));
             }
 
+            if (minClusterTransportVersion.supports(REPO_ANALYSIS_BLOB_OVERWRITE) && request.checkOverwriteProtection()) {
+                final var overwriteBlobName = "test-overwrite-blob-" + UUIDs.randomBase64UUID(random);
+                expectedBlobs.add(overwriteBlobName);
+                int overwriteCount = 0;
+                long overwriteSize = request.getMaxBlobSize().getBytes();
+                Iterator<DiscoveryNode> nodesIterator = Iterators.cycling(nodes);
+                while (overwriteSize >= 1 && overwriteCount < request.getConcurrency()) {
+                    final var node = nodesIterator.next();
+                    final var overwriteRequest = new BlobOverwriteAction.Request(
+                        request.getRepositoryName(),
+                        blobPath,
+                        overwriteBlobName,
+                        overwriteSize,
+                        random.nextLong()
+                    );
+                    overwriteCount += 1;
+                    overwriteSize /= 2L;
+                    queue.add(ref -> runBlobOverwrite(ref, overwriteRequest, node));
+                }
+            } else {
+                blobOverwriteSucceeded.set(true);
+            }
+
             ThrottledIterator.run(getQueueIterator(), (ref, task) -> task.accept(ref), request.getConcurrency(), requestRefs::close);
         }
 
@@ -608,6 +636,50 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                             fail(exp);
                         }
                     }, ref), BlobAnalyzeAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                );
+            } else {
+                ref.close();
+            }
+        }
+
+        private void runBlobOverwrite(Releasable ref, final BlobOverwriteAction.Request request, DiscoveryNode node) {
+            if (isRunning()) {
+                logger.trace("processing [{}] on [{}]", request, node);
+                // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
+                // about local requests resulting in a stack overflow here
+                transportService.sendChildRequest(
+                    node,
+                    BlobOverwriteAction.NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(BlobOverwriteAction.Response response) {
+                            logger.trace("finished [{}] on [{}]: [{}]", request, node, response);
+                            if (response.writeSuccess()) {
+                                if (blobOverwriteSucceeded.compareAndSet(false, true)) {
+                                    expectedBlobs.add(request.blobName());
+                                } else {
+                                    fail(
+                                        new RepositoryVerificationException(
+                                            request.repository(),
+                                            "multiple writes succeeded to overwrite-protected blob "
+                                                + request.blobPath()
+                                                + "/"
+                                                + request.blobName()
+                                        )
+                                    );
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception exp) {
+                            logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
+                            fail(exp);
+                        }
+                    }, ref), BlobOverwriteAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 ref.close();
@@ -827,12 +899,24 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private void runCleanUp() {
             transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                ensureOverwriteSucceeded();
                 final long listingStartTimeNanos = System.nanoTime();
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
                 deleteContainer();
                 sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
             }));
+        }
+
+        private void ensureOverwriteSucceeded() {
+            if (blobOverwriteSucceeded.get() == false) {
+                final var repositoryVerificationException = new RepositoryVerificationException(
+                    request.repositoryName,
+                    "all overwrite protection checks failed"
+                );
+                logger.debug("all overwrite protection checks failed", repositoryVerificationException);
+                fail(repositoryVerificationException);
+            }
         }
 
         private void ensureConsistentListing() {
@@ -993,7 +1077,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         summary.build(),
                         responses,
                         deleteStartTimeNanos - listingStartTimeNanos,
-                        completionTimeNanos - deleteStartTimeNanos
+                        completionTimeNanos - deleteStartTimeNanos,
+                        request.checkOverwriteProtection()
                     )
                 );
             } else {
@@ -1033,6 +1118,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private boolean detailed = false;
         private DiscoveryNode reroutedFrom = null;
         private boolean abortWritePermitted = true;
+        private boolean checkOverwriteProtection = true;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -1054,6 +1140,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             abortWritePermitted = in.readBoolean();
+            checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
         }
 
         @Override
@@ -1078,6 +1166,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
             out.writeBoolean(abortWritePermitted);
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
+                out.writeBoolean(checkOverwriteProtection);
+            } else if (checkOverwriteProtection) {
+                throw new IllegalArgumentException("not all nodes support overwrite-protection checks");
+            }
         }
 
         @Override
@@ -1223,6 +1316,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             return abortWritePermitted;
         }
 
+        public void checkOverwriteProtection(boolean checkOverwriteProtection) {
+            this.checkOverwriteProtection = checkOverwriteProtection;
+        }
+
+        public boolean checkOverwriteProtection() {
+            return checkOverwriteProtection;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -1254,6 +1355,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 + detailed
                 + ", abortWritePermitted="
                 + abortWritePermitted
+                + ", checkOverwriteProtection="
+                + checkOverwriteProtection
                 + "]";
         }
 
@@ -1283,6 +1386,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final List<BlobAnalyzeAction.Response> blobResponses;
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
+        private final boolean checkOverwriteProtection;
 
         public Response(
             String coordinatingNodeId,
@@ -1300,7 +1404,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             RepositoryPerformanceSummary summary,
             List<BlobAnalyzeAction.Response> blobResponses,
             long listingTimeNanos,
-            long deleteTimeNanos
+            long deleteTimeNanos,
+            boolean checkOverwriteProtection
         ) {
             this.coordinatingNodeId = coordinatingNodeId;
             this.coordinatingNodeName = coordinatingNodeName;
@@ -1318,6 +1423,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.blobResponses = blobResponses;
             this.listingTimeNanos = listingTimeNanos;
             this.deleteTimeNanos = deleteTimeNanos;
+            this.checkOverwriteProtection = checkOverwriteProtection;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -1337,6 +1443,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             blobResponses = in.readCollectionAsList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
+            checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
         }
 
         @Override
@@ -1357,6 +1465,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
+                out.writeBoolean(checkOverwriteProtection);
+            }
         }
 
         @Override
@@ -1378,6 +1489,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             builder.field("seed", seed);
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
+            builder.field("check_overwrite_protection", checkOverwriteProtection);
 
             builder.startArray("issues_detected");
             // nothing to report here, if we detected an issue then we would have thrown an exception, but we include this to emphasise

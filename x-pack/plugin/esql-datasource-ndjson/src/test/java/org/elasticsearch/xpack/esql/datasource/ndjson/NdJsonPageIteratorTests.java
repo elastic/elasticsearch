@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -23,15 +24,19 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -105,7 +110,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         try (
             var iterator = reader.read(
                 object,
-                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(false).lastSplit(true).build()
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(false)
+                    .lastSplit(true)
+                    .build()
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -119,6 +130,65 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Same shape as {@code NdJsonFixtureGenerator} output from {@code employees.csv}: flat keys such as
+     * {@code languages.long} must decode when {@code languages} is also a scalar column.
+     */
+    public void testFlatDottedColumnsFromEmployeesFixtureShape() throws IOException {
+        String ndjson = """
+            {
+                "birth_date":"1953-09-02T00:00:00Z",
+                "emp_no":10001,
+                "first_name":"Georgi",
+                "gender":"M",
+                "hire_date":"1986-06-26T00:00:00Z",
+                "languages":2,
+                "languages.long":2,
+                "languages.short":2,
+                "languages.byte":2,
+                "last_name":"Facello",
+                "salary":57305,
+                "height":2.03,
+                "height.float":2.03,
+                "height.scaled_float":2.03,
+                "height.half_float":2.03,
+                "still_hired":true,
+                "avg_worked_seconds":268728049,
+                "job_positions":["Senior Python Developer","Accountant"],
+                "is_rehired":[false,true],
+                "salary_change":[1.19],
+                "salary_change.int":[1],
+                "salary_change.long":[1],
+                "salary_change.keyword":["1.19"]
+            }""";
+        var object = new BytesStorageObject("memory://employees-qa.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (var iterator = reader.read(object, List.of("emp_no", "first_name", "languages.long", "avg_worked_seconds"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertThat(page.getBlock(1), Matchers.instanceOf(BytesRefBlock.class));
+            assertEquals(10001, ((IntBlock) page.getBlock(0)).getInt(0));
+            Block languagesLong = page.getBlock(2);
+            if (languagesLong instanceof IntBlock il) {
+                assertEquals(2, il.getInt(0));
+            } else if (languagesLong instanceof LongBlock ll) {
+                assertEquals(2L, ll.getLong(0));
+            } else {
+                fail("unexpected block for languages.long: " + languagesLong);
+            }
+            Block avgWorked = page.getBlock(3);
+            if (avgWorked instanceof IntBlock iw) {
+                assertEquals(268728049, iw.getInt(0));
+            } else if (avgWorked instanceof LongBlock lw) {
+                assertEquals(268728049L, lw.getLong(0));
+            } else {
+                fail("unexpected block for avg_worked_seconds: " + avgWorked);
+            }
+        }
+    }
+
     public void testSkipFirstLineNoSkip() throws IOException {
         String data = "{\"id\":1}\n{\"id\":2}\n";
         var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(StandardCharsets.UTF_8));
@@ -127,7 +197,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         try (
             var iterator = reader.read(
                 object,
-                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(true).lastSplit(true).build()
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.LENIENT)
+                    .firstSplit(true)
+                    .lastSplit(true)
+                    .build()
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -179,19 +255,206 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
 
         List<Page> pages = new ArrayList<>();
-        try (var iterator = reader.read(object, List.of(), 100)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 pages.add(iterator.next());
             }
         }
 
-        // Should produce at least 2 rows (alice + charlie); the invalid line is handled gracefully
+        // Two valid rows (alice + charlie); the invalid line is skipped
         int totalRows = 0;
         for (var page : pages) {
             totalRows += page.getPositionCount();
             checkBlockSizes(page);
         }
-        assertTrue("Should produce at least the valid rows", totalRows >= 2);
+        assertEquals(2, totalRows);
+    }
+
+    /**
+     * Regression: decodeObject failure on a line must not null-fill a bogus row or leave the stream
+     * positioned so following valid NDJSON lines are lost. The middle line uses invalid structure
+     * triple-brace garbage so parsing fails before any field value is appended to block builders.
+     */
+    public void testMalformedObjectMidLineSkippedReaderResumes() throws IOException {
+        String ndjson = """
+            {"id":1}
+            {{{not-an-object
+            {"id":3}
+            """;
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            assertEquals(1, id.getInt(0));
+            assertEquals(3, id.getInt(1));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testFailFastOnMalformedNdjsonLine() throws IOException {
+        String ndjson = """
+            {"id":1}
+            {{{not-an-object
+            {"id":3}
+            """;
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(1, first.getPositionCount());
+            assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        }
+    }
+
+    /**
+     * FAIL_FAST must abort while decoding a later page, not only when the first malformed line
+     * falls in the first {@link FormatReadContext#batchSize()} rows. Uses a small batch for speed;
+     * see {@link #testFailFastWhenMalformedLineAfterPlannerDefaultExternalPageSize()} for the planner’s
+     * default external page size ({@link LocalExecutionPlanner#DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS}).
+     */
+    public void testFailFastAfterFirstFullPage() throws IOException {
+        int batchSize = 3;
+        assertThat(batchSize, Matchers.lessThan(LocalExecutionPlanner.DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS));
+        String ndjson = """
+            {"id":1}
+            {"id":2}
+            {"id":3}
+            {{{not-an-object
+            {"id":5}
+            """;
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(batchSize).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(batchSize, first.getPositionCount());
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        }
+    }
+
+    /**
+     * Same regression as {@link #testFailFastAfterFirstFullPage}, but with a batch size equal to
+     * {@link LocalExecutionPlanner#DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS} (the fallback when estimated row size
+     * is unknown for external sources in {@link LocalExecutionPlanner}). The first full page succeeds; FAIL_FAST must
+     * still surface on the next decode when the malformed line is past that many good rows.
+     */
+    public void testFailFastWhenMalformedLineAfterPlannerDefaultExternalPageSize() throws IOException {
+        int pageRows = LocalExecutionPlanner.DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
+        StringBuilder ndjson = new StringBuilder(pageRows * 20);
+        for (int i = 1; i <= pageRows; i++) {
+            ndjson.append("{\"id\":").append(i).append("}\n");
+        }
+        ndjson.append("{{{not-an-object\n");
+        ndjson.append("{\"id\":").append(pageRows + 2).append("}\n");
+
+        var object = new BytesStorageObject("memory://failfast-large.ndjson", ndjson.toString().getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(pageRows).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(pageRows, first.getPositionCount());
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        }
+    }
+
+    public void testRowLimitTrimsLastPage() throws IOException {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 1; i <= 20; i++) {
+            ndjson.append("{\"id\":").append(i).append("}\n");
+        }
+        var object = new BytesStorageObject("memory://rows.ndjson", ndjson.toString().getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).rowLimit(5).build();
+        int totalRows = 0;
+        try (var iterator = reader.read(object, ctx)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                checkBlockSizes(page);
+            }
+        }
+        assertEquals(5, totalRows);
+    }
+
+    public void testRowLimitNoOpWhenUnlimited() throws IOException {
+        String ndjson = "{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("memory://x.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(10).rowLimit(FormatReader.NO_LIMIT).build();
+        int totalRows = 0;
+        try (var iterator = reader.read(object, ctx)) {
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals(2, totalRows);
+    }
+
+    /**
+     * Regression: when {@code decodeObject} fails after writing at least one projected field, tolerant
+     * policies must not commit partial data to page builders (would misalign {@link Page} columns).
+     * The stream ends after the bad line so recovery does not need a following record boundary.
+     */
+    public void testPartialDecodeLineFailsScratchDoesNotMisalignPage() throws IOException {
+        String ndjson = """
+            {"id":1,"name":"a"}
+            {"id":2,"note":"x
+            """;
+        var object = new BytesStorageObject("memory://trunc.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        int totalRows = 0;
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(50).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                checkBlockSizes(page);
+                totalRows += page.getPositionCount();
+            }
+        }
+        assertEquals(1, totalRows);
+    }
+
+    public void testFailFastPartialDecodeLine() throws IOException {
+        String ndjson = """
+            {"id":1,"name":"a"}
+            {"id":2,"note":"x
+            """;
+        var object = new BytesStorageObject("memory://trunc.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page first = iterator.next();
+            assertEquals(1, first.getPositionCount());
+            assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
+            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        }
     }
 
     public void testConsistentBlockPositionCounts() throws IOException {
@@ -554,6 +817,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         assertSame(reader, reader.withConfig(null));
         assertSame(reader, reader.withConfig(Map.of()));
+    }
+
+    public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
+        assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
     }
 
     private static DataType dataType(Block block) {

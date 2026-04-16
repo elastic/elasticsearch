@@ -67,7 +67,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
-import org.elasticsearch.plugins.internal.XContentTestMeteringParserDecoratorProvider;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -130,6 +130,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected Settings getIndexSettings() {
         return SETTINGS;
+    }
+
+    protected XContentMeteringParserDecorator xContentMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
     }
 
     protected final Settings.Builder getIndexSettingsBuilder() {
@@ -430,25 +434,22 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
-    public static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    public SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
     /**
      * Build a {@link SourceToParse} without any dynamic templates.
      */
-    protected static SourceToParse source(
-        @Nullable String id,
-        CheckedConsumer<XContentBuilder, IOException> build,
-        @Nullable String routing
-    ) throws IOException {
+    protected SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
+        throws IOException {
         return source(id, build, routing, Map.of());
     }
 
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -460,7 +461,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     /**
      * Build a {@link SourceToParse}.
      */
-    protected static SourceToParse source(
+    protected SourceToParse source(
         @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
@@ -478,7 +479,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             dynamicTemplates,
             dynamicTemplateParams,
             true,
-            XContentTestMeteringParserDecoratorProvider.instance(),
+            xContentMeteringParserDecorator(),
             null
         );
     }

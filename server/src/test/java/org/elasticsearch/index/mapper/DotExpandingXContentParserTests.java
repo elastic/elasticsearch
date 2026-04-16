@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,9 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.plugins.internal.XContentTestMeteringParserDecoratorProvider.decorateParser;
-
 public class DotExpandingXContentParserTests extends ESTestCase {
+
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
+    }
 
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
         final ContentPath contentPath = new ContentPath();

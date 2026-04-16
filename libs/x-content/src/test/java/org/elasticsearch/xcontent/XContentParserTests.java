@@ -12,6 +12,8 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -26,7 +28,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.plugins.internal.XContentTestMeteringParserDecoratorProvider.decorateParser;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -40,6 +41,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class XContentParserTests extends ESTestCase {
+
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
+    }
 
     public void testFloat() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

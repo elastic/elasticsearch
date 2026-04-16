@@ -1,0 +1,13 @@
+ProjectExec[[cluster{f}#0]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[cluster{f}#0],false]
+    \_ProjectExec[[cluster{f}#0]]
+      \_FieldExtractExec[cluster{f}#0]<[],[],[]>
+        \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#1], limit[1000], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "wildcard" : {
+    "_index" : {
+      "wildcard" : "k8s-*",
+      "boost" : 0.0
+    }
+  }
+}, tags=[]]]]

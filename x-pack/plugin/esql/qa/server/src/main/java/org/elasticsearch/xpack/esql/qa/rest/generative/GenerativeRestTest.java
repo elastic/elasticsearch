@@ -236,14 +236,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
 
-                    // Strip the artificial query approximation columns, that are added after
-                    // query execution, and trailing all other columns. These columns confuse
-                    // follow-up command generation (that try to reference them), and result
-                    // validation (that expect columns added after them).
-                    if (FromGenerator.hasApproximationSettings(result.query())) {
-                        result = stripApproximationColumns(result);
-                    }
-
                     final boolean hasException = result.exception() != null;
                     if (hasException
                         || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
@@ -295,14 +287,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
-                boolean knownError = false;
-                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                    if (isAllowedError(e.getMessage(), allowedError)) {
-                        knownError = true;
-                        break;
-                    }
-                }
-                if (knownError == false) {
+                if (isAllowedError(e.getMessage()) == false) {
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
@@ -372,14 +357,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> {
-        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (isAllowedError(ctx.errorMessage, allowedError)) {
-                return true;
-            }
-        }
-        return false;
-    },
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
+        ctx -> isAllowedError(ctx.errorMessage),
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
@@ -452,6 +431,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static String normalizeErrorMessage(String errorMessage) {
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+    }
+
+    protected static boolean isAllowedError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (isAllowedError(errorMessage, allowedError)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
@@ -789,6 +780,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @Override
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
+        QueryExecuted result;
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
@@ -798,14 +790,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             );
             List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new QueryExecuted(query, depth, outputSchema, values, null);
+            result = new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new QueryExecuted(query, depth, null, null, e);
+            result = new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
+            result = new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
-
+        // Strip the artificial query approximation columns that are added after query execution and trail all
+        // other columns. These columns confuse follow-up command generation (that try to reference them) and
+        // result validation (that expect columns added after them).
+        if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
+            result = stripApproximationColumns(result);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

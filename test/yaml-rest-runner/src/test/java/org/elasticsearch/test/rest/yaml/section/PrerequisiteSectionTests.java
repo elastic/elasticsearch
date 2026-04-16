@@ -10,6 +10,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.CapabilitiesCheck;
 import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.KnownIssue;
@@ -328,6 +329,69 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(e.getMessage(), is("if os is specified, test runner feature [skip_os] must be set"));
     }
 
+    public void testParseSkipSectionAllNodesTrue() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+               cluster_features: ["A","B"]
+               all_nodes: true
+               reason: reason
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(!skipSectionBuilder.skipOnAnyNode, is(true));
+        assertThat(skipSectionBuilder.skipClusterFeatures, containsInAnyOrder("A", "B"));
+        assertThat(skipSectionBuilder.skipReason, is("reason"));
+    }
+
+    public void testParseSkipSectionAllNodesFalse() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+               cluster_features: ["A","B"]
+               all_nodes: false
+               reason: reason
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(!skipSectionBuilder.skipOnAnyNode, is(false));
+        assertThat(skipSectionBuilder.skipClusterFeatures, containsInAnyOrder("A", "B"));
+        assertThat(skipSectionBuilder.skipReason, is("reason"));
+    }
+
+    public void testSkipClusterFeaturesAllNodesSkipWhenAllMatch() {
+        PrerequisiteSection section = new PrerequisiteSection(
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("feature-1"), true)),
+            "foobar",
+            emptyList(),
+            "foobar",
+            emptyList()
+        );
+
+        {
+            // Simulate cluster where at least one, but not all nodes have feature-1
+            TestFeatureService testFeatureService = (featureId, any) -> {
+                if ("feature-1".equals(featureId)) {
+                    return any;
+                }
+                return false;
+            };
+            var mockContext = mock(ClientYamlTestExecutionContext.class);
+            when(mockContext.clusterHasFeature(anyString(), anyBoolean())).thenAnswer(
+                i -> testFeatureService.clusterHasFeature(i.getArgument(0), i.getArgument(1))
+            );
+            assertFalse(section.skipCriteriaMet(mockContext));
+        }
+
+        {
+            // Simulate cluster where all nodes have feature-1
+            TestFeatureService testFeatureService = (featureId, any) -> { return "feature-1".equals(featureId); };
+            var mockContext = mock(ClientYamlTestExecutionContext.class);
+            when(mockContext.clusterHasFeature(anyString(), anyBoolean())).thenAnswer(
+                i -> testFeatureService.clusterHasFeature(i.getArgument(0), i.getArgument(1))
+            );
+            assertTrue(section.skipCriteriaMet(mockContext));
+        }
+    }
+
     public void testParseRequireSectionClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             cluster_features:          needed-feature
@@ -485,7 +549,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesSomeToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
             "foobar",
             emptyList(),
             "foobar",
@@ -500,7 +564,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesNoneToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
             "foobar",
             emptyList(),
             "foobar",
@@ -514,7 +578,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesAllRequiredSomeToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",
@@ -533,7 +597,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testSkipClusterFeaturesAllRequiredNoneToSkipMatch() {
         PrerequisiteSection section = new PrerequisiteSection(
-            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"))),
+            List.of(Prerequisites.skipOnClusterFeatures(Set.of("undesired-feature-1", "undesired-feature-2"), false)),
             "foobar",
             List.of(Prerequisites.requireClusterFeatures(Set.of("required-feature-1", "required-feature-2"))),
             "foobar",

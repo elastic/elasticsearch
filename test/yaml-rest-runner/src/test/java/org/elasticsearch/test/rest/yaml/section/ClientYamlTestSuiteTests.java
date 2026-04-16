@@ -536,6 +536,33 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().requireReason, equalTo("required-feature1 is required"));
     }
 
+    public void testParseSkipAllNodesClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Skip on all nodes":
+
+              - skip:
+                  cluster_features:  ["feature-a","feature-b"]
+                  all_nodes: true
+                  reason:      "skip when all nodes have feature-a or feature-b"
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_type.properties.text.type: string}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Skip on all nodes"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(
+            restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason,
+            equalTo("skip when all nodes have feature-a or feature-b")
+        );
+    }
+
     public void testParseFileWithSingleTestSection() throws Exception {
         final Path filePath = createTempFile("tyf", ".yml");
         Files.writeString(filePath, """

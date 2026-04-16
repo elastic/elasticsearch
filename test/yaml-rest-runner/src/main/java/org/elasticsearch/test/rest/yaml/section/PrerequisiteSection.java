@@ -53,6 +53,7 @@ public class PrerequisiteSection {
 
     static class PrerequisiteSectionBuilder {
         String skipReason = null;
+        boolean skipOnAnyNode = true;
         String skipVersionRange = null;
         List<String> skipOperatingSystems = new ArrayList<>();
         List<KnownIssue> skipKnownIssues = new ArrayList<>();
@@ -86,6 +87,12 @@ public class PrerequisiteSection {
 
         public PrerequisiteSectionBuilder setSkipReason(String skipReason) {
             this.skipReason = skipReason;
+            return this;
+        }
+
+        public PrerequisiteSectionBuilder setSkipAllNodes(boolean skipAllNodes) {
+            // From this point we work with "any" semantics, so invert boolean here
+            this.skipOnAnyNode = !skipAllNodes;
             return this;
         }
 
@@ -231,7 +238,7 @@ public class PrerequisiteSection {
                 skipCriteriaList.add(Prerequisites.skipOnOsList(skipOperatingSystems));
             }
             if (skipClusterFeatures.isEmpty() == false) {
-                skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(skipClusterFeatures));
+                skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(skipClusterFeatures, skipOnAnyNode));
             }
             if (skipCapabilities.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipCapabilities(skipCapabilities));
@@ -309,6 +316,7 @@ public class PrerequisiteSection {
                     case "os" -> parseString(parser, builder::skipIfOs);
                     case "cluster_features" -> parseString(parser, builder::skipIfClusterFeature);
                     case "awaits_fix" -> parseString(parser, builder::skipIfAwaitsFix);
+                    case "all_nodes" -> parseBoolean(parser, builder::setSkipAllNodes);
                     default -> false;
                 };
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -348,6 +356,11 @@ public class PrerequisiteSection {
 
     private static boolean parseString(XContentParser parser, Consumer<String> consumer) throws IOException {
         consumer.accept(parser.text());
+        return true;
+    }
+
+    private static boolean parseBoolean(XContentParser parser, Consumer<Boolean> consumer) throws IOException {
+        consumer.accept(parser.booleanValue());
         return true;
     }
 

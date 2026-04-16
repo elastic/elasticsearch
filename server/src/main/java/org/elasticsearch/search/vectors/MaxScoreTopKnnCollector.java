@@ -15,6 +15,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 
+import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.NO_RESULTS;
+
 class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements BulkKnnCollector {
 
     private long minCompetitiveDocScore;
@@ -61,6 +63,9 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
 
     @Override
     public TopDocs topDocs() {
+        if (queue.size() == 0) {
+            return NO_RESULTS;
+        }
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
         int[] index = new int[] { scoreDocs.length - 1 };
@@ -76,6 +81,9 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
 
     @Override
     public TopDocs unsortedTopK() {
+        if (queue.size() == 0) {
+            return NO_RESULTS;
+        }
         assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
         ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
         int[] index = new int[1];

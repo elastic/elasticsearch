@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -49,6 +50,11 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MaxOverTime.class)
         .binary(MaxOverTime::new)
+        .name("max_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(MaxOverTime::new)
+        .description("Returns the maximum value of all points in the specified time range.")
+        .example("max_over_time(http_requests_total[5m])")
         .name("max_over_time");
 
     @FunctionInfo(

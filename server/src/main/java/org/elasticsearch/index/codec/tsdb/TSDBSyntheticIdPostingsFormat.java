@@ -18,8 +18,8 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.DelegatingBloomFilterFieldsProducer;
+import org.elasticsearch.index.codec.bloomfilter.IdBloomFilterSupplier;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -44,20 +44,21 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     @Override
     public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
         DocValuesProducer docValuesProducer = null;
+        IdBloomFilterSupplier idBloomFilterSupplier = null;
         boolean success = false;
         try {
             var codec = state.segmentInfo.getCodec();
             // Erase the segment suffix (used only for reading postings)
             SegmentReadState segmentReadState = new SegmentReadState(state, "");
 
-            BloomFilter bloomFilter = BloomFilter.getBloomFilterForId(segmentReadState);
             docValuesProducer = codec.docValuesFormat().fieldsProducer(segmentReadState);
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
+            idBloomFilterSupplier = new IdBloomFilterSupplier(state);
             success = true;
-            return new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
+            return new DelegatingBloomFilterFieldsProducer(fieldsProducer, idBloomFilterSupplier);
         } finally {
             if (success == false) {
-                IOUtils.close(docValuesProducer);
+                IOUtils.close(docValuesProducer, idBloomFilterSupplier);
             }
         }
     }

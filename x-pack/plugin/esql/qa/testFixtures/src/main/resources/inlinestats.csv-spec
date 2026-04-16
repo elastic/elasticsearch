@@ -4284,7 +4284,7 @@ inlineStatsAfterPruningAggregate6
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from d*,*
+from date*,decades,dense*,distances,*,-addresses_*
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool

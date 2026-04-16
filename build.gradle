@@ -408,13 +408,15 @@ allprojects {
         splitForCI(project, "Part5")
       } else if (project.path.contains("ql")) {
         splitForCI(project, "Part3")
+      } else if (project.path == ":x-pack:plugin") {
+        splitForCI(project, "Part1")
       } else {
         splitForCI(project, "Part2")
       }
     } else if (project.path.startsWith(":qa:") || project.path.startsWith(":test:")) {
       splitForCI(project, "Part6")
     } else if (project.path.startsWith(":libs:")) {
-      splitForCI(project, "Part3")
+      splitForCI(project, "Part6")
     } else {
       splitForCI(project, "Part1")
     }

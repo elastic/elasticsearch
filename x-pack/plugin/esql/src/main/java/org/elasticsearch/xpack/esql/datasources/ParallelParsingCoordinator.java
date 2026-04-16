@@ -111,7 +111,7 @@ public final class ParallelParsingCoordinator {
             return reader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, errorPolicy);
+        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
     }
 
     /**

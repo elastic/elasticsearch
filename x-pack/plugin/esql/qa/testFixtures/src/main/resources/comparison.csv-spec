@@ -387,3 +387,37 @@ cnt:long
 ;
 
 
+// <= boundary always true with nulls
+comparisonLteBoundaryAlwaysTrueWithNulls
+from employees
+| where languages <= 5
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;
+
+
+// != above range no nulls
+comparisonNotEqualsAboveRangeNoNulls
+from employees
+| where salary != 100000
+| stats cnt = count(*)
+;
+
+cnt:long
+100
+;
+
+
+// != above range with nulls
+comparisonNotEqualsAboveRangeWithNulls
+from employees
+| where languages != 10
+| stats cnt = count(*)
+;
+
+cnt:long
+90
+;

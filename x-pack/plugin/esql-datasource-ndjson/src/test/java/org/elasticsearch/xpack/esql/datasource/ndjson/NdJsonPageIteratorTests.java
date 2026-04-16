@@ -135,10 +135,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * {@code languages.long} must decode when {@code languages} is also a scalar column.
      */
     public void testFlatDottedColumnsFromEmployeesFixtureShape() throws IOException {
-        String ndjson =
-            """
-                {"birth_date":"1953-09-02T00:00:00Z","emp_no":10001,"first_name":"Georgi","gender":"M","hire_date":"1986-06-26T00:00:00Z","languages":2,"languages.long":2,"languages.short":2,"languages.byte":2,"last_name":"Facello","salary":57305,"height":2.03,"height.float":2.03,"height.scaled_float":2.03,"height.half_float":2.03,"still_hired":true,"avg_worked_seconds":268728049,"job_positions":["Senior Python Developer","Accountant"],"is_rehired":[false,true],"salary_change":[1.19],"salary_change.int":[1],"salary_change.long":[1],"salary_change.keyword":["1.19"]}
-                """;
+        String ndjson = """
+            {
+                "birth_date":"1953-09-02T00:00:00Z",
+                "emp_no":10001,
+                "first_name":"Georgi",
+                "gender":"M",
+                "hire_date":"1986-06-26T00:00:00Z",
+                "languages":2,
+                "languages.long":2,
+                "languages.short":2,
+                "languages.byte":2,
+                "last_name":"Facello",
+                "salary":57305,
+                "height":2.03,
+                "height.float":2.03,
+                "height.scaled_float":2.03,
+                "height.half_float":2.03,
+                "still_hired":true,
+                "avg_worked_seconds":268728049,
+                "job_positions":["Senior Python Developer","Accountant"],
+                "is_rehired":[false,true],
+                "salary_change":[1.19],
+                "salary_change.int":[1],
+                "salary_change.long":[1],
+                "salary_change.keyword":["1.19"]
+            }""";
         var object = new BytesStorageObject("memory://employees-qa.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         try (var iterator = reader.read(object, List.of("emp_no", "first_name", "languages.long", "avg_worked_seconds"), 10)) {

@@ -196,7 +196,6 @@ import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RemedialAllocationSettingService;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -981,11 +980,6 @@ public class StatelessPlugin extends Plugin
                     threadPool.relativeTimeInMillisSupplier()
                 )
             );
-        }
-
-        if (hasMasterRole) {
-            var remedialSettingService = new RemedialAllocationSettingService(clusterService);
-            clusterService.addListener(remedialSettingService);
         }
 
         if (statelessServicesConsumerProviders.get() != null) {

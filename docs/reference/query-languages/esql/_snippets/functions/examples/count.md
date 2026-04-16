@@ -105,4 +105,16 @@ TS exp_histo_sample
 | --- |
 | 8841 |
 
+`COUNT` can also operate on `tdigest` and casted `histogram` fields, returning the total number of values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS cnt = COUNT(responseTime::tdigest)
+```
+
+| cnt:long |
+| --- |
+| 8841 |
+
 

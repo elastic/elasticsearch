@@ -88,6 +88,22 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ProjectMetadataTests extends ESTestCase {
+
+    /**
+     * Preamble for {@code ensureNoNameCollisions}. The enumeration is gated by the ES|QL external data sources
+     * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
+     */
+    private static String collisionPreamble() {
+        return DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            ? "index, alias, data stream, view, and dataset names need to be unique"
+            : "index, alias, data stream, and view names need to be unique";
+    }
+
+    /** {@link #collisionPreamble()} followed by " but the following duplicates were found " — trailing space, no open bracket. */
+    private static String collisionPreambleWithOpen() {
+        return collisionPreamble() + ", but the following duplicates were found ";
+    }
+
     public void testFindAliases() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
@@ -337,7 +353,7 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         Exception e = expectThrows(IllegalStateException.class, projectBuilder::build);
-        assertThat(e.getMessage(), startsWith("index, alias, data stream, view, and dataset names need to be unique"));
+        assertThat(e.getMessage(), startsWith(collisionPreamble()));
     }
 
     public void testValidateAliasWriteOnly() {
@@ -968,12 +984,7 @@ public class ProjectMetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
             e.getMessage(),
-            containsString(
-                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found "
-                    + "[data stream ["
-                    + dataStreamName
-                    + "] conflicts with index]"
-            )
+            containsString(collisionPreambleWithOpen() + "[data stream [" + dataStreamName + "] conflicts with index]")
         );
     }
 
@@ -988,7 +999,8 @@ public class ProjectMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
+                collisionPreambleWithOpen()
+                    + "["
                     + dataStreamName
                     + " (alias of ["
                     + idx.getIndex().getName()
@@ -1012,12 +1024,7 @@ public class ProjectMetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
             e.getMessage(),
-            containsString(
-                "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found "
-                    + "[dataset ["
-                    + conflictingName
-                    + "] conflicts with index]"
-            )
+            containsString(collisionPreambleWithOpen() + "[dataset [" + conflictingName + "] conflicts with index]")
         );
     }
 

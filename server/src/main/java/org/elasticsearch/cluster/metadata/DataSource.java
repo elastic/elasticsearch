@@ -120,7 +120,8 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             result.put(entry.getKey(), plaintext);
         }
-        return Map.copyOf(result);
+        // Cannot use Map.copyOf() — it rejects null values, which are legitimate here (a setting with value=null).
+        return Collections.unmodifiableMap(result);
     }
 
     /** Settings with secrets masked. Safe for REST responses. */
@@ -129,7 +130,8 @@ public final class DataSource implements Writeable, ToXContentObject {
         for (var entry : settings.entrySet()) {
             result.put(entry.getKey(), entry.getValue().presentationValue());
         }
-        return Map.copyOf(result);
+        // Cannot use Map.copyOf() — it rejects null values, which are legitimate here (a non-secret setting with value=null).
+        return Collections.unmodifiableMap(result);
     }
 
     public static DataSource fromXContent(XContentParser parser) throws IOException {
@@ -138,8 +140,8 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     /**
      * Emits the in-memory plaintext representation, including secret values as-is. Used for cluster-state
-     * persistence (GATEWAY/SNAPSHOT) and is not reached from the API context because
-     * {@link DataSourceMetadata#context()} excludes API. Callers producing REST responses should route through
+     * persistence (GATEWAY context only) and is not reached from the API or SNAPSHOT contexts because
+     * {@link DataSourceMetadata#context()} excludes both. Callers producing REST responses should route through
      * {@link #toPresentationMap()}. See {@link DataSourceSetting} for the encryption-boundary contract.
      */
     @Override

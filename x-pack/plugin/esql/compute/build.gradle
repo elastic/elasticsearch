@@ -1203,6 +1203,9 @@ tasks.named('stringTemplates').configure {
               v1.forEach { k, v -> properties["v1_" + k] = v }
             }
             v2.forEach { k, v -> properties["v2_" + k] = v }
+            if (prefix != "") {
+              properties["v1_TailArray"] = properties["v1_boolean"] ? "ByteArray" : properties["v1_Array"]
+            }
 
             template {
               it.properties = addOccurrence(properties, Occurrence) + [Prefix: prefix]

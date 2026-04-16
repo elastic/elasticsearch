@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -44,6 +46,12 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)
         .ternary(Rate::createWithImplicitTemporality)
+        .name("rate");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(Rate::createWithImplicitTemporality)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
+        .description("Calculates the per-second average rate of increase of the time series in the range vector.")
+        .example("rate(http_requests_total[5m])")
         .name("rate");
 
     private final Expression timestamp;

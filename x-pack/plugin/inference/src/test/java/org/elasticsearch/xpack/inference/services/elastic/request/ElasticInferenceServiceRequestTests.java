@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -113,6 +114,11 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             @Override
             public String getInferenceEntityId() {
                 return "";
+            }
+
+            @Override
+            public TaskType getTaskType() {
+                return null;
             }
         };
     }

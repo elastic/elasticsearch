@@ -389,7 +389,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -420,7 +420,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -451,7 +451,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -484,7 +484,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0),
                 timeValueSeconds(0)
             );
-            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnassigned());
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -532,15 +532,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             // Here because the replica is unassigned due to the primary being created, it's treated as though the replica can be ignored.
             assertFalse(
                 "an unassigned replica from a newly created and initializing primary "
-                    + "should not be treated as an index with all replicas unavailable",
-                status.replicas.doAnyIndicesHaveAllUnavailable()
+                    + "should not be treated as an index with all replicas unassigned",
+                status.replicas.doAnyIndicesHaveAllUnassigned()
             );
         }
 
-        /*
-          A couple of tests for
-          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnassigned(ShardRouting, ClusterState)}
-         */
         {
             IndexRoutingTable routingTable = indexWithTwoPrimaryOneReplicaShard(
                 "myindex",

@@ -94,10 +94,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     public static final String NAME = "shards_availability";
 
     /// Grace period during which an inactive primary may not cause the health indicator to turn RED.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
+    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
-    /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    /// window applies to non-active shards in both unassigned or initializing state.
+    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
+    /// window applies to non-active shards in either unassigned or initializing state.
     public static final Setting<TimeValue> PRIMARY_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -108,10 +108,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     );
 
     /// Grace period during which an inactive replica may not cause the health indicator to turn YELLOW.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
+    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
-    /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    /// window applies to non-active shards in both unassigned or initializing state.
+    /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
+    /// window applies to non-active shards in either unassigned or initializing state.
     public static final Setting<TimeValue> REPLICA_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -330,7 +330,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         int relocating;
         public final Set<ProjectIndexName> indicesWithUnavailableShards;
         public final Set<ProjectIndexName> indicesWithProvisionallyUnavailableShards;
-        public final Set<ProjectIndexName> indicesWithAllShardsUnavailable;
+        public final Set<ProjectIndexName> indicesWithAllShardsUnassigned;
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
         public SearchableSnapshotsState searchableSnapshotsState;
@@ -346,7 +346,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             relocating = 0;
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithProvisionallyUnavailableShards = new HashSet<>();
-            indicesWithAllShardsUnavailable = new HashSet<>();
+            indicesWithAllShardsUnassigned = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
             diagnosisDefinitions = new HashMap<>();
         }
@@ -371,7 +371,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
 
             if (allUnassigned && isProvisionallyInactive == false) {
-                indicesWithAllShardsUnavailable.add(projectIndex);
+                indicesWithAllShardsUnassigned.add(projectIndex);
             }
             if (isProvisionallyInactive) {
                 indicesWithProvisionallyUnavailableShards.add(projectIndex);
@@ -425,8 +425,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             return indicesWithUnavailableShards.isEmpty();
         }
 
-        public boolean doAnyIndicesHaveAllUnavailable() {
-            return indicesWithAllShardsUnavailable.isEmpty() == false;
+        public boolean doAnyIndicesHaveAllUnassigned() {
+            return indicesWithAllShardsUnassigned.isEmpty() == false;
         }
 
         private void addDefinition(Diagnosis.Definition diagnosisDefinition, ProjectIndexName projectIndexName) {

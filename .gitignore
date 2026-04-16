@@ -93,4 +93,3 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # Vector data files
 qa/vector/.data
-.bk.yaml

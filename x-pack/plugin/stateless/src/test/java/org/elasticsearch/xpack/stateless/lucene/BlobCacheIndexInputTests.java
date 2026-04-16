@@ -732,7 +732,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-            final byte[] input = randomByteArrayOfLength(randomIntBetween(1, 100_000));
+            // More than one position to allow slicing
+            final byte[] input = randomByteArrayOfLength(randomIntBetween(2, 100_000));
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final long primaryTerm = randomNonNegativeLong();
             final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(

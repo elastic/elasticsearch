@@ -29,7 +29,7 @@ MARCH_AMD64_TIER3   = cooperlake
 
 # Compiler base — defaults to clang++-21 (the version in the Docker toolchain
 # image, chosen for its codegen quality). Override via env for local builds
-# with a different clang version, e.g. CLANG_CXX=clang++ make local
+# with a different clang version, e.g. CLANG_CXX=clang++-14 make local
 CLANG_CXX ?= clang++-21
 
 # Derive the LLVM tool version suffix from CLANG_CXX (clang++-21 -> -21, clang++ -> empty)
@@ -42,9 +42,12 @@ CLANG       = $(CLANG_CXX) --target=arm64-apple-macos14 -Winline -nostdinc \
                 -isystem src/vec/headers/darwin/tinystd \
                 -isystem $(CLANG_RESOURCE)/include
 CLANG_LINK  = $(CLANG_CXX) --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
-CLANG_STRIP = llvm-strip$(LLVM_SUFFIX) --strip-debug
 CXX_ARM     = $(CLANG_CXX) --target=aarch64-linux-gnu -Winline
 CXX_X64     = $(CLANG_CXX) --target=x86_64-linux-gnu -Winline
+
+# Strip commands per target platform
+DARWIN_STRIP = llvm-strip$(LLVM_SUFFIX) --strip-debug
+LINUX_STRIP  = llvm-strip$(LLVM_SUFFIX) --strip-unneeded
 
 # Sources split by tier
 SRC_AARCH64_TIER1 = $(filter-out %_2.cpp, $(wildcard src/vec/c/aarch64/*.cpp))
@@ -77,6 +80,7 @@ SO_X64 = $(OUT_DIR_AMD64)/libvec.so
 # --- local: build for the current platform using the native compiler ---
 # On macOS, overrides CLANG/CLANG_LINK to use the system clang (SDK available natively).
 # On Linux, overrides CXX_ARM/CXX_X64 to drop the cross-compilation target.
+# Ob both, we use the system strip instead of llvm-strip.
 
 .PHONY: all clean local install
 
@@ -85,17 +89,19 @@ ifeq ($(shell uname -s),Darwin)
   LOCAL_OUTPUT   = $(DYLIB)
   local: CLANG = clang++ -Winline
   local: CLANG_LINK = clang++
-  local: CLANG_STRIP = strip -x
+  local: DARWIN_STRIP = strip -x
   local: $(DYLIB)
 else ifeq ($(shell uname -m),aarch64)
   LOCAL_PLATFORM = linux-aarch64
   LOCAL_OUTPUT   = $(SO_ARM)
   local: CXX_ARM = $(CLANG_CXX) -Winline
+  local: LINUX_STRIP = strip --strip-unneeded
   local: $(SO_ARM)
 else
   LOCAL_PLATFORM = linux-x64
   LOCAL_OUTPUT   = $(SO_X64)
   local: CXX_X64 = $(CLANG_CXX) -Winline
+  local: LINUX_STRIP = strip --strip-unneeded
   local: $(SO_X64)
 endif
 
@@ -119,7 +125,7 @@ $(OBJ_DARWIN_TIER2): $(OBJ_DARWIN)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_DARWIN)
 
 $(DYLIB): $(OBJ_DARWIN_TIER1) $(OBJ_DARWIN_TIER2) | $(OUT_DIR_AARCH64)
 	$(CLANG_LINK) -shared $^ -o $@
-	$(CLANG_STRIP) $@
+	$(DARWIN_STRIP) $@
 
 # --- linux-aarch64 ---
 
@@ -131,7 +137,7 @@ $(OBJ_LIN_ARM_TIER2): $(OBJ_LIN_ARM)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_LIN_AR
 
 $(SO_ARM): $(OBJ_LIN_ARM_TIER1) $(OBJ_LIN_ARM_TIER2) | $(OUT_DIR_AARCH64)
 	$(CXX_ARM) -fuse-ld=lld -shared $^ -o $@
-	llvm-strip$(LLVM_SUFFIX) --strip-unneeded $@
+	$(LINUX_STRIP) $@
 
 # --- linux-x64 ---
 
@@ -146,7 +152,7 @@ $(OBJ_LIN_X64_TIER3): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
 
 $(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) $(OBJ_LIN_X64_TIER3) | $(OUT_DIR_AMD64)
 	$(CXX_X64) -fuse-ld=lld -shared $^ -o $@
-	llvm-strip$(LLVM_SUFFIX) --strip-unneeded $@
+	$(LINUX_STRIP) $@
 
 # --- directories ---
 

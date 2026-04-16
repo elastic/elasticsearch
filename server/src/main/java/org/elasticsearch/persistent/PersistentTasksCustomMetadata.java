@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -218,15 +219,17 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
              */
             RESET_IN_PROGRESS,
             /**
-             * Generic or dynamic reason that does not match a well-known category.
+             * Unexpected reason from a pre-9.5 node that does not match a well-known category.
              */
-            OTHER;
+            @Deprecated(forRemoval = true)
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+            UNEXPECTED_PRE_9_5;
 
             private static final Reason[] VALUES = values();
 
             static Reason fromOrdinal(int ordinal) {
                 if (ordinal < 0 || ordinal >= VALUES.length) {
-                    return OTHER;
+                    return UNEXPECTED_PRE_9_5;
                 }
                 return VALUES[ordinal];
             }
@@ -252,7 +255,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
                         "datafeed awaiting job relocation." -> AWAITING_LAZY_ASSIGNMENT;
                     case "persistent task cannot be assigned while upgrade mode is enabled." -> AWAITING_UPGRADE;
                     case "persistent task will not be assigned as a feature reset is in progress." -> RESET_IN_PROGRESS;
-                    default -> OTHER;
+                    default -> UNEXPECTED_PRE_9_5;
                 };
             }
         }
@@ -271,7 +274,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
 
         public Assignment(String executorNode, String explanation) {
-            this(executorNode, Reason.OTHER, explanation);
+            this(executorNode, Reason.UNEXPECTED_PRE_9_5, explanation);
         }
 
         @Nullable

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -170,13 +171,14 @@ public interface PersistentTasks {
             objects -> {
                 String executorNode = (String) objects[0];
                 String explanation = (String) objects[1];
+                @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
                 String reasonStr = (String) objects[2];
                 if (reasonStr != null) {
                     Assignment.Reason reason;
                     try {
                         reason = Assignment.Reason.valueOf(reasonStr);
                     } catch (IllegalArgumentException e) {
-                        reason = Assignment.Reason.OTHER;
+                        reason = Assignment.Reason.UNEXPECTED_PRE_9_5;
                     }
                     return new Assignment(executorNode, reason, explanation);
                 }

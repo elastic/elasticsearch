@@ -227,9 +227,9 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "datafeed awaiting job relocation.")
         );
 
-        // Unknown explanation defaults to OTHER
+        // Unknown explanation defaults to UNEXPECTED_PRE_9_5
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
             PersistentTasksCustomMetadata.Assignment.Reason.fromExplanation(null, "some unknown reason")
         );
 
@@ -248,13 +248,13 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         for (PersistentTasksCustomMetadata.Assignment.Reason reason : PersistentTasksCustomMetadata.Assignment.Reason.values()) {
             assertEquals(reason, PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(reason.ordinal()));
         }
-        // Out of bounds returns OTHER
+        // Out of bounds returns UNEXPECTED_PRE_9_5
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
             PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(-1)
         );
         assertEquals(
-            PersistentTasksCustomMetadata.Assignment.Reason.OTHER,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
             PersistentTasksCustomMetadata.Assignment.Reason.fromOrdinal(PersistentTasksCustomMetadata.Assignment.Reason.values().length)
         );
     }
@@ -322,16 +322,20 @@ public class PersistentTasksCustomMetadataTests extends BasePersistentTasksCusto
         copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
         assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, copy.getAssignment().getReason());
 
-        // Unknown explanation: fromExplanation returns OTHER
+        // Unknown explanation: fromExplanation returns UNEXPECTED_PRE_9_5
         task = new PersistentTasksCustomMetadata.PersistentTask<>(
             "task-id",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams("test"),
             1L,
-            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.OTHER, "some dynamic reason")
+            new PersistentTasksCustomMetadata.Assignment(
+                null,
+                PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5,
+                "some dynamic reason"
+            )
         );
         copy = copyWriteable(task, getNamedWriteableRegistry(), PersistentTasksCustomMetadata.PersistentTask::new, oldVersion);
-        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.OTHER, copy.getAssignment().getReason());
+        assertEquals(PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_5, copy.getAssignment().getReason());
     }
 
     private PersistentTaskParams emptyTaskParams(String taskName) {

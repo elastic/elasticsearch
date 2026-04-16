@@ -60,7 +60,8 @@ setup:
   - length: { response.profile.shards.0.node_id: 22 }
   - gte: { response.profile.shards.0.shard_id: 0 }
   - is_true: response.profile.shards.0.index
-  - match: { response.profile.shards.0.cluster: "(local)" }
+  # Single-cluster REST: "(local)". CCS / RCS common REST: "remote_cluster".
+  - match: { response.profile.shards.0.cluster: "/^\\(local\\)$|^remote_cluster$/" }
   - contains: { $composite_id: $first_node_id }
   - contains: { $composite_id: $first_index }
 
@@ -71,7 +72,7 @@ setup:
   # after any local resolution performed before profiling metadata is captured)
   - is_true: response.profile.request
   - length: { response.profile.request.indices: 1 }
-  - match: { response.profile.request.indices: [ "test-1" ] }
+  - match: { response.profile.request.indices.0: "/^(remote_cluster:)?test-1$/" }
   - match: { response.profile.request.source.profile: true }
   - is_true: response.profile.request.source.query.match_all
   - match: { response.profile.request.source.query.match_all.boost: 1.0 }
@@ -86,7 +87,7 @@ setup:
   - length: { response.profile.shards: 2 }
   - is_true: response.profile.request
   - length: { response.profile.request.indices: 1 }
-  - match: { response.profile.request.indices: [ "test-1" ] }
+  - match: { response.profile.request.indices.0: "/^(remote_cluster:)?test-1$/" }
   - match: { response.profile.request.source.profile: true }
 
   - do:

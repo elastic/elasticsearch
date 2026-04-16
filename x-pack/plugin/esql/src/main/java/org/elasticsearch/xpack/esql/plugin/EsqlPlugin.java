@@ -78,6 +78,16 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.dataset.DatasetService;
+import org.elasticsearch.xpack.esql.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.GetDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.RestDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.RestGetDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.RestPutDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.TransportDeleteDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.TransportGetDatasetAction;
+import org.elasticsearch.xpack.esql.dataset.TransportPutDatasetAction;
 import org.elasticsearch.xpack.esql.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasource.GetDataSourceAction;
@@ -314,7 +324,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             dataSourceModule,
             new ViewResolver(services.clusterService(), services.projectResolver(), services.client(), services.crossProjectModeDecider()),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators)
+            new DataSourceService(services.clusterService(), crudValidators),
+            new DatasetService(services.clusterService(), crudValidators)
         );
     }
 
@@ -353,7 +364,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
-                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING
+                DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -394,6 +406,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
             actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
             actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
+            actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
+            actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
+            actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
         }
         return List.copyOf(actions);
     }
@@ -422,6 +437,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestPutDatasetAction());
+            handlers.add(new RestGetDatasetAction());
+            handlers.add(new RestDeleteDatasetAction());
         }
         return List.copyOf(handlers);
     }

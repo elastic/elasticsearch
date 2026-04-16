@@ -19,6 +19,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
+import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
@@ -62,6 +64,25 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
+    public Optional<RandomVectorScorerSupplier> getBFloat16VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.getVectorByteLength(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new BFloat16VectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new BFloat16VectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new BFloat16VectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
@@ -84,6 +105,15 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         return FloatVectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getBFloat16VectorScorer(
+        VectorSimilarityFunction sim,
+        FloatVectorValues values,
+        float[] queryVector
+    ) {
+        return BFloat16VectorScorer.create(sim, values, queryVector);
     }
 
     @Override

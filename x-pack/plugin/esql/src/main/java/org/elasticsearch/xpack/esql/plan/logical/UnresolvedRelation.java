@@ -12,12 +12,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -136,6 +138,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     public List<NamedExpression> metadataFields() {
         return metadataFields;
+    }
+
+    public UnresolvedRelation addMetadataField(MetadataAttribute newField) {
+        ArrayList<NamedExpression> newFields = new ArrayList<>(metadataFields);
+        newFields.add(newField);
+        return new UnresolvedRelation(source(), indexPattern, frozen, newFields, indexMode, unresolvedMsg, commandName);
     }
 
     public IndexMode indexMode() {

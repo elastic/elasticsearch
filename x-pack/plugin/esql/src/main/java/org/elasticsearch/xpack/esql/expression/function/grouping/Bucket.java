@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -68,6 +69,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         TwoOptionalArguments,
         ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
+        .quaternaryConfig(Bucket::new)
+        .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -564,6 +568,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     public long offset() {
         return offset;
+    }
+
+    public Configuration configuration() {
+        return configuration;
     }
 
     @Override

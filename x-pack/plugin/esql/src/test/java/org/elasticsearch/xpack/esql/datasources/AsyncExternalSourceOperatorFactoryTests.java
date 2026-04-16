@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -355,7 +357,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -383,7 +385,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -406,7 +408,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadUnresolvedFileSetFallsBackToSingleFile() throws Exception {
+    public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
@@ -463,7 +465,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/bad.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/never.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new FailOnSecondFileFormatReader();
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -491,7 +493,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -515,12 +517,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadFileSetAccessor() {
+    public void testMultiFileReadGenericFileListAccessor() {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/a.parquet"), 10, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/b.parquet"), 20, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/*.parquet");
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -536,12 +538,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run,
-            fileSet
+            fileList
         );
 
-        assertSame(fileSet, factory.fileSet());
-        assertTrue(factory.fileSet().isResolved());
-        assertEquals(2, factory.fileSet().size());
+        assertSame(fileList, factory.fileList());
+        assertTrue(factory.fileList().isResolved());
+        assertEquals(2, factory.fileList().fileCount());
     }
 
     // ===== Slice Queue tests =====
@@ -837,7 +839,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testSliceQueueWithZeroOffsetDoesNotWrapWithRangeStorageObject() throws Exception {
+    public void testSliceQueueWithZeroOffsetWrapsRangeForSplitSpan() throws Exception {
         FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/small.csv"), 0, 1000, "csv", Map.of(), Map.of());
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
 
@@ -885,7 +887,13 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         assertEquals(1, capturedObjects.size());
-        assertFalse("Expected no RangeStorageObject for zero offset", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue(
+            "Zero-offset split must still use RangeStorageObject for the split length",
+            capturedObjects.get(0) instanceof RangeStorageObject
+        );
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
 
         assertEquals(1, capturedSkipFirstLine.size());
         assertFalse("Zero-offset split should not skip first line", capturedSkipFirstLine.get(0));
@@ -1032,7 +1040,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         assertEquals(3, capturedObjects.size());
 
-        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertTrue("First split (offset=0) must use RangeStorageObject", capturedObjects.get(0) instanceof RangeStorageObject);
+        RangeStorageObject range0 = (RangeStorageObject) capturedObjects.get(0);
+        assertEquals(0, range0.offset());
+        assertEquals(1000, range0.length());
         assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
 
         assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);

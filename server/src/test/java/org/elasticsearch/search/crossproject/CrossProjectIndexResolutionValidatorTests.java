@@ -722,6 +722,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(ex);
         assertThat(ex, instanceOf(IndexNotFoundException.class));
+        assertThat(ex.getMessage(), containsString("no such index [shared-index-missing*]"));
     }
 
     public void testMissingConcreteIndicesWithIgnoreUnavailableAndStrictAllowNoIndices() {
@@ -810,6 +811,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         var e = CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, remote, Map.of());
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
     }
 
     public void testMixedExistingAndMissingConcreteIndicesWithStrictAllowNoIndices() {

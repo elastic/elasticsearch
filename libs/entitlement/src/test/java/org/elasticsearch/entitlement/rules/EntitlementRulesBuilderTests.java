@@ -151,6 +151,17 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "<init>", List.of("java.lang.String")));
     }
 
+    public void testProtectedCtorThrowsWhenArgTypeMismatch() {
+        expectThrows(IllegalArgumentException.class, () -> newBuilder(newRegistry()).on(Concrete.class).protectedCtor(Integer.class));
+    }
+
+    public void testProtectedCtorThrowsWhenArgCountMismatch() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> newBuilder(newRegistry()).on(Concrete.class).protectedCtor(Integer.class, String.class)
+        );
+    }
+
     public void testTypeTokenParameter() {
         var registry = newRegistry();
         newBuilder(registry).on(DummyWithGeneric.class)

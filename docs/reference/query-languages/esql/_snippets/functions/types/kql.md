@@ -5,7 +5,5 @@
 | query | options | result |
 | --- | --- | --- |
 | keyword | named parameters | boolean |
-| keyword | | boolean |
 | text | named parameters | boolean |
-| text | | boolean |
 

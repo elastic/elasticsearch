@@ -10,14 +10,19 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -25,9 +30,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -38,12 +45,16 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.test.WildcardFieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
@@ -52,6 +63,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -96,6 +108,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
+        checker.registerConflictCheck("preserve_leaf_arrays", b -> b.field("preserve_leaf_arrays", "exact"));
 
         checker.registerUpdateCheck(
             "eager_global_ordinals",
@@ -122,6 +135,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }, m -> assertNotNull(((FlattenedFieldMapper) m).fieldType().getChildFieldType("host")));
+        checker.registerUpdateCheck("passthrough", b -> {
+            b.startObject("passthrough").field("priority", 5).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }, m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough()));
     }
 
     @Override
@@ -691,6 +708,53 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         assertTrue(fieldMapper.fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testPreserveLeafArraysParameter() throws IOException {
+        for (var value : FlattenedFieldMapper.PreserveLeafArrays.values()) {
+            DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("preserve_leaf_arrays", value.toString());
+            }));
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(mapper.preserveLeafArrays(), equalTo(value));
+        }
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("preserve_leaf_arrays", "bogus");
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping: Unknown value [bogus] for field [preserve_leaf_arrays] - accepted values are [lossy, exact]")
+        );
+    }
+
+    public void testPreserveLeafArraysParameterDefaultValue() throws IOException {
+        {
+            DocumentMapper documentMapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.LOSSY));
+        }
+
+        {
+            DocumentMapper documentMapper = createMapperService(
+                Settings.builder().put(SourceFieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "none").build(),
+                fieldMapping(this::minimalMapping)
+            ).documentMapper();
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.LOSSY));
+        }
+
+        {
+            DocumentMapper documentMapper = createMapperService(
+                Settings.builder().put(SourceFieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build(),
+                fieldMapping(this::minimalMapping)
+            ).documentMapper();
+            var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+            assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT));
+        }
+
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -1365,24 +1429,35 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    private static void randomMapExample(final Map<String, Object> example, int depth, int maxDepth) {
+    private static void randomMapExample(
+        final Map<String, Object> example,
+        int depth,
+        int maxDepth,
+        FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
+    ) {
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             int j = depth >= maxDepth ? randomIntBetween(1, 2) : randomIntBetween(1, 3);
             switch (j) {
                 case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLengthBetween(1, 10));
                 case 2 -> {
                     int size = randomIntBetween(2, 10);
-                    final Set<String> stringSet = new HashSet<>();
+                    final Collection<String> stringSet = switch (preserveLeafArrays) {
+                        case LOSSY -> new HashSet<>();
+                        case EXACT -> new ArrayList<>();
+                    };
+
                     while (stringSet.size() < size) {
                         stringSet.add(String.valueOf(randomIntBetween(10_000, 2_000_000)));
                     }
                     final List<String> randomList = new ArrayList<>(stringSet);
-                    Collections.sort(randomList);
+                    if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.LOSSY) {
+                        Collections.sort(randomList);
+                    }
                     example.put(randomAlphaOfLength(6), randomList);
                 }
                 case 3 -> {
                     final Map<String, Object> nested = new HashMap<>();
-                    randomMapExample(nested, depth + 1, maxDepth);
+                    randomMapExample(nested, depth + 1, maxDepth, preserveLeafArrays);
                     example.put(randomAlphaOfLength(10), nested);
                 }
                 default -> throw new IllegalArgumentException("value: [" + j + "] unexpected");
@@ -1392,6 +1467,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     private static class FlattenedFieldSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Integer ignoreAbove = randomBoolean() ? randomIntBetween(4, 10) : null;
+        private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays = randomFrom(
+            FlattenedFieldMapper.PreserveLeafArrays.values()
+        );
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
@@ -1415,7 +1493,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             var maxDepth = randomIntBetween(1, 3);
 
             final Map<String, Object> map = new HashMap<>();
-            randomMapExample(map, 0, maxDepth);
+            randomMapExample(map, 0, maxDepth, preserveLeafArrays);
 
             return map;
         }
@@ -1474,10 +1552,43 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             if (ignoreAbove != null) {
                 b.field("ignore_above", ignoreAbove);
             }
+            b.field("preserve_leaf_arrays", preserveLeafArrays.toString());
         }
     }
 
     public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            mapping(b -> {
+                b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
+            })
+        ).documentMapper();
+
+        // when
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "val1");
+                b.startObject("obj1");
+                {
+                    b.field("key2", "val2");
+                    b.field("key3", List.of("val3", "val4"));
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.field("@timestamp", "2025-01-01T00:00:00Z");
+        });
+
+        // then
+        assertThat(syntheticSource, equalTo("""
+            {"@timestamp":"2025-01-01T00:00:00.000Z","field":{"key1":"val1","obj1":{"key2":"val2","key3":["val3","val4"]}}}"""));
+    }
+
+    public void testSyntheticSourceWithOnlyIgnoredValuesStoredFields() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
         })).documentMapper();
@@ -1605,6 +1716,116 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         });
         assertThat(syntheticSource, equalTo("""
             {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
+    }
+
+    public void testPreserveLeafArraysExactSingleValue() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> example = b -> b.startObject("field")
+            .field("leaf", "foo")
+            .array("leaf2", "bar")
+            .endObject();
+
+        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"leaf\":\"foo\",\"leaf2\":\"bar\"}}"));
+    }
+
+    public void testPreserveLeafArraysExactWithObjectArrays() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> example = b -> {
+            b.startObject("field");
+            b.startArray("sub1");
+            b.startObject();
+            b.field("sub2", "foo");
+            b.endObject();
+            b.startObject();
+            b.field("sub2", "bar");
+            b.endObject();
+            b.startObject();
+            b.array("sub2", "baz", "bat");
+            b.endObject();
+            b.endArray();
+            b.endObject();
+        };
+
+        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"sub1\":{\"sub2\":[\"foo\",\"bar\",\"baz\",\"bat\"]}}}"));
+    }
+
+    public void testPreserveLeafArraysExactWithAllNulls() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> example = b -> b.startObject("field")
+            .nullField("leaf")
+            .array("leaf2", null, null)
+            .endObject();
+
+        assertThat(syntheticSource(mapper, example), equalTo("{\"field\":{\"leaf\":null,\"leaf2\":[null,null]}}"));
+    }
+
+    private static void flattenedPreserveLeafArrayExample(XContentBuilder b) throws IOException {
+        b.startObject("field");
+        {
+            b.startArray("leaf_key");
+            b.value("zebra");
+            b.value("apple");
+            b.nullValue();
+            b.value("moon");
+            b.value("apple");
+            b.nullValue();
+            b.value("banana");
+            b.endArray();
+        }
+        b.endObject();
+    }
+
+    public void testSyntheticSourceSortedSetDocValuesWithPreserveLeafArraysLossy() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "lossy").endObject();
+        })).documentMapper();
+
+        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+            {"field":{"leaf_key":["apple","banana","moon","zebra"]}}"""));
+    }
+
+    public void testSyntheticSourceBinaryDocValuesWithPreserveLeafArraysLossy() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "lossy").endObject();
+        })).documentMapper();
+
+        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+            {"field":{"leaf_key":["apple","banana","moon","zebra"]}}"""));
+    }
+
+    public void testSyntheticSourceSortedSetDocValuesWithPreserveLeafArraysExact() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+            {"field":{"leaf_key":["zebra","apple",null,"moon","apple",null,"banana"]}}"""));
+    }
+
+    public void testSyntheticSourceBinaryDocValuesWithPreserveLeafArraysExact() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject();
+        })).documentMapper();
+
+        assertThat(syntheticSource(mapper, FlattenedFieldMapperTests::flattenedPreserveLeafArrayExample), equalTo("""
+            {"field":{"leaf_key":["zebra","apple",null,"moon","apple",null,"banana"]}}"""));
     }
 
     public void testMultipleDotsInPath() throws IOException {
@@ -1995,6 +2216,99 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testPassthroughWithNegativePriorityThrows() throws IOException {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", -1).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("passthrough"));
+    }
+
+    public void testPassthroughWithoutPropertiesThrows() throws IOException {
+        for (int priority : new int[] { 0, 5, 100 }) {
+            final int p = priority;
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.startObject("passthrough").field("priority", p).endObject();
+            })));
+            assertThat(e.getMessage(), containsString("passthrough"));
+            assertThat(e.getMessage(), containsString("properties"));
+        }
+    }
+
+    public void testPassthroughMissingPriorityThrows() throws IOException {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("priority"));
+    }
+
+    public void testPassthroughWithSubFields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 10).endObject();
+            b.startObject("properties");
+            b.startObject("status").field("type", "keyword").endObject();
+            b.startObject("count").field("type", "long").endObject();
+            b.endObject();
+        }));
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper.isPassthrough());
+        assertEquals(10, mapper.priority());
+        assertEquals(2, mapper.passThroughSubFields().size());
+        // root-level aliases are registered
+        assertNotNull(mapperService.fieldType("status"));
+        assertNotNull(mapperService.fieldType("count"));
+    }
+
+    public void testNoPassthroughWhenParamAbsent() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertFalse(mapper.isPassthrough());
+        assertNull(mapperService.fieldType("status"));
+    }
+
+    public void testPassthroughRootFieldWins() throws IOException {
+        // root "status" is long; passthrough sub-field "status" is keyword — types differ so we can
+        // confirm the root concrete field wins rather than the passthrough alias
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("status").field("type", "long").endObject();
+            b.startObject("labels");
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 10).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        MappedFieldType ft = mapperService.fieldType("status");
+        assertNotNull(ft);
+        assertEquals("long", ft.typeName());
+    }
+
+    public void testPassthroughNotSerializedWhenAbsent() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        String serialized = mapperService.documentMapper().mappingSource().toString();
+        assertFalse(serialized.contains("passthrough"));
+    }
+
+    public void testPassthroughRoundTrip() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 7).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+        String serialized = mapper.mappingSource().toString();
+        assertThat(serialized, containsString("\"passthrough\":{\"priority\":7}"));
+        // re-parse to confirm round-trip
+        MapperService reparsed = createMapperService(mapper.mappingSource().string());
+        FlattenedFieldMapper reparsedMapper = (FlattenedFieldMapper) reparsed.mappingLookup().getMapper("field");
+        assertTrue(reparsedMapper.isPassthrough());
+        assertEquals(7, reparsedMapper.priority());
+    }
+
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
@@ -2003,5 +2317,236 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("key", "valuetoolong").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        // then
+        assertFalse(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertTrue(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Standard indices don't use TSDB's doc values format (useTimeSeriesDocValuesFormat), hence binary doc values should not be enabled.
+     */
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("key", "valuetoolong").endObject()));
+
+        // then
+        assertTrue(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertFalse(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Previous index version doesn't support using binary doc values for ignored fields, hence it must default to stored fields.
+     */
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("key", "valuetoolong").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        // then
+        assertTrue(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertFalse(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Verifies that reusing a {@link FlattenedDocValuesSyntheticFieldLoader} across multiple leaf readers does not leak stale binary doc
+     * values from a previous segment.
+     */
+    public void testDocValuesLoaderResetsBinaryDocValuesAcrossLeafReaders() throws IOException {
+        // given: two documents — one with a flattened field, one without — in separate segments
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            mapping(b -> b.startObject("field").field("type", "flattened").endObject())
+        ).documentMapper();
+
+        ParsedDocument docWithField = mapper.parse(
+            source(b -> b.startObject("field").field("key", "value").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+        docWithField.updateSeqID(0, 0);
+        docWithField.version().setLongValue(0);
+
+        ParsedDocument docWithoutField = mapper.parse(source(b -> b.field("@timestamp", "2025-01-02T00:00:00Z")));
+        docWithoutField.updateSeqID(1, 1);
+        docWithoutField.version().setLongValue(1);
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig();
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                writer.addDocuments(docWithField.docs());
+                writer.commit();
+                writer.addDocuments(docWithoutField.docs());
+                writer.commit();
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = reader.leaves();
+                assertThat(leaves, hasSize(2));
+
+                // Create a single loader instance reused across segments, as RootFlattenedDocValuesBlockLoader does
+                FlattenedDocValuesSyntheticFieldLoader loader = new FlattenedDocValuesSyntheticFieldLoader(
+                    "field",
+                    "field._keyed",
+                    null,
+                    "field",
+                    true,
+                    List.of(),
+                    false,
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                );
+
+                // when: load from first segment which has the flattened field
+                var dvLoader1 = loader.docValuesLoader(leaves.get(0).reader(), null);
+                assertNotNull(dvLoader1);
+                assertTrue(dvLoader1.advanceToDoc(0));
+                assertTrue(loader.hasValue());
+
+                // when: load from second segment which does NOT have the flattened field
+                var dvLoader2 = loader.docValuesLoader(leaves.get(1).reader(), null);
+
+                // then: the loader should report no values, not stale values from the first segment
+                assertNull("docValuesLoader should return null when field has no doc values in segment", dvLoader2);
+                assertFalse("stale binary doc values leaked from previous segment", loader.hasValue());
+            }
+        }
+    }
+
+    /**
+     * Verifies that reusing a {@link FlattenedDocValuesSyntheticFieldLoader} across multiple leaf readers does not leak stale ignored
+     * binary doc values from a previous segment.
+     */
+    public void testDocValuesLoaderResetsIgnoredDocValuesAcrossLeafReaders() throws IOException {
+        // given: ignored values stored in binary doc values (LogsDB with ignore_above)
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            mapping(b -> b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject())
+        ).documentMapper();
+
+        // All values exceed ignore_above=1, so they go to the ignored field
+        ParsedDocument docWithIgnored = mapper.parse(
+            source(b -> b.startObject("field").field("key", "value").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+        docWithIgnored.updateSeqID(0, 0);
+        docWithIgnored.version().setLongValue(0);
+
+        ParsedDocument docWithoutField = mapper.parse(source(b -> b.field("@timestamp", "2025-01-02T00:00:00Z")));
+        docWithoutField.updateSeqID(1, 1);
+        docWithoutField.version().setLongValue(1);
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig();
+            config.setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                writer.addDocuments(docWithIgnored.docs());
+                writer.commit();
+                writer.addDocuments(docWithoutField.docs());
+                writer.commit();
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = reader.leaves();
+                assertThat(leaves, hasSize(2));
+
+                FlattenedDocValuesSyntheticFieldLoader loader = new FlattenedDocValuesSyntheticFieldLoader(
+                    "field",
+                    "field._keyed",
+                    "field._keyed._ignored",
+                    "field",
+                    true,
+                    List.of(),
+                    true,
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                );
+
+                // when: load from first segment which has ignored values
+                var dvLoader1 = loader.docValuesLoader(leaves.get(0).reader(), null);
+                assertNotNull(dvLoader1);
+                assertTrue(dvLoader1.advanceToDoc(0));
+                assertTrue(loader.hasValue());
+
+                // when: load from second segment which has no flattened field at all
+                var dvLoader2 = loader.docValuesLoader(leaves.get(1).reader(), null);
+
+                // then: the loader should report no values, not stale ignored values
+                assertNull("docValuesLoader should return null when field has no doc values in segment", dvLoader2);
+                assertFalse("stale ignored binary doc values leaked from previous segment", loader.hasValue());
+            }
+        }
+    }
+
+    public void testSyntheticFieldLoaderRejectsIgnoredBinaryDocValuesWithoutBinaryDocValues() {
+        // storeIgnoredFieldsInBinaryDocValues=true requires usesBinaryDocValues=true
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> new FlattenedDocValuesSyntheticFieldLoader(
+                "field",
+                "field._keyed",
+                "field._keyed._ignored",
+                "field",
+                false,
+                List.of(),
+                true,
+                FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+            )
+        );
+        assertThat(e.getMessage(), containsString("storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues"));
+    }
+
+    private final Set<String> roundtripMaskedFields = Set.of(
+        SourceFieldMapper.RECOVERY_SOURCE_NAME,
+        SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME,
+        "*.offsets"
+    );
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        assertReaderEquals(
+            "round trip " + syntheticSource,
+            new WildcardFieldMaskingReader(roundtripMaskedFields, reader),
+            new WildcardFieldMaskingReader(roundtripMaskedFields, roundTripReader)
+        );
     }
 }

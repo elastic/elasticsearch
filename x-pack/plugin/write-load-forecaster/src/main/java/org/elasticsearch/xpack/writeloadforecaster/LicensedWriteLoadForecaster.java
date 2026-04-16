@@ -120,8 +120,9 @@ class LicensedWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForeca
             final IndexMetadata.Builder previousWriteIndexMetadataBuilder = IndexMetadata.builder(previousWriteIndexMetadata)
                 .indexWriteLoadForecast(null);
             if (previousWriteIndexMetadata.getSettings().hasValue(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey())) {
-                Settings.Builder previousWriteIndexSettings = Settings.builder().put(previousWriteIndexMetadata.getSettings());
-                previousWriteIndexSettings.remove(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey());
+                Settings.Builder previousWriteIndexSettings = Settings.builder()
+                    .put(previousWriteIndexMetadata.getSettings())
+                    .remove(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey());
                 previousWriteIndexMetadataBuilder.settings(previousWriteIndexSettings);
                 previousWriteIndexMetadataBuilder.settingsVersion(previousWriteIndexMetadata.getSettingsVersion() + 1);
             }

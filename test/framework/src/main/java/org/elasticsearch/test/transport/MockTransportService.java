@@ -49,6 +49,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -267,13 +268,8 @@ public class MockTransportService extends TransportService {
             clusterSettings,
             MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
-            new TelemetryProvider() {
+            new NoopTelemetryProvider() {
                 final MeterRegistry meterRegistry = new RecordingMeterRegistry();
-
-                @Override
-                public Tracer getTracer() {
-                    return Tracer.NOOP;
-                }
 
                 @Override
                 public MeterRegistry getMeterRegistry() {

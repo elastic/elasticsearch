@@ -20,12 +20,16 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
+import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
@@ -33,6 +37,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
@@ -210,7 +215,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         // No need to use temporary file as we don't have to re-open for reading
         DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
-            case FLOAT32 -> writeVectorData(vectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            case FLOAT32 -> writeVectorData(vectorData, mergeFloatVectorValues(fieldInfo, mergeState));
             case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
@@ -226,7 +231,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         try {
             // write the vector data to a temporary file
             docsWithField = switch (fieldInfo.getVectorEncoding()) {
-                case FLOAT32 -> writeVectorData(tempVectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+                case FLOAT32 -> writeVectorData(tempVectorData, mergeFloatVectorValues(fieldInfo, mergeState));
                 case BYTE -> throw new UnsupportedOperationException("ES92BFloat16FlatVectorsWriter only supports float vectors");
             };
             CodecUtil.writeFooter(tempVectorData);
@@ -287,14 +292,25 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
      */
     private static DocsWithFieldSet writeVectorData(IndexOutput output, FloatVectorValues floatVectorValues) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        ByteBuffer buffer = ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         KnnVectorValues.DocIndexIterator iter = floatVectorValues.iterator();
-        for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
-            // write vector
-            float[] value = floatVectorValues.vectorValue(iter.index());
-            BFloat16.floatToBFloat16(value, buffer.asShortBuffer());
-            output.writeBytes(buffer.array(), buffer.limit());
-            docsWithField.add(docV);
+        if (floatVectorValues instanceof BFloat16VectorValues bf16) {
+            // write the bytes directly
+            for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
+                // write vector
+                byte[] value = bf16.bfloat16VectorBytes(iter.index());
+                output.writeBytes(value, value.length);
+                docsWithField.add(docV);
+            }
+        } else {
+            // use an intermediate buffer and convert
+            ByteBuffer buffer = ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
+                // write vector
+                float[] value = floatVectorValues.vectorValue(iter.index());
+                BFloat16.floatToBFloat16(value, buffer.asShortBuffer());
+                output.writeBytes(buffer.array(), buffer.limit());
+                docsWithField.add(docV);
+            }
         }
         return docsWithField;
     }
@@ -302,6 +318,171 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     @Override
     public void close() throws IOException {
         IOUtils.close(meta, vectorData);
+    }
+
+    private static FloatVectorValues mergeFloatVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> bfloat16Subs = tryMergeBFloat16VectorValues(
+            mergeState.knnVectorsReaders,
+            mergeState.docMaps,
+            fieldInfo,
+            mergeState.fieldInfos
+        );
+        return bfloat16Subs != null
+            ? new MergedBFloat16VectorValues(bfloat16Subs, mergeState)
+            : MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+    }
+
+    private static List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> tryMergeBFloat16VectorValues(
+        KnnVectorsReader[] knnVectorsReaders,
+        MergeState.DocMap[] docMaps,
+        FieldInfo mergingField,
+        FieldInfos[] sourceFieldInfos
+    ) throws IOException {
+        List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> subs = new ArrayList<>();
+        for (int i = 0; i < knnVectorsReaders.length; i++) {
+            FieldInfos sourceFieldInfo = sourceFieldInfos[i];
+            if (KnnVectorsWriter.MergedVectorValues.hasVectorValues(sourceFieldInfo, mergingField.name) == false) {
+                continue;
+            }
+            KnnVectorsReader reader = knnVectorsReaders[i];
+            if (reader != null) {
+                FloatVectorValues values = reader.getFloatVectorValues(mergingField.name);
+                if (values instanceof BFloat16VectorValues bf16) {
+                    subs.add(new MergedBFloat16VectorValues.BFloat16VectorValuesSub(docMaps[i], bf16));
+                } else if (values != null) {
+                    // not a bfloat16 thing, we have to use the default
+                    return null;
+                }
+            }
+        }
+        return subs;
+    }
+
+    static class MergedBFloat16VectorValues extends BFloat16VectorValues {
+
+        static class BFloat16VectorValuesSub extends DocIDMerger.Sub {
+            final BFloat16VectorValues values;
+            final KnnVectorValues.DocIndexIterator iterator;
+
+            BFloat16VectorValuesSub(MergeState.DocMap docMap, BFloat16VectorValues values) {
+                super(docMap);
+                this.values = values;
+                this.iterator = values.iterator();
+                assert iterator.docID() == -1;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return iterator.nextDoc();
+            }
+
+            public int index() {
+                return iterator.index();
+            }
+        }
+
+        private final List<BFloat16VectorValuesSub> subs;
+        private final DocIDMerger<BFloat16VectorValuesSub> docIdMerger;
+        private final int size;
+        private int docId = -1;
+        private int lastOrd = -1;
+        BFloat16VectorValuesSub current;
+
+        MergedBFloat16VectorValues(List<BFloat16VectorValuesSub> subs, MergeState mergeState) throws IOException {
+            this.subs = subs;
+            docIdMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+            int totalSize = 0;
+            for (BFloat16VectorValuesSub sub : subs) {
+                totalSize += sub.values.size();
+            }
+            size = totalSize;
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return new DocIndexIterator() {
+                private int index = -1;
+
+                @Override
+                public int docID() {
+                    return docId;
+                }
+
+                @Override
+                public int index() {
+                    return index;
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    current = docIdMerger.next();
+                    if (current == null) {
+                        docId = NO_MORE_DOCS;
+                        index = NO_MORE_DOCS;
+                    } else {
+                        docId = current.mappedDocID;
+                        ++lastOrd;
+                        ++index;
+                    }
+                    return docId;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long cost() {
+                    return size;
+                }
+            };
+        }
+
+        @Override
+        public float[] vectorValue(int ord) throws IOException {
+            if (ord != lastOrd) {
+                throw new IllegalStateException(
+                    "only supports forward iteration with a single iterator: ord=" + ord + ", lastOrd=" + lastOrd
+                );
+            }
+            return current.values.vectorValue(current.index());
+        }
+
+        @Override
+        public byte[] bfloat16VectorBytes(int ord) throws IOException {
+            if (ord != lastOrd) {
+                throw new IllegalStateException(
+                    "only supports forward iteration with a single iterator: ord=" + ord + ", lastOrd=" + lastOrd
+                );
+            }
+            return current.values.bfloat16VectorBytes(current.index());
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public int dimension() {
+            return subs.get(0).values.dimension();
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public FloatVectorValues copy() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private abstract static class FieldWriter<T> extends FlatFieldVectorsWriter<T> {
@@ -357,7 +538,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         @Override
         public long ramBytesUsed() {
             long size = SHALLOW_RAM_BYTES_USED;
-            if (vectors.size() == 0) return size;
+            if (vectors.isEmpty()) return size;
 
             int byteSize = fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32
                 ? BFloat16.BYTES

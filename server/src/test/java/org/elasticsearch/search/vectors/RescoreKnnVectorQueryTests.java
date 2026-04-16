@@ -448,6 +448,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
 
         @Override
+        public int getVectorByteLength() {
+            return in.getVectorByteLength();
+        }
+
+        @Override
         public float[] vectorValue(int ord) throws IOException {
             return in.vectorValue(ord);
         }

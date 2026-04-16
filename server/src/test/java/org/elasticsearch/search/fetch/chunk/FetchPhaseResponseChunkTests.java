@@ -150,6 +150,40 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
         }
     }
 
+    public void testGetHitPositionsReturnsScoreOrderPositions() throws IOException {
+        SearchHit hit0 = createHit(10);
+        SearchHit hit1 = createHit(20);
+        SearchHit hit2 = createHit(30);
+        try {
+            int[] positions = new int[] { 2, 0, 1 };
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
+                TEST_SHARD_ID,
+                serializeHitsWithPositions(new SearchHit[] { hit0, hit1, hit2 }, positions),
+                3,
+                10,
+                0L
+            );
+            try {
+                SearchHit[] hits = chunk.getHits();
+                int[] readPositions = chunk.getHitPositions();
+                assertThat(hits.length, equalTo(3));
+                assertThat(readPositions.length, equalTo(3));
+                assertThat(readPositions[0], equalTo(2));
+                assertThat(readPositions[1], equalTo(0));
+                assertThat(readPositions[2], equalTo(1));
+                assertThat(getIdFromSource(hits[0]), equalTo(10));
+                assertThat(getIdFromSource(hits[1]), equalTo(20));
+                assertThat(getIdFromSource(hits[2]), equalTo(30));
+            } finally {
+                chunk.close();
+            }
+        } finally {
+            hit0.decRef();
+            hit1.decRef();
+            hit2.decRef();
+        }
+    }
+
     private SearchHit createHit(int id) {
         SearchHit hit = new SearchHit(id);
         hit.sourceRef(new BytesArray("{\"id\":" + id + "}"));
@@ -157,9 +191,14 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
     }
 
     private BytesReference serializeHits(SearchHit... hits) throws IOException {
+        return serializeHitsWithPositions(hits, null);
+    }
+
+    private BytesReference serializeHitsWithPositions(SearchHit[] hits, int[] positions) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt(positions != null ? positions[i] : i);
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }

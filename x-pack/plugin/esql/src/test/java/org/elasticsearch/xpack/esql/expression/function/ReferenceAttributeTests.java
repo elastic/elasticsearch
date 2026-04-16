@@ -22,7 +22,7 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
         Supplier<DataType> randomType = () -> randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
+            t -> false == t.supportedVersion().supportedLocally() || DataType.UNDER_CONSTRUCTION.contains(t),
             () -> randomFrom(DataType.types())
         );
         DataType type = onlyRepresentable

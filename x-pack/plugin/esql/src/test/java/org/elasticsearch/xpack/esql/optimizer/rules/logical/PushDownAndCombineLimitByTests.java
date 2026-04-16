@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -35,9 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizerTests {
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-    }
+    public static void checkLimitByCapability() {}
 
     /**
      * <pre>{@code
@@ -293,8 +290,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         for (var branch : fork.children()) {
             var project = as(branch, Project.class);
             var eval = as(project.child(), Eval.class);
-            var branchLimit = as(eval.child(), Limit.class);
-            as(branchLimit.child(), Filter.class);
+            as(eval.child(), Filter.class);
         }
     }
 

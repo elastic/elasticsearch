@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "semantic_text.highlighter"
-      reason: a new highlighter for semantic text field
+      cluster_features: [ "semantic_text.highlighter", "semantic_text.element_type_in_index_options" ]
+      reason: a new highlighter for semantic text field. Asserted results depend on using float element type.
 
   - do:
       inference.put:
@@ -77,9 +77,15 @@ setup:
               body:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               another_body:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
 
   - do:
       index:

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
@@ -71,13 +72,23 @@ public class InferenceService {
     }
 
     /**
-     * Executes an inference request.
+     * Executes a plain inference request.
      *
      * @param request  the inference request to execute
      * @param listener the listener to notify upon completion
      */
     public void executeInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
         executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Executes an embedding inference request.
+     *
+     * @param request  the embedding request to execute
+     * @param listener the listener to notify upon completion
+     */
+    public void executeEmbeddingInference(EmbeddingAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, EmbeddingAction.INSTANCE, request, listener);
     }
 
     public ThreadPool threadPool() {

@@ -33,7 +33,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CountTests extends AbstractAggregationTestCase {
     public CountTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -111,9 +110,7 @@ public class CountTests extends AbstractAggregationTestCase {
                         List.of(field),
                         dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
                         DataType.LONG,
-                        // AGGREGATE_METRIC_DOUBLE currently returns null instead of 0
-                        // Remove this check after https://github.com/elastic/elasticsearch/issues/141852
-                        dataType == DataType.AGGREGATE_METRIC_DOUBLE ? nullValue() : equalTo(0L)
+                        equalTo(0L)
                     )
                 )
             );

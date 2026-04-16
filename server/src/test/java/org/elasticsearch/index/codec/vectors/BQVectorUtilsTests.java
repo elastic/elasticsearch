@@ -20,8 +20,14 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 public class BQVectorUtilsTests extends LuceneTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     public static int popcount(byte[] a, int aOffset, byte[] b, int length) {
         int res = 0;

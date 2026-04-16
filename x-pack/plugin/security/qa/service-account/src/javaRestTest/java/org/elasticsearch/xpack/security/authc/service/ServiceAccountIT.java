@@ -62,7 +62,8 @@ public class ServiceAccountIT extends ESRestTestCase {
           "email": null,
           "token": {
             "name": "%s",
-            "type": "_service_account_%s"
+            "type": "_service_account_%s",
+            "managed_by": "elasticsearch"
           },
           "metadata": {
             "_elastic_service_account": true
@@ -321,6 +322,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".endpoint-fleetfiles-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "agentless-*"
                   ],
                   "privileges": [
@@ -545,6 +555,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("username"), equalTo("test_admin"));
         assertThat(responseMap.get("authentication_type"), equalTo("token"));
+        assertThat(responseMap.get("token"), equalTo(Map.of("managed_by", "elasticsearch")));
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");

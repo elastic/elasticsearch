@@ -355,36 +355,9 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testCCSRemoteReduceMergeFails
-  issue: https://github.com/elastic/elasticsearch/issues/146510
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testCCSRemoteReduceWithDisconnectedRemoteClusters
-  issue: https://github.com/elastic/elasticsearch/issues/146513
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testCCSCompatibilityCheck
-  issue: https://github.com/elastic/elasticsearch/issues/146514
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testCCSRemoteReduce
-  issue: https://github.com/elastic/elasticsearch/issues/146516
-- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
-  method: testExtractAttributesTimestampSortedTimeRangeFilters
-  issue: https://github.com/elastic/elasticsearch/issues/146519
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testLocalShardIteratorFromPointInTimeThrows404WhenNodeMissing
-  issue: https://github.com/elastic/elasticsearch/issues/146521
-- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
-  method: testIndexIntrospectionSingleIndex
-  issue: https://github.com/elastic/elasticsearch/issues/146539
-- class: org.elasticsearch.action.search.MergeResultWireCompatibilityTopHitsTests
-  method: testMergeResultWriteToDoesNotLeakPooledTopHitsOnPreBatchedPath
-  issue: https://github.com/elastic/elasticsearch/issues/146540
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testShouldPreFilterSearchShardsWithReadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/146543
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146545
@@ -397,9 +370,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553
-- class: org.elasticsearch.action.search.TransportSearchActionTests
-  method: testLocalShardIteratorFromPointInTimeAllowsPartialResultsWhenNodeMissing
-  issue: https://github.com/elastic/elasticsearch/issues/146558
 - class: org.elasticsearch.xpack.esql.optimizer.ApproximationGoldenTests
   method: testApproximationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/146564

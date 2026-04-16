@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -238,7 +237,7 @@ public final class SequenceNumbersTestUtils {
 
                         indexShard.sync();
 
-                        final var globalCheckpoint = indexShard.withEngine(Engine::getMaxSeqNo);
+                        final var globalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
                         final var listener = listeners.acquire(
                             ignored -> assertThat(
                                 "Global checkpoint not synced for shard: " + indexShard.routingEntry(),

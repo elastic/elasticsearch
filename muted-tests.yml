@@ -382,6 +382,21 @@ tests:
 - class: org.elasticsearch.action.search.TransportSearchActionTests
   method: testLocalShardIteratorFromPointInTimeThrows404WhenNodeMissing
   issue: https://github.com/elastic/elasticsearch/issues/146521
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesPit
+  issue: https://github.com/elastic/elasticsearch/issues/146535
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testExtractAttributesKnnQuery
+  issue: https://github.com/elastic/elasticsearch/issues/146536
+- class: org.elasticsearch.action.search.SearchRequestAttributesExtractorTests
+  method: testIndexIntrospectionSingleIndex
+  issue: https://github.com/elastic/elasticsearch/issues/146539
+- class: org.elasticsearch.action.search.MergeResultWireCompatibilityTopHitsTests
+  method: testMergeResultWriteToDoesNotLeakPooledTopHitsOnPreBatchedPath
+  issue: https://github.com/elastic/elasticsearch/issues/146540
+- class: org.elasticsearch.action.search.TransportSearchActionTests
+  method: testCollectSearchShards
+  issue: https://github.com/elastic/elasticsearch/issues/146541
 
 # Examples:
 #

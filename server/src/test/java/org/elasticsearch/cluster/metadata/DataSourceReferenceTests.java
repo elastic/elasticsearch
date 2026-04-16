@@ -10,22 +10,14 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
-
-public class DataSourceReferenceTests extends AbstractXContentSerializingTestCase<DataSourceReference> {
+public class DataSourceReferenceTests extends AbstractWireSerializingTestCase<DataSourceReference> {
 
     @Override
     protected Writeable.Reader<DataSourceReference> instanceReader() {
         return DataSourceReference::new;
-    }
-
-    @Override
-    protected DataSourceReference doParseInstance(XContentParser parser) throws IOException {
-        return DataSourceReference.fromXContent(parser);
     }
 
     @Override

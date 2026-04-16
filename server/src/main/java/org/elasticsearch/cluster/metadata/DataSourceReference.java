@@ -12,11 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,14 +25,14 @@ import java.util.Objects;
  * <p>The typed wrapper exists so that a field declared as "the name of a data source" (e.g. on
  * {@link Dataset}) is distinguishable at compile time from a plain String, which catches a whole
  * class of mistakes if a new write path ever lands that would otherwise accept any String.
+ *
+ * <p>No standalone XContent: {@link Dataset#toXContent} emits the reference as a bare string field
+ * via {@link #getName()} and {@link Dataset#PARSER} reads it back as a String, wrapping the parsed
+ * value here in the constructor lambda. Adding standalone {@code toXContent}/{@code fromXContent}
+ * here would create a second JSON format (a nested object) that nothing calls, and would diverge
+ * from the actual on-disk shape — a footgun for a future caller that reached for them.
  */
-public class DataSourceReference implements Writeable, ToXContentObject {
-
-    private static final String NAME_KEY = "name";
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_source_reference", Builder::new);
-    static {
-        PARSER.declareString(Builder::name, new ParseField(NAME_KEY));
-    }
+public class DataSourceReference implements Writeable {
 
     private final String name;
 
@@ -74,34 +69,5 @@ public class DataSourceReference implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toXContentFragment(builder);
-        return builder.endObject();
-    }
-
-    public XContentBuilder toXContentFragment(XContentBuilder builder) throws IOException {
-        builder.field(NAME_KEY, name);
-        return builder;
-    }
-
-    public static DataSourceReference fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null).build();
-    }
-
-    /** Used by {@link #PARSER}. */
-    private static final class Builder {
-        private String name;
-
-        public void name(String name) {
-            this.name = name;
-        }
-
-        public DataSourceReference build() {
-            return new DataSourceReference(name);
-        }
     }
 }

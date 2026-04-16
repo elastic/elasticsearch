@@ -18,6 +18,8 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.nio.ShortBuffer;
+
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
@@ -26,6 +28,36 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    static short floatToBFloat16(float f) {
+        // copied from BFloat16.floatToBFloat16
+        int bits = Float.floatToIntBits(f);
+        int roundingBias = 0x7fff + ((bits >> 16) & 1);
+        bits += roundingBias;
+        return (short) (bits >> 16);
+    }
+
+    static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            bFloats.put(floatToBFloat16(floats[i]));
+        }
+    }
+
+    static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            floats[i] = Float.intBitsToFloat(bFloats.get() << 16);
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+        floatToBFloat16(floats, bFloats, 0);
+    }
+
+    @Override
+    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+        bFloat16ToFloat(bFloats, floats, 0);
     }
 
     @Override

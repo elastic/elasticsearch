@@ -23,6 +23,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.nio.ShortBuffer;
+import java.util.Random;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -73,6 +75,34 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
         float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
         assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testBFloat16ToFloat() {
+        Random r = random();
+        short[] bFloats = new short[r.nextInt(1024)];
+        for (int i = 0; i < bFloats.length; i++) {
+            bFloats[i] = BFloat16.floatToBFloat16(r.nextFloat());
+        }
+        float[] defaultFloats = new float[bFloats.length];
+        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), defaultFloats);
+        float[] panamaFloats = new float[bFloats.length];
+        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), panamaFloats);
+
+        assertArrayEquals(defaultFloats, panamaFloats, 0f);
+    }
+
+    public void testFloatToBFloat16() {
+        Random r = random();
+        float[] floats = new float[r.nextInt(1024)];
+        for (int i = 0; i < floats.length; i++) {
+            floats[i] = r.nextFloat();
+        }
+        short[] defaultBFloats = new short[floats.length];
+        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(defaultBFloats));
+        short[] panamaBFloats = new short[floats.length];
+        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(panamaBFloats));
+
+        assertArrayEquals(defaultBFloats, panamaBFloats);
     }
 
     public void testIpByteBit() {

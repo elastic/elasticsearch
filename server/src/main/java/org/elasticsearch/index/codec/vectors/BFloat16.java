@@ -9,8 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 
 public final class BFloat16 {
@@ -44,22 +45,16 @@ public final class BFloat16 {
     }
 
     public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        for (float v : floats) {
-            bFloats.put(floatToBFloat16(v));
-        }
+        ESVectorUtil.floatToBFloat16(floats, bFloats);
     }
 
     public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
         assert floats.length * 2 == bfBytes.length;
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat((short) BitUtil.VH_LE_SHORT.get(bfBytes, i * 2));
-        }
+        ESVectorUtil.bFloat16ToFloat(ByteBuffer.wrap(bfBytes).asShortBuffer(), floats);
     }
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat(bFloats.get());
-        }
+        ESVectorUtil.bFloat16ToFloat(bFloats, floats);
     }
 
     private BFloat16() {}

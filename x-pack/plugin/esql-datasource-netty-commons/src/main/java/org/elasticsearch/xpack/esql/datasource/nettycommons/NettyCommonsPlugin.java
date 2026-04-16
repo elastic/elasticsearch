@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.nettycommons;
 
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 /**
@@ -26,6 +27,6 @@ import org.elasticsearch.plugins.Plugin;
  * extend the {@code x-pack-esql} chain (which includes {@code x-pack-core}
  * and its own copy of {@code ssl-config}).
  */
-public class NettyCommonsPlugin extends Plugin {
+public class NettyCommonsPlugin extends Plugin implements ExtensiblePlugin {
     // Classloader anchor only — no functionality beyond providing Netty on the classpath.
 }

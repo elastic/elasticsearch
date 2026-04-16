@@ -34,4 +34,16 @@ TS exp_histo_sample
 | --- |
 | 0.1666 |
 
+`AVG` can also operate on `tdigest` and casted `histogram` fields, computing the average of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS average = ROUND(AVG(responseTime::tdigest), 4)
+```
+
+| average:double |
+| --- |
+| 0.1666 |
+
 

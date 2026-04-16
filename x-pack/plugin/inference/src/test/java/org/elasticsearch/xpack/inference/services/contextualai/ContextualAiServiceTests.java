@@ -24,23 +24,22 @@ import org.elasticsearch.xpack.inference.services.contextualai.rerank.Contextual
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_INFERENCE_ENTITY_ID;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_RATE_LIMIT;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
-
-    private static final String INFERENCE_ENTITY_ID_VALUE = "test-inference-entity-id";
-    private static final String MODEL_ID_VALUE = "some-model";
-    private static final String URL_VALUE = "url-value";
-    private static final String API_KEY_VALUE = "test-api-key";
     private ThreadPool threadPool;
 
     @Override
@@ -66,22 +65,24 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_ID_VALUE), is(5500));
+        assertThat(rerankingInferenceService.rerankerWindowSize(TEST_MODEL_ID), is(ContextualAiService.DEFAULT_RERANKER_WINDOW_SIZE_WORDS));
     }
 
     public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException, URISyntaxException {
         var model = new ContextualAiRerankModel(
-            INFERENCE_ENTITY_ID_VALUE,
-            new ContextualAiRerankServiceSettings(new URI(URL_VALUE), MODEL_ID_VALUE, null),
-            new ContextualAiRerankTaskSettings(null, null, null),
-            new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
+            TEST_INFERENCE_ENTITY_ID,
+            new ContextualAiRerankServiceSettings(
+                new ContextualAiServiceSettings.CommonSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
+            ),
+            ContextualAiRerankTaskSettings.EMPTY_SETTINGS,
+            new DefaultSecretSettings(new SecureString(TEST_API_KEY.toCharArray()))
         );
         validateModelBuilding(model);
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID_VALUE,
+            TEST_INFERENCE_ENTITY_ID,
             TaskType.CHAT_COMPLETION,
             ContextualAiService.NAME,
             mock(ServiceSettings.class)
@@ -94,15 +95,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             assertThat(
                 thrownException.getMessage(),
                 CoreMatchers.is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        ContextualAiService.NAME,
-                        ContextualAiService.NAME,
-                        TaskType.CHAT_COMPLETION
-                    )
+                    Strings.format("The [%s] service does not support task type [%s]", ContextualAiService.NAME, TaskType.CHAT_COMPLETION)
                 )
             );
         }

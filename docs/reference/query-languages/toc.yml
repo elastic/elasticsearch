@@ -123,6 +123,7 @@ toc:
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
+                  - file: esql/commands/metrics-info.md
                   - file: esql/commands/mmr.md
                   - file: esql/commands/mv_expand.md
                   - file: esql/commands/registered-domain.md
@@ -131,6 +132,7 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
+                  - file: esql/commands/ts-info.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -385,7 +387,7 @@ toc:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
-          - file: esql/esql-query-approximation.md          
+          - file: esql/esql-query-approximation.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

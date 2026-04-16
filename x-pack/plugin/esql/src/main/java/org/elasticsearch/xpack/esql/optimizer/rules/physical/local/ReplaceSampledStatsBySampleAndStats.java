@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -90,7 +90,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
             }
 
             AggregateFunction aggFn = (AggregateFunction) ((Alias) aggOrKey).child();
-            boolean aggFnNeedsCorrection = aggFn instanceof Count || aggFn instanceof Sum;
+            boolean aggFnNeedsCorrection = aggFn instanceof CountApproximate || aggFn instanceof Sum;
 
             List<IntermediateStateDesc> stateDescs = AggregateMapper.intermediateStateDesc(aggFn, plan.groupings().isEmpty() == false);
             for (IntermediateStateDesc desc : stateDescs) {

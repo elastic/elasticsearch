@@ -72,7 +72,7 @@ class PromqlQueryPlanBuilder {
             stepLiteral,
             Literal.NULL,
             Literal.timeDuration(Source.EMPTY, DEFAULT_SCRAPE_INTERVAL),
-            PrometheusQueryRangeResponseListener.VALUE_COLUMN,
+            PrometheusQueryResponseListener.VALUE_COLUMN,
             new UnresolvedTimestamp(Source.EMPTY)
         );
 

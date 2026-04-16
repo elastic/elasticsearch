@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -1086,7 +1085,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1124,7 +1122,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1158,7 +1156,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByNegativeValue() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
@@ -1170,7 +1167,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByExpressionForN() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages
@@ -4137,62 +4133,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
-    }
-
-    public void testChangePointAsBeforeOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
-        ChangePoint cp = as(plan, ChangePoint.class);
-        assertThat(cp.value().name(), equalTo("value"));
-        assertThat(cp.key().name(), equalTo("key"));
-        assertThat(cp.targetType().name(), equalTo("my_type"));
-        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
-    }
-
-    public void testChangePointOnBeforeAs() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
-        ChangePoint cp = as(plan, ChangePoint.class);
-        assertThat(cp.value().name(), equalTo("value"));
-        assertThat(cp.key().name(), equalTo("key"));
-        assertThat(cp.targetType().name(), equalTo("my_type"));
-        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
-    }
-
-    public void testChangePointDuplicateOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
-    }
-
-    public void testChangePointDuplicateOnWithAsInBetween() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError(
-            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
-            "line 1:56: CHANGE_POINT supports only one ON clause"
-        );
-    }
-
-    public void testChangePointDuplicateAs() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
-    }
-
-    public void testChangePointDuplicateAsWithOnInBetween() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-        expectError(
-            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
-            "line 1:71: CHANGE_POINT supports only one AS clause"
-        );
-    }
-
-    public void testChangePointMissingFieldAfterOn() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
-    }
-
-    public void testChangePointAsWithOnlyOneArgument() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
     }
 
     public void testValidFuse() {

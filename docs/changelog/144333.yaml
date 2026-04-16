@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 144333
-summary: Fix wrong return value in `ContextIndexSearcher.totalTermFreq`
-type: bug

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.WarningsTests;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.LongDenseVectorFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.Before;
@@ -50,7 +50,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumDenseVectorAggregatorFunctionSupplier(new WarningsTests.TestWarningsSource("source", null, 1, 1));
+        return new SumDenseVectorAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
     }
 
     @Override

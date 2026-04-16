@@ -811,6 +811,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
                 null,
+                null,
                 null
             );
         }

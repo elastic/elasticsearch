@@ -2662,7 +2662,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * resulting in null values instead of the actual _source values for unmapped fields.
      */
     public void testUnmappedFieldsLoadWithSingleShardConcurrency() {
-        assumeTrue("requires unmapped fields load support", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("requires pragmas, which are disabled on non-SNAPSHOT builds", Build.current().isSnapshot());
         assertAcked(prepareCreate("test_mapped").setMapping("event_duration", "type=long"));
         assertAcked(prepareCreate("test_unmapped").setMapping("""
             {"dynamic": false, "properties": {}}"""));

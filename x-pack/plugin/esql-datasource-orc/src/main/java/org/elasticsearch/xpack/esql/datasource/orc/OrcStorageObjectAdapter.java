@@ -16,6 +16,7 @@ import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
     @SuppressWarnings("this-escape")
     public OrcStorageObjectAdapter(StorageObject storageObject) {
         if (storageObject == null) {
-            throw new IllegalArgumentException("storageObject cannot be null");
+            throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
         this.path = new Path(storageObject.path().toString());

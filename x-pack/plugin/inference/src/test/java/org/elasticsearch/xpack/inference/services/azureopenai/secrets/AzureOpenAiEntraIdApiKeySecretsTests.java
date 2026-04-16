@@ -31,10 +31,9 @@ import static org.hamcrest.Matchers.is;
 public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {
 
     public static AzureOpenAiEntraIdApiKeySecrets createRandomEntraIdApiKeySecrets() {
-        if (randomBoolean()) {
-            return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
-        }
-        return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        var useApiKey = randomBoolean();
+        var secret = randomSecureStringOfLength(15);
+        return useApiKey ? new AzureOpenAiEntraIdApiKeySecrets(secret, null) : new AzureOpenAiEntraIdApiKeySecrets(null, secret);
     }
 
     /**

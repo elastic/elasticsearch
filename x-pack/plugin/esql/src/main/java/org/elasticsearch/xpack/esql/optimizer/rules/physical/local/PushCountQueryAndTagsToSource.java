@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -61,17 +62,18 @@ import java.util.Optional;
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
-        if (
-        // Ensures we are only grouping by one field (2 aggregates: count + group by field).
-        aggregateExec.aggregates().size() == 2
+        // There should be exactly one grouping field (hence 2 aggregates: agg + group by field).
+        // The aggregation should be Count(*) or CountApproximate(*), without a filter on the count
+        // itself.
+        if (aggregateExec.aggregates().size() == 2
             && aggregateExec.aggregates().getFirst() instanceof Alias alias
-            && alias.child() instanceof Count count
-            && count.hasFilter() == false // We don't support pushing down counts where the filter is *on the count itself*.
-            && count.field() instanceof Literal // Ensures count(*) or equivalent.
+            && ((alias.child() instanceof Count count && count.hasFilter() == false && count.field() instanceof Literal)
+                || (alias.child() instanceof CountApproximate ca && ca.hasFilter() == false && ca.field() instanceof Literal))
             && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
             && queryExec.queryBuilderAndTags().size() > 1 // Ensures there are query and tags to push down.
         ) {
+            AggregateFunction count = (AggregateFunction) alias.child();
             var withFilter = tryMerge(queryExec.queryBuilderAndTags());
             if (withFilter.isEmpty() || withFilter.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) == false) {
                 return aggregateExec;

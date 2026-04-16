@@ -27,6 +27,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEn
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +44,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testSingleInferenceStringConstructor() {
-        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
+        InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
         var input = new InferenceStringGroup(inferenceString);
         assertThat(input.inferenceStrings(), contains(inferenceString));
         assertThat(input.containsNonTextEntry(), is(true));
@@ -51,7 +52,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testInferenceStringListConstructor() {
-        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
+        InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_IMAGE_DATA_URI);
         InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
@@ -157,7 +158,12 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         DataType nonTextDataType = randomValueOtherThan(TEXT, () -> randomFrom(DataType.values()));
         var inputs = List.of(
             new InferenceStringGroup("string1"),
-            new InferenceStringGroup(new InferenceString(nonTextDataType, "non text"))
+            new InferenceStringGroup(
+                new InferenceString(
+                    nonTextDataType,
+                    InferenceStringTests.convertToDataURIIfNeeded(nonTextDataType, null, randomAlphanumericOfLength(10))
+                )
+            )
         );
         assertThat(containsNonTextEntry(inputs), is(true));
     }

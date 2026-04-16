@@ -23,12 +23,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MvContainsTests.parameters());
+        return paramsToSuppliers(MvIntersectsTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvContains(source, args.get(0), args.get(1));
+        return new MvIntersects(source, args.get(0), args.get(1));
     }
 
     @Override

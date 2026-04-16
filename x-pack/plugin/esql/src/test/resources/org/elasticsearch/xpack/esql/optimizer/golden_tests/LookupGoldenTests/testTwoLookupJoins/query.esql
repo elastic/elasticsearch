@@ -1,0 +1,4 @@
+FROM employees
+| LOOKUP JOIN test_lookup ON emp_no
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code

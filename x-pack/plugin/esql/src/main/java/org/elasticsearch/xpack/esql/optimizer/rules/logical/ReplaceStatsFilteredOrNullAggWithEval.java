@@ -142,8 +142,8 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
 
     public static Object mapNullToValue(AggregateFunction aggFunction) {
         return switch (aggFunction) {
-            case CountApproximate ignored -> 0.0;
             case Count ignored -> 0L;
+            case CountApproximate ignored -> 0.0;
             case CountOverTime ignored -> 0L;
             case CountDistinct ignored -> 0L;
             case CountDistinctOverTime ignored -> 0L;

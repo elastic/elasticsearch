@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 145341
+summary: "[DiskBBQ] Wait for queue saturation in `MaxScoreTopKnnCollector`"
+type: bug

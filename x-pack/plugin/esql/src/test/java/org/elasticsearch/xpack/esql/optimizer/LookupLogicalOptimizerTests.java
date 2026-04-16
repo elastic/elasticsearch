@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -39,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -84,36 +82,6 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Simple lookup with no filters.
-     * Expects: Project -> ParameterizedQuery
-     */
-    public void testSimpleLookup() {
-        LogicalPlan plan = optimizeLookupLogicalPlan("FROM test | LOOKUP JOIN test_lookup ON emp_no", TEST_SEARCH_STATS);
-
-        Project project = as(plan, Project.class);
-        ParameterizedQuery pq = as(project.child(), ParameterizedQuery.class);
-        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
-    }
-
-    /**
-     * Filter referencing an existing field should be preserved.
-     * Expects: Project -> Filter -> ParameterizedQuery
-     */
-    public void testFilterOnExistingField() {
-        LogicalPlan plan = optimizeLookupLogicalPlan("""
-            FROM test
-            | RENAME languages AS language_code
-            | LOOKUP JOIN languages_lookup ON language_code
-            | WHERE language_name == "English"
-            """, TEST_SEARCH_STATS);
-
-        Project project = as(plan, Project.class);
-        Filter filter = as(project.child(), Filter.class);
-        ParameterizedQuery pq = as(filter.child(), ParameterizedQuery.class);
-        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
-    }
-
-    /**
      * Filter referencing a missing field should be folded away (the condition becomes null/false).
      * ReplaceFieldWithConstantOrNull replaces the missing field with null, then LookupPruneFilters
      * marks the ParameterizedQuery as emptyResult instead of collapsing the plan to LocalRelation,
@@ -137,56 +105,6 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
         Eval eval = as(project.child(), Eval.class);
         ParameterizedQuery pq = as(eval.child(), ParameterizedQuery.class);
         assertTrue("Expected emptyResult=true on ParameterizedQuery", pq.emptyResult());
-    }
-
-    /**
-     * Filter that becomes always-true due to missing field stats should be pruned.
-     * "language_name IS NULL" with language_name missing → "null IS NULL" → true → filter removed.
-     * Expects: Project -> Eval -> ParameterizedQuery
-     * See {@link LookupPhysicalPlanOptimizerTests#testDropMissingFieldPrunesEval} for verification that the Eval is removed during
-     * physical optimization.
-     */
-    public void testFilterOnMissingFieldFoldedToTrue() {
-        EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
-            EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
-            "language_name"
-        );
-
-        LogicalPlan plan = optimizeLookupLogicalPlan("""
-            FROM test
-            | RENAME languages AS language_code
-            | LOOKUP JOIN languages_lookup ON language_code
-            | WHERE language_name IS NULL
-            """, stats);
-
-        Project project = as(plan, Project.class);
-        Eval eval = as(project.child(), Eval.class);
-        ParameterizedQuery pq = as(eval.child(), ParameterizedQuery.class);
-        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
-    }
-
-    /**
-     * Constant field matching the filter value: {@code language_name} is a constant {@code "English"},
-     * and the filter is {@code WHERE language_name == "English"}.  The constant replaces the field reference,
-     * the filter folds to {@code true} and is pruned.
-     * Expects: Project -> ParameterizedQuery (no Filter, no Eval since the field exists and is constant).
-     */
-    public void testConstantFieldMatchingFilter() {
-        EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().withConstantValue(
-            "language_name",
-            "English"
-        );
-
-        LogicalPlan plan = optimizeLookupLogicalPlan("""
-            FROM test
-            | RENAME languages AS language_code
-            | LOOKUP JOIN languages_lookup ON language_code
-            | WHERE language_name == "English"
-            """, stats);
-
-        Project project = as(plan, Project.class);
-        ParameterizedQuery pq = as(project.child(), ParameterizedQuery.class);
-        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
     }
 
     /**

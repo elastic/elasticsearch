@@ -114,6 +114,15 @@ These settings are for advanced use cases; the default values are generally suff
 `xpack.ml.max_ml_node_size`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum node size for {{ml}} nodes in a deployment that supports automatic cluster scaling. If you set it to the maximum possible size of future {{ml}} nodes, when a {{ml}} job is assigned to a lazy node it can check (and fail quickly) when scaling cannot support the size of the job. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Defaults to `0b`, which means it will be assumed that automatic cluster scaling can add arbitrarily large nodes to the cluster.
 
+$$$xpack.ml.trained_models.graph_validation_enabled$$$
+
+`xpack.ml.trained_models.graph_validation_enabled` {applies_to}`stack: ga 9.4`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether TorchScript graph validation runs when the `pytorch_inference` native process starts for trained model deployments. When `true` (the default), the process checks the model graph against an allowed operation list before running inference. When `false`, that validation is skipped. Use `false` only as an operational escape hatch—for example, if a supported model fails validation unexpectedly. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+
+    ::::{warning}
+    Skipping graph validation reduces assurance that a deployed model only performs expected operations. Only disable validation when you understand the trade-offs.
+    ::::
+
 $$$xpack.ml.model_repository$$$
 
 `xpack.ml.model_repository`

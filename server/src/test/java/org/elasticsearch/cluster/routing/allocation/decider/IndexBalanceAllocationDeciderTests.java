@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -181,14 +181,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
      * A lot of the test setup is derived from the cluster state, regenerate it any time we change the cluster state
      */
     private void refreshDerivedState() {
-        routingAllocation = new RoutingAllocation(
-            null,
-            clusterState.getRoutingNodes(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            null,
-            System.nanoTime()
-        );
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         indexTierShardRouting = randomFrom(

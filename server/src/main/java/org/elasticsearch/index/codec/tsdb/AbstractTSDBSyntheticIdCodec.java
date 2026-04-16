@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -59,14 +59,14 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     private final ValidatingFieldInfosFormat fieldInfosFormat;
     private final DocValuesFormat docValuesFormat;
 
-    AbstractTSDBSyntheticIdCodec(String name, Lucene104Codec delegate) {
+    AbstractTSDBSyntheticIdCodec(String name, Codec delegate, DocValuesFormatForField docValuesFormatForField) {
         super(name, delegate);
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
         this.fieldInfosFormat = new ValidatingFieldInfosFormat(delegate.fieldInfosFormat());
         this.docValuesFormat = new XPerFieldDocValuesFormat() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return delegate.getDocValuesFormatForField(field);
+                return docValuesFormatForField.get(field);
             }
         };
     }
@@ -84,6 +84,11 @@ abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     @Override
     public final FieldInfosFormat fieldInfosFormat() {
         return fieldInfosFormat;
+    }
+
+    @FunctionalInterface
+    interface DocValuesFormatForField {
+        DocValuesFormat get(String field);
     }
 
     private static class ValidatingFieldInfosFormat extends FieldInfosFormat {

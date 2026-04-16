@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +102,12 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.EMPTY;
+        for (Attribute attribute : child().outputSet()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                return AttributeSet.of(attribute);
+            }
+        }
+        return child().outputSet();
     }
 
     @Override

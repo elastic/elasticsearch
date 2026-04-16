@@ -303,8 +303,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // fails (test failure or doLast leak exception), doLast may not have run or may
                     // have only partially completed, so onFinish ensures clusters are cleaned up.
                     if (task.getDidWork() && taskFinishEvent.getResult() instanceof TaskFailureResult) {
-                        task.getClusters()
-                            .forEach(cluster -> getParameters().getRegistry().get().stopCluster(cluster, true));
+                        task.getClusters().forEach(cluster -> getParameters().getRegistry().get().stopCluster(cluster, true));
                     }
                 }
             }

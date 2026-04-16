@@ -46,12 +46,7 @@ import java.util.List;
  * @param failedTestTasks    task paths of test tasks that failed at the Gradle level, or {@code null} if unavailable
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record FailedTestsReport(
-    List<WorkUnit> workUnits,
-    String testseed,
-    List<String> executedTestTasks,
-    List<String> failedTestTasks
-) {
+public record FailedTestsReport(List<WorkUnit> workUnits, String testseed, List<String> executedTestTasks, List<String> failedTestTasks) {
 
     public FailedTestsReport(List<WorkUnit> workUnits, String testseed, List<String> executedTestTasks, List<String> failedTestTasks) {
         this.workUnits = workUnits != null ? workUnits : java.util.Collections.emptyList();

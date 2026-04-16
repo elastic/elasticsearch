@@ -524,9 +524,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testTopSnippetsMultiValuedQueryFromIndex() {
         assumeTrue("top_snippets must be enabled", EsqlCapabilities.Cap.TOP_SNIPPETS_MV.isEnabled());
 
-        var err = error(
-            analyzer().addDefaultIndex().query("FROM test | EVAL snippets = TOP_SNIPPETS(first_name, [\"lead\", \"senior\"])")
-        );
+        var err = error(analyzer().addDefaultIndex().query("FROM test | EVAL snippets = TOP_SNIPPETS(first_name, [\"lead\", \"senior\"])"));
         assertThat(
             err,
             is(

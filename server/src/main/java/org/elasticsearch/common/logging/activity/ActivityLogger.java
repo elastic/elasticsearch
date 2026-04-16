@@ -12,18 +12,13 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
 import java.util.Optional;
-
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
+import java.util.function.Consumer;
 
 /**
  * Generic wrapper to log completion (whether successful or not) of any action, with necessary details.
@@ -34,46 +29,13 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     private final ActivityLogProducer<Context> producer;
     private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
-    private boolean enabled = false;
-    private long threshold = -1;
-    private Level logLevel = Level.INFO;
+    protected final Consumer<Boolean> setincludeUserInformation;
 
-    /** Prefix for activity log related settings; used by subclasses for their own settings (e.g. search). */
-    public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.activitylog.";
-
-    public static final Setting<Boolean> ACTIVITY_LOGGER_ENABLED = boolSetting(
-        "elasticsearch.activitylog.enabled",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> ACTIVITY_LOGGER_THRESHOLD = timeSetting(
-        "elasticsearch.activitylog.threshold",
-        TimeValue.MINUS_ONE,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    // Level for this log type. Presently set as operator configurable.
-    public static final Setting<Level> ACTIVITY_LOGGER_LEVEL = new Setting<>(
-        "elasticsearch.activitylog.log_level",
-        Level.INFO.name(),
-        Level::valueOf,
-        Setting.Property.OperatorDynamic,
-        Setting.Property.NodeScope
-    );
-
-    // Whether to include authentication information in the log
-    public static final Setting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = boolSetting(
-        "elasticsearch.activitylog.include.user",
-        true,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
+    protected boolean enabled = false;
+    protected long threshold = -1;
+    protected Level logLevel = Level.INFO;
 
     public ActivityLogger(
-        ClusterSettings settings,
         ActivityLogProducer<Context> producer,
         ActivityLogWriterProvider writerProvider,
         ActionLoggingFieldsProvider fieldsProvider
@@ -82,14 +44,10 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         this.writer = writerProvider.getWriter(producer.loggerName());
         var context = new ActionLoggingFieldsContext(true);
         this.additionalFields = fieldsProvider.create(context);
-
-        settings.initializeAndWatch(ACTIVITY_LOGGER_ENABLED, v -> enabled = v);
-        settings.initializeAndWatch(ACTIVITY_LOGGER_THRESHOLD, v -> threshold = v.nanos());
-        settings.initializeAndWatch(ACTIVITY_LOGGER_LEVEL, this::setLogLevel);
-        settings.initializeAndWatch(ACTIVITY_LOGGER_INCLUDE_USER, context::setIncludeUserInformation);
+        this.setincludeUserInformation = context::setIncludeUserInformation;
     }
 
-    private void setLogLevel(Level level) {
+    protected void setLogLevel(Level level) {
         if (level.equals(Level.ERROR) || level.equals(Level.FATAL)) {
             throw new IllegalStateException("Log level can not be " + level.name());
         }
@@ -101,14 +59,21 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         return logLevel;
     }
 
+    protected boolean shouldLog(Context context) {
+        return enabled != false && (threshold <= 0 || context.getTookInNanos() >= threshold);
+    }
+
     // Accessible for tests
     void logAction(Context context) {
-        if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
+        if (shouldLog(context) == false) {
             return;
         }
         Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+        event.ifPresent(logMessage -> addFields(context, logMessage));
         event.ifPresent(logMessage -> writer.write(logLevel, logMessage));
     }
+
+    protected void addFields(Context context, ESLogMessage logMessage) {}
 
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
         if (enabled == false) {

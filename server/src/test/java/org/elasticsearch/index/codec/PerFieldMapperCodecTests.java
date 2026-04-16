@@ -221,8 +221,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
-        }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (disableBloomFilter) {
@@ -332,7 +330,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (mode == IndexMode.TIME_SERIES) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && syntheticId != null) {
+        if (syntheticId != null) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (enableES87TSDBCodec != null) {
@@ -350,6 +348,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     private static boolean syntheticId(boolean timeSeries) {
-        return IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && timeSeries && randomBoolean();
+        return timeSeries && randomBoolean();
     }
 }

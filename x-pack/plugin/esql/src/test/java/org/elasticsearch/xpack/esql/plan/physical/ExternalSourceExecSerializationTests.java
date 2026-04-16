@@ -56,6 +56,9 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
 
     static FileSplit randomFileSplit() {
         StoragePath path = StoragePath.of("s3://bucket/data/" + randomAlphaOfLength(6) + ".parquet");
+        Map<String, Object> statistics = randomBoolean()
+            ? null
+            : Map.of("_stats.row_count", (long) randomIntBetween(100, 10000), "_stats.size_bytes", (long) randomIntBetween(1000, 100000));
         return new FileSplit(
             "file",
             path,
@@ -63,7 +66,9 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             randomLongBetween(1, 10000),
             ".parquet",
             Map.of(),
-            randomBoolean() ? Map.of() : Map.of("year", randomIntBetween(2020, 2026))
+            randomBoolean() ? Map.of() : Map.of("year", randomIntBetween(2020, 2026)),
+            null,
+            statistics
         );
     }
 

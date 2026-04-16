@@ -55,11 +55,13 @@ for VAR_NAME_FILE in ELASTIC_PASSWORD_FILE KEYSTORE_PASSWORD_FILE ; do
 
     FILE_PERMS="$(stat -L -c '%a' ${!VAR_NAME_FILE})"
 
-    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != "600" ]]; then
+    # Reject any permissions with execute, group-write, or other-access bits set.
+    # Allowed modes: 400, 440, 600, 640.
+    if (( 0$FILE_PERMS & 0137 )); then
       if [[ -L "${!VAR_NAME_FILE}" ]]; then
-        echo "ERROR: File $(readlink "${!VAR_NAME_FILE}") (target of symlink ${!VAR_NAME_FILE} from $VAR_NAME_FILE) must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        echo "ERROR: File $(readlink "${!VAR_NAME_FILE}") (target of symlink ${!VAR_NAME_FILE} from $VAR_NAME_FILE) must have file permissions 400, 440, 600 or 640, but actually has: $FILE_PERMS" >&2
       else
-        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600, but actually has: $FILE_PERMS" >&2
+        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400, 440, 600 or 640, but actually has: $FILE_PERMS" >&2
       fi
       exit 1
     fi

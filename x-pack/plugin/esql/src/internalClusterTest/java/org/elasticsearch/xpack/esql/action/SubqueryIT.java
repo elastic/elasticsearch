@@ -32,6 +32,11 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     @Before
+    public void checkPragma() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+    }
+
+    @Before
     public void setupIndex() {
         createAndPopulateIndex();
     }

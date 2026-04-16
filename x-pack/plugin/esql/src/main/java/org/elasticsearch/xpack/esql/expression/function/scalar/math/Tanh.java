@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +28,12 @@ import java.util.List;
  */
 public class Tanh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tanh", Tanh::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Tanh.class).unary(Tanh::new).name("tanh");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .unaryValueTransformation(Tanh::new)
+        .description("Calculates the hyperbolic tangent of all elements in the input vector.")
+        .example("tanh(some_metric)")
+        .name("tanh");
 
     @FunctionInfo(
         returnType = "double",

@@ -1,0 +1,145 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_fix_load_partially_mapped ]
+      reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
+  #
+  # The table below represents the field mappings for the three indices created in this test.
+  # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
+  #
+  # | Field      | index1  |   index2   | index3  |
+  # |------------|---------|------------|---------|
+  # | alpha      | long    | integer    | -       |
+  # | lambda     | keyword | keyword    | -       |
+  # | tau        | date    | date_nanos | -       |
+  # | beta       | -       | double     | -       |
+  # | a.b.c.d    | -       | -          | boolean |
+  #
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              alpha:
+                type: long
+              lambda:
+                type: keyword
+              tau:
+                type: date
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              alpha:
+                type: integer
+              lambda:
+                type: keyword
+              tau:
+                type: date_nanos
+              beta:
+                type: double
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              a:
+                properties:
+                   b:
+                     properties:
+                       c:
+                         properties:
+                            d:
+                              type: boolean
+
+---
+rename-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # PUNKs should be rejected in RENAME
+          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | RENAME beta AS mu'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: '1:64: Using partially unmapped non-KEYWORD field [beta] is not supported with unmapped_fields="load"' }
+
+---
+date-nanos-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [tau] is date index1
+          # [tau] is date_nanos index2
+          # [tau] is unmapped in index3
+          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > "2026-04-07"::date'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:49: Cannot use field [tau] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [date_nanos] in [index2], [datetime] in [index1]' }
+
+---
+date-nanos-punks-2:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [tau] is date index1
+          # [tau] is date_nanos index2
+          # [tau] is unmapped in index3
+          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > "2026-04-07"::date_nanos'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:49: Cannot use field [tau] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [date_nanos] in [index2], [datetime] in [index1]' }
+
+---
+sort-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | SORT alpha DESC'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:55: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
+
+---
+where-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | WHERE alpha > 0'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:56: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
+
+---
+stats-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(a.b.c.d)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: '1:87: Using partially unmapped non-KEYWORD field [a.b.c.d] is not supported with unmapped_fields="load"' }

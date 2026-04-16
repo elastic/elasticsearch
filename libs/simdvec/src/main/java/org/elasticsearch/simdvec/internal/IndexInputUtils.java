@@ -40,6 +40,13 @@ public final class IndexInputUtils {
     private IndexInputUtils() {}
 
     /**
+     * Returns {@code true} if {@code MemorySegment} slices can be obtained from the specified {@link IndexInput}.
+     */
+    public static boolean canUseSegmentSlices(IndexInput input) {
+        return input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput;
+    }
+
+    /**
      * Obtains a memory segment for the next {@code length} bytes of the
      * index input, passes it to {@code action}, and returns the result.
      * The position of the index input is advanced by {@code length}.

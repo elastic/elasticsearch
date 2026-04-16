@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.test.ESTestCase;
 
 public class WarningsTests extends ESTestCase {
@@ -52,15 +53,5 @@ public class WarningsTests extends ESTestCase {
     public void testRegisterIgnore() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException());
-    }
-
-    public record TestWarningsSource(String text, String viewName, int lineNumber, int columnNumber) implements WarningSourceLocation {
-        public TestWarningsSource(String text) {
-            this(text, null, 1, 1);
-        }
-
-        public TestWarningsSource(String text, String viewName) {
-            this(text, viewName, 1, 1);
-        }
     }
 }

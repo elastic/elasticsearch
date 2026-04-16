@@ -512,6 +512,7 @@ public class PlannerUtils {
                 case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
                 default -> ElementType.BYTES_REF;
             };
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;

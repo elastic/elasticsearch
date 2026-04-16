@@ -12,14 +12,6 @@
 // consist of functions for processors supporting the SVE/SVE2
 // instruction set.
 
-// Force the preprocessor to pick up SVE intrinsics, and the compiler to emit SVE code
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve"))), apply_to = function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target("arch=armv8.2-a+sve")
-#endif
-
 #include <stddef.h>
 #include <arm_sve.h>
 #include "vec.h"
@@ -254,9 +246,3 @@ EXPORT void vec_dotd1q4_bulk_offsets_2(
     f32_t* results) {
     dotd1q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif

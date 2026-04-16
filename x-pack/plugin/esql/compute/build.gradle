@@ -136,6 +136,81 @@ tasks.named('stringTemplates').configure {
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
 
+  // Arrow buffer type properties: extra sealed permits, byte sizes, and value read expressions
+  intProperties["extraArrowBufBlockPermits"] = """, org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock"""
+  intProperties["extraArrowBufVectorPermits"] = """, org.elasticsearch.compute.data.arrow.UInt8ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufVector, org.elasticsearch.compute.data.arrow.UInt16ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufVector"""
+  intProperties["byteSize"] = "Integer.BYTES"
+  intProperties["valueRead"] = 'valueBuffer.getInt((long) valueIndex * Integer.BYTES)'
+  intProperties["arrowDesc"] = '32 bits signed integers'
+
+  longProperties["extraArrowBufBlockPermits"] = """, org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock"""
+  longProperties["extraArrowBufVectorPermits"] = """, org.elasticsearch.compute.data.arrow.UInt32ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufVector"""
+  longProperties["byteSize"] = "Long.BYTES"
+  longProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES)'
+  longProperties["arrowDesc"] = '64 bits signed integers'
+
+  floatProperties["byteSize"] = "Float.BYTES"
+  floatProperties["valueRead"] = 'valueBuffer.getFloat((long) valueIndex * Float.BYTES)'
+  floatProperties["arrowDesc"] = '32 bits floats'
+
+  doubleProperties["extraArrowBufBlockPermits"] = ", org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock"
+  doubleProperties["extraArrowBufVectorPermits"] = """,
+    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector"""
+  doubleProperties["byteSize"] = "Double.BYTES"
+  doubleProperties["valueRead"] = 'valueBuffer.getDouble((long) valueIndex * Double.BYTES)'
+  doubleProperties["arrowDesc"] = '64 bits floats'
+
+  [floatProperties, booleanProperties, bytesRefProperties, ipProperties].each {
+    it["extraArrowBufBlockPermits"] = ""
+    it["extraArrowBufVectorPermits"] = ""
+  }
+
+  // Arrow buffer types with narrower/transformed values
+  var uint8Properties = prop("UInt8", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  uint8Properties["arrowDesc"] = "unsigned 8 bits integers"
+  uint8Properties["int"] = "true"
+  uint8Properties["byteSize"] = "Byte.BYTES"
+  uint8Properties["valueRead"] = 'Byte.toUnsignedInt(valueBuffer.getByte(valueIndex))'
+
+  var int8Properties = prop("Int8", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  int8Properties["arrowDesc"] = "signed 8 bits integers"
+  int8Properties["int"] = "true"
+  int8Properties["byteSize"] = "Byte.BYTES"
+  int8Properties["valueRead"] = 'valueBuffer.getByte(valueIndex)'
+
+  var uint16Properties = prop("UInt16", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  uint16Properties["arrowDesc"] = "unsigned 16 bits integers"
+  uint16Properties["int"] = "true"
+  uint16Properties["byteSize"] = "Short.BYTES"
+  uint16Properties["valueRead"] = 'Short.toUnsignedInt(valueBuffer.getShort((long) valueIndex * Short.BYTES))'
+
+  var int16Properties = prop("Int16", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
+  int16Properties["arrowDesc"] = "signed 16 bits integers"
+  int16Properties["int"] = "true"
+  int16Properties["byteSize"] = "Short.BYTES"
+  int16Properties["valueRead"] = 'valueBuffer.getShort((long) valueIndex * Short.BYTES)'
+
+  var uint32Properties = prop("UInt32", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  uint32Properties["arrowDesc"] = "unsigned 32 bits integers"
+  uint32Properties["byteSize"] = "Integer.BYTES"
+  uint32Properties["valueRead"] = 'Integer.toUnsignedLong(valueBuffer.getInt((long) valueIndex * Integer.BYTES))'
+
+  var longMul1kProperties = prop("LongMul1k", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  longMul1kProperties["arrowDesc"] = "timestamps in seconds or microseconds, converted to millis or nanos"
+  longMul1kProperties["byteSize"] = "Long.BYTES"
+  longMul1kProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES) * 1000'
+
+  var float16Properties = prop("Float16", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
+  float16Properties["arrowDesc"] = "16 bits floats"
+  float16Properties["byteSize"] = "Short.BYTES"
+  float16Properties["valueRead"] = 'Float.float16ToFloat(valueBuffer.getShort((long) valueIndex * Short.BYTES))'
+
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -680,6 +755,78 @@ tasks.named('stringTemplates').configure {
     it.inputFile = arrowBufVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/arrow/DoubleArrowBufVector.java"
   }
+  // Arrow buffer block implementations for narrower/transformed types
+  template {
+    it.properties = uint8Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt8ArrowBufBlock.java"
+  }
+  template {
+    it.properties = int8Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Int8ArrowBufBlock.java"
+  }
+  template {
+    it.properties = uint16Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt16ArrowBufBlock.java"
+  }
+  template {
+    it.properties = int16Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Int16ArrowBufBlock.java"
+  }
+  template {
+    it.properties = uint32Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt32ArrowBufBlock.java"
+  }
+  template {
+    it.properties = longMul1kProperties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongMul1kArrowBufBlock.java"
+  }
+  template {
+    it.properties = float16Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Float16ArrowBufBlock.java"
+  }
+  // Arrow buffer vector implementations for narrower/transformed types
+  template {
+    it.properties = uint8Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt8ArrowBufVector.java"
+  }
+  template {
+    it.properties = int8Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Int8ArrowBufVector.java"
+  }
+  template {
+    it.properties = uint16Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt16ArrowBufVector.java"
+  }
+  template {
+    it.properties = int16Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Int16ArrowBufVector.java"
+  }
+  template {
+    it.properties = uint32Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/UInt32ArrowBufVector.java"
+  }
+  template {
+    it.properties = longMul1kProperties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongMul1kArrowBufVector.java"
+  }
+  template {
+    it.properties = float16Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Float16ArrowBufVector.java"
+  }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {
     it.properties = booleanProperties
@@ -1056,6 +1203,9 @@ tasks.named('stringTemplates').configure {
               v1.forEach { k, v -> properties["v1_" + k] = v }
             }
             v2.forEach { k, v -> properties["v2_" + k] = v }
+            if (prefix != "") {
+              properties["v1_TailArray"] = properties["v1_boolean"] ? "ByteArray" : properties["v1_Array"]
+            }
 
             template {
               it.properties = addOccurrence(properties, Occurrence) + [Prefix: prefix]

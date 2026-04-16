@@ -29,11 +29,17 @@ dependencies {
   // Shared compression libraries — loaded once, used by all child plugins via extendedPlugins
   implementation "io.airlift:aircompressor:${versions.aircompressor}"
   implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  // Xerial snappy-java — used by Parquet (page-level decompression) and ORC 2.3+ (default Snappy
+  // codec). aircompressor also provides a Snappy impl for ORC's LZO fallback and file-level
+  // .snappy decompression; the two libraries have incompatible Java APIs.
+  implementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // lz4-java is provided by the server (libs/lz4) — ORC 2.3+ and Parquet use it at runtime
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
   mapping from: /aircompressor-.*/, to: 'aircompressor'
   mapping from: /zstd-jni-.*/, to: 'zstd-jni'
+  mapping from: /snappy-java-.*/, to: 'snappy-java'
 }
 
 tasks.named("thirdPartyAudit").configure {

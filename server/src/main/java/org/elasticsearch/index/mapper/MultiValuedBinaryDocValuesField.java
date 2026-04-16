@@ -11,8 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,32 +21,38 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
+ * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that stores a collection of
  * binary doc values for fields with multiple values per document.
  */
-
 public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
     private static final int VINT_MAX_BYTES = 5;
 
-    protected final Collection<BytesRef> values;
-    protected final boolean sorted;
-    protected int docValuesByteCount = 0;
-
-    MultiValuedBinaryDocValuesField(String name, boolean keepDuplicates) {
-        this(name, keepDuplicates, true);
+    /**
+     * Controls how values are collected and ordered in a multi-valued binary doc values field.
+     */
+    public enum ValueOrdering {
+        /** Values are deduplicated and sorted (backed by a {@link TreeSet}). */
+        SORTED_UNIQUE,
+        /** Duplicates are kept, values are sorted at encode time (backed by an {@link ArrayList}). */
+        SORTED,
+        /** Duplicates are kept, no sorting (backed by an {@link ArrayList}). */
+        UNSORTED
     }
 
-    MultiValuedBinaryDocValuesField(String name, boolean keepDuplicates, boolean sorted) {
+    protected final ValueOrdering ordering;
+    protected final Collection<BytesRef> values;
+    protected int docValuesByteCount = 0;
+
+    MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name);
-        this.values = keepDuplicates ? new ArrayList<>() : new TreeSet<>();
-        this.sorted = sorted;
+        this.ordering = ordering;
+        this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>();
     }
 
     public void add(BytesRef value) {
@@ -60,7 +67,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
-        if (sorted && values instanceof ArrayList<BytesRef> list) {
+        // Only ArraysLists need sorting
+        if (ordering == ValueOrdering.SORTED && values instanceof ArrayList<BytesRef> list) {
             list.sort(Comparator.naturalOrder());
         }
 
@@ -74,18 +82,98 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     @Override
     public abstract BytesRef binaryValue();
 
+    /**
+     * Adds a value to a multi-valued binary doc values field in the given document.
+     */
+    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
+        addToBinaryFieldInDoc(doc, fieldName, value, ordering, IndexVersion.current());
+    }
+
+    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value) {
+        addToBinaryFieldInDoc(doc, fieldName, value, ValueOrdering.SORTED_UNIQUE, IndexVersion.current());
+    }
+
+    /**
+     * This function exists for backwards compatibility with old indices that used {@link IntegratedCount}.
+     * <p>
+     * For indices created on or after {@link IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, the {@link SeparateCount}
+     * format is used. For older indices, the {@link IntegratedCount} format is used.
+     */
+    public static void addToBinaryFieldInDoc(
+        LuceneDocument doc,
+        String fieldName,
+        BytesRef value,
+        ValueOrdering ordering,
+        IndexVersion indexVersion
+    ) {
+        if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+            SeparateCount.addToDoc(doc, fieldName, value, ordering);
+        } else {
+            IntegratedCount.addToDoc(doc, fieldName, value, ordering);
+        }
+    }
+
+    /**
+     * Utility method to add all ignored source values to their respective lucene document.
+     * <p>
+     * This method optimizes for non nested use case. For nested case, it will delegate to
+     * {@link #addToBinaryFieldInDoc(LuceneDocument, String, BytesRef, ValueOrdering)}, given that each ignored source value needs to be
+     * added to each respetive lucene document.
+     */
+    public static void addIgnoredSourceValues(
+        Collection<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        String fieldName,
+        ValueOrdering ordering,
+        IndexVersion indexVersion,
+        boolean hasNestedDocs
+    ) {
+        assert ignoredFieldValues.isEmpty() == false;
+        if (hasNestedDocs) {
+            for (var nameValue : ignoredFieldValues) {
+                var encodedValue = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(nameValue);
+                addToBinaryFieldInDoc(nameValue.doc(), fieldName, encodedValue, ordering, indexVersion);
+            }
+        } else {
+            // In the non-nested case all ignored source values only need to be added to one Lucene document,
+            // and then we can avoid the usage of LuceneDocument#addWithKey(...), which results in redundant hash map interaction.
+            final boolean useSeparateCount = indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+            var ignoredSourceField = useSeparateCount ? new SeparateCount(fieldName, ordering) : new IntegratedCount(fieldName, ordering);
+            var luceneDocument = ignoredFieldValues.iterator().next().doc();
+            for (var value : ignoredFieldValues) {
+                assert value.doc() == luceneDocument;
+                ignoredSourceField.add(IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(value));
+            }
+            luceneDocument.add(ignoredSourceField);
+            if (useSeparateCount) {
+                String countFieldName = fieldName + SeparateCount.COUNT_FIELD_SUFFIX;
+                var countField = NumericDocValuesField.indexedField(countFieldName, ignoredSourceField.count());
+                luceneDocument.add(countField);
+            }
+        }
+    }
+
+    /**
+     * Format that integrates the value count into the binary payload itself.
+     * <p>
+     * Encoding: {@code [count][len1][val1][len2][val2]...}
+     */
     public static class IntegratedCount extends MultiValuedBinaryDocValuesField {
-        public IntegratedCount(String name, boolean keepDuplicates) {
-            super(name, keepDuplicates);
+
+        public IntegratedCount(String name, ValueOrdering ordering) {
+            super(name, ordering);
         }
 
-        public IntegratedCount(String name, boolean keepDuplicates, boolean sorted) {
-            super(name, keepDuplicates, sorted);
+        private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
+            var field = (IntegratedCount) doc.getByKey(fieldName);
+            if (field == null) {
+                field = new IntegratedCount(fieldName, ordering);
+                doc.addWithKey(fieldName, field);
+            }
+            field.add(value);
         }
 
         /**
-         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
-         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
+         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}.
          */
         @Override
         public BytesRef binaryValue() {
@@ -122,19 +210,36 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
     }
 
+    /**
+     * Format that stores the value count in a separate companion {@code .counts} numeric doc values field.
+     * <p>
+     * Encoding for multiple values: {@code [len1][val1][len2][val2]...}
+     * <br>
+     * Encoding for a single value: {@code [val1]} (no length prefix)
+     */
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
+
         public static final String COUNT_FIELD_SUFFIX = ".counts";
 
-        public SeparateCount(String name, boolean keepDuplicates) {
-            super(name, keepDuplicates);
+        public SeparateCount(String name, ValueOrdering ordering) {
+            super(name, ordering);
         }
 
-        /**
-         * Encodes the collection of BytesRef into a single BytesRef. Unlike IntegratedCount, the number of values is not stored, and
-         * if there is only a single value, the length is not stored.
-         * For multiple values, the format is: [length of value 1][value 1][length of value 2][value 2]...
-         * For a single value, the format is: [value 1]
-         */
+        private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
+            var field = (SeparateCount) doc.getByKey(fieldName);
+            final NumericDocValuesField countField;
+            if (field == null) {
+                field = new SeparateCount(fieldName, ordering);
+                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1);
+                doc.addWithKey(field.name(), field);
+                doc.addWithKey(countField.name(), countField);
+            } else {
+                countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
+            }
+            field.add(value);
+            countField.setLongValue(field.count());
+        }
+
         @Override
         public BytesRef binaryValue() {
             int docValuesCount = values.size();
@@ -148,35 +253,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 writeLenAndValues(out);
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
+                throw new UncheckedIOException("Failed to get binary value", e);
             }
         }
 
         public String countFieldName() {
             return name() + COUNT_FIELD_SUFFIX;
-        }
-
-        public static void addToSeparateCountMultiBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef binaryValue) {
-            addToSeparateCountMultiBinaryFieldInDoc(doc, fieldName, binaryValue, false);
-        }
-
-        public static void addToSeparateCountMultiBinaryFieldInDoc(
-            LuceneDocument doc,
-            String fieldName,
-            BytesRef binaryValue,
-            boolean keepDuplicates
-        ) {
-            var field = (SeparateCount) doc.getByKey(fieldName);
-            var countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
-            if (field == null) {
-                field = new SeparateCount(fieldName, keepDuplicates);
-                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
-                doc.addWithKey(field.name(), field);
-                doc.addWithKey(countField.name(), countField);
-            }
-
-            field.add(binaryValue);
-            countField.setLongValue(field.count());
         }
     }
 }

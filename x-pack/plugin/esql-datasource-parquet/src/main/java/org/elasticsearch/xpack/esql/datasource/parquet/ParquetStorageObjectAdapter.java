@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -69,14 +71,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize) {
         if (storageObject == null) {
-            throw new IllegalArgumentException("storageObject cannot be null");
+            throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
         this.windowSize = windowSize;
         try {
             this.length = storageObject.length();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
         this.footerCacheKey = buildFooterCacheKey(storageObject, this.length);
     }

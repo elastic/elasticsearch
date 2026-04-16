@@ -174,8 +174,8 @@ disabling stored fields removes fetch sub phases:
 ---
 dfs knn vector profiling:
   - requires:
-      cluster_features: "gte_v8.7.0"
-      reason: multi-knn dfs profiling implemented in 8.7.0
+      cluster_features: "search.default_disk_bbq"
+      reason: default to bbq_disk adjusts output
 
   - do:
       indices.create:
@@ -211,7 +211,6 @@ dfs knn vector profiling:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }
@@ -272,7 +271,7 @@ dfs knn vector profiling description:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScoreQuery[0,...][0.008547009,...],0.008547009" }
+  - is_true: profile.shards.0.dfs.knn.0.query.0.description
 
 ---
 dfs knn vector profiling collector name:
@@ -318,8 +317,8 @@ dfs knn vector profiling collector name:
 ---
 dfs knn vector profiling with vector_operations_count:
   - requires:
-      cluster_features: "gte_v8.12.0"
-      reason: vector_operations_count in dfs profiling added in 8.12.0
+      cluster_features: "search.default_disk_bbq"
+      reason: default to bbq_disk adjusts output
 
   - do:
       indices.create:
@@ -355,8 +354,7 @@ dfs knn vector profiling with vector_operations_count:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 1 }
+  - gt: { profile.shards.0.dfs.knn.0.vector_operations_count: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }

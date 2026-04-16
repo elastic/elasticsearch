@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -46,6 +47,7 @@ public class CopySign extends EsqlScalarFunction {
 
     public static final String NAME = "copy_sign";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, CopySign::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CopySign.class).binary(CopySign::new).name("copy_sign");
 
     private interface CopySignFactoryProvider {
         ExpressionEvaluator.Factory create(Source source, ExpressionEvaluator.Factory magnitude, ExpressionEvaluator.Factory sign);

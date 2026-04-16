@@ -86,15 +86,13 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             totalBreakerBytes.addAndGet(bytesSize);
 
             SearchHit[] chunkHits = chunk.getHits();
-            long sequenceStart = chunk.sequenceStart();
+            int[] positions = chunk.getHitPositions();
 
             for (int i = 0; i < chunkHits.length; i++) {
                 SearchHit hit = chunkHits[i];
                 hit.incRef();
 
-                // Calculate sequence: chunk start + index within chunk
-                long hitSequence = sequenceStart + i;
-                queue.add(new SequencedHit(hit, hitSequence));
+                queue.add(new SequencedHit(hit, positions[i]));
             }
 
             if (logger.isDebugEnabled()) {

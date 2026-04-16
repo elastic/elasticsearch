@@ -260,10 +260,12 @@ public class SearchResponseTests extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         var response = createTestItem();
+        Suggest suggestForRelease = response.getSuggest();
         try {
             doFromXContentTestWithRandomFields(response, false);
         } finally {
             response.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
     }
 
@@ -328,12 +330,14 @@ public class SearchResponseTests extends ESTestCase {
         }
         BytesReference originalBytes;
         SearchResponse response = createTestItem(failures);
+        Suggest suggestForRelease = response.getSuggest();
         XContentType xcontentType = randomFrom(XContentType.values());
         try {
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
             originalBytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), xcontentType, params, randomBoolean());
         } finally {
             response.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
@@ -609,6 +613,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
+        Suggest suggestForRelease = searchResponse.getSuggest();
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,
@@ -634,6 +639,7 @@ public class SearchResponseTests extends ESTestCase {
             }
         } finally {
             searchResponse.decRef();
+            SuggestTests.decRefCompletionOptionTestFactoryRefs(suggestForRelease);
         }
     }
 

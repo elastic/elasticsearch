@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -40,6 +41,7 @@ public class ToGeoShape extends AbstractConvertFunction {
         "ToGeoShape",
         ToGeoShape::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoShape.class).unary(ToGeoShape::new).name("to_geoshape");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),

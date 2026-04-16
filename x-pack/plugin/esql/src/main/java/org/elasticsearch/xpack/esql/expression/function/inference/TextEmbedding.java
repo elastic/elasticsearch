@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -36,6 +37,10 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     private final Expression inferenceId;
     private final Expression inputText;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TextEmbedding.class)
+        .binary(TextEmbedding::new)
+        .name("text_embedding");
 
     @FunctionInfo(
         returnType = "dense_vector",
@@ -63,7 +68,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
+            description = "Identifier of an existing inference endpoint that will generate the embeddings. "
                 + "The inference endpoint must have the `text_embedding` task type and should use the same model "
                 + "that was used to embed your indexed data.",
             hint = @Param.Hint(

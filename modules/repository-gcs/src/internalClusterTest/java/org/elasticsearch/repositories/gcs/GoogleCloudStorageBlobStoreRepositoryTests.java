@@ -276,7 +276,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
         destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
-        assertThat(readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
+        assertThat(readFully(destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName)), equalBytes(blobBytes));
 
         sourceBlobContainer.delete(randomPurpose());
         destinationBlobContainer.delete(randomPurpose());

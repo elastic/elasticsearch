@@ -29,6 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,18 +44,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Because of this, we don't need to register this class as a named writeable in the NamedWriteableRegistry. It will never be
  * sent over the wire between nodes.
  */
-public record ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints)
+public record ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints, Set<String> removedEndpoints)
     implements
         InferenceServiceResults {
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
+    private static final String REMOVED_ENDPOINTS = "removed_endpoints";
 
     @SuppressWarnings("unchecked")
     public static ConstructingObjectParser<ElasticInferenceServiceAuthorizationResponseEntity, Void> PARSER =
         new ConstructingObjectParser<>(
             ElasticInferenceServiceAuthorizationResponseEntity.class.getSimpleName(),
             true,
-            args -> new ElasticInferenceServiceAuthorizationResponseEntity((List<AuthorizedEndpoint>) args[0])
+            args -> new ElasticInferenceServiceAuthorizationResponseEntity(
+                (List<AuthorizedEndpoint>) args[0],
+                args[1] != null ? ((List<String>) args[1]).stream().collect(Collectors.toUnmodifiableSet()) : Set.of()
+            )
         );
 
     static {
@@ -62,6 +68,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             AuthorizedEndpoint.AUTHORIZED_ENDPOINT_PARSER::apply,
             new ParseField(INFERENCE_ENDPOINTS)
         );
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(REMOVED_ENDPOINTS));
     }
 
     public record AuthorizedEndpoint(
@@ -171,8 +178,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         }
     }
 
-    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints) {
+    public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints, Set<String> removedEndpoints) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedEndpoints);
+        this.removedEndpoints = Objects.requireNonNull(removedEndpoints);
     }
 
     public static ElasticInferenceServiceAuthorizationResponseEntity fromResponse(Request request, HttpResult response) throws IOException {

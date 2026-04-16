@@ -42,7 +42,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
-import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -86,12 +86,44 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         boolean doPrecondition,
         int flatVectorThreshold
     ) throws IOException {
+        this(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            rawVectorDelegate,
+            encoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            mergeExec,
+            numMergeWorkers,
+            blockDimension,
+            doPrecondition,
+            flatVectorThreshold,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    ES940DiskBBQVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        boolean useDirectIOReads,
+        FlatVectorsWriter rawVectorDelegate,
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        TaskExecutor mergeExec,
+        int numMergeWorkers,
+        int blockDimension,
+        boolean doPrecondition,
+        int flatVectorThreshold,
+        int writeVersion
+    ) throws IOException {
         super(
             state,
             rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
-            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            writeVersion,
             ES940DiskBBQVectorsFormat.NAME,
             ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
@@ -172,6 +204,11 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         return new FloatVectorValues() {
             final float[] preconditionedVectorValue = new float[vectors.dimension()];
             int cachedOrd = -1;
+
+            @Override
+            public int getVectorByteLength() {
+                return vectors.getVectorByteLength();
+            }
 
             @Override
             public float[] vectorValue(int ord) throws IOException {
@@ -421,8 +458,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
-                quantEncoding,
-                fieldInfo.getVectorDimension()
+                quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())
             );
             DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
             // write the posting lists
@@ -538,7 +574,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         long preconditionerOffset,
         long preconditionerLength
     ) throws IOException {
-        metaOutput.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
+        metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
@@ -606,7 +642,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
         throws IOException {
         final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
-        final long bytesRequired = ES940DiskBBQVectorsReader.directWriterSizeOnDisk(centroidAssignments.length, bitsRequired);
+        final long bytesRequired = DirectWriter.bytesRequired(centroidAssignments.length, bitsRequired);
         final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
         final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
         for (int centroidAssignment : centroidAssignments) {
@@ -984,9 +1020,9 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         private IntToBooleanFunction isOverspill = null;
         private IntToIntFunction ordTransformer = null;
 
-        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ES940DiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
+        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int vectorByteSize) {
             this.quantizedVectorsInput = quantizedVectorsInput;
-            this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
+            this.binaryScratch = new byte[vectorByteSize];
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Integer.BYTES);
         }
 

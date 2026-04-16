@@ -29,7 +29,7 @@ import org.junit.BeforeClass;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_ENABLED;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_REMOTE;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTES;
@@ -76,7 +76,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), true))
                 .get()
         );
         appender.reset();
@@ -88,14 +88,14 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             client(LOCAL_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), (String) null))
                 .get()
         );
         assertAcked(
             client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), (String) null))
                 .get()
         );
     }
@@ -189,7 +189,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             client(REMOTE_CLUSTER).admin()
                 .cluster()
                 .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true))
+                .setPersistentSettings(Settings.builder().put(QUERY_LOGGER_ENABLED.getKey(), true))
                 .get()
         );
         Map<String, Object> testClusterInfo = setupTwoClusters();

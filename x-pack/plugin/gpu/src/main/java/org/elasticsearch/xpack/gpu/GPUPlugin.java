@@ -184,14 +184,15 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
         DenseVectorFieldMapper.VectorSimilarity similarity
     ) {
-        // TODO: cuvs 2025.12 will provide an API for converting HNSW CPU Params to Cagra params; use that instead
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
-            int efConstruction = hnswIndexOptions.efConstruction();
             int m = hnswIndexOptions.m();
-            int gpuM = 2 + m * 2 / 3;
-            int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswVectorsFormat(gpuSupport.getTotalGpuMemory(), gpuM, gpuEfConstruction);
+            int efConstruction = hnswIndexOptions.efConstruction();
+            return new ES92GpuHnswVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction)
+            );
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
                 throw new IllegalArgumentException(
@@ -205,14 +206,12 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 );
             }
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
-            int efConstruction = int8HnswIndexOptions.efConstruction();
             int m = int8HnswIndexOptions.m();
-            int gpuM = 2 + m * 2 / 3;
-            int gpuEfConstruction = m + m * efConstruction / 256;
+            int efConstruction = int8HnswIndexOptions.efConstruction();
             return new ES92GpuHnswSQVectorsFormat(
                 gpuSupport.getTotalGpuMemory(),
-                gpuM,
-                gpuEfConstruction,
+                ES92GpuHnswVectorsFormat.cagraGraphDegree(m),
+                ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(m, efConstruction),
                 int8HnswIndexOptions.confidenceInterval(),
                 7,
                 false

@@ -10,39 +10,39 @@
 package org.elasticsearch.telemetry.apm.internal.export.agent;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
-import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.OpenTelemetry;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
 
 /**
- * A {@link MeterSupplier} that supplies a {@link Meter} from {@link GlobalOpenTelemetry}
- * for metrics export via the Elasticsearch APM Java agent.
- * Application code still uses the OpenTelemetry API to report metrics.
+ * A {@link TraceSupplier} that returns the {@link GlobalOpenTelemetry} instance for
+ * agent-based trace export. Flush sleeps for 2× the agent export interval because the
+ * APM agent has no programmatic flush API.
  *
- * @see org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier
+ * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
-public final class AgentExportMeterSupplier implements MeterSupplier {
+public final class AgentExportTracerSupplier implements TraceSupplier {
     private final Runnable flushFn;
 
-    public AgentExportMeterSupplier(Settings settings) {
+    public AgentExportTracerSupplier(Settings settings) {
         this(() -> AgentExportHelpers.sleepForAgentExport(agentFlushWaitTimeMs(settings)));
     }
 
     // package-private for testing: allows injecting a recording or no-op flush
-    AgentExportMeterSupplier(Runnable flushFn) {
+    AgentExportTracerSupplier(Runnable flushFn) {
         this.flushFn = flushFn;
     }
 
     @Override
-    public Meter get() {
-        return GlobalOpenTelemetry.get().getMeter("elasticsearch");
+    public OpenTelemetry get() {
+        return GlobalOpenTelemetry.get();
     }
 
     @Override
-    public void attemptFlushMetrics() {
+    public void attemptFlushTraces() {
         flushFn.run();
     }
 }

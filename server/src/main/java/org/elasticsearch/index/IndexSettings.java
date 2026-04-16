@@ -638,8 +638,15 @@ public final class IndexSettings {
     );
 
     public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+
     /**
      * Defines the name of the field storing the metric temporality.
+     * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
+     * It should only store two values: either {@code delta} or {@code cumulative}.
+     * <br>
+     * The value of this field will then define how counters and histograms in the same document are interpreted.
+     * Note that if the temporality is not provided in an index (or in a document,({@code null} value)),
+     * ES|QL will assume a default, backwards compatible temporality: cumulative for counters and delta for histograms.
      */
     public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
         "index.time_series.temporality_field",

@@ -2189,7 +2189,8 @@ public class MetadataCreateIndexService {
     }
 
     private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
-        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+        return (0 < indexMetadata.getNumberOfReplicas() // index has replicas or auto-expand replicas
+            || indexMetadata.getAutoExpandReplicas().enabled() && indexMetadata.getAutoExpandReplicas().maxReplicas() > 0)
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }

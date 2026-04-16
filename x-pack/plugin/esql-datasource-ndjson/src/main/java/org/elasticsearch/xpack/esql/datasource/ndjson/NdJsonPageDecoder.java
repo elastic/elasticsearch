@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -26,10 +27,13 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,7 +42,14 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+/**
+ * Parses NDJSON into {@link Page}s for a single input stream.
+ * <p>
+ * <strong>Not thread-safe:</strong> each instance is intended for use by a single consumer (one
+ * {@link NdJsonPageIterator}); do not call {@link #decodePage()} concurrently from multiple threads.
+ */
 public class NdJsonPageDecoder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
@@ -53,15 +64,33 @@ public class NdJsonPageDecoder implements Closeable {
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;
+    private final ErrorPolicy errorPolicy;
+    private long totalRowCount;
+    private long errorCount;
+
+    /**
+     * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
+     * (avoids per-row {@code new Block.Builder[n]}).
+     */
+    @Nullable
+    private Block.Builder[] lenientScratchBuilders;
+
+    /**
+     * Reused buffer for {@link #appendDecodedScratchRow}; paired with {@link #lenientScratchBuilders}.
+     */
+    @Nullable
+    private Block[] lenientScratchRowBlocks;
 
     NdJsonPageDecoder(
         InputStream input,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy
     ) throws IOException {
         this.input = input;
+        this.errorPolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         var projectedAttributes = attributes;
         if (projectedColumns != null && projectedColumns.isEmpty() == false) {
@@ -85,74 +114,182 @@ public class NdJsonPageDecoder implements Closeable {
         this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
     }
 
+    private void recoverFromParseException(JsonParser failedParser) throws IOException {
+        this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
+        this.parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+    }
+
+    /**
+     * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
+     * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
+     */
+    private void onNdjsonLineParseError(JsonParseException e, long logicalRowIndex, String phaseLabel) {
+        if (errorPolicy.isStrict()) {
+            throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
+        }
+        errorCount++;
+        if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            throw new EsqlIllegalArgumentException(
+                "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                errorCount,
+                totalRowCount,
+                errorPolicy.maxErrors(),
+                errorPolicy.maxErrorRatio()
+            );
+        }
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            LoggerMessageFormat.format(
+                "{} NDJSON at logical row [{}] ({}): {}",
+                e instanceof JsonEOFException ? "Truncated" : "Malformed",
+                logicalRowIndex,
+                phaseLabel,
+                e.getOriginalMessage()
+            )
+        );
+    }
+
     Page decodePage() throws IOException {
-        var blockBuilders = new Block.Builder[this.projectedAttributes.size()];
+        var blockBuilders = new Block.Builder[projectedAttributes.size()];
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
-            this.decoder.setupBuilders(blockBuilders);
+            decoder.setupBuilders(blockBuilders);
+            return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
+        } finally {
+            Releasables.close(blockBuilders);
+        }
+    }
 
-            int lineCount = 0;
-            while (lineCount < batchSize) {
-                try {
-                    if (parser.nextToken() == null) {
-                        break; // End of stream
-                    }
-                } catch (JsonParseException e) {
-                    if (e instanceof JsonEOFException) {
-                        logger.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
-                    } else {
-                        logger.debug("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
-                    }
-                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
-                    continue;
+    /**
+     * {@link ErrorPolicy.Mode#FAIL_FAST}: abort on the first {@link JsonParseException} on a line
+     * (no recovery, no scratch-row path).
+     */
+    private Page decodePageFailFast(Block.Builder[] blockBuilders) throws IOException {
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
                 }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+            }
 
-                lineCount++;
-                this.blockTracker.clear();
+            totalRowCount++;
+            this.blockTracker.clear();
 
+            try {
+                decoder.decodeObject(parser, false);
+            } catch (JsonParseException e) {
+                onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            lineCount++;
+            for (int i = 0; i < blockBuilders.length; i++) {
+                if (blockTracker.get(i) == false) {
+                    blockBuilders[i].appendNull();
+                }
+            }
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    /**
+     * Lenient modes: skip bad lines up to the error budget, using scratch builders so partial rows
+     * are never committed to the page.
+     */
+    private Page decodePageLenient(Block.Builder[] blockBuilders) throws IOException {
+        ensureLenientScratchBuffers();
+        final Block.Builder[] rowScratch = Objects.requireNonNull(lenientScratchBuilders);
+
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
+                }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                recoverFromParseException(parser);
+                continue;
+            }
+
+            totalRowCount++;
+            this.blockTracker.clear();
+
+            try {
+                decoder.setupBuilders(rowScratch);
                 try {
                     decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
-                    if (e instanceof JsonEOFException) {
-                        logger.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
-                    } else {
-                        logger.debug("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
-                    }
-                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+                    onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+                    recoverFromParseException(parser);
+                    continue;
                 }
-
-                // Make sure every block got moved forward
-                for (int i = 0; i < blockBuilders.length; i++) {
+                for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
-                        blockBuilders[i].appendNull();
+                        rowScratch[i].appendNull();
                     }
                 }
-            }
-
-            if (lineCount == 0) {
-                // Done
-                return null;
-            }
-
-            var blocks = new Block[this.projectedAttributes.size()];
-            var success = false;
-            try {
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blocks[i] = blockBuilders[i].build();
-                }
-                success = true;
+                appendDecodedScratchRow(blockBuilders, rowScratch);
             } finally {
-                if (success == false) {
-                    // Some blocks may have been created
-                    Releasables.close(blocks);
-                }
+                Releasables.close(rowScratch);
             }
-            return new Page(blocks);
 
+            lineCount++;
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    private void ensureLenientScratchBuffers() {
+        if (lenientScratchBuilders == null) {
+            lenientScratchBuilders = new Block.Builder[projectedAttributes.size()];
+            lenientScratchRowBlocks = new Block[projectedAttributes.size()];
+        }
+    }
+
+    private Page buildPageFromBuildersOrNull(Block.Builder[] blockBuilders, int lineCount) {
+        if (lineCount == 0) {
+            return null;
+        }
+
+        var blocks = new Block[this.projectedAttributes.size()];
+        var success = false;
+        try {
+            for (int i = 0; i < blockBuilders.length; i++) {
+                blocks[i] = blockBuilders[i].build();
+            }
+            success = true;
         } finally {
-            Releasables.close(blockBuilders);
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Copies one fully decoded logical row from per-line scratch builders into the page builders.
+     * Scratch builders are {@link Block.Builder#build() built} and released; callers still close
+     * any non-built scratch builders via {@link Releasables#close}.
+     */
+    private void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
+        final int columns = scratchBuilders.length;
+        Block[] rowBlocks = Objects.requireNonNull(lenientScratchRowBlocks);
+        try {
+            for (int i = 0; i < columns; i++) {
+                rowBlocks[i] = scratchBuilders[i].build();
+            }
+            for (int i = 0; i < columns; i++) {
+                pageBuilders[i].copyFrom(rowBlocks[i], 0, 1);
+            }
+        } finally {
+            for (int i = 0; i < columns; i++) {
+                Releasables.close(rowBlocks[i]);
+                rowBlocks[i] = null;
+            }
         }
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -47,6 +48,8 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,6 +93,7 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
             Settings.builder()
                 .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
                 .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity")
         );
     }
 
@@ -172,6 +176,53 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         verifyEnrichment();
         awaitAllNodesDownloadedDatabases();
+    }
+
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
+    public void testExpiredDatabases() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        IpLocationTestHelper.setupDatabasesInConfigDirectory(internalCluster());
+        putGeoIpPipeline("_id");
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+        }, 2, TimeUnit.MINUTES);
+
+        putGeoIpPipeline("_id");
+        verifyEnrichment();
+        awaitAllNodesDownloadedDatabases();
+
+        updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
+        updateClusterSettings(
+            Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+        );
+        // Wait for downloaded databases to be purged from all nodes
+        assertBusy(() -> {
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getDatabases(), empty());
+            }
+        });
+        // Wait for database chunks to be deleted from the .geoip_databases index
+        assertBusy(() -> assertNoSearchHits(prepareSearch(IpLocationTestHelper.DATABASES_INDEX).setRequestCache(false)));
+        putGeoIpPipeline("_id");
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertTrue(result.getIngestDocument().hasField("tags"));
+            @SuppressWarnings("unchecked")
+            List<String> tags = result.getIngestDocument().getFieldValue("tags", List.class);
+            // The 3 config databases remain but are expired; the custom database (only available via download) is gone entirely.
+            assertThat(tags, contains("_geoip_expired_database", "_geoip_database_unavailable_MyCustomGeoLite2-City.mmdb"));
+            assertFalse(result.getIngestDocument().hasField("ip-city"));
+            assertFalse(result.getIngestDocument().hasField("ip-asn"));
+            assertFalse(result.getIngestDocument().hasField("ip-country"));
+        });
     }
 
     public void testDoNotDownloadDatabaseOnPipelineCreation() throws Exception {

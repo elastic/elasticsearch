@@ -227,7 +227,6 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         return valid;
     }
 
-    // for testing only:
     DatabaseReaderLazyLoader getDatabaseReaderLazyLoader(ProjectId projectId, String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)

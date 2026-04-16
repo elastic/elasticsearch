@@ -39,7 +39,8 @@ public interface IpLocationService {
      * @param propertyNames the properties to extract (e.g. ["city_name", "country_name"]),
      *                      or null for all default properties. See {@link DatabaseProperty} for valid values.
      * @return a live IpDataLookup handle, or null if the database is not available
-     * @throws IllegalArgumentException if database type or properties are invalid
+     * @throws UnsupportedDatabaseTypeException if the database type is not recognized
+     * @throws IllegalArgumentException if properties are invalid for the database type
      */
     @Nullable
     IpDataLookup createIpDataLookup(String projectId, String databaseFile, List<String> propertyNames);

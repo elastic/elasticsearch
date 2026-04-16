@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
+import org.elasticsearch.iplocation.api.UnsupportedDatabaseTypeException;
 
 import java.util.List;
 import java.util.Locale;
@@ -76,7 +77,7 @@ final class IpDataLookupFactories {
     static IpDataLookupFactory get(final String databaseType, final String databaseFile) {
         final Database database = getDatabase(databaseType);
         if (database == null) {
-            throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
+            throw new UnsupportedDatabaseTypeException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
         final Function<Set<DatabaseProperty>, InternalIpDataLookup> factoryMethod;
@@ -89,7 +90,7 @@ final class IpDataLookupFactories {
         }
 
         if (factoryMethod == null) {
-            throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
+            throw new UnsupportedDatabaseTypeException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
         return (properties) -> factoryMethod.apply(database.parseProperties(properties));

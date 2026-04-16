@@ -30,7 +30,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
+import java.util.Set;
 
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeService;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.GEOIP_TYPE;
@@ -129,11 +131,19 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testBuildWithProperties() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
+
+        List<String> allCityProperties = List.copyOf(
+            Objects.requireNonNull(databaseNodeService.getIpDataLookupInfo("GeoLite2-City.mmdb")).getFields().keySet()
+        );
+        List<String> selectedProperties = randomSubsetOf(randomIntBetween(1, allCityProperties.size()), allCityProperties);
+
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("properties", List.of("city_name", "country_name"));
-        Processor processor = factory.create(null, null, null, config, projectId);
-        assertThat(processor, instanceOf(GeoIpProcessor.class));
+        config.put("properties", selectedProperties);
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties().keySet(), equalTo(Set.copyOf(selectedProperties)));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildIllegalFieldOption() {
@@ -270,27 +280,26 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testStrictMaxmindSupport() throws Exception {
-        IpDataLookup lookup = mockLookup("ipinfo some_ipinfo_database.mmdb-City");
-        IpLocationService service = mock(IpLocationService.class);
-        when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
+        for (String databaseType : List.of("ipinfo some_ipinfo_database.mmdb-City", "ipinfo_free_country.mmdb", "ipinfo")) {
+            IpDataLookup lookup = mockLookup(databaseType);
+            IpLocationService service = mock(IpLocationService.class);
+            when(service.createIpDataLookup(anyString(), anyString(), any())).thenReturn(lookup);
 
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
+            GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, service);
 
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("database_file", "some-ipinfo-database.mmdb");
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "source_field");
+            config.put("database_file", "some-ipinfo-database.mmdb");
 
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> factory.create(null, null, null, config, ProjectId.DEFAULT)
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "[database_file] Unsupported database type [ipinfo some_ipinfo_database.mmdb-City] "
-                    + "for file [some-ipinfo-database.mmdb]"
-            )
-        );
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> factory.create(null, null, null, config, ProjectId.DEFAULT)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("[database_file] Unsupported database type [" + databaseType + "] for file [some-ipinfo-database.mmdb]")
+            );
+        }
     }
 
     public void testLaxMaxmindSupport() throws Exception {

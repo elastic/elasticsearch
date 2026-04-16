@@ -621,7 +621,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", ip);
-        IngestDocument         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         // Execute with flexible field access mode
         ingestDocument = runWithAccessPattern(FLEXIBLE, ingestDocument, processor);

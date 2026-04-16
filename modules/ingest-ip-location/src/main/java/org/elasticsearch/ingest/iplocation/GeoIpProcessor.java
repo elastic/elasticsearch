@@ -18,6 +18,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.iplocation.api.IpDataLookup;
 import org.elasticsearch.iplocation.api.IpLocationService;
+import org.elasticsearch.iplocation.api.UnsupportedDatabaseTypeException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -298,12 +299,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final IpDataLookup lookup;
             try {
                 lookup = ipLocationService.createIpDataLookup(projectId.id(), databaseFile, propertyNames);
+            } catch (UnsupportedDatabaseTypeException e) {
+                throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
             } catch (IllegalArgumentException e) {
-                String msg = e.getMessage();
-                if (msg != null && msg.startsWith("Unsupported database type")) {
-                    throw newConfigurationException(type, processorTag, "database_file", msg);
-                }
-                throw newConfigurationException(type, processorTag, "properties", msg);
+                throw newConfigurationException(type, processorTag, "properties", e.getMessage());
             }
             if (lookup == null) {
                 // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
@@ -328,7 +327,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 String lower = databaseType.toLowerCase(Locale.ROOT);
                 // start with a strict positive rejection check -- as we support addition database providers,
                 // we should expand these checks when possible
-                if (lower.startsWith("ipinfo ")) {
+                if (lower.startsWith("ipinfo")) {
                     throw newConfigurationException(
                         type,
                         processorTag,

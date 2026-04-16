@@ -163,7 +163,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         tasks.put(projectResolver.getProjectId(), downloader);
-        downloader.restartPeriodicRun();
+        if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
+            downloader.restartPeriodicRun();
+        }
     }
 
     @Override

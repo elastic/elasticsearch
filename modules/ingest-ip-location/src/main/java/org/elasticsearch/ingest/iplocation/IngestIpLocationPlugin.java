@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
@@ -76,6 +77,11 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // Avoid scanning incomplete metadata before state is fully recovered
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         if (event.metadataChanged() == false) {
             return;
         }

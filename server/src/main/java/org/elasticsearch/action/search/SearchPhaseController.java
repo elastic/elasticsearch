@@ -368,7 +368,6 @@ public final class SearchPhaseController {
      * @param reducedAggs already reduced aggregations
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
-     * @param searchCoordinatorContext the original search source and unresolved target indices
      * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
@@ -380,8 +379,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        @Nullable List<SearchHits> topHitsToRelease,
-        SearchCoordinatorContext searchCoordinatorContext
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -403,8 +401,7 @@ public final class SearchPhaseController {
                 0,
                 true,
                 null,
-                null,
-                searchCoordinatorContext
+                null
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -509,8 +506,7 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
-            topHitsToRelease,
-            searchCoordinatorContext
+            topHitsToRelease
         );
     }
 
@@ -596,9 +592,7 @@ public final class SearchPhaseController {
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
         // SearchHits from top_hits aggs for release by SearchResponse (may be null)
-        @Nullable List<SearchHits> topHitsToRelease,
-        // Original search source and unresolved target indices from the request
-        SearchCoordinatorContext searchCoordinatorContext
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
 
         public ReducedQueryPhase {
@@ -622,7 +616,7 @@ public final class SearchPhaseController {
                 suggest,
                 timedOut,
                 terminatedEarly,
-                buildSearchProfileResults(fetchResults, searchCoordinatorContext),
+                buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
                 topHitsToRelease,
@@ -630,20 +624,14 @@ public final class SearchPhaseController {
             );
         }
 
-        private SearchProfileResults buildSearchProfileResults(
-            Collection<? extends SearchPhaseResult> fetchResults,
-            SearchCoordinatorContext searchCoordinatorContext
-        ) {
+        private SearchProfileResults buildSearchProfileResults(Collection<? extends SearchPhaseResult> fetchResults) {
             if (profileBuilder == null) {
                 assert fetchResults.stream().map(SearchPhaseResult::fetchResult).allMatch(r -> r == null || r.profileResult() == null)
                     : "found fetch profile without search profile";
                 return null;
             }
 
-            SearchProfileResults searchProfileResults = profileBuilder.build(fetchResults);
-            searchProfileResults.setOriginalSource(searchCoordinatorContext.originalSource());
-            searchProfileResults.setRequestIndices(searchCoordinatorContext.requestIndices());
-            return searchProfileResults;
+            return profileBuilder.build(fetchResults);
         }
     }
 

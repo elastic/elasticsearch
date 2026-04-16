@@ -40,7 +40,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -102,8 +101,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     // Note: at this time, numReducePhases does not count reductions that occur on the data node as part of batched query execution.
     private volatile int numReducePhases;
 
-    private SearchCoordinatorContext searchCoordinatorContext;
-
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
@@ -138,24 +135,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
-
-        if (source != null && source.profile()) {
-            var originalSearchSource = SearchSourceBuilder.shallowCopyForSearchCoordinatorContext(source);
-            String[] indices = request.indices();
-            var originalIndices = indices == null ? null : Arrays.copyOf(indices, indices.length);
-            this.searchCoordinatorContext = new SearchCoordinatorContext(originalSearchSource, originalIndices);
-
-        } else {
-            this.searchCoordinatorContext = SearchCoordinatorContext.none();
-        }
-    }
-
-    /**
-     * Contains the original search source and unresolved target indices
-     * @return
-     */
-    public SearchCoordinatorContext getSearchCoordinatorContext() {
-        return searchCoordinatorContext;
     }
 
     @Override
@@ -303,8 +282,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 numReducePhases,
                 false,
                 queryPhaseRankCoordinatorContext,
-                topHitsToRelease,
-                searchCoordinatorContext
+                topHitsToRelease
             );
             topHitsOwnershipTransferred = true;
             buffer = null;

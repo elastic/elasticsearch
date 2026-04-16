@@ -583,6 +583,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
+        SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, internalSearchResponse);
         return new SearchResponse(
             internalSearchResponse,
             scrollId,

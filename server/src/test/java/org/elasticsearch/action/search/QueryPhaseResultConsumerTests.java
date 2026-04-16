@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
@@ -133,76 +134,82 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testProfileSnapshotAbsentWhenProfilingDisabled() {
+    public void testApplyProfileCoordinatorMetadataWhenProfilingDisabledOnRequest() {
         SearchRequest request = new SearchRequest("idx-*");
         request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(false));
+        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
         try (
-            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
-                request,
-                executor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                searchPhaseController,
-                () -> false,
-                new SearchProgressListener() {},
+            SearchResponseSections sections = new SearchResponseSections(
+                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+                null,
+                null,
+                false,
+                null,
+                profileResults,
                 1,
-                e -> fail("unexpected partial merge failure: " + e)
+                null
             )
         ) {
-            assertNull(consumer.getSearchCoordinatorContext().originalSource());
-            assertNull(consumer.getSearchCoordinatorContext().requestIndices());
+            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
+            assertNull(profileResults.getOriginalSource());
+            assertNull(profileResults.getRequestIndices());
         }
     }
 
     /**
-     * Default {@link SearchRequest} exposes an empty {@link SearchSourceBuilder}; profiling is off, so no snapshot is retained.
+     * Default {@link SearchRequest} exposes an empty {@link SearchSourceBuilder}; profiling is off, so apply sets no coordinator fields.
      */
-    public void testProfileSnapshotAbsentForDefaultSearchSource() {
+    public void testApplyProfileCoordinatorMetadataForDefaultSearchSource() {
         SearchRequest request = new SearchRequest("idx");
         assertThat(request.source().profile(), equalTo(false));
+        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
         try (
-            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
-                request,
-                executor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                searchPhaseController,
-                () -> false,
-                new SearchProgressListener() {},
+            SearchResponseSections sections = new SearchResponseSections(
+                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+                null,
+                null,
+                false,
+                null,
+                profileResults,
                 1,
-                e -> fail("unexpected partial merge failure: " + e)
+                null
             )
         ) {
-            assertNull(consumer.getSearchCoordinatorContext().originalSource());
-            assertNull(consumer.getSearchCoordinatorContext().requestIndices());
+            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
+            assertNull(profileResults.getOriginalSource());
+            assertNull(profileResults.getRequestIndices());
         }
     }
 
-    public void testProfileSnapshotCapturesIndicesAndShallowCopiedSource() {
+    public void testApplyProfileCoordinatorMetadataCapturesIndicesAndShallowCopiedSource() {
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
         SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
         SearchRequest request = new SearchRequest("wildcard-*", "alias");
         request.source(source);
+        SearchProfileResults profileResults = new SearchProfileResults(Collections.emptyMap());
         try (
-            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
-                request,
-                executor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                searchPhaseController,
-                () -> false,
-                new SearchProgressListener() {},
+            SearchResponseSections sections = new SearchResponseSections(
+                SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+                null,
+                null,
+                false,
+                null,
+                profileResults,
                 1,
-                e -> fail("unexpected partial merge failure: " + e)
+                null
             )
         ) {
-            SearchSourceBuilder snapshot = consumer.getSearchCoordinatorContext().originalSource();
+            SearchCoordinatorContext.applyProfileCoordinatorMetadata(request, sections);
+            SearchSourceBuilder snapshot = profileResults.getOriginalSource();
             assertNotNull(snapshot);
             assertThat(snapshot, equalTo(expectedSnapshot));
             assertNotSame(source, snapshot);
-            assertArrayEquals(new String[] { "wildcard-*", "alias" }, consumer.getSearchCoordinatorContext().requestIndices());
+            assertArrayEquals(new String[] { "wildcard-*", "alias" }, profileResults.getRequestIndices());
             source.query(QueryBuilders.matchAllQuery());
             assertThat(snapshot, equalTo(expectedSnapshot));
             String[] indices = request.indices();
             indices[0] = "mutated";
-            assertThat(consumer.getSearchCoordinatorContext().requestIndices()[0], equalTo("wildcard-*"));
+            assertThat(profileResults.getRequestIndices()[0], equalTo("wildcard-*"));
         }
     }
 

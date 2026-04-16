@@ -287,8 +287,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     0,
                     true,
                     null,
-                    null,
-                    SearchCoordinatorContext.none()
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -376,8 +375,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 0,
                 true,
                 null,
-                new ArrayList<>(),
-                new SearchCoordinatorContext(expectedSource, expectedIndices)
+                new ArrayList<>()
             );
             List<SearchShardTarget> shards = queryResults.asList().stream().map(SearchPhaseResult::getSearchShardTarget).collect(toList());
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
@@ -387,6 +385,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 true
             );
             try (SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                SearchRequest coordinatorRequest = new SearchRequest(expectedIndices);
+                coordinatorRequest.source(expectedSource);
+                SearchCoordinatorContext.applyProfileCoordinatorMetadata(coordinatorRequest, mergedResponse);
                 SearchProfileResults profile = mergedResponse.searchProfileResults();
                 assertNotNull(profile);
                 assertEquals(expectedSource, profile.getOriginalSource());
@@ -442,8 +443,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             return topResults;
                         }
                     },
-                    null,
-                    SearchCoordinatorContext.none()
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()
@@ -1511,8 +1511,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 0,
                 false,
                 null,
-                null,
-                SearchCoordinatorContext.none()
+                null
             );
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             assertThat(scoreDocs.length, greaterThan(0));

@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.profile.SearchProfileResults;
 
 import java.util.Arrays;
 
@@ -32,5 +33,20 @@ record SearchCoordinatorContext(@Nullable SearchSourceBuilder originalSource, @N
             SearchSourceBuilder.shallowCopyForSearchCoordinatorContext(source),
             searchRequest.indices() == null ? null : Arrays.copyOf(searchRequest.indices(), searchRequest.indices().length)
         );
+    }
+
+    /**
+     * When profiling produced a {@link SearchProfileResults} instance on the merged {@link SearchResponseSections},
+     * fills {@link SearchProfileResults#setOriginalSource} and {@link SearchProfileResults#setRequestIndices} from a
+     * snapshot of the coordinator {@link SearchRequest} (the same rules as {@link #snapshotProfileCoordinatorMetadata}).
+     */
+    static void applyProfileCoordinatorMetadata(SearchRequest request, SearchResponseSections sections) {
+        SearchProfileResults profileResults = sections.searchProfileResults();
+        if (profileResults == null) {
+            return;
+        }
+        SearchCoordinatorContext ctx = snapshotProfileCoordinatorMetadata(request);
+        profileResults.setOriginalSource(ctx.originalSource());
+        profileResults.setRequestIndices(ctx.requestIndices());
     }
 }

@@ -361,12 +361,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:inlinestats.filterSometimesMatches}
   issue: https://github.com/elastic/elasticsearch/issues/146545
-- class: org.elasticsearch.action.support.RefCountingListenerTests
-  method: testNullCheck
-  issue: https://github.com/elastic/elasticsearch/issues/146548
-- class: org.elasticsearch.action.support.RefCountingListenerTests
-  method: testBasicOperation
-  issue: https://github.com/elastic/elasticsearch/issues/146549
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146553

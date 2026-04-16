@@ -136,6 +136,41 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertEquals("us-east-1", masked.get("region"));
     }
 
+    public void testToUnencryptedMapWithNullValues() {
+        // Settings with value=null must round-trip through the map without NPE. HashMap (+ Collections.unmodifiableMap)
+        // permit null values; Map.copyOf() does not, which is why the implementation uses the former.
+        Map<String, DataSourceSetting> settings = new HashMap<>();
+        settings.put("optional_secret", new DataSourceSetting(null, true));
+        settings.put("optional_region", new DataSourceSetting(null, false));
+        settings.put("present", new DataSourceSetting("us-east-1", false));
+        var dataSource = new DataSource("my-s3", "s3", null, settings);
+
+        Map<String, Object> plain = dataSource.toUnencryptedMap();
+        assertTrue(plain.containsKey("optional_secret"));
+        assertNull(plain.get("optional_secret"));
+        assertTrue(plain.containsKey("optional_region"));
+        assertNull(plain.get("optional_region"));
+        assertEquals("us-east-1", plain.get("present"));
+    }
+
+    public void testToPresentationMapWithNullValues() {
+        // Same null-safety property as toUnencryptedMap: the secret's masked sentinel applies to its classification,
+        // not its value, so a null secret value still surfaces as null in the presentation map. A null non-secret
+        // value also stays null.
+        Map<String, DataSourceSetting> settings = new HashMap<>();
+        settings.put("optional_secret", new DataSourceSetting(null, true));
+        settings.put("optional_region", new DataSourceSetting(null, false));
+        settings.put("present_secret", new DataSourceSetting("AKIA", true));
+        var dataSource = new DataSource("my-s3", "s3", null, settings);
+
+        Map<String, Object> masked = dataSource.toPresentationMap();
+        assertTrue(masked.containsKey("optional_secret"));
+        assertEquals("::es_redacted::", masked.get("optional_secret"));
+        assertTrue(masked.containsKey("optional_region"));
+        assertNull(masked.get("optional_region"));
+        assertEquals("::es_redacted::", masked.get("present_secret"));
+    }
+
     public void testNullDescription() throws IOException {
         var dataSource = new DataSource("test", "s3", null, Map.of());
         BytesStreamOutput out = new BytesStreamOutput();

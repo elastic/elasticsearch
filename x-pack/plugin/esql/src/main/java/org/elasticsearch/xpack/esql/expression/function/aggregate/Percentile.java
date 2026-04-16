@@ -86,6 +86,12 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
                     + "approximating the percentile of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "percentileExpHistoForDocs"
+            ),
+            @Example(
+                description = "`PERCENTILE` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "approximating the percentile of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "percentileTDigestForDocs"
             ) }
     )
     public Percentile(

@@ -87,6 +87,12 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                     + "returning the total number of values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "countExpHistoForDocs"
+            ),
+            @Example(
+                description = "`COUNT` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the total number of values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "countTDigestForDocs"
             ) }
     )
     public Count(

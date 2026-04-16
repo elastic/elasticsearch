@@ -191,6 +191,16 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("Unknown index [no-such-index]"),
             () -> run(syncEsqlQueryRequest("FROM no-such-index"))
         );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index"),
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
+        );
     }
 
     public void testDoesNotResolveClosedIndex() {

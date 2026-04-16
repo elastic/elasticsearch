@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -166,7 +167,19 @@ public class ExternalSourceResolver {
 
         SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileList.UNRESOLVED);
+        /*
+         * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
+         * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
+         * which forces coordinator execution down paths that never see per-split byte ranges and yields incorrect counts.
+         */
+        StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = resolveProvider(storagePath, config);
+        StorageObject object = provider.newObject(storagePath);
+        FileList singletonList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            path
+        );
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList);
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(

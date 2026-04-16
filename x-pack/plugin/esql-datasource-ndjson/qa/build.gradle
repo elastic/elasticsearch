@@ -53,7 +53,7 @@ def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
 def serverProject = project(xpackModule('esql:qa:server'))
 def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
-def standaloneNdjsonFromCsv = ['employees']
+def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books']
 
 def generateStandaloneNdjsonTasks = []
 standaloneNdjsonFromCsv.each { baseName ->

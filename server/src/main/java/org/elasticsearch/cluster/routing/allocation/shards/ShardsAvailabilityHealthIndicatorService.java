@@ -97,7 +97,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
     ///
     /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    // window applies to non-active shards in both unassigned or initializing state.
+    /// window applies to non-active shards in both unassigned or initializing state.
     public static final Setting<TimeValue> PRIMARY_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -111,7 +111,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
     ///
     /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
-    // window applies to non-active shards in both unassigned or initializing state.
+    /// window applies to non-active shards in both unassigned or initializing state.
     public static final Setting<TimeValue> REPLICA_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -449,9 +449,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             .allMatch(ShardRouting::unassigned);
     }
 
-    /// Returns whether an inactive shard ([ShardRouting#active()] is `false`) should be treated as
-    /// within the grace window for shard-availability health. The shard must have [ShardRouting#unassignedInfo()]
-    /// Eligibility depends on allocation status, failure count, how recently the shard became unassigned, and whether
+    /// Returns whether an inactive shard ([ShardRouting#active()] is `false`) should be treated as within the grace
+    /// window for shard-availability health. The shard must have non-null [ShardRouting#unassignedInfo()]. Eligibility
+    /// depends on allocation status, failure count, how recently the shard became unassigned, and whether
     /// [UnassignedInfo.Reason#isExpectedTransient()] applies.
     ///
     /// @param routing the shard routing to inspect

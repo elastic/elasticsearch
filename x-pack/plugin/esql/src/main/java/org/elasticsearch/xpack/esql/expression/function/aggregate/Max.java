@@ -87,6 +87,12 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "returning the maximum of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "maxExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "maxTDigestForDocs"
             ) }
     )
     public Max(

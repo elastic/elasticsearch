@@ -17,22 +17,31 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -81,6 +90,8 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(SynchronousWarmingPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -226,7 +237,10 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     private void populateIndex(String indexName) {
-        final int iters = randomIntBetween(1, 3);
+        // Use at least 2 segments so that index data extends beyond cache region 0. ShardWarmer skips
+        // region 0 for SEARCH warming (it's assumed already loaded), so with a single small segment all
+        // file locations land in region 0 and warming records no metrics.
+        final int iters = randomIntBetween(2, 3);
         int docsCounter = 0;
         for (int i = 0; i < iters; i++) {
             int numDocs = randomIntBetween(100, 1_000);
@@ -292,5 +306,44 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
         Map<String, Object> attributes = measurement.attributes();
         return attributes.get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY) == cachePopulationReason.name()
             && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name();
+    }
+
+    /**
+     * Makes recovery warming synchronous so that warming completes before shard recovery finishes.
+     * This prevents a race where CacheMiss reads from the search engine opening the shard populate the
+     * cache before warming tasks run, causing warming to find no gaps and record no metrics.
+     */
+    public static class SynchronousWarmingPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        public SynchronousWarmingPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
+            ClusterSettings clusterSettings,
+            WarmingRatioProvider warmingRatioProvider
+        ) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+                @Override
+                protected void warmCache(
+                    Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    boolean preWarmForIdLookup,
+                    ActionListener<Void> listener
+                ) {
+                    var subscribableListener = new SubscribableListener<Void>();
+                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, subscribableListener);
+                    safeAwait(subscribableListener);
+                    subscribableListener.addListener(listener);
+                }
+            };
+        }
     }
 }

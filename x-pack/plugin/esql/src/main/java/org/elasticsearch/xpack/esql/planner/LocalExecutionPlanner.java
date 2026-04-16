@@ -108,14 +108,12 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -200,6 +198,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
+
+    /**
+     * Default rows per page for external file sources when {@link ExternalSourceExec#estimatedRowSize()} is unknown
+     * or non-positive. Used by {@link #planExternalSource} as the batch size passed to format readers (including NDJSON).
+     */
+    public static final int DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS = 1000;
+
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
@@ -1313,13 +1318,6 @@ public class LocalExecutionPlanner {
      *       storage and format registries</li>
      * </ol>
      *
-     * <p>Example usage:
-     * <pre>
-     * // The OperatorFactoryRegistry is injected into LocalExecutionPlanner
-     * // It contains all registered storage providers, format readers, and plugin factories
-     * return planExternalSourceGeneric(externalSource, context);
-     * </pre>
-     *
      * @param externalSource the external source physical plan node
      * @param context the planner context
      * @return the physical operation
@@ -1331,7 +1329,7 @@ public class LocalExecutionPlanner {
         Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
             ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
-            : 1000;
+            : DEFAULT_EXTERNAL_SOURCE_PAGE_SIZE_ROWS;
 
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
@@ -1406,51 +1404,6 @@ public class LocalExecutionPlanner {
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
-        return PhysicalOperation.fromSource(factory, layout.build());
-    }
-
-    /**
-     * Plans a generic external source using explicit StorageProvider and FormatReader.
-     * This method is kept for backward compatibility and testing.
-     *
-     * @param externalSource the external source physical plan node
-     * @param storageProvider the storage provider for the source
-     * @param formatReader the format reader for the source
-     * @param context the planner context
-     * @return the physical operation
-     */
-    private PhysicalOperation planExternalSourceGeneric(
-        ExternalSourceExec externalSource,
-        StorageProvider storageProvider,
-        FormatReader formatReader,
-        LocalExecutionPlannerContext context
-    ) {
-        // Create layout with output attributes
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(externalSource.output());
-
-        // Determine page size based on estimated row size
-        Integer estimatedRowSize = externalSource.estimatedRowSize();
-        int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
-            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
-            : 1000;
-
-        // Parse the storage path
-        StoragePath path = StoragePath.of(externalSource.sourcePath());
-
-        SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
-            storageProvider,
-            formatReader,
-            path,
-            externalSource.output(),
-            pageSize,
-            externalSource.pushedLimit(),
-            null
-        );
-
-        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
-
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

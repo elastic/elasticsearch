@@ -40,4 +40,9 @@ public class S3RepositoryAnalysisStrongMpusRestIT extends AbstractS3RepositoryAn
     S3ConsistencyModel consistencyModel() {
         return S3ConsistencyModel.STRONG_MPUS;
     }
+
+    @Override
+    protected boolean checkOverwriteProtection() {
+        return false;
+    }
 }

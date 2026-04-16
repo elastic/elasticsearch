@@ -1,0 +1,14 @@
+area: Snapshot/Restore
+issues:
+ - 134632
+pr: 143701
+summary: Verify overwrite protection in repository analysis
+type: enhancement
+highlight:
+  notable: true
+  title: Verify overwrite protection in repository analysis
+  body: |-
+    The safety of the snapshot algorithm relies on the repository preventing
+    certain objects from being overwritten. From version 9.5.0 onwards,
+    Elasticsearch will verify that the repository implements overwrite
+    protection correctly during repository analysis.

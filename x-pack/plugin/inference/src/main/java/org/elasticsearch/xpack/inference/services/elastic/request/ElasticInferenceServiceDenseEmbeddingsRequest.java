@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
@@ -31,7 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
-public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInferenceServiceRequest implements DenseEmbeddingRequest {
 
     private final URI uri;
     private final ElasticInferenceServiceDenseEmbeddingsModel model;
@@ -95,6 +96,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInfere
         return null;
     }
 
+    @Override
     public TaskType getTaskType() {
         return model.getTaskType();
     }

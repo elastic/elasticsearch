@@ -202,8 +202,14 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.onFailure(failure);
 
         assertTrue(buffer.noMoreInputs());
-        assertTrue(buffer.isFinished());
+        assertFalse("Completion is deferred until queued pages are drained", buffer.isFinished());
         assertSame(failure, buffer.failure());
+        assertEquals(1, buffer.size());
+
+        Page drained = buffer.pollPage();
+        assertNotNull(drained);
+        drained.releaseBlocks();
+        assertTrue(buffer.isFinished());
     }
 
     public void testAddPageAfterFinish() {

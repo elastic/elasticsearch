@@ -225,6 +225,15 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
+     * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
+     * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     */
+    public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
+        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+    }
+
+    /**
      * Attempts to create block-aligned splits for files with splittable compression.
      * Returns true if block-aligned splits were created, false if the file should
      * fall through to normal splitting logic.

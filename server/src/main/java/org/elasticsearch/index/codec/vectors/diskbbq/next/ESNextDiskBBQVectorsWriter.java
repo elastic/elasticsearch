@@ -888,26 +888,26 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
                 final int sliceDocEnd = values.docID();
                 // get the vector ordinals for the slice
-                int vectorDocStar = iterator.docID();
-                if (vectorDocStar < sliceDocStart) {
+                int vectorDocStart = iterator.docID();
+                if (vectorDocStart < sliceDocStart) {
                     // advance iterator to the beginning of the slice
-                    vectorDocStar = iterator.advance(sliceDocStart);
+                    vectorDocStart = iterator.advance(sliceDocStart);
                 }
-                if (vectorDocStar > sliceDocEnd) {
+                if (vectorDocStart > sliceDocEnd) {
                     // no vectors in this slice
                     sliceLengths[i] = 0;
                     sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
                     continue;
                 }
-                final int vectorOrdStar = iterator.index();
-                final int docEnd = vectorDocStar == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
+                final int vectorOrdStart = iterator.index();
+                final int docEnd = vectorDocStart == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
                 final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS
                     ? floatVectorValues.size()
                     : iterator.index();
-                final int sliceNumVectors = vectorOrdEnd - vectorOrdStar;
+                final int sliceNumVectors = vectorOrdEnd - vectorOrdStart;
                 final ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
                     floatVectorValues,
-                    j -> vectorOrdStar + j,
+                    j -> vectorOrdStart + j,
                     sliceNumVectors
                 );
                 final KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, slice);

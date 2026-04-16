@@ -94,8 +94,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     public static final String NAME = "shards_availability";
 
     /// Grace period during which an inactive primary may not cause the health indicator to turn RED.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
-    /// TODO: Rename this setting to primary_inactive_buffer_time for consistency
+    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
+    ///
+    /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
+    // window applies to non-active shards in both unassigned or initializing state.
     public static final Setting<TimeValue> PRIMARY_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -106,8 +108,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     );
 
     /// Grace period during which an inactive replica may not cause the health indicator to turn YELLOW.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
-    /// TODO: Rename this setting to replica_inactive_buffer_time for consistency
+    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on {@link UnassignedInfo.Reason} and timing.
+    ///
+    /// Note: The cluster setting key keeps the `unassigned` naming for backward compatibility, but the grace
+    // window applies to non-active shards in both unassigned or initializing state.
     public static final Setting<TimeValue> REPLICA_INACTIVE_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -361,15 +365,15 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
 
             boolean isNew = isUnassignedDueToNewInitialization(projectId, routing, state);
             boolean isWithinGracePeriod = inactiveBufferTime.millis() > 0 && isInactiveWithinGracePeriod(routing, gracePeriodCutoffTime);
-            boolean isProvisionallyUnassigned = isNew || isWithinGracePeriod;
+            boolean isProvisionallyInactive = isNew || isWithinGracePeriod;
 
-            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(projectId, routing, state);
+            boolean allUnassigned = areAllShardsOfThisTypeUnassigned(projectId, routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
 
-            if (allUnavailable && isProvisionallyUnassigned == false) {
+            if (allUnassigned && isProvisionallyInactive == false) {
                 indicesWithAllShardsUnavailable.add(projectIndex);
             }
-            if (isProvisionallyUnassigned) {
+            if (isProvisionallyInactive) {
                 indicesWithProvisionallyUnavailableShards.add(projectIndex);
             } else if (routing.active() == false && isRestarting == false) {
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
@@ -384,7 +388,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
                     if (isRestarting) {
                         unassigned_restarting++;
                     } else {
-                        if (isProvisionallyUnassigned) {
+                        if (isProvisionallyInactive) {
                             unassigned_provisional++;
                         } else {
                             unassigned++;
@@ -435,7 +439,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
      * example: if a replica is passed then this will return true if ALL replicas are unassigned,
      * but if at least one is assigned, it will return false.
      */
-    boolean areAllShardsOfThisTypeUnavailable(ProjectId projectId, ShardRouting routing, ClusterState state) {
+    boolean areAllShardsOfThisTypeUnassigned(ProjectId projectId, ShardRouting routing, ClusterState state) {
         return state.routingTable(projectId)
             .allActiveShardsGrouped(new String[] { routing.getIndexName() }, true)
             .stream()
@@ -792,23 +796,23 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
-                || primaries.unassigned_provisional > 0
                 || primaries.unassigned_restarting > 0
+                || primaries.unassigned_provisional > 0
                 || replicas.unassigned > 0
-                || replicas.unassigned_provisional > 0
                 || replicas.unassigned_restarting > 0
+                || replicas.unassigned_provisional > 0
                 || primaries.initializing > 0
                 || replicas.initializing > 0) {
                 builder.append(
                     Stream.of(
                         createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
-                        createMessage(primaries.unassigned_provisional, "creating primary shard", "creating primary shards"),
-                        createMessage(replicas.unassigned_provisional, "creating replica shard", "creating replica shards"),
                         createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(primaries.unassigned_provisional, "creating primary shard", "creating primary shards"),
                         createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards"),
+                        createMessage(replicas.unassigned_provisional, "creating replica shard", "creating replica shards"),
                         createMessage(primaries.initializing, "initializing primary shard", "initializing primary shards"),
-                        createMessage(replicas.initializing, "initializing replica shard", "initializing replica shards"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
+                        createMessage(replicas.initializing, "initializing replica shard", "initializing replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {

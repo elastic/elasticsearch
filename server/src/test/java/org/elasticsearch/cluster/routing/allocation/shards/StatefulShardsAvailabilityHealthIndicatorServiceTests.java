@@ -539,7 +539,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
         /*
           A couple of tests for
-          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnavailable(ShardRouting, ClusterState)}
+          {@link ShardsAvailabilityHealthIndicatorService#areAllShardsOfThisTypeUnassigned(ShardRouting, ClusterState)}
          */
         {
             IndexRoutingTable routingTable = indexWithTwoPrimaryOneReplicaShard(
@@ -567,7 +567,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = routingTable.shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertTrue(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
+            assertTrue(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
         }
         {
             ProjectId projectId = randomProjectIdOrDefault();
@@ -599,7 +599,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 timeValueSeconds(0)
             );
             var shardRouting = clusterState.routingTable(projectId).index("myindex").shardsWithState(ShardRoutingState.UNASSIGNED).get(0);
-            assertFalse(service.areAllShardsOfThisTypeUnavailable(projectId, shardRouting, clusterState));
+            assertFalse(service.areAllShardsOfThisTypeUnassigned(projectId, shardRouting, clusterState));
         }
     }
 
@@ -1169,6 +1169,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
             final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
             assertThat(result.status(), equalTo(expectedHealth));
+
             final var symptomParts = new ArrayList<String>();
             if (unavailablePrimaryCount > 0) {
                 symptomParts.add(unavailablePrimaryCount + " unavailable primary shard" + (unavailablePrimaryCount > 1 ? "s" : ""));
@@ -1176,11 +1177,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             if (creatingPrimaryCount > 0) {
                 symptomParts.add(creatingPrimaryCount + " creating primary shard" + (creatingPrimaryCount > 1 ? "s" : ""));
             }
-            if (creatingReplicaCount > 0) {
-                symptomParts.add(creatingReplicaCount + " creating replica shard" + (creatingReplicaCount > 1 ? "s" : ""));
-            }
             if (unavailableReplicaCount > 0) {
                 symptomParts.add(unavailableReplicaCount + " unavailable replica shard" + (unavailableReplicaCount > 1 ? "s" : ""));
+            }
+            if (creatingReplicaCount > 0) {
+                symptomParts.add(creatingReplicaCount + " creating replica shard" + (creatingReplicaCount > 1 ? "s" : ""));
             }
             assertThat(result.symptom(), equalTo("This cluster has " + String.join(", ", symptomParts) + "."));
         }

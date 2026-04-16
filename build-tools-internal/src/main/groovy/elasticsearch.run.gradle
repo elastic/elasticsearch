@@ -30,6 +30,10 @@ testClusters.register("runTask") {
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
+      def gcsCredFile = new File("${System.getProperty('user.home')}/.gcs/gcs.client.default.credentials_file.json")
+      if (gcsCredFile.exists()) {
+        keystore 'gcs.client.default.credentials_file', gcsCredFile
+      }
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
     }

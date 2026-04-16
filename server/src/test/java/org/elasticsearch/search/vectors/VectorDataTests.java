@@ -107,6 +107,7 @@ public class VectorDataTests extends ESTestCase {
                 false,
                 VectorSimilarity.L2_NORM,
                 null,
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -153,6 +154,7 @@ public class VectorDataTests extends ESTestCase {
                 false,
                 VectorSimilarity.L2_NORM,
                 null,
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -180,6 +182,7 @@ public class VectorDataTests extends ESTestCase {
                 expected.length,
                 false,
                 VectorSimilarity.L2_NORM,
+                null,
                 null,
                 Collections.emptyMap(),
                 false
@@ -209,6 +212,7 @@ public class VectorDataTests extends ESTestCase {
                 false,
                 VectorSimilarity.L2_NORM,
                 null,
+                null,
                 Collections.emptyMap(),
                 false
             );
@@ -235,6 +239,7 @@ public class VectorDataTests extends ESTestCase {
                 3,
                 false,
                 VectorSimilarity.L2_NORM,
+                null,
                 null,
                 Collections.emptyMap(),
                 false

@@ -46,20 +46,32 @@ public class TestQueryVectorBuilderPlugin implements SearchPlugin {
         }
 
         private final List<Float> vectorToBuild;
+        private final String inferenceId;
 
         public TestQueryVectorBuilder(List<Float> vectorToBuild) {
+            this(vectorToBuild, null);
+        }
+
+        public TestQueryVectorBuilder(List<Float> vectorToBuild, String inferenceId) {
             this.vectorToBuild = Objects.requireNonNull(vectorToBuild);
+            this.inferenceId = inferenceId;
         }
 
         public TestQueryVectorBuilder(float[] expected) {
+            this(expected, null);
+        }
+
+        public TestQueryVectorBuilder(float[] expected, String inferenceId) {
             this.vectorToBuild = new ArrayList<>(expected.length);
             for (float f : expected) {
                 vectorToBuild.add(f);
             }
+            this.inferenceId = inferenceId;
         }
 
         TestQueryVectorBuilder(StreamInput in) throws IOException {
             this.vectorToBuild = in.readCollectionAsList(StreamInput::readFloat);
+            this.inferenceId = null;
         }
 
         @Override
@@ -80,6 +92,11 @@ public class TestQueryVectorBuilderPlugin implements SearchPlugin {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(vectorToBuild, StreamOutput::writeFloat);
+        }
+
+        @Override
+        public String getInferenceId() {
+            return inferenceId;
         }
 
         @Override

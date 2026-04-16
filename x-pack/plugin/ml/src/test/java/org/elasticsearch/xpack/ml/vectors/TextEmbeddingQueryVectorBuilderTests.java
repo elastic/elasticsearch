@@ -78,4 +78,16 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
     protected TextEmbeddingQueryVectorBuilder doParseInstance(XContentParser parser) throws IOException {
         return TextEmbeddingQueryVectorBuilder.fromXContent(parser);
     }
+
+    public void testGetInferenceIdReturnsModelId() {
+        String modelId = randomAlphaOfLength(8);
+        TextEmbeddingQueryVectorBuilder builder = new TextEmbeddingQueryVectorBuilder(modelId, randomAlphaOfLength(4));
+        assertEquals(modelId, builder.getInferenceId());
+        assertEquals(builder.getModelId(), builder.getInferenceId());
+    }
+
+    public void testGetInferenceIdReturnsNullWhenModelIdNull() {
+        TextEmbeddingQueryVectorBuilder builder = new TextEmbeddingQueryVectorBuilder(null, randomAlphaOfLength(4));
+        assertNull(builder.getInferenceId());
+    }
 }

@@ -129,6 +129,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
+    private String inferenceIdForMapping;
 
     /**
      * Defines a kNN search.
@@ -425,9 +426,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
-                boost
-            ).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder);
+            KnnSearchBuilder resolved = new KnnSearchBuilder(
+                field,
+                querySupplier.get(),
+                k,
+                numCands,
+                visitPercentage,
+                rescoreVectorBuilder,
+                similarity
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).innerHit(innerHitBuilder);
+            resolved.inferenceIdForMapping = this.inferenceIdForMapping;
+            return resolved;
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -447,10 +456,18 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 }
                 ll.onResponse(null);
             })));
-            return new KnnSearchBuilder(field, toSet::get, k, numCands, visitPercentage, rescoreVectorBuilder, filterQueries, similarity)
-                .boost(boost)
-                .queryName(queryName)
-                .innerHit(innerHitBuilder);
+            KnnSearchBuilder withSupplier = new KnnSearchBuilder(
+                field,
+                toSet::get,
+                k,
+                numCands,
+                visitPercentage,
+                rescoreVectorBuilder,
+                filterQueries,
+                similarity
+            ).boost(boost).queryName(queryName).innerHit(innerHitBuilder);
+            withSupplier.inferenceIdForMapping = queryVectorBuilder.getInferenceId();
+            return withSupplier;
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -474,9 +491,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
-            .queryName(queryName)
-            .addFilterQueries(filterQueries);
+        KnnVectorQueryBuilder builder = new KnnVectorQueryBuilder(
+            field,
+            queryVector,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity
+        ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+        builder.setInferenceIdForMapping(inferenceIdForMapping);
+        return builder;
     }
 
     public Float getSimilarity() {

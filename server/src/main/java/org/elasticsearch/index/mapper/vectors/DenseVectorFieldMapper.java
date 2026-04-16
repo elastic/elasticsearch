@@ -238,6 +238,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = new NodeFeature(
         "mapper.dense_vector.default_oversample_value_for_bbq"
     );
+    public static final NodeFeature DENSE_VECTOR_INFERENCE_ID = new NodeFeature("mapper.dense_vector.inference_id");
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
@@ -269,6 +270,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<DenseVectorIndexOptions> indexOptions;
 
         private final Parameter<Boolean> indexed;
+        private final Parameter<String> inferenceId;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
@@ -399,6 +401,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             });
+            // TODO: Re-enable index version gate before moving out of POC
+            // .addValidator(v -> {
+            // if (v != null && indexVersionCreated.before(IndexVersions.DENSE_VECTOR_INFERENCE_ID)) {
+            // throw new IllegalArgumentException(
+            // "Field [inference_id] requires an index created with version ["
+            // + IndexVersions.DENSE_VECTOR_INFERENCE_ID.toReleaseVersion()
+            // + "] or later"
+            // );
+            // }
+            // });
+            this.inferenceId = Parameter.stringParam("inference_id", true, m -> toType(m).fieldType().inferenceId, null)
+                .acceptsNull()
+                .setSerializerCheck((id, ic, v) -> v != null);
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -473,7 +488,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, inferenceId, meta };
         }
 
         public Builder similarity(VectorSimilarity vectorSimilarity) {
@@ -493,6 +508,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Builder indexOptions(DenseVectorIndexOptions indexOptions) {
             this.indexOptions.setValue(indexOptions);
+            return this;
+        }
+
+        public Builder inferenceId(String inferenceId) {
+            this.inferenceId.setValue(inferenceId);
             return this;
         }
 
@@ -517,6 +537,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexed.getValue(),
                     similarity.getValue(),
                     indexOptions.getValue(),
+                    inferenceId.getValue(),
                     meta.getValue(),
                     context.isSourceSynthetic()
                 ),
@@ -2785,6 +2806,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
         private final DenseVectorIndexOptions indexOptions;
+        private final String inferenceId;
         private final boolean isSyntheticSource;
 
         public DenseVectorFieldType(
@@ -2795,6 +2817,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean indexed,
             VectorSimilarity similarity,
             DenseVectorIndexOptions indexOptions,
+            String inferenceId,
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
@@ -2805,11 +2828,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
+            this.inferenceId = inferenceId;
             this.isSyntheticSource = isSyntheticSource;
         }
 
         public VectorSimilarity similarity() {
             return similarity;
+        }
+
+        public Integer getDims() {
+            return dims;
+        }
+
+        public String getInferenceId() {
+            return inferenceId;
         }
 
         @Override

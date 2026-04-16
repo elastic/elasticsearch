@@ -31,4 +31,12 @@ public interface QueryVectorBuilder extends VersionedNamedWriteable, ToXContentO
      * @param listener listener to accept the created vector
      */
     void buildVector(Client client, ActionListener<float[]> listener);
+
+    /**
+     * Returns the inference endpoint ID used by this query vector builder, or {@code null} if this builder
+     * does not use an inference endpoint.
+     */
+    default String getInferenceId() {
+        return null;
+    }
 }

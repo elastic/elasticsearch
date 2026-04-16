@@ -336,6 +336,53 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(rewritten.getRescoreVectorBuilder(), equalTo(expectedRescore));
     }
 
+    public void testRewriteCapturesInferenceId() throws Exception {
+        float[] expectedArray = randomVector(randomIntBetween(10, 1024));
+        String expectedInferenceId = "test-inference-endpoint";
+        KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray, expectedInferenceId),
+            5,
+            10,
+            10f,
+            null,
+            1f
+        );
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(searchBuilder, context, future);
+        KnnSearchBuilder rewritten = future.get();
+
+        assertThat(rewritten.queryVector.asFloatVector(), equalTo(expectedArray));
+        assertThat(rewritten.queryVectorBuilder, nullValue());
+
+        // toQueryBuilder should propagate the inference ID
+        KnnVectorQueryBuilder queryBuilder = rewritten.toQueryBuilder();
+        assertEquals(expectedInferenceId, queryBuilder.inferenceIdForMapping());
+    }
+
+    public void testRewriteWithoutInferenceId() throws Exception {
+        float[] expectedArray = randomVector(randomIntBetween(10, 1024));
+        KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
+            "field",
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(expectedArray),
+            5,
+            10,
+            10f,
+            null,
+            1f
+        );
+
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(searchBuilder, context, future);
+        KnnSearchBuilder rewritten = future.get();
+
+        KnnVectorQueryBuilder queryBuilder = rewritten.toQueryBuilder();
+        assertNull(queryBuilder.inferenceIdForMapping());
+    }
+
     public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {

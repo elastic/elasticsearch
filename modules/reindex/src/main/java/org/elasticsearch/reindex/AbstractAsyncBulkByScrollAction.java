@@ -202,7 +202,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.remoteVersion = remoteVersion;
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
-            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
+            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors, remoteVersion)
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
@@ -219,13 +219,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Prepares a search request to be used in a {@link PaginatedHitSource}.
      * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
+     *
+     * @param remoteVersion when reindexing from remote, the remote cluster version. {@code null} when searching the local cluster.
      */
     // Visible for testing
     static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
-        boolean needsVectors
+        boolean needsVectors,
+        @Nullable Version remoteVersion
     ) {
         var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
 
@@ -234,8 +237,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
          *
-         * When using PIT, use _shard_doc for search_after compatibility and performance (see paginate-search-results docs).
-         * When using scroll, use _doc.
+         * When using PIT, use _shard_doc for search_after compatibility and performance (see paginate-search-results docs), except on
+         * remote clusters before 7.12.0 which do not support _shard_doc. For remote requests before 7.12 and on scroll requests, we
+         * default to _doc.
          *
          * This modifies the original request!
          */
@@ -243,7 +247,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             if (sourceBuilder.pointInTimeBuilder() != null) {
-                sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+                if (remoteVersion != null && remoteVersion.before(Version.V_7_12_0)) {
+                    sourceBuilder.sort(fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+                } else {
+                    sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+                }
             } else {
                 sourceBuilder.sort(fieldSort("_doc"));
             }

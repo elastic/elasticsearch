@@ -73,49 +73,24 @@ import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINE
 public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     public static final TimeValue DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY = TimeValue.timeValueMinutes(2);
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING = Setting.timeSetting(
-        "serverless.autoscaling.memory_metrics.indexing_operations_memory_requirements.validity",
-        DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
     public static final Setting<TimeValue> INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING = Setting.timeSetting(
         "memory_metrics.indexing_operations_memory_requirements.validity",
         // Ensure that we give enough time to the controller to react to memory requirements for rejected operations
         // but at the same time avoid scaling up for too long due to a single operation that was rejected.
-        SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+        DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    // DEPRECATED, do not use
-    public static final Setting<Boolean> SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.autoscaling.memory_metrics.indexing_operations_memory_requirements.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
     public static final Setting<Boolean> INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.indexing_operations_memory_requirements.enabled",
-        SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     // For the adaptive method, default to add an additional overhead of 50% of the estimate
-    // DEPRECATED, do not use
-    public static final Setting<RatioValue> SERVERLESS_ADAPTIVE_EXTRA_OVERHEAD_SETTING = new Setting<>(
-        "serverless.autoscaling.memory_metrics.adaptive_extra_overhead",
-        "50%",
-        RatioValue::parseRatioValue,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
     public static final Setting<RatioValue> ADAPTIVE_EXTRA_OVERHEAD_SETTING = new Setting<>(
         "memory_metrics.adaptive_extra_overhead",
-        SERVERLESS_ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+        "50%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -125,17 +100,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * derived from StatelessMemoryMetricsService#MAX_HEAP_SIZE and ShardLimitValidator#SETTING_CLUSTER_MAX_SHARDS_PER_NODE.
      * As the shard count increases, this threshold drives automatic cluster sizing to accommodate the additional memory requirements.
      */
-    // DEPRECATED, do not use
-    public static final Setting<Boolean> SERVERLESS_ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.autoscaling.memory_metrics.adaptive_min_threshold.enabled",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
     public static final Setting<Boolean> ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.adaptive_min_threshold.enabled",
-        SERVERLESS_ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -151,44 +118,21 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * <p>
      */
     public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
-    // DEPRECATED, do not use
-    public static final Setting<ByteSizeValue> SERVERLESS_FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
-        "serverless.autoscaling.memory_metrics.shard_memory_overhead",
-        FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
     public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "memory_metrics.shard_memory_overhead",
-        SERVERLESS_FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+        FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     // Enables the use of custom shard memory overhead values reported by nodes when calculating memory usage estimates.
-    // DEPRECATED, do not use
-    public static final Setting<Boolean> SERVERLESS_SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.autoscaling.memory_metrics.self_reported_shard_memory_overhead.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
     public static final Setting<Boolean> SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.self_reported_shard_memory_overhead.enabled",
-        SERVERLESS_SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+        false,
         Setting.Property.NodeScope
-    );
-    // DEPRECATED, do not use
-    public static final Setting<Boolean> SERVERLESS_MERGE_MEMORY_ESTIMATE_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.autoscaling.memory_metrics.merge_memory_estimate.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
     );
     public static final Setting<Boolean> MERGE_MEMORY_ESTIMATE_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.merge_memory_estimate.enabled",
-        SERVERLESS_MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -261,19 +205,11 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         );
 
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
-        clusterSettings.addSettingsUpdateConsumer(
-            SERVERLESS_FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
-            value -> fixedShardMemoryOverhead = value
-        );
         clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
         clusterSettings.initializeAndWatch(ADAPTIVE_EXTRA_OVERHEAD_SETTING, value -> adaptiveExtraOverheadRatio = value.getAsRatio());
         clusterSettings.initializeAndWatch(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, value -> shardLimitPerNode = value);
         clusterSettings.initializeAndWatch(
             ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-            value -> adaptiveShardMemoryEstimationMinThresholdEnabled = value
-        );
-        clusterSettings.addSettingsUpdateConsumer(
-            SERVERLESS_ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
             value -> adaptiveShardMemoryEstimationMinThresholdEnabled = value
         );
     }

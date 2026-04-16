@@ -84,28 +84,14 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     ActionResponse.Empty> {
 
     static final String START_HANDOFF_ACTION_NAME = TYPE.name() + "/start_handoff";
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING = Setting.timeSetting(
-        "serverless.cluster.unpromotable_relocation.start_handoff_cluster_state_convergence_timeout",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
     public static final Setting<TimeValue> START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.unpromotable_relocation.start_handoff_cluster_state_convergence_timeout",
-        SERVERLESS_START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
-        Setting.Property.NodeScope
-    );
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_START_HANDOFF_REQUEST_TIMEOUT_SETTING = Setting.timeSetting(
-        "serverless.cluster.unpromotable_relocation.start_handoff_request_timeout",
         TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> START_HANDOFF_REQUEST_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.unpromotable_relocation.start_handoff_request_timeout",
-        SERVERLESS_START_HANDOFF_REQUEST_TIMEOUT_SETTING,
+        TimeValue.timeValueSeconds(30),
         Setting.Property.NodeScope
     );
     private static final RelocationHandoffResponse EMPTY_RESPONSE = new RelocationHandoffResponse(

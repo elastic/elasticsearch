@@ -79,14 +79,12 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
             Stream.of(
                 StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
-                StatelessMemoryMetricsService.SERVERLESS_FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
                 StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
                 StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                 StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
                 StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
                 StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-                StatelessMemoryMetricsService.SERVERLESS_ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
                 SETTING_CLUSTER_MAX_SHARDS_PER_NODE
             )
         ).collect(Collectors.toSet());

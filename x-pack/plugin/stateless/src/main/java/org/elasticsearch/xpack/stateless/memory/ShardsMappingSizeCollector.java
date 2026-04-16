@@ -59,71 +59,34 @@ import static org.elasticsearch.xpack.stateless.memory.SizingDataTransmissionLog
 
 public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEventListener {
 
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
-        "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
-        TimeValue.timeValueMinutes(5),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
-    );
     public static final Setting<TimeValue> PUBLISHING_FREQUENCY_SETTING = Setting.timeSetting(
         "memory_metrics.indices_mapping_size.publication.frequency",
-        SERVERLESS_PUBLISHING_FREQUENCY_SETTING,
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
-    );
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_CUT_OFF_TIMEOUT_SETTING = Setting.timeSetting(
-        "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.cut_off_timeout",
-        // Safe timeout value, all mappings will eventually be synced by the periodic task
-        TimeValue.timeValueMinutes(2),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
     );
     public static final Setting<TimeValue> CUT_OFF_TIMEOUT_SETTING = Setting.timeSetting(
         "memory_metrics.indices_mapping_size.publication.cut_off_timeout",
-        SERVERLESS_CUT_OFF_TIMEOUT_SETTING,
+        // Safe timeout value, all mappings will eventually be synced by the periodic task
+        TimeValue.timeValueMinutes(2),
         Setting.Property.NodeScope
-    );
-    // DEPRECATED, do not use
-    public static final Setting<TimeValue> SERVERLESS_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
-        "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.retry_initial_delay",
-        TimeValue.timeValueSeconds(5),
-        Setting.Property.NodeScope,
-        Setting.Property.Deprecated
     );
     public static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "memory_metrics.indices_mapping_size.publication.retry_initial_delay",
-        SERVERLESS_RETRY_INITIAL_DELAY_SETTING,
+        TimeValue.timeValueSeconds(5),
         Setting.Property.NodeScope
     );
     // This setting will apply only when memory_metrics.self_reported_shard_memory_overhead.enabled is true.
-    // DEPRECATED, do not use
-    public static final Setting<ByteSizeValue> SERVERLESS_FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
-        "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.fixed_overhead",
-        ByteSizeValue.ofKb(90),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
     public static final Setting<ByteSizeValue> FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "memory_metrics.hollow_shard_memory_overhead.fixed_overhead",
-        SERVERLESS_FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
+        ByteSizeValue.ofKb(90),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     // The memory overhead per segment for hollow shards taken up by structures like SegmentInfo.
     // This setting will apply only when memory_metrics.self_reported_shard_memory_overhead.enabled is true.
-    // DEPRECATED, do not use
-    public static final Setting<ByteSizeValue> SERVERLESS_HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
-        "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.segment_overhead",
-        ByteSizeValue.ofKb(2),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
     public static final Setting<ByteSizeValue> HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "memory_metrics.hollow_shard_memory_overhead.segment_overhead",
-        SERVERLESS_HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
+        ByteSizeValue.ofKb(2),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

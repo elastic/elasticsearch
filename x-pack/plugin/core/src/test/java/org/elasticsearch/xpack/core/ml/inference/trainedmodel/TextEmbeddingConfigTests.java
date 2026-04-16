@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -20,21 +19,12 @@ import java.util.function.Predicate;
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
 
     public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_8_0)) {
-            return TextEmbeddingConfig.create(
-                instance.getVocabularyConfig(),
-                InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
-                instance.getResultsField(),
-                null
-            );
-        } else {
-            return TextEmbeddingConfig.create(
-                instance.getVocabularyConfig(),
-                InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
-                instance.getResultsField(),
-                instance.getEmbeddingSize()
-            );
-        }
+        return TextEmbeddingConfig.create(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField(),
+            instance.getEmbeddingSize()
+        );
     }
 
     @Override

@@ -206,6 +206,30 @@ public interface XContentParser extends Closeable {
      */
     XContentLocation getTokenLocation();
 
+    /**
+     * Returns the location of the last processed input unit (byte or character).
+     * This tracks the parser's current read position — how far it has consumed
+     * into the underlying stream — not necessarily the end of the current value.
+     * The semantics match Jackson's {@code JsonParser.currentLocation()}.
+     *
+     * <p>For scalar tokens (strings, numbers, booleans, null), {@code nextToken()}
+     * fully consumes the value, so this returns the position just past it.
+     * For structural tokens ({@code START_OBJECT}, {@code START_ARRAY}),
+     * only the opening delimiter has been consumed.
+     *
+     * <p>To get the byte range of an arbitrary value (scalar or composite),
+     * use the pattern:
+     * <pre>{@code
+     * long start = parser.getTokenLocation().byteOffset();
+     * parser.skipChildren();  // no-op for scalars
+     * long end = parser.getCurrentLocation().byteOffset();
+     * }</pre>
+     *
+     * @return the current read position, or null if cannot be determined
+     * @see #getTokenLocation()
+     */
+    XContentLocation getCurrentLocation();
+
     // TODO remove context entirely when it isn't needed
     /**
      * Parse an object by name.
@@ -225,4 +249,12 @@ public interface XContentParser extends Closeable {
      * The callback to notify when parsing encounters a deprecated field.
      */
     DeprecationHandler getDeprecationHandler();
+
+    /**
+     * Switch to a different underlying parser.
+     * Typically, that's a noop but some filter parsers might want to wrap the underlying parser again.
+     */
+    default XContentParser switchParser(XContentParser parser) throws IOException {
+        return parser;
+    }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -17,8 +16,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -66,23 +63,13 @@ public final class RRFRankDoc extends RankDoc {
     public RRFRankDoc(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            if (in.readBoolean()) {
-                positions = in.readIntArray();
-            } else {
-                positions = null;
-            }
-            scores = in.readOptionalFloatArray();
-            rankConstant = in.readOptionalVInt();
-        } else {
+        if (in.readBoolean()) {
             positions = in.readIntArray();
-            scores = in.readFloatArray();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.rankConstant = in.readVInt();
-            } else {
-                this.rankConstant = DEFAULT_RANK_CONSTANT;
-            }
+        } else {
+            positions = null;
         }
+        scores = in.readOptionalFloatArray();
+        rankConstant = in.readOptionalVInt();
     }
 
     @Override
@@ -134,22 +121,14 @@ public final class RRFRankDoc extends RankDoc {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rank);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            if (positions != null) {
-                out.writeBoolean(true);
-                out.writeIntArray(positions);
-            } else {
-                out.writeBoolean(false);
-            }
-            out.writeOptionalFloatArray(scores);
-            out.writeOptionalVInt(rankConstant);
+        if (positions != null) {
+            out.writeBoolean(true);
+            out.writeIntArray(positions);
         } else {
-            out.writeIntArray(positions == null ? new int[0] : positions);
-            out.writeFloatArray(scores == null ? new float[0] : scores);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
-            }
+            out.writeBoolean(false);
         }
+        out.writeOptionalFloatArray(scores);
+        out.writeOptionalVInt(rankConstant);
     }
 
     @Override

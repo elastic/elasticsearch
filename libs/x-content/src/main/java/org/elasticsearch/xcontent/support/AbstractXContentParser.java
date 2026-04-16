@@ -277,7 +277,7 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public final XContentString optimizedTextOrNull() throws IOException {
-        if (currentToken() == Token.VALUE_NULL) {
+        if (currentToken() == Token.VALUE_NULL || currentToken() == Token.VALUE_EMBEDDED_OBJECT) {
             return null;
         }
         return optimizedText();

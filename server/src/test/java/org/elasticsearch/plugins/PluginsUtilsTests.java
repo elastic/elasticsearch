@@ -14,6 +14,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -53,14 +54,18 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             false,
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
     }
 
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.getPluginBundles(pluginsDir));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsUtils.getPluginBundles(pluginsDir, Predicates.always())
+        );
         assertThat(e.getMessage(), containsString("Plugin [plugin-missing-descriptor] is missing a descriptor properties file"));
     }
 
@@ -465,7 +470,8 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             false,
-            isStable
+            isStable,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         return info;
     }

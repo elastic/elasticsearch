@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 143907
+summary: Remove redundant root doc values from flattened fields if index=false
+type: enhancement

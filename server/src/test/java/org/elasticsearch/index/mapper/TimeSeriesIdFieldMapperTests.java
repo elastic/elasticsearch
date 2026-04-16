@@ -57,9 +57,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected Settings getIndexSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+    }
+
+    @Override
     protected IndexVersion getVersion() {
         return IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_8_8_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING)
         );
@@ -114,10 +121,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDisabledInStandardMode() throws Exception {
-        DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
-            mapping(b -> {})
-        ).documentMapper();
+        Settings.Builder builder = getIndexSettingsBuilder();
+        builder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name());
+        builder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        DocumentMapper docMapper = createMapperService(builder.build(), mapping(b -> {})).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));

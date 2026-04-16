@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -66,6 +67,11 @@ public class BinaryFieldMapper extends FieldMapper {
         public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {
             this.hasDocValues.setValue(hasDocValues);
             return this;
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -127,7 +133,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, BinaryDocValuesField::new);
         }
 
         @Override
@@ -246,7 +252,11 @@ public class BinaryFieldMapper extends FieldMapper {
             try {
                 bytesList.sort(Arrays::compareUnsigned);
                 CollectionUtils.uniquify(bytesList, Arrays::compareUnsigned);
-                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
+                // avoiding a streaming map/reduce for efficiency reasons
+                int bytesSize = 0;
+                for (byte[] bytes : bytesList) {
+                    bytesSize += bytes.length;
+                }
                 int n = bytesList.size();
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
                 out.writeVInt(n);  // write total number of values

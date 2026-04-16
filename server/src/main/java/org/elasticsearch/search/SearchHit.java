@@ -12,7 +12,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -73,6 +72,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     static final float DEFAULT_SCORE = Float.NaN;
     private float score;
+
+    /**
+     * ToXContent param key that, when set to {@code true}, causes {@code _seq_no} and {@code _primary_term} to be
+     * emitted even when they hold sentinel (unassigned) values. Used for indices with sequence numbers disabled.
+     */
+    public static final String SEQ_NO_PRIMARY_TERM_PARAMS_KEY = "seq_no_primary_term";
 
     static final int NO_RANK = -1;
     private int rank;
@@ -198,15 +203,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rank = in.readVInt();
-        } else {
-            rank = NO_RANK;
-        }
+        rank = in.readVInt();
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
@@ -234,15 +232,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
-        } else {
-            int size = in.readVInt();
-            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), Float.NaN);
-            }
-        }
+        matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
 
         final SearchShardTarget shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
         final String index;
@@ -312,15 +302,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void writeTo(StreamOutput out) throws IOException {
         assert hasReferences();
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVInt(rank);
-        } else if (rank != NO_RANK) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
+        out.writeVInt(rank);
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);
@@ -346,11 +329,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(matchedQueries, StreamOutput::writeFloat);
-        } else {
-            out.writeStringCollection(matchedQueries.keySet());
-        }
+        out.writeMap(matchedQueries, StreamOutput::writeFloat);
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
@@ -859,7 +838,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             builder.field(Fields._VERSION, version);
         }
 
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || params.paramAsBoolean(SEQ_NO_PRIMARY_TERM_PARAMS_KEY, false)) {
             builder.field(Fields._SEQ_NO, seqNo);
             builder.field(Fields._PRIMARY_TERM, primaryTerm);
         }

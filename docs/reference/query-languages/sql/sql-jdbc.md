@@ -120,6 +120,24 @@ $$$jdbc-cfg-timezone$$$
 :   Basic Authentication password
 
 
+### API Key Authentication [jdbc-cfg-auth-apikey]
+
+As an alternative to basic authentication, you can use API key authentication. API keys can be created using the [Create API key API](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md). The API key should be provided in its encoded form (the `encoded` value returned by the Create API key API).
+
+`apiKey`
+:   Encoded API key for authentication. Cannot be used together with `user`/`password` basic authentication.
+
+::::{note}
+When using API key authentication, do not specify `user` or `password`. The driver will return an error if both API key and basic authentication credentials are provided.
+::::
+
+Example connection URL using API key:
+
+```text
+jdbc:es://http://server:9200/?apiKey=<encoded-api-key>
+```
+
+
 ### SSL [jdbc-cfg-ssl]
 
 `ssl` (default `false`)
@@ -173,7 +191,7 @@ $$$jdbc-cfg-timezone$$$
 `catalog`
 :   Default catalog (cluster) for queries. If unspecified, the queries execute on the data in the local cluster only.
 
-    See [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md).
+    See [{{ccs}}](docs-content://explore-analyze/cross-cluster-search.md).
 
 
 

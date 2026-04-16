@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-runtime-fields-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,9 +12,11 @@ products:
 
 Use a Painless script to calculate and emit [runtime field](/reference/scripting-languages/painless/use-painless-scripts-in-runtime-fields.md) values.
 
-See the [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) documentation for more information about how to use runtime fields.
+Runtime fields are dynamic fields that are calculated at query time rather than being indexed. This approach provides flexibility for data exploration and field creation without requiring reindexing, though it comes with performance trade-offs compared to indexed fields.
 
-**Methods**
+For comprehensive information about runtime field implementation and use cases, refer to the [runtime fields documentation](docs-content://manage-data/data-store/mapping/runtime-fields.md). You can also check the troubleshooting guide for help with runtime field exceptions.
+
+## Methods
 
 $$$runtime-emit-method$$$
 
@@ -70,7 +75,7 @@ $$$runtime-emit-method$$$
     ::::
 
 
-**Variables**
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -81,97 +86,105 @@ $$$runtime-emit-method$$$
 [`params['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`, read-only)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
-**Return**
+## Return
 
 `void`
 :   No expected return value.
 
-**API**
+## API
 
-Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and [Specialized Field API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-field.html) are available.
+Both the standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) and specialized [Field API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-field.html) are available.
 
-**Example**
+## Example
 
-To run the examples, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-Then, run the following request to define a runtime field named `day_of_week`. This field contains a script with the same `source` defined in [Field context](/reference/scripting-languages/painless/painless-field-context.md), but also uses an `emit` function that runtime fields require when defining a Painless script.
+Run the following request to define a runtime field named `full_day_name`. This field contains a script that extracts the day of the week from the `order_date` field and assigns the full day name using the `dayOfWeekEnum` enumeration. The script uses the `emit` function, which is required for runtime fields.
 
-Because `day_of_week` is a runtime field, it isn’t indexed, and the included script only runs at query time:
+Because `full_day_name` is a runtime field, it isn’t indexed, and the script runs dynamically at query time:
 
-```console
-PUT seats/_mapping
+```json
+PUT kibana_sample_data_ecommerce/_mapping
 {
   "runtime": {
-    "day_of_week": {
+    "full_day_name": {
       "type": "keyword",
       "script": {
-        "source": "emit(doc['datetime'].value.getDayOfWeekEnum().toString())"
+        "source": """emit(doc['order_date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        """
       }
     }
   }
 }
 ```
-% TEST[setup:seats]
 
-After defining the runtime field and script in the mappings, you can run a query that includes a terms aggregation for `day_of_week`. When the query runs, {{es}} evaluates the included Painless script and dynamically generates a value based on the script definition:
+After defining the runtime field, you can run a query that includes a `terms` aggregation for `full_day_name`. At search time, {{es}} executes the script to dynamically calculate the value for each document:
 
-```console
-GET seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
   "size": 0,
-  "fields": [
-    "time",
-    "day_of_week"
-    ],
-    "aggs": {
-      "day_of_week": {
-        "terms": {
-          "field": "day_of_week",
-          "size": 10
-        }
+  "aggs": {
+    "full_day_name": {
+      "terms": {
+        "field": "full_day_name",
+        "size": 10
       }
     }
+  }
 }
 ```
-% TEST[continued]
 
-The response includes `day_of_week` for each hit. {{es}} calculates the value for this field dynamically at search time by operating on the `datetime` field defined in the mappings.
+The response includes an aggregation bucket for each time period. {{es}} calculates the value of the `full_day_name` field dynamically at search time, based on the `order_date` field in each document.
 
-```console-result
+Response:
+
+```json
 {
   ...
-  "hits" : {
-    "total" : {
-      "value" : 11,
-      "relation" : "eq"
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
     },
-    "max_score" : null,
-    "hits" : [ ]
+    "max_score": null,
+    "hits": []
   },
-  "aggregations" : {
-    "day_of_week" : {
-      "doc_count_error_upper_bound" : 0,
-      "sum_other_doc_count" : 0,
-      "buckets" : [
+  "aggregations": {
+    "full_day_name": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
         {
-          "key" : "TUESDAY",
-          "doc_count" : 5
+          "key": "Thu",
+          "doc_count": 775
         },
         {
-          "key" : "THURSDAY",
-          "doc_count" : 4
+          "key": "Fri",
+          "doc_count": 770
         },
         {
-          "key" : "MONDAY",
-          "doc_count" : 1
+          "key": "Sat",
+          "doc_count": 736
         },
         {
-          "key" : "SUNDAY",
-          "doc_count" : 1
+          "key": "Sun",
+          "doc_count": 614
+        },
+        {
+          "key": "Tue",
+          "doc_count": 609
+        },
+        {
+          "key": "Wed",
+          "doc_count": 592
+        },
+        {
+          "key": "Mon",
+          "doc_count": 579
         }
       ]
     }
   }
 }
 ```
-% TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]

@@ -9,9 +9,6 @@
 
 package org.elasticsearch.search.diversification.mmr;
 
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MMRResultDiversificationTests extends ESTestCase {
 
@@ -60,17 +58,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
     }
 
     private MMRResultDiversificationContext getRandomFloatContext(List<Integer> expectedDocIds) {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.FLOAT)
-            .dimensions(4)
-            .build(context);
-
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
-
-        var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
         diversificationContext.setFieldVectors(
             Map.of(
@@ -89,23 +78,14 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(1, 3, 6));
+        expectedDocIds.addAll(List.of(3, 4, 6));
 
         return diversificationContext;
     }
 
     private MMRResultDiversificationContext getRandomByteContext(List<Integer> expectedDocIds) {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.BYTE)
-            .dimensions(4)
-            .build(context);
-
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.BYTE);
-
-        var queryVectorData = new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
         diversificationContext.setFieldVectors(
             Map.of(
@@ -124,24 +104,14 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(1, 3, 6));
+        expectedDocIds.addAll(List.of(3, 4, 6));
 
         return diversificationContext;
     }
 
     public void testMMRDiversificationIfNoSearchHits() throws IOException {
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.FLOAT)
-            .dimensions(4)
-            .build(context);
-
-        // Change the element type to byte, which is incompatible with int8 HNSW index options
-        DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
-        builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
-
-        var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData);
         RankDoc[] emptyDocs = new RankDoc[0];
 

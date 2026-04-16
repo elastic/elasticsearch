@@ -141,6 +141,13 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
     }
 
+    protected StopDatafeedAction.Response stopDatafeed(String datafeedId, boolean closeJob, boolean forceStop) {
+        StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
+        request.setCloseJob(closeJob);
+        request.setForce(forceStop);
+        return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
+    }
+
     protected PutDatafeedAction.Response updateDatafeed(DatafeedUpdate update) {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(update);
         return client().execute(UpdateDatafeedAction.INSTANCE, request).actionGet();
@@ -246,7 +253,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        int timeoutSeconds = inFipsJvm() ? 300 : 90;
+        int timeoutSeconds = inFipsJvm() ? 300 : 180;
         // First wait for the forecast document to exist and be in a non-terminal state
         // This handles the race condition where the document may be SCHEDULED or STARTED initially
         waitForecastStatus(

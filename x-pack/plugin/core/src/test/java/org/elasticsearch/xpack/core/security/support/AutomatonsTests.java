@@ -218,6 +218,32 @@ public class AutomatonsTests extends ESTestCase {
         assertThat(Automatons.pattern(pattern), not(sameInstance(automaton)));
     }
 
+    public void testIsLiteralPattern() {
+        // Plain strings are literal
+        assertTrue(Automatons.isLiteralPattern("foo"));
+        assertTrue(Automatons.isLiteralPattern("ec:/organizations:123/deployment:abc"));
+        assertTrue(Automatons.isLiteralPattern("space:space42"));
+        assertTrue(Automatons.isLiteralPattern("a/b/c"));
+        assertTrue(Automatons.isLiteralPattern(""));
+
+        // Wildcards are not literal
+        assertFalse(Automatons.isLiteralPattern("*"));
+        assertFalse(Automatons.isLiteralPattern("foo*"));
+        assertFalse(Automatons.isLiteralPattern("*foo"));
+        assertFalse(Automatons.isLiteralPattern("fo*o"));
+        assertFalse(Automatons.isLiteralPattern("foo?"));
+        assertFalse(Automatons.isLiteralPattern("f?o"));
+
+        // Escape sequences are not literal
+        assertFalse(Automatons.isLiteralPattern("foo\\*"));
+        assertFalse(Automatons.isLiteralPattern("\\foo"));
+
+        // Leading slash (Lucene regex) is not literal
+        assertFalse(Automatons.isLiteralPattern("/foo/"));
+        assertFalse(Automatons.isLiteralPattern("/foo.*/"));
+        assertFalse(Automatons.isLiteralPattern("/"));
+    }
+
     // This isn't use directly in the code, but it's sometimes needed when debugging failing tests
     // (and it is annoying to have to rewrite it each time it's needed)
     public static <A extends Appendable> A debug(Automaton a, A out) throws IOException {

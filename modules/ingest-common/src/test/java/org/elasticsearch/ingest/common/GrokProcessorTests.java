@@ -37,6 +37,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -55,6 +56,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -71,6 +73,7 @@ public class GrokProcessorTests extends ESTestCase {
             new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -93,6 +96,7 @@ public class GrokProcessorTests extends ESTestCase {
                 fieldName,
                 false,
                 false,
+                false,
                 MatcherWatchdog.noop()
             )
         );
@@ -112,6 +116,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -128,6 +133,7 @@ public class GrokProcessorTests extends ESTestCase {
             new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -149,6 +155,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(ingestDocument);
@@ -165,6 +172,7 @@ public class GrokProcessorTests extends ESTestCase {
             new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -185,6 +193,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         Exception e = expectThrows(Exception.class, () -> processor.execute(doc));
@@ -200,6 +209,7 @@ public class GrokProcessorTests extends ESTestCase {
             new PatternBank(Map.of("ONE", "1")),
             List.of("%{ONE:one}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -220,6 +230,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             false,
             true,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(ingestDocument);
@@ -240,6 +251,7 @@ public class GrokProcessorTests extends ESTestCase {
             new PatternBank(patternBank),
             List.of("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
+            false,
             false,
             false,
             MatcherWatchdog.noop()
@@ -266,6 +278,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             true,
             false,
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -288,6 +301,7 @@ public class GrokProcessorTests extends ESTestCase {
             List.of("%{ONE:one}"),
             fieldName,
             true,
+            false,
             false,
             MatcherWatchdog.noop()
         );
@@ -312,6 +326,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -333,6 +348,7 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
@@ -354,10 +370,90 @@ public class GrokProcessorTests extends ESTestCase {
             fieldName,
             randomBoolean(),
             randomBoolean(),
+            false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
         assertFalse(doc.hasField("first"));
         assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
     }
+
+    public void testNoMatchValidate() {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "23");
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+        Exception e = expectThrows(Exception.class, () -> processor.execute(doc));
+        assertThat(e.getMessage(), equalTo("Provided Grok expressions do not match field value: [23]"));
+    }
+
+    public void testNoMatchValidateWithoutSubname() {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "23");
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE}"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+        Exception e = expectThrows(Exception.class, () -> processor.execute(doc));
+        assertThat(e.getMessage(), equalTo("Provided Grok expressions do not match field value: [23]"));
+    }
+
+    public void testMatchValidate() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument originalDoc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        originalDoc.setFieldValue(fieldName, "1");
+        IngestDocument doc = new IngestDocument(originalDoc);
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+        processor.execute(doc);
+        assertIngestDocument(doc, originalDoc);
+    }
+
+    public void testMatchValidateWithoutSubname() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument originalDoc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        originalDoc.setFieldValue(fieldName, "1");
+        IngestDocument doc = new IngestDocument(originalDoc);
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE}"),
+            fieldName,
+            false,
+            false,
+            true,
+            MatcherWatchdog.noop()
+        );
+        processor.execute(doc);
+        assertIngestDocument(doc, originalDoc);
+    }
+
 }

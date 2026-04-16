@@ -15,22 +15,26 @@ user1:
     - cluster:monitor/main
     - manage_enrich
   indices:
-    - names: ['index-user1', 'index', "test-enrich" ]
+    - names: ['index-user1', 'view-user1', "view", 'other-view-user1', 'index', "test-enrich", 'first-alias' ]
       privileges:
         - read
         - write
         - create_index
         - indices:admin/refresh
+        - manage_view
 
 user2:
   cluster: []
   indices:
-    - names: [ 'index-user2', 'index' ]
+    - names: [ 'index-user2', 'view-user2', 'other-view-user2', 'index' ]
       privileges:
         - read
         - write
         - create_index
         - indices:admin/refresh
+        - create_view
+        - read_view_metadata
+        - delete_view
 
 metadata1_read2:
   cluster: []
@@ -244,3 +248,47 @@ user_without_monitor_privileges:
 user_with_monitor_privileges:
   cluster:
     - monitor_esql
+
+view_dls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+    - names: [ 'view-user2' ]
+      privileges: [ 'read' ]
+
+view_index_dls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+view_dls_nested_view_user:
+  cluster: []
+  indices:
+    - names: [ 'nested-dls-view-no-dls' ]
+      privileges: [ 'read' ]
+    - names: [ 'nested-dls-view-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+view_fls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+view_dls_fls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+      field_security:
+        grant: [ "value" ]

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +28,7 @@ import java.util.Set;
 public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "WordBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.WORD;
-    private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
         ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
@@ -54,7 +53,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + " [" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
         }
 
@@ -64,9 +63,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
     }
 
     @Override
@@ -119,9 +116,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new WordBoundaryChunkingSettings(maxChunkSize, overlap);
     }
@@ -145,7 +140,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

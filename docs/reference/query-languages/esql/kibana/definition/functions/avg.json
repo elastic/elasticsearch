@@ -32,6 +32,18 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Expression that outputs values to average."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to average."
@@ -51,11 +63,25 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to average."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [
     "FROM employees\n| STATS AVG(height)",
-    "FROM employees\n| STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)"
+    "FROM employees\n| STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)",
+    "TS exp_histo_sample\n| WHERE instance == \"instance-0\"\n| STATS average = ROUND(AVG(responseTime), 4)",
+    "TS histogram_timeseries_index\n| WHERE instance == \"instance-0\"\n| STATS average = ROUND(AVG(responseTime::tdigest), 4)"
   ],
   "preview" : false,
   "snapshot_only" : false

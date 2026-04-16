@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
 public class AvgOverTimeTests extends AbstractAggregationTestCase {
+
     public AvgOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

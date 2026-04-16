@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 140506
+pr: 141397
+summary: Resolve *.geo.location as geopoint in otel dynamic mappings
+type: bug

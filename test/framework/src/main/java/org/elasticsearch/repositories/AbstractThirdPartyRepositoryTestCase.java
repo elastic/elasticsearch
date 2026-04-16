@@ -45,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
@@ -299,7 +300,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         });
 
         {
-            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalTo(blobBytes));
+            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalBytes(blobBytes));
         }
         {
             int position = randomIntBetween(0, blobBytes.length() - 1);
@@ -307,7 +308,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             assertThat(
                 "Random Range: " + position + '-' + (position + length),
                 readBlob(repository, blobName, position, length),
-                equalTo(blobBytes.slice(position, length))
+                equalBytes(blobBytes.slice(position, length))
             );
         }
         {
@@ -316,7 +317,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             assertThat(
                 "Random Larger Range: " + position + '-' + (position + length),
                 readBlob(repository, blobName, position, length),
-                equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
+                equalBytes(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
             );
         }
     }
@@ -386,7 +387,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             return null;
         });
 
-        assertEquals(overwriteBlobBytes, readBlob(repository, blobName, 0, overwriteBlobBytes.length()));
+        assertThat(readBlob(repository, blobName, 0, overwriteBlobBytes.length()), equalBytes(overwriteBlobBytes));
 
         // throw exception if failIfAlreadyExists is set to true
         executeOnBlobStore(repository, blobStore -> {

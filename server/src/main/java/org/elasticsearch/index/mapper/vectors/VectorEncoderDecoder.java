@@ -10,9 +10,9 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -50,7 +50,7 @@ public final class VectorEncoderDecoder {
      * Calculates vector magnitude
      */
     private static float calculateMagnitude(float[] decodedVector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(decodedVector, decodedVector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(decodedVector, decodedVector));
     }
 
     public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR, float[] decodedVector) {

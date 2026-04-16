@@ -187,7 +187,7 @@ public class SimpleFeatureFactory {
             output.writeVInt(24);
             output.writeVInt(type);
             output.writeVInt(34);
-            output.writeVInt(Math.toIntExact(counting.size()));
+            output.writeVInt(Math.toIntExact(counting.position()));
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }

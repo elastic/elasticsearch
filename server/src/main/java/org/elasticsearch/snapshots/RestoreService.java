@@ -1798,6 +1798,13 @@ public final class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /// Converts a legacy index (created before [org.elasticsearch.index.IndexVersions#MINIMUM_READONLY_COMPATIBLE])
+    /// into a degraded read-only archive so it can be opened on the current version.
+    ///
+    /// The conversion sets `index.version.compatibility` to the minimum index version supported by the cluster's
+    /// nodes, adds a write block, and rewrites the index mappings with a best-effort approach.
+    /// The original field mappings are stored under `_meta/legacy_mappings` and replaced with a minimal schema
+    /// that the current version can parse.
     private static IndexMetadata convertLegacyIndex(
         IndexMetadata snapshotIndexMetadata,
         ClusterState clusterState,

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
@@ -27,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsSourceExec extends LeafExec {
+public class EsSourceExec extends LeafExec implements DataSourceExec {
 
     private static final TransportVersion REMOVE_NAME_WITH_MODS = TransportVersion.fromName("esql_es_source_remove_name_with_mods");
 
@@ -60,9 +58,6 @@ public class EsSourceExec extends LeafExec {
         if (in.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
             in.readMap(IndexMode::readFrom);
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            in.readImmutableMap(StreamInput::readString, EsField::readFrom);
-        }
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = IndexMode.fromString(in.readString());
@@ -73,9 +68,6 @@ public class EsSourceExec extends LeafExec {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeString(indexPattern);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            out.writeMap(Map.<String, EsField>of(), (o, x) -> x.writeTo(out));
-        }
         if (out.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
             out.writeMap(Map.<String, IndexMode>of(), (o, v) -> IndexMode.writeTo(v, out));
         }
@@ -134,7 +126,8 @@ public class EsSourceExec extends LeafExec {
     }
 
     @Override
-    public String nodeString() {
-        return nodeName() + "[" + indexPattern + "]" + NodeUtils.limitedToString(attributes);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("]");
+        NodeUtils.toString(sb, attributes, format);
     }
 }

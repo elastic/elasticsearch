@@ -116,8 +116,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
             randomBoolean()
         );
 
-        listener.onResponse(new InferenceServiceResults() {
-        });
+        listener.onResponse(new InferenceServiceResults() {});
     }
 
     public void testParseChunkedRerankResultsListener_EmptyInput() {

@@ -8,19 +8,23 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -32,16 +36,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Clamps the values of all samples to have a lower limit of min and an upper limit of max.
  */
-public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
+public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression {
     private final Expression field;
     private final Expression min;
     private final Expression max;
     private DataType resolvedType;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .ternaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, PromqlFunctionDefinition.MAX_SCALAR, Clamp::new)
+        .description("Clamps the sample values of all elements to be within [min, max].")
+        .example("clamp(http_requests_total, 0, 100)")
+        .name("clamp");
+
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-        description = "Clamps the values of all samples to have a lower limit of min and an upper limit of max.",
-        examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") }
+        description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
+        examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public Clamp(
         Source source,

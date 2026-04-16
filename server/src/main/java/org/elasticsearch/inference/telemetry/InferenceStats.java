@@ -63,10 +63,10 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         }
 
         if (throwable instanceof ElasticsearchStatusException ese) {
-            return Map.of("status_code", ese.status().getStatus(), "error.type", String.valueOf(ese.status().getStatus()));
+            return Map.of("status_code", ese.status().getStatus(), "error_type", String.valueOf(ese.status().getStatus()));
         }
 
-        return Map.of("error.type", throwable.getClass().getSimpleName());
+        return Map.of("error_type", throwable.getClass().getSimpleName());
     }
 
     public static Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {

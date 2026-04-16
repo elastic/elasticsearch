@@ -18,7 +18,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -27,6 +26,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,25 +95,25 @@ public class DocumentSubsetReaderTests extends ESTestCase {
             DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value1")))
         );
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
-        TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
+        TopDocs result = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1);
         assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
-        result = indexSearcher.search(new MatchAllDocsQuery(), 1);
+        result = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1);
         assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
-        result = indexSearcher.search(new MatchAllDocsQuery(), 1);
+        result = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1);
         assertThat(result.totalHits.value(), equalTo(0L));
 
         indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
-        result = indexSearcher.search(new MatchAllDocsQuery(), 1);
+        result = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1);
         assertThat(result.totalHits.value(), equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(3));
     }
@@ -158,9 +158,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        DirectoryReader dirReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
+        DirectoryReader dirReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, Queries.ALL_DOCS_INSTANCE);
         try {
-            DocumentSubsetReader.wrap(dirReader, bitsetCache, new MatchAllDocsQuery());
+            DocumentSubsetReader.wrap(dirReader, bitsetCache, Queries.ALL_DOCS_INSTANCE);
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
             assertThat(
@@ -196,7 +196,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         // open reader
         DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
-        ir = DocumentSubsetReader.wrap(ir, bitsetCache, new MatchAllDocsQuery());
+        ir = DocumentSubsetReader.wrap(ir, bitsetCache, Queries.ALL_DOCS_INSTANCE);
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 
@@ -237,7 +237,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         // open reader
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
-        reader = DocumentSubsetReader.wrap(reader, bitsetCache, new MatchAllDocsQuery());
+        reader = DocumentSubsetReader.wrap(reader, bitsetCache, Queries.ALL_DOCS_INSTANCE);
         assertEquals(2, reader.numDocs());
         assertEquals(2, reader.leaves().size());
 

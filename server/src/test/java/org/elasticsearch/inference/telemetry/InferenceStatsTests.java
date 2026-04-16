@@ -78,13 +78,13 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 
     /**
      * "If response status code was sent or received and status indicates an error according to HTTP span status definition,
-     * error.type SHOULD be set to the status code number (represented as a string)"
+     * error_type SHOULD be set to the status code number (represented as a string)"
      * - https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
      */
     public void testRecordDurationWithElasticsearchStatusException() {
@@ -105,13 +105,13 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
     /**
      * "If the request fails with an error before response status code was sent or received,
-     * error.type SHOULD be set to exception type"
+     * error_type SHOULD be set to exception type"
      * - https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
      */
     public void testRecordDurationWithOtherException() {
@@ -131,7 +131,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -156,7 +156,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -180,7 +180,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -199,7 +199,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), nullValue());
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 
@@ -217,7 +217,7 @@ public class InferenceStatsTests extends ESTestCase {
             assertThat(attributes.get("task_type"), nullValue());
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("error_type"), is(expectedError));
         }));
     }
 

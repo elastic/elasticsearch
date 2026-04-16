@@ -1,5 +1,0 @@
-pr: 138084
-summary: Handle Query Timeouts During Collector Initialization in `QueryPhase`
-area: Search
-type: bug
-issues: []

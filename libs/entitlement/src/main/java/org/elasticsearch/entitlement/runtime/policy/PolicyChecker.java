@@ -13,16 +13,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
 /**
- * Contains one "check" method for each distinct kind of check we do
- * (as opposed to {@link org.elasticsearch.entitlement.bridge.EntitlementChecker},
- * which has a method for each distinct <em>>method</em> we instrument).
+ * Contains one "check" method for each distinct kind of check we do.
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public interface PolicyChecker {
@@ -52,7 +50,7 @@ public interface PolicyChecker {
 
     void checkFileRead(Class<?> callerClass, File file);
 
-    void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException;
+    void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws IOException;
 
     void checkFileRead(Class<?> callerClass, Path path);
 

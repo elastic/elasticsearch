@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,9 +28,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<
     CustomElandInternalTextEmbeddingServiceSettings> {
 
     public static CustomElandInternalTextEmbeddingServiceSettings createRandom() {
@@ -275,5 +275,15 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
             similarity,
             elementType
         );
+    }
+
+    @Override
+    protected void assertUpdated(
+        CustomElandInternalTextEmbeddingServiceSettings original,
+        CustomElandInternalTextEmbeddingServiceSettings updated
+    ) {
+        assertThat(updated.dimensions(), equalTo(original.dimensions()));
+        assertThat(updated.similarity(), equalTo(original.similarity()));
+        assertThat(updated.elementType(), equalTo(original.elementType()));
     }
 }

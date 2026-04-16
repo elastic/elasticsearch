@@ -415,3 +415,49 @@ host.name pass-through:
   - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
   - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }
   - match: { hits.hits.0.fields.orchestrator\.cluster\.name : ["myClusterName"] }
+
+---
+"resolves dynamic field *.geo.location as geo_point":
+  - requires:
+      test_runner_features: ["headers", "close_to"]
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "logs-test.otel-default",
+                "_id": "0",
+                "_source": {
+                  "@timestamp": "2026-01-12T11:36:02.99733Z",
+                  "attributes.client.geo.location": [
+                      143.2104,
+                      -33.494
+                    ]
+                }
+              }
+            ]
+          }
+  - is_false: docs.0.doc.error
+
+  - do:
+      bulk:
+        index: logs-test.otel-default
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": "2026-01-12T11:36:02.99733Z"
+            "attributes.client.geo.location": [ 143.2104, -33.494 ]
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-test.otel-default
+        body:
+          fields: [ "attributes.client.geo.location"]
+  - match: { hits.hits.0.fields.attributes\.client\.geo\.location.0.type: Point}
+  - close_to: { hits.hits.0.fields.attributes\.client\.geo\.location.0.coordinates.0: {value: 143.2104, error: 0.001} }
+  - close_to: { hits.hits.0.fields.attributes\.client\.geo\.location.0.coordinates.1: {value: -33.494, error: 0.001} }

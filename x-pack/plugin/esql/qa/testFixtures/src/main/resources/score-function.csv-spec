@@ -6,6 +6,7 @@ scoreSingle
 required_capability: metadata_score
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 // tag::score-function[]
 FROM books METADATA _score
@@ -18,15 +19,16 @@ FROM books METADATA _score
 ;
 
 // tag::score-single-result[]
-book_no:keyword | title:text                                                       | _score:double      | first_score:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 3.1309072971343994 | 1.9245924949645996
-7350            | Return of the Shadow                                             | 4.8434343338012695 | 3.5432329177856445
+book_no:keyword | title:text                                                       | _score:double     | first_score:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 3.167952537536621 | 2.0707292556762695
+7350            | Return of the Shadow                                             | 5.181426048278809 | 3.6185221672058105
 // end::score-single-result[]
 ;
 
 scoreSingleNoMetadata
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -36,15 +38,16 @@ FROM books
 | LIMIT 5
 ;
 
-book_no:keyword | title:text                                                       | first_score:double 
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
-7350            | Return of the Shadow                                             | 3.5432329177856445
+book_no:keyword | title:text                                                       | first_score:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 2.0707292556762695
+7350            | Return of the Shadow                                             | 3.6185221672058105
 ;
 
 scoreAfterEval
 required_capability: score_function
 required_capability: metadata_score
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | EVAL stars = to_long(ratings / 2.0)
@@ -56,15 +59,16 @@ FROM books METADATA _score
 
 book_no:keyword | author:text                                        | stars:long | s1:double
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 3          | 0.0
-2713            | William Faulkner                                   | 2          | 1.9043500423431396
+2713            | William Faulkner                                   | 2          | 2.9992568492889404
 2847            | Colleen Faulkner                                   | 3          | 0.0
-2883            | William Faulkner                                   | 2          | 1.9043500423431396
+2883            | William Faulkner                                   | 2          | 1.820595145225525
 3293            | Danny Faulkner                                     | 2          | 0.0
 ;
 
 scoreMatchWithFilterConjunction
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -74,13 +78,14 @@ FROM books
 | LIMIT 5;
 
 book_no:keyword | title:text                                                       | s1:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.7047617435455322
 7350            | Return of the Shadow                                             | 0.0
 ;
 
 scoreMatchWithDisjunction
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -90,13 +95,14 @@ FROM books
 | LIMIT 5;
 
 book_no:keyword | title:text                                                       | s1:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
-7350            | Return of the Shadow                                             | 3.5432329177856445
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.7047617435455322
+7350            | Return of the Shadow                                             | 3.6185221672058105
 ;
 
 scoreMatchWithDisjunctionAndFilter
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -106,13 +112,14 @@ FROM books
 | LIMIT 5;
 
 book_no:keyword | title:text                                                       | s1:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
-7350            | Return of the Shadow                                             | 3.5432329177856445
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.7047617435455322
+7350            | Return of the Shadow                                             | 3.6185221672058105
 ;
 
 scoreMatchDisjunctionNonPushable
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -122,7 +129,7 @@ FROM books
 | LIMIT 5;
 
 book_no:keyword | title:text                                                       | s1:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.7047617435455322
 7350            | Return of the Shadow                                             | 0.0
 ;
 
@@ -146,6 +153,7 @@ evalUsingScoreAndLimit2
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | WHERE author == "J R R Tolkien"
@@ -154,13 +162,14 @@ FROM books
 ;
 
 title_match_ring:double   | title_match_hobbit:double
-0                         | 3.45605206489563
+0                         | 3.03169584274292
 ;
 
 evalUsingScoreAndTopN
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | SORT book_no desc
@@ -175,7 +184,7 @@ book_no:keyword | title_match_towers:double
 9607            | 0
 9032            | 0
 8956            | 0
-8875            | 3.5007452964782715
+8875            | 3.9344332218170166
 8873            | 0
 8678            | 0
 8615            | 0
@@ -186,6 +195,7 @@ evalUsingScoreAndFilter
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | sort book_no desc
@@ -198,5 +208,5 @@ FROM books
 ;
 
 book_no:keyword  |  title_match_world:double
-7912             |  2.7460334300994873
+7912             |  2.6122074127197266
 ;

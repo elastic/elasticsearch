@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -24,15 +23,15 @@ import org.elasticsearch.core.Releasables;
     {
         @IntermediateState(name = "count", type = "LONG"),
         @IntermediateState(name = "sumVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTs", type = "LONG"),
+        @IntermediateState(name = "sumTs", type = "DOUBLE"),
         @IntermediateState(name = "sumTsVal", type = "DOUBLE"),
-        @IntermediateState(name = "sumTsSq", type = "LONG") }
+        @IntermediateState(name = "sumTsSq", type = "DOUBLE"), }
 )
 @GroupingAggregator
 class DerivDoubleAggregator {
 
-    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
-        return new SimpleLinearRegressionWithTimeseries();
+    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext, boolean dateNanos) {
+        return new SimpleLinearRegressionWithTimeseries(dateNanos);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, double value, long timestamp) {
@@ -43,9 +42,9 @@ class DerivDoubleAggregator {
         SimpleLinearRegressionWithTimeseries state,
         long count,
         double sumVal,
-        long sumTs,
+        double sumTs,
         double sumTsVal,
-        long sumTsSq
+        double sumTsSq
     ) {
         state.count += count;
         state.sumVal += sumVal;
@@ -63,8 +62,8 @@ class DerivDoubleAggregator {
         return blockFactory.newConstantDoubleBlockWith(slope, 1);
     }
 
-    public static GroupingState initGrouping(DriverContext driverContext) {
-        return new GroupingState(driverContext.bigArrays());
+    public static GroupingState initGrouping(DriverContext driverContext, boolean dateNanos) {
+        return new GroupingState(driverContext.bigArrays(), dateNanos);
     }
 
     public static void combine(GroupingState state, int groupId, double value, long timestamp) {
@@ -76,9 +75,9 @@ class DerivDoubleAggregator {
         int groupId,
         long count,
         double sumVal,
-        long sumTs,
+        double sumTs,
         double sumTsVal,
-        long sumTsSq
+        double sumTsSq
     ) {
         combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
@@ -105,10 +104,12 @@ class DerivDoubleAggregator {
 
     public static final class GroupingState extends AbstractArrayState {
         private ObjectArray<SimpleLinearRegressionWithTimeseries> states;
+        final boolean dateNanos;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, boolean dateNanos) {
             super(bigArrays);
             states = bigArrays.newObjectArray(1);
+            this.dateNanos = dateNanos;
         }
 
         SimpleLinearRegressionWithTimeseries get(int groupId) {
@@ -124,7 +125,7 @@ class DerivDoubleAggregator {
             }
             SimpleLinearRegressionWithTimeseries slr = states.get(groupId);
             if (slr == null) {
-                slr = new SimpleLinearRegressionWithTimeseries();
+                slr = new SimpleLinearRegressionWithTimeseries(dateNanos);
                 states.set(groupId, slr);
             }
             return slr;
@@ -138,34 +139,34 @@ class DerivDoubleAggregator {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
-                LongBlock.Builder countBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                LongBlock.Builder sumTsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder sumTsValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-                LongBlock.Builder sumTsSqBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
+                var countBuilder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount());
+                var sumValBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsValBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+                var sumTsSqBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     SimpleLinearRegressionWithTimeseries slr = get(groupId);
                     if (slr == null) {
-                        countBuilder.appendNull();
-                        sumValBuilder.appendNull();
-                        sumTsBuilder.appendNull();
-                        sumTsValBuilder.appendNull();
-                        sumTsSqBuilder.appendNull();
+                        countBuilder.appendLong(0);
+                        sumValBuilder.appendDouble(0d);
+                        sumTsBuilder.appendDouble(0d);
+                        sumTsValBuilder.appendDouble(0d);
+                        sumTsSqBuilder.appendDouble(0d);
                     } else {
                         countBuilder.appendLong(slr.count);
                         sumValBuilder.appendDouble(slr.sumVal);
-                        sumTsBuilder.appendLong(slr.sumTs);
+                        sumTsBuilder.appendDouble(slr.sumTs);
                         sumTsValBuilder.appendDouble(slr.sumTsVal);
-                        sumTsSqBuilder.appendLong(slr.sumTsSq);
+                        sumTsSqBuilder.appendDouble(slr.sumTsSq);
                     }
                 }
-                blocks[offset] = countBuilder.build();
-                blocks[offset + 1] = sumValBuilder.build();
-                blocks[offset + 2] = sumTsBuilder.build();
-                blocks[offset + 3] = sumTsValBuilder.build();
-                blocks[offset + 4] = sumTsSqBuilder.build();
+                blocks[offset] = countBuilder.build().asBlock();
+                blocks[offset + 1] = sumValBuilder.build().asBlock();
+                blocks[offset + 2] = sumTsBuilder.build().asBlock();
+                blocks[offset + 3] = sumTsValBuilder.build().asBlock();
+                blocks[offset + 4] = sumTsSqBuilder.build().asBlock();
             }
         }
     }

@@ -31,14 +31,8 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(true)
-                .allowEmptyExpressions(true)
-                .resolveAliases(false)
-                .build()
-        )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
+        .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).allowEmptyExpressions(true).build())
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(false)

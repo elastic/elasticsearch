@@ -144,6 +144,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -180,6 +181,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -851,14 +853,30 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    /**
-     * This test mimics {@link #testUserWithNoRolesCanPerformRemoteSearch()} except that
-     * while the referenced index _looks_ like a remote index, the remote cluster name has not
-     * been defined, so it is actually a local index and access should be denied
-     */
+    public void testUserWithNoRolesCannotPerformRemoteSearchOnMissingCluster() {
+        SearchRequest request = new SearchRequest();
+        request.indices("missing_cluster:index");
+        final Authentication authentication = createAuthentication(new User("test user"));
+        mockEmptyMetadata();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        NoSuchRemoteClusterException e = assertThrows(
+            NoSuchRemoteClusterException.class,
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request)
+        );
+        assertThat(e.getMessage(), containsString("no such remote cluster: [missing_cluster]"));
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(request),
+            authzInfoRoles(Role.EMPTY.names())
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testUserWithNoRolesCannotPerformLocalSearch() {
         SearchRequest request = new SearchRequest();
-        request.indices("no_such_cluster:index");
+        request.indices("index");
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -1772,8 +1790,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate = (l, mappingVersion) -> l.onResponse(null);
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
-        });
+        when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {});
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
@@ -3472,7 +3489,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build() },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() },
             null
         );
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -3494,7 +3511,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testProxyRequestAuthenticationDeniedWithReadPrivileges() {
+    public void testProxyRequestAuthenticationGrantedWithReadPrivileges() {
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
         final RoleDescriptor role = new RoleDescriptor(
             "a_all",
@@ -3509,8 +3526,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
         String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-        assertThrowsAuthorizationException(() -> authorize(authentication, action, transportRequest), action, "test user");
-        verify(auditTrail).accessDenied(
+        authorize(authentication, action, transportRequest);
+        verify(auditTrail).accessGranted(
             eq(requestId),
             eq(authentication),
             eq(action),
@@ -3677,7 +3694,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+            public void getUserPrivileges(
+                AuthorizationInfo authorizationInfo,
+                RoleReference.ApiKeyRoleType unwrapLimitedRole,
+                ActionListener<GetUserPrivilegesResponse> listener
+            ) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };
@@ -3925,7 +3946,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             notAccessibleIndexExpression.localExpressions().exception().getMessage(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
-                    + " with effective roles [partial-access-role] on indices [not-accessible-index], "
+                    + " with effective roles [partial-access-role] on indices [-*], "
                     + "this action is granted by the index privileges [read,all]"
             )
         );

@@ -296,3 +296,30 @@ bad path:
                   normalize:
                     buckets_path: badpath
                     method: rescale_0_1
+
+---
+invalid parent aggregation:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ pipeline_aggs_parent_multi_bucket_error ]
+      test_runner_features: [capabilities]
+      reason: "changed error 500 to 400"
+  - do:
+      catch: /Expected a multi bucket aggregation but got \[InternalFilter\] for aggregation \[d\]/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  normalize:
+                    buckets_path: b
+                    method: rescale_0_1

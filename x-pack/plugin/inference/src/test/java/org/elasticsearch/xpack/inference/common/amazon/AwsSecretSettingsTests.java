@@ -34,7 +34,9 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
         AwsSecretSettings newSettings = createRandom();
 
         AwsSecretSettings finalSettings = (AwsSecretSettings) initialSettings.newSecretSettings(
-            Map.of(ACCESS_KEY_FIELD, newSettings.accessKey().toString(), SECRET_KEY_FIELD, newSettings.secretKey().toString())
+            new HashMap<>(
+                Map.of(ACCESS_KEY_FIELD, newSettings.accessKey().toString(), SECRET_KEY_FIELD, newSettings.secretKey().toString())
+            )
         );
 
         assertEquals(newSettings, finalSettings);

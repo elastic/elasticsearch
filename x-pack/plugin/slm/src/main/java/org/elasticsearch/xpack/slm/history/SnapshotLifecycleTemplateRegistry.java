@@ -42,6 +42,12 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
+    public static final IndexTemplateConfig SLM_TEMPLATE_CONFIG = new IndexTemplateConfig(
+        SLM_TEMPLATE_NAME,
+        "/slm-history.json",
+        INDEX_TEMPLATE_VERSION,
+        SLM_TEMPLATE_VERSION_VARIABLE
+    );
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 
@@ -63,16 +69,14 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
-    );
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(SLM_TEMPLATE_CONFIG);
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Map.of();
         }
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplates;
     }
 
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(

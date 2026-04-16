@@ -65,8 +65,8 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             block = (ExponentialHistogramBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
         }
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-        for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
-            Block componentBlock = block.buildExponentialHistogramComponentBlock(component);
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
+            Block componentBlock = block.buildHistogramComponentBlock(component);
             assertThat(componentBlock.getPositionCount(), equalTo(block.getPositionCount()));
             for (int i = 0; i < block.getPositionCount(); i++) {
                 if (block.isNull(i)) {
@@ -119,10 +119,10 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     public void testComponentEnumSerialization() {
         assertEnumSerialization(
             ExponentialHistogramBlock.Component.class,
-            ExponentialHistogramBlock.Component.MIN,
-            ExponentialHistogramBlock.Component.MAX,
-            ExponentialHistogramBlock.Component.SUM,
-            ExponentialHistogramBlock.Component.COUNT
+            HistogramBlock.Component.MIN,
+            HistogramBlock.Component.MAX,
+            HistogramBlock.Component.SUM,
+            HistogramBlock.Component.COUNT
         );
     }
 
@@ -163,8 +163,8 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
 
         Block block2 = blockFactory().newExponentialHistogramBlockBuilder(0).append(histo1).append(histo2).append(histo2).build();
 
-        Block block1Filtered = block1.filter(1, 2);
-        Block block2Filtered = block2.filter(0, 1);
+        Block block1Filtered = block1.filter(false, 1, 2);
+        Block block2Filtered = block2.filter(false, 0, 1);
 
         assertThat(block1, not(equalTo(block2)));
         assertThat(block1, not(equalTo(block1Filtered)));
@@ -192,7 +192,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     }
 
     private static Block filterAndRelease(Block toFilterAndRelease) {
-        Block filtered = toFilterAndRelease.filter();
+        Block filtered = toFilterAndRelease.filter(false);
         toFilterAndRelease.close();
         return filtered;
     }

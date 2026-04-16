@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -49,7 +48,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
          * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         public Request(StreamInput in) throws IOException {
             // This request extended MasterNodeRequest instead of MasterNodeReadRequest, meaning that it didn't serialize the `local` field.
             super(in, false);
@@ -94,7 +93,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
          * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(executingPolicies);
@@ -185,7 +184,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
              * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
@@ -222,9 +221,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.readVLong(),
                     in.readVLong(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readLong() : -1
+                    in.readLong(),
+                    in.readLong(),
+                    in.readLong()
                 );
             }
 
@@ -248,13 +247,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(hits);
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                    out.writeLong(hitsTimeInMillis);
-                    out.writeLong(missesTimeInMillis);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeLong(cacheSizeInBytes);
-                }
+                out.writeLong(hitsTimeInMillis);
+                out.writeLong(missesTimeInMillis);
+                out.writeLong(cacheSizeInBytes);
             }
         }
     }

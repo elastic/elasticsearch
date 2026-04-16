@@ -103,6 +103,11 @@ public class InferenceIndicesIT extends ESIntegTestCase {
                         .put(Settings.builder().put("index.routing.allocation.require.index_router", "secrets").build())
                         .build();
                 }
+
+                @Override
+                public void loadExtensions(ExtensionLoader loader) {
+                    // nothing, else it would clash with super class which already loads inference services
+                }
             };
             plugins.add(inferencePlugin);
         }

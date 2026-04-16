@@ -12,6 +12,7 @@ package org.elasticsearch.plugins.internal.rewriter;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -27,7 +28,7 @@ public interface QueryRewriteInterceptor {
      * @param queryBuilder the original {@link QueryBuilder} to potentially rewrite
      * @return the rewritten {@link QueryBuilder}, or the original instance if no rewrite was needed
      */
-    QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder);
+    QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) throws IOException;
 
     /**
      * Name of the query to be intercepted and rewritten.
@@ -52,7 +53,7 @@ public interface QueryRewriteInterceptor {
         }
 
         @Override
-        public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
+        public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) throws IOException {
             QueryRewriteInterceptor interceptor = interceptors.get(queryBuilder.getName());
             if (interceptor != null) {
                 return interceptor.interceptAndRewrite(context, queryBuilder);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -26,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
@@ -677,29 +675,6 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false
         );
-
-        {
-            // From a version before the rerouting logic was added
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersions.V_8_17_0
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
-        {
-            // From a version with rerouting
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersions.V_8_18_0
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
         {
             // From a version with rerouting removed
             InferenceAction.Request deserializedInstance = copyWriteable(
@@ -711,31 +686,5 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
             assertEquals(instance, deserializedInstance);
         }
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            null,
-            null,
-            List.of("input"),
-            Map.of(),
-            InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            false,
-            new InferenceContext(randomAlphaOfLength(10))
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_15_0
-        );
-
-        // Verify that context is empty after deserializing a request coming from an older transport version
-        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 }

@@ -45,66 +45,69 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
         super(testConfiguration);
     }
 
+    public void testParseRequestConfig_CreatesATextEmbeddingsModel() throws Exception {
+        testParseRequestConfig_EmbeddingModel(TaskType.TEXT_EMBEDDING, false);
+    }
+
+    public void testParseRequestConfig_CreatesATextEmbeddingsModelWhenChunkingSettingsProvided() throws Exception {
+        testParseRequestConfig_EmbeddingModel(TaskType.TEXT_EMBEDDING, true);
+    }
+
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws Exception {
-        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(TaskType.TEXT_EMBEDDING));
-
-        var parseRequestConfigTestConfig = testConfiguration.commonConfig();
-
-        try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
-                parseRequestConfigTestConfig.createSecretSettingsMap()
-            );
-
-            var listener = new PlainActionFuture<Model>();
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, listener);
-
-            var model = listener.actionGet(TIMEOUT);
-            var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(Map.of());
-            assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
-            parseRequestConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
-        }
+        testParseRequestConfig_EmbeddingModel(TaskType.EMBEDDING, false);
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws Exception {
-        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(TaskType.TEXT_EMBEDDING));
+        testParseRequestConfig_EmbeddingModel(TaskType.EMBEDDING, true);
+    }
+
+    private void testParseRequestConfig_EmbeddingModel(TaskType taskType, boolean chunkingSettingProvided) throws IOException {
+        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(taskType));
 
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var chunkingSettingsMap = createRandomChunkingSettingsMap();
+            Map<String, Object> chunkingSettingsMap = chunkingSettingProvided ? createRandomChunkingSettingsMap() : Map.of();
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST),
+                parseRequestConfigTestConfig.createTaskSettingsMap(taskType),
                 chunkingSettingsMap,
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
             var listener = new PlainActionFuture<Model>();
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, listener);
+            service.parseRequestConfig("id", taskType, config, listener);
 
             var model = listener.actionGet(TIMEOUT);
             var expectedChunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
             assertThat(model.getConfigurations().getChunkingSettings(), is(expectedChunkingSettings));
-            parseRequestConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseRequestConfigTestConfig.assertModel(model, taskType);
         }
     }
 
     public void testParseRequestConfig_CreatesACompletionModel() throws Exception {
+        testParseRequestConfig(TaskType.COMPLETION);
+    }
+
+    public void testParseRequestConfig_CreatesAChatCompletionModel() throws Exception {
+        testParseRequestConfig(TaskType.CHAT_COMPLETION);
+    }
+
+    private void testParseRequestConfig(TaskType taskType) throws IOException {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
+        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(taskType));
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
-                parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST),
+                parseRequestConfigTestConfig.createTaskSettingsMap(taskType),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
             var listener = new PlainActionFuture<Model>();
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, listener);
+            service.parseRequestConfig("id", taskType, config, listener);
 
-            parseRequestConfigTestConfig.assertModel(listener.actionGet(TIMEOUT), TaskType.COMPLETION);
+            parseRequestConfigTestConfig.assertModel(listener.actionGet(TIMEOUT), taskType);
         }
     }
 
@@ -117,7 +120,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -143,7 +146,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
             config.put("extra_key", "value");
@@ -166,7 +169,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
             serviceSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 serviceSettings,
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -181,7 +184,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap();
+            var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType());
             taskSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 parseRequestConfigTestConfig.createServiceSettingsMap(
@@ -210,7 +213,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 secretSettingsMap
             );
 
@@ -265,7 +268,8 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
 
         try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
             var embeddingSize = randomNonNegativeInt();
-            var model = testConfiguration.updateModelConfiguration().createEmbeddingModel(null);
+            var model = testConfiguration.updateModelConfiguration()
+                .createEmbeddingModel(null, randomFrom(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING));
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
@@ -279,7 +283,8 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
 
         try (var service = testConfiguration.commonConfig().createService(threadPool, clientManager)) {
             var embeddingSize = randomNonNegativeInt();
-            var model = testConfiguration.updateModelConfiguration().createEmbeddingModel(SimilarityMeasure.COSINE);
+            var model = testConfiguration.updateModelConfiguration()
+                .createEmbeddingModel(SimilarityMeasure.COSINE, randomFrom(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING));
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 

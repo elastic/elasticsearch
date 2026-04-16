@@ -28,7 +28,6 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         int dims = 3;
         for (IndexVersion version : List.of(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ),

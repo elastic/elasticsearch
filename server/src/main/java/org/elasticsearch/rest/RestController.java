@@ -650,14 +650,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
+    Iterator<MethodHandlers> getAllHandlers(@Nullable RequestParams requestParamsRef, String rawPath) {
         final Supplier<Map<String, String>> paramsSupplier;
         if (requestParamsRef == null) {
             paramsSupplier = () -> null;
         } else {
             // Between retrieving the correct path, we need to reset the parameters,
             // otherwise parameters are parsed out of the URI that aren't actually handled.
-            final Map<String, String> originalParams = Map.copyOf(requestParamsRef);
+            final RequestParams originalParams = RequestParams.copyOf(requestParamsRef);
             paramsSupplier = () -> {
                 // PathTrie modifies the request, so reset the params between each iteration
                 requestParamsRef.clear();
@@ -882,7 +882,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     // exposed for tests; marked as UpdateForV10 because this assertion should have flushed out all double-close bugs by the time v10 is
     // released so we should be able to drop the tests that check we behave reasonably in production on this impossible path
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     static boolean PERMIT_DOUBLE_RESPONSE = false;
 
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {

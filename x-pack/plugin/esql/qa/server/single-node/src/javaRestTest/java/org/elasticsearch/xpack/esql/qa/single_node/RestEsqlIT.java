@@ -29,8 +29,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -71,8 +74,11 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
@@ -335,7 +341,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(signature(o));
+            }
+            for (Map<String, Object> o : operators) {
+                checkOperatorProfile(sig, o);
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -363,6 +372,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         .item("OutputOperator")
                 );
                 default -> throw new IllegalArgumentException("can't match " + description);
+            }
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
+        for (Map<String, Object> plan : plans) {
+            assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
+            assertThat(plan.get("node_name"), notNullValue());
+            assertThat(plan.get("plan"), notNullValue());
+            String description = (String) plan.get("description");
+            assertTrue("Unexpected plan description " + description, Set.of("final", "node_reduce", "data").contains(description));
+            switch (description) {
+                case "final", "data" -> {
+                    assertThat((int) plan.get("logical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertThat((int) plan.get("physical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("reduction_nanos"));
+                }
+                case "node_reduce" -> {
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("logical_optimization_nanos"));
+                    assertFalse(plan.containsKey("physical_optimization_nanos"));
+                }
+                default -> {
+                }
             }
         }
     }
@@ -514,7 +546,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(signature(o));
+            }
+            for (Map<String, Object> o : operators) {
+                checkOperatorProfile(sig, o);
             }
             signatures.add(sig);
         }
@@ -594,7 +629,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
                 for (Map<String, Object> o : operators) {
-                    sig.add(checkOperatorProfile(o));
+                    sig.add(signature(o));
+                }
+                for (Map<String, Object> o : operators) {
+                    checkOperatorProfile(sig, o);
                 }
                 String description = p.get("description").toString();
                 switch (description) {
@@ -698,35 +736,82 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (Map<String, Object> p : profiles) {
             fixTypesOnProfile(p);
             assertMap(p, commonProfile());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
-            String operators = p.get("operators").toString();
-            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
-                .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", Matchers.containsString("[esql_worker]")) // NB: this doesn't run in the test thread
-                .entry("wake_millis", greaterThan(0L));
+            Map<?, ?> sleeps = (Map<?, ?>) p.get("sleeps");
             String description = p.get("description").toString();
             switch (description) {
-                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-                case "node_reduce", "final" -> {
+                case "data" -> {
+                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
+                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                }
+                case "node_reduce" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
+                    // There *might* be exchange_full sleeps as well
+                    Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
+                    assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
+                    assertSleeps(
+                        sleeps,
+                        sleepMatcher(
+                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                        )
+                    );
+                }
+                case "final" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                    for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
-                    }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                    for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
-                    }
+                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
         }
     }
 
+    private MapMatcher sleepMatcher(Object reason) {
+        return matchesMap().entry("reason", reason)
+            .entry("sleep_millis", greaterThan(0L))
+            .entry("thread_name", containsString("[esql_worker]"))
+            .entry("wake_millis", greaterThan(0L));
+    }
+
+    private void assertSleeps(Map<?, ?> sleeps, MapMatcher sleepMatcher) {
+        List<?> first = (List<?>) sleeps.get("first");
+        for (Object s : first) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+        List<?> last = (List<?>) sleeps.get("last");
+        for (Object s : last) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+    }
+
     public void testSuggestedCast() throws IOException {
+        doTestSuggestedCast(
+            "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field",
+            "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    public void testSubquerySuggestedCast() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "union types conflict resolution",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+        );
+        doTestSuggestedCast(
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",
+            "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | EVAL my_field = my_field::%s"
+        );
+    }
+
+    /**
+     * Shared implementation for suggested-cast tests. Creates one index per data type, iterates over
+     * all type pairs using the given query format strings, and asserts the response contains the
+     * correct {@code original_types} and {@code suggested_cast} metadata.
+     *
+     * @param queryFormat       format string with 2 string args: type1, type2
+     * @param castedQueryFormat format string with 3 string args: type1, type2, castType
+     */
+    private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
         Map<DataType, String> typesAndValues = Map.ofEntries(
             Map.entry(DataType.BOOLEAN, "\"true\""),
@@ -767,6 +852,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
+        shouldBeSupported.remove(DataType.DATE_RANGE);
+        shouldBeSupported.remove(DataType.TDIGEST);
+        shouldBeSupported.remove(DataType.HISTOGRAM);
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
@@ -780,8 +868,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             if (type == DataType.AGGREGATE_METRIC_DOUBLE) {
                 additionalProperties += """
                         ,
-                        "metrics": ["max"],
-                        "default_metric": "max"
+                        "metrics": ["max"]
                     """;
             }
             createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """
@@ -801,11 +888,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         for (int i = 0; i < listOfTypes.size(); i++) {
             for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String fromClause = String.format(Locale.ROOT, queryFormat, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
                 String query = String.format(Locale.ROOT, """
                     {
-                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                        "query": "%s"
                     }
-                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                    """, fromClause);
                 Request request = new Request("POST", "/_query");
                 request.setJsonEntity(query);
                 Response resp = client().performRequest(request);
@@ -831,17 +919,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     );
                 }
 
-                String castedQuery = String.format(
+                String castedFromClause = String.format(
                     Locale.ROOT,
-                    """
-                        {
-                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
-                        }
-                        """,
+                    castedQueryFormat,
                     listOfTypes.get(i).esType(),
                     listOfTypes.get(j).esType(),
                     suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
                 );
+                String castedQuery = String.format(Locale.ROOT, """
+                    {
+                        "query": "%s"
+                    }
+                    """, castedFromClause);
                 Request castedRequest = new Request("POST", "/_query");
                 castedRequest.setJsonEntity(castedQuery);
                 Response castedResponse = client().performRequest(castedRequest);
@@ -969,6 +1058,163 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    /**
+     * Runs enough aggs that we don't reuse column block loaders and
+     * asserts that we don't.
+     */
+    public void testAggManyFieldsNoReuse() throws IOException {
+        testAggManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 1, greaterThan(1));
+    }
+
+    /**
+     * Runs just less than enough aggs that we still reuse column
+     * block loaders and asserts that we don't.
+     */
+    public void testAggManyFieldsReuse() throws IOException {
+        testAggManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY), equalTo(1));
+    }
+
+    private void testAggManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
+        initMany(fieldCount);
+
+        StringBuilder query = new StringBuilder(fromIndex()).append(" | STATS ");
+        for (int f = 0; f < fieldCount; f++) {
+            if (f != 0) {
+                query.append(", ");
+            }
+            query.append(String.format(Locale.ROOT, "AVG(f%03d)", f));
+        }
+        RequestObjectBuilder builder = requestObjectBuilder().query(query.toString());
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        ListMatcher resultMatcher = matchesList();
+        for (int f = 0; f < fieldCount; f++) {
+            schemaMatcha = schemaMatcha.item(Map.of("name", String.format(Locale.ROOT, "AVG(f%03d)", f), "type", "double"));
+            resultMatcher = resultMatcher.item(499.5);
+        }
+        assertResultMap(
+            result,
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
+            schemaMatcha,
+            matchesList().item(resultMatcher)
+        );
+
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        for (int f = 0; f < fieldCount; f++) {
+            readersBuiltMatcher = readersBuiltMatcher.entry(
+                String.format(Locale.ROOT, "f%03d:column_at_a_time:LongsFromDocValues.Singleton", f),
+                readerMatcher
+            );
+        }
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    /**
+     * Fetches enough fields that we don't reuse column block loaders and
+     * asserts that we don't.
+     */
+    public void testLoadManyFieldsNoReuse() throws IOException {
+        // + 2 because one field is loaded for the top n - then we need one more than the setting
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 2, greaterThan(1));
+    }
+
+    /**
+     * Fetches just less than enough fields that we still reuse column
+     * block loaders and asserts that we don't.
+     */
+    public void testLoadManyFieldsReuse() throws IOException {
+        // One field is loaded by the top n - then we need
+        testLoadManyFields(PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY) + 1, greaterThanOrEqualTo(1));
+        // TODO if we emitted the docs in doc order, collected, then re-sorted - *then* we would always reuse the loaders
+    }
+
+    private void testLoadManyFields(int fieldCount, Matcher<Integer> readerMatcher) throws IOException {
+        assumeTrue("asserts based on later materialization plan", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
+        initMany(fieldCount);
+
+        int limit = 10;
+        int pageSize = 2;
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | SORT f000 ASC | LIMIT " + limit);
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(
+            Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard").put(QueryPragmas.PAGE_SIZE.getKey(), pageSize).build()
+        );
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        for (int f = 0; f < fieldCount; f++) {
+            schemaMatcha = schemaMatcha.item(Map.of("name", String.format(Locale.ROOT, "f%03d", f), "type", "long"));
+        }
+        ListMatcher finalResultMatcher = matchesList();
+        for (int i = 0; i < limit; i++) {
+            ListMatcher resultMatcher = matchesList();
+            for (int f = 0; f < fieldCount; f++) {
+                resultMatcher = resultMatcher.item(0);
+            }
+            finalResultMatcher = finalResultMatcher.item(resultMatcher);
+        }
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, finalResultMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        for (int f = 1; f < fieldCount; f++) { // <--- starts at 1 because we load 0 on the data node
+            readersBuiltMatcher = readersBuiltMatcher.entry(
+                String.format(Locale.ROOT, "f%03d:column_at_a_time:LongsFromDocValues.Singleton", f),
+                readerMatcher
+            );
+        }
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    private void initMany(int fieldCount) throws IOException {
+        Request createIndex = new Request("PUT", testIndexName());
+        createIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1
+                }
+              }
+            }""");
+        Response response = client().performRequest(createIndex);
+        assertThat(
+            entityToMap(response.getEntity(), XContentType.JSON),
+            matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
+        );
+
+        StringBuilder b = new StringBuilder();
+        for (int round = 0; round < 10; round++) {
+            for (int i = 0; i < 1000; i++) {
+                b.append(String.format(Locale.ROOT, """
+                    {"create":{"_index":"%s"}}
+                    {""", testIndexName()));
+                for (int f = 0; f < fieldCount; f++) {
+                    if (f != 0) {
+                        b.append(", ");
+                    }
+                    b.append(String.format(Locale.ROOT, "\"f%03d\": %s", f, i));
+                }
+                b.append("}\n");
+            }
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.addParameter("filter_path", "errors");
+            bulk.setJsonEntity(b.toString());
+            response = client().performRequest(bulk);
+            Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        }
+
+        Request forceMerge = new Request("POST", '/' + testIndexName() + "/_forcemerge");
+        forceMerge.addParameter("max_num_segments", String.valueOf(1));
+        assertOK(client().performRequest(forceMerge));
+    }
+
     static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
@@ -985,6 +1231,150 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("values_loaded", greaterThanOrEqualTo(0));
     }
 
+    public void testProfileConditionalBlockLoader() throws IOException {
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        Request bulk = new Request("POST", testIndexName() + "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(String.format(Locale.ROOT, """
+            {"index": {}}
+            {"message": "words words words"}
+            {"index": {}}
+            {"message": "%s"}
+            """, "words ".repeat(256)));
+
+        Response response = client().performRequest(bulk);
+        assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | KEEP message | SORT message ASC | LIMIT 2");
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(
+            Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard").put(QueryPragmas.PAGE_SIZE.getKey(), 1000).build()
+        );
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        schemaMatcha = schemaMatcha.item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList();
+        rowsMatcher = rowsMatcher.item(List.of("words words words"));
+        rowsMatcher = rowsMatcher.item(Arrays.asList("words ".repeat(256)));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        readersBuiltMatcher = readersBuiltMatcher.entry("message:column_at_a_time:null", greaterThanOrEqualTo(1));
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "stored_fields[requires_source:true, fields:0, sequential: false]",
+            greaterThanOrEqualTo(1)
+        );
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "message:row_stride:[Delegating[to=message.keyword, impl=BytesRefsFromOrds.RowStride]/BlockSourceReader.Bytes]",
+            greaterThanOrEqualTo(1)
+        );
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testAutoPartitioning() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(
+                Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 1000_000).build()
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 20).build());
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+    }
+
+    private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
+        Map<String, Object> reader = null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            String description = p.get("description").toString();
+            if (description.equals(driverDescription) == false) {
+                continue;
+            }
+            fixTypesOnProfile(p);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = (String) o.get("operator");
+                if (name.startsWith("ValuesSourceReader")) {
+                    assertThat(reader, nullValue());
+                    reader = o;
+                }
+            }
+        }
+        assertNotNull(reader);
+        return reader;
+    }
+
     /**
      * Fix some of the types on the profile results. Sometimes they
      * come back as integers and sometimes longs. This just promotes
@@ -996,9 +1386,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
-    private String checkOperatorProfile(Map<String, Object> o) {
+    static String signature(Map<String, Object> o) {
         String name = (String) o.get("operator");
-        name = name.replaceAll("\\[.+", "");
+        return name.replaceAll("\\[.+", "");
+    }
+
+    private void checkOperatorProfile(List<String> signature, Map<String, Object> o) {
+        String name = signature(o);
         MapMatcher status = switch (name) {
             case "LuceneSourceOperator" -> matchesMap().entry("processed_slices", greaterThan(0))
                 .entry("processed_shards", List.of(testIndexName() + ":0"))
@@ -1040,7 +1434,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0))
                 .entry("receive_nanos", greaterThan(0))
-                .entry("emit_nanos", greaterThan(0));
+                .entry("emit_nanos", greaterThan(0))
+                .entry("min_competitive_updates", greaterThanOrEqualTo(0));
             case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("current", greaterThan(0))
@@ -1055,12 +1450,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
+
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));
         if (status != null) {
             expectedOp = expectedOp.entry("status", status);
         }
+
         assertMap(o, expectedOp);
-        return name;
     }
 
     private MapMatcher basicProfile() {
@@ -1074,6 +1470,105 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         for (var error : errorMessages) {
             assertThat(re.getMessage(), containsString(error));
+        }
+    }
+
+    public void testExplain() throws IOException {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+
+        String indexName = "test-explain-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Create an index with some data
+        createIndex(indexName);
+        Request doc = new Request("PUT", "/" + indexName + "/_doc/1");
+        doc.addParameter("refresh", "true");
+        doc.setJsonEntity("{\"value\": 42}");
+        client().performRequest(doc);
+
+        try {
+            // Run EXPLAIN query
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity(
+                "{\"query\": \"EXPLAIN (FROM " + indexName + " | WHERE value > 10 | STATS count = COUNT(*) | LIMIT 10)\"}"
+            );
+            Response response = client().performRequest(request);
+            Map<String, Object> result = entityAsMap(response);
+
+            // Verify columns
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            // Verify we have plan rows
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            boolean hasError = false;
+            String errorMessage = null;
+
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        either(containsString("EsQueryExec")).or(containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+                if ("data".equals(role) && "error".equals(type)) {
+                    hasError = true;
+                    errorMessage = plan;
+                }
+            }
+
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should not have error: " + errorMessage, hasError, is(false));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        } finally {
+            // Clean up
+            deleteIndex(indexName);
         }
     }
 }

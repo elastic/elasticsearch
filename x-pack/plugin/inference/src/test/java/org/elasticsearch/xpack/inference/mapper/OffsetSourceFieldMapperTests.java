@@ -74,7 +74,9 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerIgnoredParameter("charset");
+    }
 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
@@ -218,5 +220,10 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

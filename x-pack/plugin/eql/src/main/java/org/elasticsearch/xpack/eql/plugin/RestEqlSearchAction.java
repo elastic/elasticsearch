@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,8 +45,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
     private static final String SEARCH_PATH = "/{index}/_eql/search";
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestEqlSearchAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestEqlSearchAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -68,7 +68,6 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 indicesOptions = IndicesOptions.builder(indicesOptions)
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                     .build();
-                eqlRequest.projectRouting(request.param("project_routing"));
             }
             eqlRequest.indicesOptions(indicesOptions);
             if (request.hasParam("wait_for_completion_timeout")) {
@@ -87,6 +86,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.allowPartialSequenceResults(
                 request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
             );
+            eqlRequest.projectRouting(request.param("project_routing", eqlRequest.getProjectRouting()));
+            if (crossProjectEnabled == false && eqlRequest.getProjectRouting() != null) {
+                throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
+            }
         }
 
         return channel -> {

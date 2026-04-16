@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 
 public class SpatialPushDownGeoShapeIT extends SpatialPushDownShapeTestCase {
 
@@ -31,4 +33,12 @@ public class SpatialPushDownGeoShapeIT extends SpatialPushDownShapeTestCase {
     protected String castingFunction() {
         return "TO_GEOSHAPE";
     }
+
+    @Override
+    protected Point quantizePoint(Point point) {
+        double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getY()));
+        double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
+        return new Point(lon, lat);
+    }
+
 }

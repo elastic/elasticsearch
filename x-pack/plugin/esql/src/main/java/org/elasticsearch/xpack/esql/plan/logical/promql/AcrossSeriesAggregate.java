@@ -8,15 +8,39 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Objects;
 
-public class AcrossSeriesAggregate extends PromqlFunctionCall {
+/**
+ * Represents a PromQL aggregate function call that operates across multiple time series.
+ * <p>
+ * These functions aggregate elements from multiple time series into a single result vector,
+ * optionally grouping by specific labels. This corresponds to PromQL syntax:
+ * <pre>
+ * function_name(instant_vector) [without|by (label_list)]
+ * </pre>
+ *
+ * Examples:
+ * <pre>
+ * sum(http_requests_total)
+ * sum(rate(http_requests_total[5m]))
+ * avg(cpu_usage) by (host, env)
+ * max(response_time) without (instance)
+ * </pre>
+ *
+ * These functions reduce the number of time series by aggregating values across series
+ * that share the same grouping labels (or all series if no grouping is specified).
+ */
+public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     public enum Grouping {
         BY,
@@ -25,7 +49,8 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     private final Grouping grouping;
-    private final List<Expression> groupings;
+    private final List<Attribute> groupings;
+    private final Attribute timeseriesAttribute;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -33,18 +58,19 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         String functionName,
         List<Expression> parameters,
         Grouping grouping,
-        List<Expression> groupings
+        List<Attribute> groupings
     ) {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
+        this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
     }
 
     public Grouping grouping() {
         return grouping;
     }
 
-    public List<Expression> groupings() {
+    public List<Attribute> groupings() {
         return groupings;
     }
 
@@ -77,8 +103,26 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         return false;
     }
 
+    /**
+     * {@code WITHOUT} uses a dynamic {@code _timeseries} output because the
+     * concrete retained labels are not known until lowering time. {@code BY}
+     * and {@code NONE} export concrete labels or nothing.
+     */
+    @Override
+    public List<Attribute> output() {
+        if (grouping == Grouping.WITHOUT) {
+            return List.of(timeseriesAttribute);
+        }
+        return groupings.stream().filter(a -> a.resolved() == false || a.dataType() != DataType.NULL).toList();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
+    }
+
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.ACROSS_SERIES_AGGREGATION;
     }
 }

@@ -154,7 +154,7 @@ public class QueryToFilterAdapter {
         };
     }
 
-    private static Query maybeMergeRangeQueries(Query query, Query extraQuery) throws IOException {
+    private static Query maybeMergeRangeQueries(Query query, Query extraQuery) {
         if (query instanceof PointRangeQuery q1 && extraQuery instanceof PointRangeQuery q2) {
             return MergedPointRangeQuery.merge(q1, q2);
         }

@@ -15,26 +15,39 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +57,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -53,7 +67,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
@@ -71,7 +84,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -95,8 +107,6 @@ import static org.elasticsearch.xpack.inference.services.SenderServiceTests.crea
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getOpenAiTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -106,6 +116,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -155,16 +166,56 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(
                 TaskType.TEXT_EMBEDDING,
                 TaskType.RERANK,
-                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION, TaskType.EMBEDDING)
             ) {
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected OpenAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return OpenAiServiceTests.createService(threadPool, clientManager);
                 }
 
                 @Override
                 protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
                     return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    return switch (taskType) {
+                        case TEXT_EMBEDDING, EMBEDDING -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            OpenAiEmbeddingsServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            new OpenAiEmbeddingsTaskSettings(createTaskSettingsMap())
+                        );
+                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            OpenAiChatCompletionServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            new OpenAiChatCompletionTaskSettings(createTaskSettingsMap())
+                        );
+                        // Rerank is not supported, but in order to test unsupported task types it is included here
+                        case RERANK -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            mock(ServiceSettings.class),
+                            mock(TaskSettings.class)
+                        );
+                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
+                    };
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 
                 @Override
@@ -194,8 +245,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected OpenAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
-                return createInternalEmbeddingModel(similarityMeasure, null);
+            protected OpenAiEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
+                return createInternalEmbeddingModel(similarityMeasure, taskType);
             }
         }).build();
     }
@@ -214,11 +265,11 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             )
         );
 
-        if (taskType == TaskType.TEXT_EMBEDDING) {
+        if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
             settingsMap.putAll(Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS));
 
             if (parseContext == ConfigurationParseContext.PERSISTENT) {
-                settingsMap.put(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
+                settingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
             }
         }
 
@@ -231,14 +282,15 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
-            case COMPLETION, CHAT_COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
+            case TEXT_EMBEDDING, EMBEDDING -> assertEmbeddingModel(model, modelIncludesSecrets, taskType);
+            case COMPLETION, CHAT_COMPLETION -> assertCompletionModel(model, modelIncludesSecrets, taskType);
             default -> fail("unexpected task type: " + taskType);
         }
     }
 
-    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+    private static void assertEmbeddingModel(Model model, boolean modelIncludesSecrets, TaskType taskType) {
         assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+        assertThat(model.getTaskType(), is(taskType));
 
         var embeddingsModel = (OpenAiEmbeddingsModel) model;
         assertThat(
@@ -265,8 +317,9 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets, TaskType taskType) {
         assertThat(model, instanceOf(OpenAiChatCompletionModel.class));
+        assertThat(model.getTaskType(), is(taskType));
 
         var completionModel = (OpenAiChatCompletionModel) model;
 
@@ -294,25 +347,14 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private static OpenAiEmbeddingsModel createInternalEmbeddingModel(
-        SimilarityMeasure similarityMeasure,
-        @Nullable ChunkingSettings chunkingSettings
-    ) {
-        return createInternalEmbeddingModel(similarityMeasure, URL, chunkingSettings);
-    }
-
-    private static OpenAiEmbeddingsModel createInternalEmbeddingModel(
-        SimilarityMeasure similarityMeasure,
-        @Nullable String url,
-        @Nullable ChunkingSettings chunkingSettings
-    ) {
+    private static OpenAiEmbeddingsModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
         return new OpenAiEmbeddingsModel(
             INFERENCE_ID,
-            TaskType.TEXT_EMBEDDING,
+            taskType,
             "service",
             new OpenAiEmbeddingsServiceSettings(
                 MODEL,
-                url == null ? null : URI.create(url),
+                URI.create(OpenAiServiceTests.URL),
                 ORGANIZATION,
                 similarityMeasure,
                 DIMENSIONS,
@@ -321,34 +363,25 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 null
             ),
             new OpenAiEmbeddingsTaskSettings(USER, HEADERS),
-            chunkingSettings,
+            null,
             new DefaultSecretSettings(new SecureString(SECRET.toCharArray()))
         );
     }
 
-    public void testParseRequestConfig_MovesModel() throws IOException {
+    public void testParseRequestConfig_MovesModelIdFromTaskSettingsToServiceSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OpenAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-                assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
-                assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, exception -> fail("Unexpected exception: " + exception));
+            var listener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    getServiceSettingsMap("model", "url", "org"),
-                    getOpenAiTaskSettingsMap("user"),
-                    getSecretSettingsMap("secret")
-                ),
-                modelVerificationListener
+                getRequestConfigMap(Map.of(), new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL)), getSecretSettingsMap("secret")),
+                listener
             );
+
+            var model = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(model.getServiceSettings().modelId(), is(MODEL));
+            assertThat(model.getTaskSettings().isEmpty(), is(true));
         }
     }
 
@@ -396,7 +429,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.TEXT_EMBEDDING);
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -540,7 +573,14 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = OpenAiEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "org",
+                "secret",
+                "model",
+                "user",
+                TaskType.TEXT_EMBEDDING
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -557,58 +597,110 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
-            assertThat(requestMap.get("model"), Matchers.is("model"));
-            assertThat(requestMap.get("user"), Matchers.is("user"));
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("user"));
+        }
+    }
+
+    public void testInfer_ReturnsErrorWhenCallingInfer_WithChatCompletion() throws IOException {
+        var sender = mock(HttpRequestSender.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(sender).startAsynchronously(any());
+
+        var s = mock(HttpRequestSender.Factory.class);
+        when(s.createSender()).thenReturn(sender);
+
+        try (var service = new OpenAiService(s, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var endpointId = "endpoint_id";
+            var model = OpenAiChatCompletionModelTests.createModelWithTaskType(
+                endpointId,
+                getUrl(webServer),
+                "org",
+                "secret",
+                "model",
+                "user",
+                TaskType.CHAT_COMPLETION
+            );
+
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    Strings.format(
+                        "The task type for the inference entity is chat_completion, "
+                            + "please use the _inference/chat_completion/%s/_stream URL",
+                        endpointId
+                    )
+                )
+            );
         }
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // The escapes are because the streaming response must be on a single line
-        String responseJson = """
-            data: {\
-                "id":"12345",\
-                "object":"chat.completion.chunk",\
-                "created":123456789,\
-                "model":"gpt-4o-mini",\
-                "system_fingerprint": "123456789",\
-                "choices":[\
-                    {\
-                        "index":0,\
-                        "delta":{\
-                            "content":"hello, world"\
-                        },\
-                        "logprobs":null,\
-                        "finish_reason":"stop"\
-                    }\
-                ],\
-                "usage":{\
-                    "prompt_tokens": 16,\
-                    "completion_tokens": 28,\
-                    "total_tokens": 44,\
-                    "prompt_tokens_details": {\
-                        "cached_tokens": 0,\
-                        "audio_tokens": 0\
-                    },\
-                    "completion_tokens_details": {\
-                        "reasoning_tokens": 0,\
-                        "audio_tokens": 0,\
-                        "accepted_prediction_tokens": 0,\
-                        "rejected_prediction_tokens": 0\
-                    }\
-                }\
-            }
+        String responseJson = Strings.format("""
+            data: %s
 
-            """;
+            """, XContentHelper.stripWhitespace("""
+            {
+                "id": "12345",
+                "object": "chat.completion.chunk",
+                "created": 123456789,
+                "model": "gpt-4o-mini",
+                "system_fingerprint": "123456789",
+                "choices": [{
+                        "index": 0,
+                        "delta": {
+                            "content": "hello, world"
+                        },
+                        "logprobs": null,
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 16,
+                    "completion_tokens": 28,
+                    "total_tokens": 44,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 0,
+                        "audio_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 0,
+                        "audio_tokens": 0,
+                        "accepted_prediction_tokens": 0,
+                        "rejected_prediction_tokens": 0
+                    }
+                }
+            }
+            """));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -617,19 +709,38 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var result = listener.actionGet(TIMEOUT);
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
-                {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
-                "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
-                "prompt_tokens_details":{"cached_tokens":0}}}""");
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                    "id": "12345",
+                    "choices": [{
+                            "delta": {
+                                "content": "hello, world"
+                            },
+                            "finish_reason": "stop",
+                            "index": 0
+                        }
+                    ],
+                    "model": "gpt-4o-mini",
+                    "object": "chat.completion.chunk",
+                    "usage": {
+                        "completion_tokens": 28,
+                        "prompt_tokens": 16,
+                        "total_tokens": 44,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 0
+                        }
+                    }
+                }
+                """));
         }
     }
 
@@ -651,9 +762,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -708,9 +817,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -873,10 +980,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10)
             );
-            assertThrows(
-                ElasticsearchStatusException.class,
-                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
-            );
+            assertThrows(ElasticsearchStatusException.class, () -> service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()));
         }
     }
 
@@ -900,7 +1004,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 similarityMeasure,
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
-                randomBoolean()
+                randomBoolean(),
+                TaskType.TEXT_EMBEDDING
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
@@ -928,7 +1033,14 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = OpenAiEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "org",
+                "secret",
+                "model",
+                "user",
+                TaskType.TEXT_EMBEDDING
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -984,16 +1096,55 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             "secret",
             "model",
             "user",
-            ChunkingSettingsTests.createRandomChunkingSettings()
+            ChunkingSettingsTests.createRandomChunkingSettings(),
+            TaskType.TEXT_EMBEDDING
         );
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
+        var model = OpenAiEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "org",
+            "secret",
+            "model",
+            "user",
+            (ChunkingSettings) null,
+            TaskType.TEXT_EMBEDDING
+        );
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "org",
+            "secret",
+            "model",
+            "user",
+            (ChunkingSettings) null,
+            TaskType.TEXT_EMBEDDING
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {
@@ -1046,43 +1197,198 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
-                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
+                assertThat(results.getFirst(), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
-                    Arrays.equals(
-                        new float[] { 0.123f, -0.123f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().getFirst().offset());
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(EmbeddingFloatResults.Embedding.class));
+                assertThat(
+                    ((EmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values(),
+                    is(new float[] { 0.123f, -0.123f })
                 );
             }
             {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
-                    Arrays.equals(
-                        new float[] { 0.223f, -0.223f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().getFirst().offset());
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(EmbeddingFloatResults.Embedding.class));
+                assertThat(
+                    ((EmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values(),
+                    is(new float[] { 0.223f, -0.223f })
                 );
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
-            assertThat(requestMap.get("model"), Matchers.is("model"));
-            assertThat(requestMap.get("user"), Matchers.is("user"));
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), is(List.of("a", "bb")));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("user"));
+        }
+    }
+
+    public void testEmbeddingInfer() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      },
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              1.0123,
+                              -1.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            var inputString1 = "abc";
+            var inputString2 = "def";
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(
+                    List.of(new InferenceStringGroup(inputString1), new InferenceStringGroup(inputString2)),
+                    InputType.UNSPECIFIED,
+                    Map.of()
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    GenericDenseEmbeddingFloatResultsTests.buildExpectationFloat(
+                        List.of(new float[] { 0.0123F, -0.0123F }, new float[] { 1.0123F, -1.0123F })
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), is(List.of(inputString1, inputString2)));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("user"));
+        }
+    }
+
+    public void testEmbeddingInfer_FailsWithNonTextInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(
+                    List.of(
+                        new InferenceStringGroup("abc"),
+                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                    ),
+                    InputType.UNSPECIFIED,
+                    Map.of()
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(exception.getMessage(), is("The openai service does not support embedding with image inputs"));
+        }
+    }
+
+    public void testEmbeddingInfer_FailsWithMultipleItemsForOneContentObject() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(
+                    List.of(
+                        new InferenceStringGroup(
+                            List.of(new InferenceString(DataType.TEXT, "abc"), new InferenceString(DataType.TEXT, "def"))
+                        )
+                    ),
+                    InputType.UNSPECIFIED,
+                    Map.of()
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Field [content] must contain a single item for [openai] service. "
+                        + "[content] object with multiple items found at $.input.content[0]"
+                )
+            );
+        }
+    }
+
+    public void testEmbeddingInfer_FailsWithNonOpenAiModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            var mockModel = getInvalidModel("model_id", "service_name");
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            service.embeddingInfer(
+                mockModel,
+                new EmbeddingRequest(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED, Map.of()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+            assertThat(
+                exception.getMessage(),
+                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
         }
     }
 
@@ -1094,7 +1400,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                     {
                             "service": "openai",
                             "name": "OpenAI",
-                            "task_types": ["text_embedding", "completion", "chat_completion"],
+                            "task_types": ["text_embedding", "completion", "chat_completion", "embedding"],
                             "configurations": {
                                 "api_key": {
                                     "description": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
@@ -1103,7 +1409,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": true,
                                     "updatable": true,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
                                 "url": {
                                     "description": "The absolute URL of the external service to send requests to.",
@@ -1112,7 +1418,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
                                 "dimensions": {
                                     "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-dimensions.",
@@ -1121,7 +1427,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "int",
-                                    "supported_task_types": ["text_embedding"]
+                                    "supported_task_types": ["text_embedding", "embedding"]
                                 },
                                 "organization_id": {
                                     "description": "The unique identifier of your organization.",
@@ -1130,16 +1436,16 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "description": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
+                                    "description": "Default number of requests allowed per minute. For text_embedding and embedding it is 3000. For completion and chat_completion it is 500.",
                                     "label": "Rate Limit",
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "int",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
                                 "model_id": {
                                     "description": "The name of the model to use for the inference task.",
@@ -1148,7 +1454,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": false,
                                     "updatable": false,
                                     "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 },
                                 "headers": {
                                     "description": "Custom headers to include in the requests to OpenAI.",
@@ -1157,7 +1463,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                                     "sensitive": false,
                                     "updatable": true,
                                     "type": "map",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 }
                             }
                         }

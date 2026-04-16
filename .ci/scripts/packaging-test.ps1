@@ -27,6 +27,18 @@ Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 
 $ErrorActionPreference="Continue"
-& .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --scan --console=plain $GradleTasks
+
+# Pass TESTS_SEED as Java system property if available
+$TestsSeedParam = ""
+if ($env:TESTS_SEED) {
+    $TestsSeedParam = "-Dtests.seed=$env:TESTS_SEED"
+    Write-Output "Using test seed: $env:TESTS_SEED"
+}
+
+if ($TestsSeedParam) {
+    & .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --scan --console=plain $TestsSeedParam $GradleTasks
+} else {
+    & .\gradlew.bat -g "$env:USERPROFILE\.gradle" --parallel --no-daemon --scan --console=plain $GradleTasks
+}
 
 exit $LastExitCode

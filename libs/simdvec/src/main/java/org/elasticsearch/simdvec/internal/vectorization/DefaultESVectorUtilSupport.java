@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
@@ -23,7 +24,41 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    DefaultESVectorUtilSupport() {}
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            float diff = a[i] - b[i];
+            sum = fma(diff, diff, sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public float cosine(byte[] a, byte[] b) {
+        return VectorUtil.cosine(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
 
     @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
@@ -304,6 +339,23 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
+        distances[0] = squareDistance(query, v0, queryOffset, length);
+        distances[1] = squareDistance(query, v1, queryOffset, length);
+        distances[2] = squareDistance(query, v2, queryOffset, length);
+        distances[3] = squareDistance(query, v3, queryOffset, length);
+    }
+
+    @Override
     public void soarDistanceBulk(
         float[] v1,
         float[] c0,
@@ -454,5 +506,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    }
+
+    @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
     }
 }

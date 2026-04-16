@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,9 +33,9 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(LongPoint.newExactQuery("my_unsigned_long", 0L), ft.termQuery("9223372036854775808", null));
         assertEquals(LongPoint.newExactQuery("my_unsigned_long", 9223372036854775807L), ft.termQuery("18446744073709551615", null));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery(-1L, null));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery(10.5, null));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("18446744073709551616", null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(-1L, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery(10.5, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("18446744073709551616", null));
 
         expectThrows(NumberFormatException.class, () -> ft.termQuery("18incorrectnumber", null));
     }
@@ -48,8 +48,8 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             ft.termsQuery(List.of("0", "9223372036854775808", "18446744073709551615"), null)
         );
 
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(-9223372036854775808L, -1L), null));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of(-9223372036854775808L, -1L), null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(List.of("-0.5", "3.14", "18446744073709551616"), null));
 
         expectThrows(NumberFormatException.class, () -> ft.termsQuery(List.of("18incorrectnumber"), null));
     }
@@ -88,12 +88,12 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery("18446744073709551615", "18446744073709551616", true, true, null)
         );
 
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(-1f, -0.5f, true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(-1L, 0L, true, false, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("18446744073709551616", "18446744073709551616", true, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery("18446744073709551615", "18446744073709551616", false, true, null));
-        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1f, -0.5f, true, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(-1L, 0L, true, false, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551616", "18446744073709551616", true, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("18446744073709551615", "18446744073709551616", false, true, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
 
         expectThrows(NumberFormatException.class, () -> ft.rangeQuery("18incorrectnumber", "18incorrectnumber", true, true, null));
     }

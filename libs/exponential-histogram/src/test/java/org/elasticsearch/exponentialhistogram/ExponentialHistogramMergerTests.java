@@ -32,9 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,14 +102,6 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
-    public void testMergeWithoutUpscaling() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2, 42));
-        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker())) {
-            merger.addWithoutUpscaling(histo);
-            assertThat(merger.get(), equalTo(histo));
-        }
-    }
-
     public void testAggregatesCorrectness() {
         double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
@@ -133,33 +122,6 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             assertThat(merged.sum(), closeTo(correctSum, 0.000001));
             assertThat(merged.min(), equalTo(correctMin));
             assertThat(merged.max(), equalTo(correctMax));
-        }
-    }
-
-    public void testUpscalingDoesNotExceedIndexLimits() {
-        for (int i = 0; i < 4; i++) {
-
-            boolean isPositive = i % 2 == 0;
-            boolean useMinIndex = i > 1;
-
-            long index = useMinIndex ? MIN_INDEX / 2 : MAX_INDEX / 2;
-            ExponentialHistogram histo = createAutoReleasedHistogram(b -> {
-                b.scale(20);
-                if (isPositive) {
-                    b.setPositiveBucket(index, 1);
-                } else {
-                    b.setNegativeBucket(index, 1);
-                }
-            });
-
-            try (ReleasableExponentialHistogram result = ExponentialHistogram.merge(100, breaker(), histo)) {
-                assertThat(result.scale(), equalTo(21));
-                if (isPositive) {
-                    assertThat(result.positiveBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
-                } else {
-                    assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
-                }
-            }
         }
     }
 
@@ -207,27 +169,30 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
 
     public void testMemoryAccounting() {
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
-        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker(esBreaker))) {
+        try (
+            ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(100, breaker(esBreaker));
+            ExponentialHistogramMerger merger = factory.createMerger()
+        ) {
 
-            long emptyMergerSize = merger.ramBytesUsed();
+            long emptyMergerSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(emptyMergerSize, greaterThan(0L));
             assertThat(esBreaker.getUsed(), equalTo(emptyMergerSize));
 
             merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
 
-            long singleBufferSize = merger.ramBytesUsed();
+            long singleBufferSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(singleBufferSize, greaterThan(emptyMergerSize));
             assertThat(esBreaker.getUsed(), equalTo(singleBufferSize));
 
             merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
 
-            long doubleBufferSize = merger.ramBytesUsed();
+            long doubleBufferSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(doubleBufferSize, greaterThan(singleBufferSize));
             assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
 
             ReleasableExponentialHistogram result = merger.getAndClear();
 
-            assertThat(merger.ramBytesUsed(), equalTo(singleBufferSize));
+            assertThat(merger.ramBytesUsed() + factory.ramBytesUsed(), equalTo(singleBufferSize));
             assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
 
             result.close();

@@ -32,6 +32,6 @@ public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestC
 
     @Override
     public IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleWriteVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion();
     }
 }

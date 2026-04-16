@@ -53,6 +53,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -557,6 +558,22 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testFailsIfOverwriteProtectionIgnored() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean ignoreOverwriteProtection() {
+                return true;
+            }
+        });
+        final var exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+            containsString("multiple writes succeeded to overwrite-protected blob")
+        );
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -567,7 +584,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request, ActionListener<RepositoryAnalyzeAction.Response> listener) {
         client().execute(RepositoryAnalyzeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
-            RepositoryAnalysisSuccessIT.assertNoThrottling(response);
+            RepositoryAnalysisSuccessIT.assertResponseSummaryFields(request, response);
             l.onResponse(response);
         }));
     }
@@ -673,8 +690,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     interface Disruption {
 
-        Disruption NONE = new Disruption() {
-        };
+        Disruption NONE = new Disruption() {};
 
         default byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
             return actualContents;
@@ -700,6 +716,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         default boolean acceptsEmptyRegister() {
             return true;
+        }
+
+        default boolean ignoreOverwriteProtection() {
+            return false;
         }
 
         default BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
@@ -825,7 +845,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         private void writeBlobAtomic(String blobName, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
-            if (failIfAlreadyExists && blobs.get(blobName) != null) {
+            if (failIfAlreadyExists && disruption.ignoreOverwriteProtection() == false && blobs.get(blobName) != null) {
                 throw new FileAlreadyExistsException(blobName);
             }
 
@@ -838,8 +858,31 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 }
                 throw e;
             }
-            disruption.onWrite();
-            blobs.put(blobName, contents);
+            if (failIfAlreadyExists && disruption.ignoreOverwriteProtection() == false) {
+                final byte[] updatedContents;
+                try {
+                    updatedContents = blobs.computeIfAbsent(blobName, ignored -> {
+                        try {
+                            disruption.onWrite();
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        return contents;
+                    });
+                } catch (UncheckedIOException e) {
+                    if (e.getCause() instanceof IOException ioException) {
+                        throw ioException;
+                    } else {
+                        throw e;
+                    }
+                }
+                if (updatedContents != contents) {
+                    throw new FileAlreadyExistsException(blobName);
+                }
+            } else {
+                disruption.onWrite();
+                blobs.put(blobName, contents);
+            }
         }
 
         @Override

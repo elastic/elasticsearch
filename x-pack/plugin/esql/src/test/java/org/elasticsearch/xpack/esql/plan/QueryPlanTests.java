@@ -27,6 +27,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
@@ -154,7 +155,7 @@ public class QueryPlanTests extends ESTestCase {
     public void testPlanReferences() {
         var one = fieldAttribute("one", INTEGER);
         var two = fieldAttribute("two", INTEGER);
-        var add = new Add(EMPTY, one, two);
+        var add = new Add(EMPTY, one, two, TEST_CFG);
         var field = fieldAttribute("field", INTEGER);
 
         var filter = new Filter(EMPTY, relation(), equalsOf(field, add));

@@ -11,69 +11,53 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 
-import java.util.Arrays;
+public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
 
-public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
+    private final VectorSimilarityType function;
+    private final float delta = 1e-3f;
+    private final int dims;
 
-    final float delta = 1e-3f;
-    final int dims;
-
-    public VectorScorerInt7uBulkBenchmarkTests(int dims) {
+    public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+        this.function = function;
         this.dims = dims;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    public void testSequential() throws Exception {
+        testSequential(this::createData, this::createBenchmark, delta);
     }
 
-    public void testDotProductSequential() throws Exception {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkBenchmark();
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.numVectorsToScore = 200;
-            bench.setup();
-            try {
-                float[] expected = bench.dotProductScalarMultipleSequential();
-                assertArrayEquals(expected, bench.dotProductLuceneMultipleSequential(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleSequential(), delta);
-            } finally {
-                bench.teardown();
-            }
-        }
+    public void testRandom() throws Exception {
+        testRandom(this::createData, this::createBenchmark, delta);
     }
 
-    public void testDotProductRandom() throws Exception {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkBenchmark();
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.numVectorsToScore = 200;
-            bench.setup();
-            try {
-                float[] expected = bench.dotProductScalarMultipleRandom();
-                assertArrayEquals(expected, bench.dotProductLuceneMultipleRandom(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleRandom(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleRandomBulk(), delta);
-            } finally {
-                bench.teardown();
-            }
-        }
+    public void testQueryRandom() throws Exception {
+        testQueryRandom(this::createData, this::createBenchmark, delta);
+    }
+
+    private VectorScorerInt7uBulkBenchmark.VectorData createData() {
+        return new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200, random());
+    }
+
+    private VectorScorerInt7uBulkBenchmark createBenchmark(VectorScorerInt7uBulkBenchmark.VectorData d, VectorImplementation impl)
+        throws java.io.IOException {
+        var bench = new VectorScorerInt7uBulkBenchmark();
+        bench.function = function;
+        bench.implementation = impl;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.numVectorsToScore = 200;
+        bench.bulkSize = 200;
+        bench.setup(d);
+        return bench;
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            var params = VectorScorerInt7uBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt7uBulkBenchmark.class.getField("function"),
+            VectorScorerInt7uBulkBenchmark.class.getField("dims")
+        );
     }
 }

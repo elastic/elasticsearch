@@ -25,6 +25,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -125,14 +126,14 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             Settings.EMPTY
         );
         final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
-        return new SnapshotShardContext(
+        return new LocalPrimarySnapshotShardContext(
             dummyStore,
             null,
             snapshotId,
             indexId,
             new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
             null,
-            IndexShardSnapshotStatus.newInitializing(null),
+            IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE)),
             IndexVersion.current(),
             startTime,
             ActionListener.noop()

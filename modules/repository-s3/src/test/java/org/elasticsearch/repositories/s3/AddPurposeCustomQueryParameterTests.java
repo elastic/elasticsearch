@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
@@ -101,12 +102,18 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
         Settings extraRepositorySettings,
         Matcher<Iterable<? super String>> queryParamMatcher
     ) throws Throwable {
-        final var httpFixture = new S3HttpFixture(true, bucket, basePath, (key, token) -> true) {
+        final var httpFixture = new S3HttpFixture(
+            true,
+            bucket,
+            basePath,
+            S3ConsistencyModel::randomConsistencyModel,
+            (key, token) -> true
+        ) {
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
             class AssertingHandler extends S3HttpHandler {
                 AssertingHandler() {
-                    super(bucket, basePath);
+                    super(bucket, basePath, S3ConsistencyModel.randomConsistencyModel());
                 }
 
                 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

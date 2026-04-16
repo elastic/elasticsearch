@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
- *
+ * <p>
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
  * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
@@ -35,32 +35,35 @@ import java.util.function.Supplier;
  */
 class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    static boolean isInstance(XContentParser parser) {
-        return parser instanceof WrappingParser;
-    }
-
     private static final class WrappingParser extends FilterXContentParser {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        private XContentParser delegate; // cached top of stack — avoids peek() on every delegate() call
 
         WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
             this.contentPath = contentPath;
             parsers.push(in);
+            this.delegate = in;
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
         }
 
         @Override
+        public XContentParser switchParser(XContentParser parser) throws IOException {
+            return new WrappingParser(parser, contentPath);
+        }
+
+        @Override
         public Token nextToken() throws IOException {
             Token token;
-            XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
+            while ((token = (this.delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
+                    this.delegate = null;
                     return null;
                 }
             }
@@ -146,7 +149,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+            var expanded = new DotExpandingXContentParser(subParser, subpaths, location, contentPath);
+            parsers.push(expanded);
+            this.delegate = expanded;
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -177,7 +182,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         protected XContentParser delegate() {
-            return parsers.peek();
+            return delegate;
         }
 
         /*
@@ -339,6 +344,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentLocation getCurrentLocation() {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            return super.getCurrentLocation();
+        }
+        return currentLocation;
+    }
+
+    @Override
     public Token currentToken() {
         return switch (state) {
             case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
@@ -389,11 +402,27 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentString optimizedText() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedText();
+    }
+
+    @Override
     public String textOrNull() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
+    }
+
+    @Override
+    public String text() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.text();
     }
 
     @Override
@@ -419,7 +448,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             return null;
         }
     }

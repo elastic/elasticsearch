@@ -128,3 +128,19 @@ c:l | name:k
 1   | ddddd
 1   | eeeee
 ;
+
+
+
+// this is only for documentation purposes, it can't run as is in Stateful
+// (project_routing setting is only allowed in Serverless)
+projectRouting_docsOnly-Ignore
+
+// tag::project-routing[]
+SET project_routing = "_alias:my_project"\;
+FROM apps
+// end::project-routing[]
+;
+
+id:integer | name:keyword   | version:version
+;
+

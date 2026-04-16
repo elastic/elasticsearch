@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
@@ -69,7 +70,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             ctx.plannerSettings(),
             ctx.foldCtx(),
             topNExec,
-            LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags())
+            LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags()),
+            resolveMaxKeywordSortFields(ctx)
         );
         return pushable.rewrite(topNExec);
     }
@@ -135,13 +137,15 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         PlannerSettings plannerSettings,
         FoldContext ctx,
         TopNExec topNExec,
-        LucenePushdownPredicates lucenePushdownPredicates
+        LucenePushdownPredicates lucenePushdownPredicates,
+        int maxKeywordSortFields
     ) {
         PhysicalPlan child = topNExec.child();
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
             && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)
-            && canPushLimit(topNExec, plannerSettings)) {
+            && canPushLimit(topNExec, plannerSettings)
+            && tooManyKeywordSortFields(topNExec.order(), maxKeywordSortFields) == false) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
@@ -205,7 +209,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     break;
                 }
             }
-            if (pushableSorts.isEmpty() == false) {
+            if (pushableSorts.isEmpty() == false && tooManyKeywordFieldSorts(pushableSorts, maxKeywordSortFields) == false) {
                 return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }
@@ -237,4 +241,48 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
         return sorts;
     }
+
+    /**
+     * Resolves the effective maximum number of keyword sort fields for Lucene pushdown.
+     * The query-level pragma takes precedence when set to a non-negative value;
+     * otherwise the cluster-level planner setting is used.
+     */
+    private static int resolveMaxKeywordSortFields(LocalPhysicalOptimizerContext ctx) {
+        int pragmaValue = ctx.configuration().pragmas().maxKeywordSortFields();
+        return pragmaValue >= 0 ? pragmaValue : ctx.plannerSettings().maxKeywordSortFields();
+    }
+
+    /**
+     * Returns {@code true} if the number of keyword {@link FieldAttribute} sort fields in the given orders
+     * exceeds {@code maxKeywordSortFields}. Used on the simple pushdown path where orders reference
+     * field attributes directly.
+     */
+    private static boolean tooManyKeywordSortFields(List<Order> orders, int maxKeywordSortFields) {
+        int count = 0;
+        for (Order order : orders) {
+            if (order.child() instanceof FieldAttribute fa && fa.dataType() == DataType.KEYWORD) {
+                if (++count > maxKeywordSortFields) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} if the number of keyword {@link EsQueryExec.FieldSort} entries in the given sorts
+     * exceeds {@code maxKeywordSortFields}. Used on the compound pushdown path.
+     */
+    private static boolean tooManyKeywordFieldSorts(List<EsQueryExec.Sort> sorts, int maxKeywordSortFields) {
+        int count = 0;
+        for (EsQueryExec.Sort sort : sorts) {
+            if (sort instanceof EsQueryExec.FieldSort fs && fs.resulType() == DataType.KEYWORD) {
+                if (++count > maxKeywordSortFields) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }

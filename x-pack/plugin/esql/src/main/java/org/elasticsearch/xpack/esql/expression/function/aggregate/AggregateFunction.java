@@ -12,9 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -26,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -41,6 +40,23 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * - Aggregate functions can have an optional filter and window, which default to {@code Literal.TRUE} and {@code NO_WINDOW}.
  * - The aggregation function should be composed as: source, field, filter, window, parameters.
  * Extra parameters should go to the parameters after the filter and window.
+ * <p>
+ *     These function appear only in special places in the language that expect to take many inputs
+ *     and produce one output per group key:
+ * </p>
+ * <ul>
+ *     <li>{@code | STATS MAX(a)}</li>
+ *     <li>{@code | STATS MAX(a) BY ...}</li>
+ * </ul>
+ * <p>
+ *     They always process many input rows to produce their values. If they are built
+ *     without a {@code BY} they produce a single value as output. If they are built
+ *     with a {@code BY} they produce one value per group key as output.
+ * </p>
+ * <p>
+ *     See {@link org.elasticsearch.compute.aggregation.AggregatorMode} for important
+ *     information about their execution lifecycle.
+ * </p>
  */
 public abstract class AggregateFunction extends Function implements PostAnalysisPlanVerificationAware {
     public static final Literal NO_WINDOW = Literal.timeDuration(Source.EMPTY, Duration.ZERO);
@@ -129,6 +145,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      */
     public abstract AggregateFunction withFilter(Expression filter);
 
+    public static Expression withFilter(Expression expression, Expression filter) {
+        return expression.transformDown(AggregateFunction.class, af -> af.withFilter(filter));
+    }
+
+    public static List<? extends Expression> withFilter(List<? extends Expression> expression, Expression filter) {
+        if (filter == null) {
+            return expression;
+        }
+        return expression.stream().map(e -> withFilter(e, filter)).toList();
+    }
+
     public AggregateFunction withParameters(List<? extends Expression> parameters) {
         if (parameters == this.parameters) {
             return this;
@@ -154,14 +181,16 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     /**
-     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     * Returns the ordered list of input attributes required by this aggregate function, excluding those referenced by the filter.
+     * The order must align with the input channels expected by the aggregator.
      */
-    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
-        if (hasFilter()) {
-            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
-        } else {
-            return references();
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        List<Attribute> attributes = new ArrayList<>(1 + parameters.size());
+        attributes.addAll(field.references());
+        for (Expression p : parameters) {
+            attributes.addAll(p.references());
         }
+        return attributes;
     }
 
     @Override
@@ -192,5 +221,19 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
                 }));
             }
         };
+    }
+
+    public AggregateFunction withField(Expression newField) {
+        if (newField == this.field) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), parameters));
+    }
+
+    public AggregateFunction withWindow(Expression newWindow) {
+        if (newWindow == this.window) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter, newWindow), parameters));
     }
 }

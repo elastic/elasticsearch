@@ -30,7 +30,6 @@ import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -47,16 +46,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
      * @throws IOException if an I/O error occurs
      */
     public abstract int approximateCost() throws IOException;
-
-    /**
-     * Returns an optional BitSet representing the accepted documents.
-     * If a BitSet representation is not available, returns an empty Optional. An empty optional indicates that
-     * there are some accepted documents, but they cannot be represented as a BitSet efficiently.
-     * Null implies that all documents are accepted.
-     * @return an Optional containing the BitSet of accepted documents, or empty if not available, or null if all documents are accepted
-     * @throws IOException if an I/O error occurs
-     */
-    public abstract Optional<BitSet> getBitSet() throws IOException;
 
     private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
         if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
@@ -91,11 +80,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         @Override
         public int approximateCost() throws IOException {
             return 0;
-        }
-
-        @Override
-        public Optional<BitSet> getBitSet() throws IOException {
-            return null;
         }
 
         @Override
@@ -166,14 +150,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         public int approximateCost() {
             return approximateCost;
         }
-
-        @Override
-        public Optional<BitSet> getBitSet() {
-            if (bits == null) {
-                return null;
-            }
-            return Optional.ofNullable(bitSetRef);
-        }
     }
 
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
@@ -232,12 +208,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
                 return cardinality != -1 ? cardinality : acceptBitSet.approximateCardinality();
             }
             return Math.toIntExact(scorerSupplier.cost());
-        }
-
-        @Override
-        public Optional<BitSet> getBitSet() throws IOException {
-            createBitSetIfNecessary();
-            return Optional.of(acceptBitSet);
         }
     }
 }

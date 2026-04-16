@@ -117,7 +117,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
@@ -173,7 +173,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        isStable
+                        isStable,
+                        PluginDescriptor.DeploymentTarget.ALL
                     )
                 );
             }
@@ -195,7 +196,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        isStable
+                        isStable,
+                        PluginDescriptor.DeploymentTarget.ALL
                     )
                 );
             }
@@ -242,7 +244,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         return new NodeInfo(
             randomAlphaOfLengthBetween(6, 32),
-            new CompatibilityVersions(TransportVersionUtils.randomVersion(random()), Map.of()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersion(), Map.of()),
             IndexVersionUtils.randomVersion(),
             componentVersions,
             build,

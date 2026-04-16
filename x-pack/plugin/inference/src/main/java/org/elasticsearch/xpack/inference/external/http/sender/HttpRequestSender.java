@@ -58,10 +58,13 @@ public class HttpRequestSender implements Sender {
             );
 
             var startCompleted = new CountDownLatch(1);
+            var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
+            executorServiceSettings.init(clusterService);
+
             var service = new RequestExecutorService(
                 serviceComponents.threadPool(),
                 startCompleted,
-                new RequestExecutorServiceSettings(serviceComponents.settings(), clusterService),
+                executorServiceSettings,
                 requestSender
             );
 

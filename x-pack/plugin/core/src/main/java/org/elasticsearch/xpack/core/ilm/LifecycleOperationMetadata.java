@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
@@ -43,6 +42,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
         TYPE,
         a -> new LifecycleOperationMetadata(OperationMode.valueOf((String) a[0]), OperationMode.valueOf((String) a[1]))
     );
+
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ILM_OPERATION_MODE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SLM_OPERATION_MODE_FIELD);
@@ -120,7 +120,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
 
     @Override
     public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
-        return new LifecycleOperationMetadata.LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
+        return new LifecycleOperationMetadataDiff((LifecycleOperationMetadata) previousState, this);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -202,7 +202,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_7_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

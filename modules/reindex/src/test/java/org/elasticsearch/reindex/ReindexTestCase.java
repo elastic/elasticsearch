@@ -75,7 +75,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
             int leastNumShards = Collections.min(
                 indices.stream().map(sourceIndex -> getNumShards(sourceIndex).numPrimaries).collect(Collectors.toList())
             );
-            return Math.min(leastNumShards, BulkByScrollParallelizationHelper.AUTO_SLICE_CEILING);
+            return Math.min(leastNumShards, BulkByPaginatedSearchParallelizationHelper.AUTO_SLICE_CEILING);
         } else {
             return requestSlices;
         }

@@ -7,368 +7,711 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+ // This file contains implementations for processors supporting "2nd level" vector
+ // capabilities; in the case of x64, this second level is support for AVX-512
+ // instructions.
+
 #include <stddef.h>
 #include <stdint.h>
-#include <math.h>
-#include "vec.h"
 
+#include "vec.h"
+#include "vec_common.h"
+#include "amd64/amd64_vec_common.h"
+
+// Includes for intrinsics
 #ifdef _MSC_VER
 #include <intrin.h>
 #elif __clang__
-#pragma clang attribute push(__attribute__((target("arch=skylake-avx512"))), apply_to=function)
 #include <x86intrin.h>
 #elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=skylake-avx512")
 #include <x86intrin.h>
 #endif
 
 #include <emmintrin.h>
 #include <immintrin.h>
 
-#ifndef STRIDE_BYTES_LEN
-#define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
-#endif
-
-// Returns acc + ( p1 * p2 ), for 64-wide int lanes.
+// Accumulates acc += dot(pa, pb) for unsigned 7-bit int lanes (64 bytes per step).
 template<int offsetRegs>
-inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
-    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
-    const __m512i a = _mm512_loadu_si512((const __m512i*)(p1 + lanes));
-    const __m512i b = _mm512_loadu_si512((const __m512i*)(p2 + lanes));
-    // Perform multiplication and create 16-bit values
+inline void fmai7u(__m512i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m512i);
+    const __m512i a = _mm512_loadu_si512((const __m512i*)(pa + lanes));
+    const __m512i b = _mm512_loadu_si512((const __m512i*)(pb + lanes));
     // Vertically multiply each unsigned 8-bit integer from a with the corresponding
     // signed 8-bit integer from b, producing intermediate signed 16-bit integers.
-    // These values will be at max 32385, at min −32640
     const __m512i dot = _mm512_maddubs_epi16(a, b);
     const __m512i ones = _mm512_set1_epi16(1);
     // Horizontally add adjacent pairs of intermediate signed 16-bit ints, and pack the results in 32-bit ints.
-    // Using madd with 1, as this is faster than extract 2 halves, add 16-bit ints, and convert to 32-bit ints.
-    return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
+    acc = _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32_t dims) {
-    constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
-    constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
-    const int8_t* p1 = a;
-    const int8_t* p2 = b;
-
-    // Init accumulator(s) with 0
-    __m512i acc0 = _mm512_setzero_si512();
-    __m512i acc1 = _mm512_setzero_si512();
-    __m512i acc2 = _mm512_setzero_si512();
-    __m512i acc3 = _mm512_setzero_si512();
-    __m512i acc4 = _mm512_setzero_si512();
-    __m512i acc5 = _mm512_setzero_si512();
-    __m512i acc6 = _mm512_setzero_si512();
-    __m512i acc7 = _mm512_setzero_si512();
-
-    const int8_t* p1End = a + (dims & ~(stride8 - 1));
-    while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
-        acc1 = fma8<1>(acc1, p1, p2);
-        acc2 = fma8<2>(acc2, p1, p2);
-        acc3 = fma8<3>(acc3, p1, p2);
-        acc4 = fma8<4>(acc4, p1, p2);
-        acc5 = fma8<5>(acc5, p1, p2);
-        acc6 = fma8<6>(acc6, p1, p2);
-        acc7 = fma8<7>(acc7, p1, p2);
-        p1 += stride8;
-        p2 += stride8;
-    }
-
-    p1End = a + (dims & ~(stride4 - 1));
-    while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
-        acc1 = fma8<1>(acc1, p1, p2);
-        acc2 = fma8<2>(acc2, p1, p2);
-        acc3 = fma8<3>(acc3, p1, p2);
-        p1 += stride4;
-        p2 += stride4;
-    }
-
-    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
-    while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
-        p1 += STRIDE_BYTES_LEN;
-        p2 += STRIDE_BYTES_LEN;
-    }
-
-    // reduce (accumulate all)
-    acc0 = _mm512_add_epi32(_mm512_add_epi32(acc0, acc1), _mm512_add_epi32(acc2, acc3));
-    acc4 = _mm512_add_epi32(_mm512_add_epi32(acc4, acc5), _mm512_add_epi32(acc6, acc7));
-    return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
-}
-
-extern "C"
-EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
-    int32_t res = 0;
+static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
-        i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = dot7u_inner_avx512(a, b, i);
+    __m512i total_sum = _mm512_setzero_si512();
+    if (dims >= sizeof(__m512i)) {
+        i = dims & ~(sizeof(__m512i) - 1);
+
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m512i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m512i acc[batches];
+        // Init accumulator(s) with 0
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                fmai7u<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                fmai7u<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            fmai7u<0>(acc[0], pa, pb);
+            pa += sizeof(__m512i);
+            pb += sizeof(__m512i);
+        }
+
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
-    for (; i < dims; i++) {
-        res += a[i] * b[i];
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in maddubs, contributing nothing to the sum.
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);
+        const __m512i va = _mm512_maskz_loadu_epi8(mask, a + i);
+        const __m512i vb = _mm512_maskz_loadu_epi8(mask, b + i);
+        const __m512i vab = _mm512_maddubs_epi16(va, vb);
+        const __m512i ones = _mm512_set1_epi16(1);
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(ones, vab));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
-extern "C"
-EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
-    int32_t res = 0;
-    if (dims > STRIDE_BYTES_LEN) {
-        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (int32_t c = 0; c < count; c++) {
-            int i = limit;
-            res = dot7u_inner_avx512(a, b, i);
-            for (; i < dims; i++) {
-                res += a[i] * b[i];
-            }
-            results[c] = (float_t)res;
-            a += dims;
-        }
-    } else {
-        for (int32_t c = 0; c < count; c++) {
-            res = 0;
-            for (int32_t i = 0; i < dims; i++) {
-                res += a[i] * b[i];
-            }
-            results[c] = (float_t)res;
-            a += dims;
-        }
-    }
+EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return dot7u_inner(a, b, dims);
 }
 
+EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_i8_bulk<int8_t, sequential_mapper, dot7u_inner, 4>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_dot7u_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<int8_t, offsets_mapper, dot7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+// Accumulates acc += sqr_distance(pa, pb) for unsigned 7-bit int lanes (64 bytes per step).
 template<int offsetRegs>
-inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
-    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
-    const __m512i a = _mm512_loadu_si512((const __m512i*)(p1 + lanes));
-    const __m512i b = _mm512_loadu_si512((const __m512i*)(p2 + lanes));
+inline void sqri7u(__m512i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m512i);
+    const __m512i a = _mm512_loadu_si512((const __m512i*)(pa + lanes));
+    const __m512i b = _mm512_loadu_si512((const __m512i*)(pb + lanes));
 
     const __m512i dist = _mm512_sub_epi8(a, b);
     const __m512i abs_dist = _mm512_abs_epi8(dist);
     const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
     const __m512i ones = _mm512_set1_epi16(1);
-    // Horizontally add adjacent pairs of intermediate signed 16-bit integers, and pack the results.
-    return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
+    acc = _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dims) {
-    constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
-    constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
-    const int8_t* p1 = a;
-    const int8_t* p2 = b;
-
-    // Init accumulator(s) with 0
-    __m512i acc0 = _mm512_setzero_si512();
-    __m512i acc1 = _mm512_setzero_si512();
-    __m512i acc2 = _mm512_setzero_si512();
-    __m512i acc3 = _mm512_setzero_si512();
-    __m512i acc4 = _mm512_setzero_si512();
-    __m512i acc5 = _mm512_setzero_si512();
-    __m512i acc6 = _mm512_setzero_si512();
-    __m512i acc7 = _mm512_setzero_si512();
-
-    const int8_t* p1End = a + (dims & ~(stride8 - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        acc1 = sqr8<1>(acc1, p1, p2);
-        acc2 = sqr8<2>(acc2, p1, p2);
-        acc3 = sqr8<3>(acc3, p1, p2);
-        acc4 = sqr8<4>(acc4, p1, p2);
-        acc5 = sqr8<5>(acc5, p1, p2);
-        acc6 = sqr8<6>(acc6, p1, p2);
-        acc7 = sqr8<7>(acc7, p1, p2);
-        p1 += stride8;
-        p2 += stride8;
-    }
-
-    p1End = a + (dims & ~(stride4 - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        acc1 = sqr8<1>(acc1, p1, p2);
-        acc2 = sqr8<2>(acc2, p1, p2);
-        acc3 = sqr8<3>(acc3, p1, p2);
-        p1 += stride4;
-        p2 += stride4;
-    }
-
-    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        p1 += STRIDE_BYTES_LEN;
-        p2 += STRIDE_BYTES_LEN;
-    }
-
-    // reduce (accumulate all)
-    acc0 = _mm512_add_epi32(_mm512_add_epi32(acc0, acc1), _mm512_add_epi32(acc2, acc3));
-    acc4 = _mm512_add_epi32(_mm512_add_epi32(acc4, acc5), _mm512_add_epi32(acc6, acc7));
-    return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
-}
-
-extern "C"
-EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
-    int32_t res = 0;
+static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
-        i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = sqr7u_inner_avx512(a, b, i);
+    __m512i total_sum = _mm512_setzero_si512();
+    if (dims >= sizeof(__m512i)) {
+        i = dims & ~(sizeof(__m512i) - 1);
+
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m512i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m512i acc[batches];
+        // Init accumulator(s) with 0
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                sqri7u<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                sqri7u<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            sqri7u<0>(acc[0], pa, pb);
+            pa += sizeof(__m512i);
+            pb += sizeof(__m512i);
+        }
+
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
     }
-    for (; i < dims; i++) {
-        int32_t dist = a[i] - b[i];
-        res += dist * dist;
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in sub/abs/maddubs, contributing nothing to the sum.
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);
+        const __m512i va = _mm512_maskz_loadu_epi8(mask, a + i);
+        const __m512i vb = _mm512_maskz_loadu_epi8(mask, b + i);
+        const __m512i dist = _mm512_sub_epi8(va, vb);
+        const __m512i abs_dist = _mm512_abs_epi8(dist);
+        const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
+        const __m512i ones = _mm512_set1_epi16(1);
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(ones, sqr_add));
     }
-    return res;
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
-// --- single precision floats
-
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t cosf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 dot0 = _mm512_setzero_ps();
-    __m512 dot1 = _mm512_setzero_ps();
-    __m512 dot2 = _mm512_setzero_ps();
-    __m512 dot3 = _mm512_setzero_ps();
-
-    __m512 norm_a0 = _mm512_setzero_ps();
-    __m512 norm_a1 = _mm512_setzero_ps();
-    __m512 norm_a2 = _mm512_setzero_ps();
-    __m512 norm_a3 = _mm512_setzero_ps();
-
-    __m512 norm_b0 = _mm512_setzero_ps();
-    __m512 norm_b1 = _mm512_setzero_ps();
-    __m512 norm_b2 = _mm512_setzero_ps();
-    __m512 norm_b3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    int32_t unrolled_limit = elementCount & ~63UL;
-    for (; i < unrolled_limit; i += 64) {
-        // Load and compute 4 blocks of 16 elements
-        __m512 a0 = _mm512_loadu_ps(a + i);
-        __m512 b0 = _mm512_loadu_ps(b + i);
-        __m512 a1 = _mm512_loadu_ps(a + i + 16);
-        __m512 b1 = _mm512_loadu_ps(b + i + 16);
-        __m512 a2 = _mm512_loadu_ps(a + i + 32);
-        __m512 b2 = _mm512_loadu_ps(b + i + 32);
-        __m512 a3 = _mm512_loadu_ps(a + i + 48);
-        __m512 b3 = _mm512_loadu_ps(b + i + 48);
-
-        dot0 = _mm512_fmadd_ps(a0, b0, dot0);
-        dot1 = _mm512_fmadd_ps(a1, b1, dot1);
-        dot2 = _mm512_fmadd_ps(a2, b2, dot2);
-        dot3 = _mm512_fmadd_ps(a3, b3, dot3);
-
-        norm_a0 = _mm512_fmadd_ps(a0, a0, norm_a0);
-        norm_a1 = _mm512_fmadd_ps(a1, a1, norm_a1);
-        norm_a2 = _mm512_fmadd_ps(a2, a2, norm_a2);
-        norm_a3 = _mm512_fmadd_ps(a3, a3, norm_a3);
-
-        norm_b0 = _mm512_fmadd_ps(b0, b0, norm_b0);
-        norm_b1 = _mm512_fmadd_ps(b1, b1, norm_b1);
-        norm_b2 = _mm512_fmadd_ps(b2, b2, norm_b2);
-        norm_b3 = _mm512_fmadd_ps(b3, b3, norm_b3);
-    }
-
-    // combine and reduce vector accumulators
-    __m512 dot_total = _mm512_add_ps(_mm512_add_ps(dot0, dot1), _mm512_add_ps(dot2, dot3));
-    __m512 norm_a_total = _mm512_add_ps(_mm512_add_ps(norm_a0, norm_a1), _mm512_add_ps(norm_a2, norm_a3));
-    __m512 norm_b_total = _mm512_add_ps(_mm512_add_ps(norm_b0, norm_b1), _mm512_add_ps(norm_b2, norm_b3));
-
-    f32_t dot_result = _mm512_reduce_add_ps(dot_total);
-    f32_t norm_a_result = _mm512_reduce_add_ps(norm_a_total);
-    f32_t norm_b_result = _mm512_reduce_add_ps(norm_b_total);
-
-    // Handle remaining tail with scalar loop
-    for (; i < elementCount; ++i) {
-        f32_t ai = a[i];
-        f32_t bi = b[i];
-        dot_result += ai * bi;
-        norm_a_result += ai * ai;
-        norm_b_result += bi * bi;
-    }
-
-    f32_t denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
-    if (denom == 0.0f) {
-        return 0.0f;
-    }
-    return dot_result / denom;
+EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return sqr7u_inner(a, b, dims);
 }
 
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 sum0 = _mm512_setzero_ps();
-    __m512 sum1 = _mm512_setzero_ps();
-    __m512 sum2 = _mm512_setzero_ps();
-    __m512 sum3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    int32_t unrolled_limit = elementCount & ~63UL;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
-        sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i),      sum0);
-        sum1 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16), sum1);
-        sum2 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32), sum2);
-        sum3 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i + 48), _mm512_loadu_ps(b + i + 48), sum3);
-    }
-
-    // reduce all partial sums
-    __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    f32_t result = _mm512_reduce_add_ps(total_sum);
-
-    for (; i < elementCount; ++i) {
-        result += a[i] * b[i];
-    }
-
-    return result;
+EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_i8_bulk<int8_t, sequential_mapper, sqr7u_inner, 4>(a, b, dims, dims, NULL, count, results);
 }
 
-// const f32_t *a  pointer to the first float vector
-// const f32_t *b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-extern "C"
-EXPORT f32_t sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementCount) {
-    __m512 sum0 = _mm512_setzero_ps();
-    __m512 sum1 = _mm512_setzero_ps();
-    __m512 sum2 = _mm512_setzero_ps();
-    __m512 sum3 = _mm512_setzero_ps();
-
-    int32_t i = 0;
-    int32_t unrolled_limit = elementCount & ~63UL;
-    // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    for (; i < unrolled_limit; i += 64) {
-        __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i));
-        __m512 d1 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 16), _mm512_loadu_ps(b + i + 16));
-        __m512 d2 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 32), _mm512_loadu_ps(b + i + 32));
-        __m512 d3 = _mm512_sub_ps(_mm512_loadu_ps(a + i + 48), _mm512_loadu_ps(b + i + 48));
-
-        sum0 = _mm512_fmadd_ps(d0, d0, sum0);
-        sum1 = _mm512_fmadd_ps(d1, d1, sum1);
-        sum2 = _mm512_fmadd_ps(d2, d2, sum2);
-        sum3 = _mm512_fmadd_ps(d3, d3, sum3);
-    }
-
-    // reduce all partial sums
-    __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    f32_t result = _mm512_reduce_add_ps(total_sum);
-
-    for (; i < elementCount; ++i) {
-        f32_t diff = a[i] - b[i];
-        result += diff * diff;
-    }
-
-    return result;
+EXPORT void vec_sqr7u_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
 }
 
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif
+// --- int8 (signed, full range -128..127) AVX-512 implementations ---
+// Unlike i7u which uses maddubs (unsigned x signed), i8 needs sign-extension to 16-bit
+// before multiply, because both operands can be negative. Each iteration loads 32 bytes
+// (into __m256i), sign-extends to __m512i, then uses signed madd_epi16.
+
+// Accumulates acc += dot(pa, pb) for signed int8. Loads 32 bytes at compile-time
+// offset, sign-extends to 16-bit, then signed multiply-accumulate.
+template<int offsetRegs>
+inline void fmai8(__m512i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m256i);  // 32 bytes per step
+    const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pa + lanes)));
+    const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pb + lanes)));
+    acc = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), acc);
+}
+
+static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
+    if (dims >= sizeof(__m256i)) {
+        i = dims & ~(sizeof(__m256i) - 1);
+
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m256i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m256i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m512i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                fmai8<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                fmai8<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            fmai8<0>(acc[0], pa, pb);
+            pa += sizeof(__m256i);
+            pb += sizeof(__m256i);
+        }
+
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
+    }
+    // Masked tail: sign-extend remaining elements (< 32) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in madd_epi16, contributing nothing to the sum.
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(a16, b16));
+    }
+    return _mm512_reduce_add_epi32(total_sum);
+}
+
+EXPORT f32_t vec_doti8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)doti8_inner(a, b, dims);
+}
+
+// Bulk-optimized dot i8
+// Uses the algebraic identity: a*b = (a+128)*b - 128*sum(b), where (a+128) is
+// unsigned. This is to work around x64 asymmetric dot-product ops (DPBUSD computes
+// unsigned*signed multiply-accumulate).
+// Precompute the query correction once, then each document
+// vector only needs XOR + DPBUSD (no SAD per vector).
+
+// Lean fmai8 for bulk: only XOR on a + DPBUSD, no b-side correction work.
+template<int offsetRegs>
+inline void fmai8_bulk(__m512i& acc_ab, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m512i);  // 64 bytes per step
+    const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
+    const __m512i a = _mm512_loadu_si512(pa + lanes);
+    const __m512i b = _mm512_loadu_si512(pb + lanes);
+    acc_ab = _mm512_dpbusd_epi32(acc_ab, _mm512_xor_si512(a, xor_mask), b);
+}
+
+// Precompute the correction term from the query vector b.
+// Returns 128 * sum(b), computed via the XOR+SAD trick.
+static inline int64_t precompute_b_correction(const int8_t* b, const int32_t dims) {
+    const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
+    const __m512i zeros = _mm512_setzero_si512();
+    __m512i sum_b_bias = _mm512_setzero_si512();
+    int i = 0;
+    for (; i + 64 <= dims; i += 64) {
+        const __m512i bv = _mm512_loadu_si512(b + i);
+        sum_b_bias = _mm512_add_epi64(sum_b_bias, _mm512_sad_epu8(_mm512_xor_si512(bv, xor_mask), zeros));
+    }
+    if (i < dims) {
+        const __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFFULL, dims - i);
+        const __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
+        sum_b_bias = _mm512_add_epi64(sum_b_bias, _mm512_sad_epu8(
+            _mm512_xor_si512(bv, _mm512_maskz_set1_epi8(mask, (char)0x80)), zeros));
+    }
+    int64_t sum_b_biased = _mm512_reduce_add_epi64(sum_b_bias);
+    // correction = 128 * sum(b) = 128 * (sum(b+128) - 128*dims)
+    // No phantom values thanks to masked XOR in tail.
+    return 128LL * sum_b_biased - 16384LL * dims;
+}
+
+// Inner op for bulk: DPBUSD only, applies precomputed correction at the end.
+static inline int32_t doti8_inner_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int64_t b_correction) {
+    int i = 0;
+    __m512i total_ab = _mm512_setzero_si512();
+    if (dims >= sizeof(__m512i)) {
+        i = dims & ~(sizeof(__m512i) - 1);
+
+        constexpr int batches = 4;
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m512i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m512i acc_ab[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc_ab[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                fmai8_bulk<I>(acc_ab[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                fmai8_bulk<I>(acc_ab[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            fmai8_bulk<0>(acc_ab[0], pa, pb);
+            pa += sizeof(__m512i);
+            pb += sizeof(__m512i);
+        }
+
+        total_ab = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc_ab);
+    }
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __m512i xor_mask = _mm512_set1_epi8((char)0x80);
+        const __mmask64 mask = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFFULL, remaining);
+        const __m512i a_raw = _mm512_maskz_loadu_epi8(mask, a + i);
+        const __m512i b_raw = _mm512_maskz_loadu_epi8(mask, b + i);
+        total_ab = _mm512_dpbusd_epi32(total_ab, _mm512_xor_si512(a_raw, xor_mask), b_raw);
+    }
+    return (int32_t)(_mm512_reduce_add_epi32(total_ab) - b_correction);
+}
+
+// Bulk dot i8 with prefetch. Precomputes query correction once, then scores
+// each document with the lean DPBUSD-only inner loop.
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
+static inline void doti8_bulk(
+    const TData* a, const int8_t* b, const int32_t dims, const int32_t pitch,
+    const int32_t* offsets, const int32_t count, f32_t* results
+) {
+    constexpr int batches = 4;
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    const int64_t b_correction = precompute_b_correction(b, dims);
+    int c = 0;
+
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)doti8_inner_bulk(current_vecs[I], b, dims, b_correction);
+        });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
+    }
+
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = (f32_t)doti8_inner_bulk(a0, b, dims, b_correction);
+    }
+}
+
+EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    doti8_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_doti8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    doti8_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    doti8_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
+// Accumulates acc += sqr_distance(pa, pb) for signed int8. Sign-extends to 16-bit,
+// subtracts, then madd for squared accumulation.
+template<int offsetRegs>
+inline void sqri8(__m512i& acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m256i);
+    const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pa + lanes)));
+    const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(pb + lanes)));
+    const __m512i dist = _mm512_sub_epi16(a16, b16);
+    acc = _mm512_add_epi32(_mm512_madd_epi16(dist, dist), acc);
+}
+
+static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int i = 0;
+    __m512i total_sum = _mm512_setzero_si512();
+    if (dims >= sizeof(__m256i)) {
+        i = dims & ~(sizeof(__m256i) - 1);
+
+        constexpr int batches = 4;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * sizeof(__m256i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m256i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
+
+        __m512i acc[batches];
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<batches>([&](auto I) {
+                sqri8<I>(acc[I], pa, pb);
+            });
+            pa += batch_stride;
+            pb += batch_stride;
+        }
+
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
+            apply_indexed<half_batches>([&](auto I) {
+                sqri8<I>(acc[I], pa, pb);
+            });
+            pa += half_batch_stride;
+            pb += half_batch_stride;
+        }
+
+        pa_end = a + i;
+        while (pa < pa_end) {
+            sqri8<0>(acc[0], pa, pb);
+            pa += sizeof(__m256i);
+            pb += sizeof(__m256i);
+        }
+
+        total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
+    }
+    // Masked tail: zeroed lanes from maskz_loadu produce zeros in sub/madd, contributing nothing.
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        const __m512i dist = _mm512_sub_epi16(a16, b16);
+        total_sum = _mm512_add_epi32(total_sum, _mm512_madd_epi16(dist, dist));
+    }
+    return _mm512_reduce_add_epi32(total_sum);
+}
+
+EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)sqri8_inner(a, b, dims);
+}
+
+EXPORT void vec_sqri8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_i8_bulk<int8_t, sequential_mapper, sqri8_inner, 4>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqri8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<int8_t, offsets_mapper, sqri8_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_sqri8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, sqri8_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
+// --- Cosine i8 (signed) AVX-512 ---
+// Computes cosine similarity: sum(a*b) / sqrt(sum(a*a) * sum(b*b))
+// Uses sign-extension like dot/sqr i8, with 3 accumulators (sum, a_norm, b_norm).
+static inline f32_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    __m512i sum = _mm512_setzero_si512();
+    __m512i a_norm = _mm512_setzero_si512();
+    __m512i b_norm = _mm512_setzero_si512();
+
+    int i = 0;
+    const int blk = dims & ~(sizeof(__m256i) - 1);
+    for (; i < blk; i += sizeof(__m256i)) {
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(a + i)));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+        sum = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), sum);
+        a_norm = _mm512_add_epi32(_mm512_madd_epi16(a16, a16), a_norm);
+        b_norm = _mm512_add_epi32(_mm512_madd_epi16(b16, b16), b_norm);
+    }
+
+    // Masked tail
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        sum = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), sum);
+        a_norm = _mm512_add_epi32(_mm512_madd_epi16(a16, a16), a_norm);
+        b_norm = _mm512_add_epi32(_mm512_madd_epi16(b16, b16), b_norm);
+    }
+
+    int32_t sum_i32 = _mm512_reduce_add_epi32(sum);
+    int32_t a_norm_i32 = _mm512_reduce_add_epi32(a_norm);
+    int32_t b_norm_i32 = _mm512_reduce_add_epi32(b_norm);
+    return (f32_t) ((double) sum_i32 / __builtin_sqrt((double) a_norm_i32 * b_norm_i32));
+}
+
+EXPORT f32_t vec_cosi8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return cosi8_inner(a, b, dims);
+}
+
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 4>
+static inline void cosi8_inner_bulk(
+    const TData* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int blk = dims & ~(sizeof(__m256i) - 1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    // Precompute b norm
+    __m512i b_norms = _mm512_setzero_si512();
+    int bi = 0;
+    for (; bi < blk; bi += sizeof(__m256i)) {
+        const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + bi)));
+        b_norms = _mm512_add_epi32(_mm512_madd_epi16(vb16, vb16), b_norms);
+    }
+    // Masked tail for b norm
+    const int b_remaining = dims - bi;
+    if (b_remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << b_remaining) - 1);
+        const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + bi));
+        b_norms = _mm512_add_epi32(_mm512_madd_epi16(vb16, vb16), b_norms);
+    }
+    int32_t b_norm = _mm512_reduce_add_epi32(b_norms);
+
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
+    static_assert(batches % 2 == 0, "batches must be even for vectorized cosine");
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
+        __m512i sums[batches];
+        __m512i a_norms[batches];
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = _mm512_setzero_si512();
+            a_norms[I] = _mm512_setzero_si512();
+        });
+
+        int i = 0;
+        for (; i < blk; i += sizeof(__m256i)) {
+            const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+
+            apply_indexed<batches>([&](auto I) {
+                const __m512i va16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(current_vecs[I] + i)));
+                sums[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, vb16), sums[I]);
+                a_norms[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, va16), a_norms[I]);
+            });
+        }
+
+        // Masked tail
+        const int remaining = dims - i;
+        if (remaining > 0) {
+            const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+            const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+            apply_indexed<batches>([&](auto I) {
+                const __m512i va16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, current_vecs[I] + i));
+                sums[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, vb16), sums[I]);
+                a_norms[I] = _mm512_add_epi32(_mm512_madd_epi16(va16, va16), a_norms[I]);
+            });
+        }
+
+        // Vectorized cosine finalization: results[i] = sum[i] / sqrt(a_norm[i] * b_norm)
+        // batches=4 fits exactly in one __m128
+        __m128 sum_ps = _mm_setr_ps(
+            _mm512_reduce_add_epi32(sums[0]), _mm512_reduce_add_epi32(sums[1]),
+            _mm512_reduce_add_epi32(sums[2]), _mm512_reduce_add_epi32(sums[3]));
+        __m128 a_norm_ps = _mm_setr_ps(
+            _mm512_reduce_add_epi32(a_norms[0]), _mm512_reduce_add_epi32(a_norms[1]),
+            _mm512_reduce_add_epi32(a_norms[2]), _mm512_reduce_add_epi32(a_norms[3]));
+        __m128 b_norm_ps = _mm_set1_ps(b_norm);
+        __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(a_norm_ps, b_norm_ps)));
+        _mm_storeu_ps(results + c, res);
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = cosi8_inner(a0, b, dims);
+    }
+}
+
+EXPORT void vec_cosi8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    cosi8_inner_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_cosi8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    cosi8_inner_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_cosi8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}

@@ -1,5 +1,0 @@
-pr: 137220
-summary: Skip dataframes when disabled
-area: Machine Learning
-type: bug
-issues: []

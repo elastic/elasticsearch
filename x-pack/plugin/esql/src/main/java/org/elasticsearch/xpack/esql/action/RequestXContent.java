@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -90,6 +91,8 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
+    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+    private static final ParseField APPROXIMATION_FIELD = new ParseField("approximation");
 
     private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
     private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
@@ -121,6 +124,13 @@ final class RequestXContent {
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
+        parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
+        parser.declareObjectOrBooleanOrNull(
+            EsqlQueryRequest::approximation,
+            (p, c) -> ApproximationSettings.fromXContent(p),
+            ApproximationSettings.EXPLICIT_NULL,
+            APPROXIMATION_FIELD
+        );
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
@@ -208,8 +218,8 @@ final class RequestXContent {
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                             DataType currentType = valueAndDataType.type;
-                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
-                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
+                            nullValueFound = nullValueFound || (currentType == DataType.NULL);
+                            mixedTypesFound = mixedTypesFound || (arrayType != DataType.NULL && arrayType != currentType);
                             if (currentType != DataType.NULL) {
                                 arrayType = currentType;
                             }

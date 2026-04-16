@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -25,8 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 /**
  * Encapsulates the information that describes an index from its data stream lifecycle perspective.
@@ -82,22 +79,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.isInternalDataStream = in.readBoolean();
-        } else {
-            this.isInternalDataStream = false;
-        }
+        this.isInternalDataStream = in.readBoolean();
         if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            if (in.getTransportVersion().onOrAfter(V_8_12_0)) {
-                this.error = in.readOptionalWriteable(ErrorEntry::new);
-            } else {
-                String bwcErrorMessage = in.readOptionalString();
-                this.error = new ErrorEntry(-1L, bwcErrorMessage, -1L, -1);
-            }
+            this.error = in.readOptionalWriteable(ErrorEntry::new);
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -165,20 +153,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(isInternalDataStream);
-        }
+        out.writeBoolean(isInternalDataStream);
         if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
-                out.writeOptionalWriteable(error);
-            } else {
-                String errorMessage = error != null ? error.error() : null;
-                out.writeOptionalString(errorMessage);
-            }
+            out.writeOptionalWriteable(error);
         }
     }
 

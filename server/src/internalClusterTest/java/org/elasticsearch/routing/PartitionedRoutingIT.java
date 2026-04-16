@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,6 +26,7 @@ import java.util.Set;
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class PartitionedRoutingIT extends ESIntegTestCase {
 
@@ -50,7 +50,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
 
                 verifyGets(index, routingToDocumentIds);
                 verifyBroadSearches(index, routingToDocumentIds, shards);
-                verifyRoutedSearches(index, routingToDocumentIds, Sets.newSet(partitionSize));
+                verifyRoutedSearches(index, routingToDocumentIds, partitionSize);
             }
         }
     }
@@ -77,20 +77,10 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
 
         while (true) {
-            int factor = originalShards / currentShards;
-
             verifyGets(index, routingToDocumentIds);
             verifyBroadSearches(index, routingToDocumentIds, currentShards);
 
-            // we need the floor and ceiling of the routing_partition_size / factor since the partition size of the shrunken
-            // index will be one of those, depending on the routing value
-            verifyRoutedSearches(
-                index,
-                routingToDocumentIds,
-                Math.floorDiv(partitionSize, factor) == 0
-                    ? Sets.newSet(1, 2)
-                    : Sets.newSet(Math.floorDiv(partitionSize, factor), -Math.floorDiv(-partitionSize, factor))
-            );
+            verifyRoutedSearches(index, routingToDocumentIds, Math.min(partitionSize, currentShards));
 
             updateIndexSettings(
                 Settings.builder()
@@ -149,7 +139,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         assertThat(exc.getMessage(), containsString("final indexMetadata setting [index.routing_partition_size]"));
     }
 
-    private void verifyRoutedSearches(String index, Map<String, Set<String>> routingToDocumentIds, Set<Integer> expectedShards) {
+    private void verifyRoutedSearches(String index, Map<String, Set<String>> routingToDocumentIds, int expectedShards) {
         for (Map.Entry<String, Set<String>> routingEntry : routingToDocumentIds.entrySet()) {
             String routing = routingEntry.getKey();
             int expectedDocuments = routingEntry.getValue().size();
@@ -169,9 +159,10 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             + "]"
                     );
 
-                    assertTrue(
+                    assertThat(
                         response.getTotalShards() + " was not in " + expectedShards + " for " + index,
-                        expectedShards.contains(response.getTotalShards())
+                        expectedShards,
+                        equalTo(response.getTotalShards())
                     );
                     assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 

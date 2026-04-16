@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -64,7 +65,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
-                    if (out.getTransportVersion().before(transportVersion)) {
+                    if (out.getTransportVersion().supports(transportVersion) == false) {
                         throw new IllegalArgumentException("This query isn't serializable before transport version " + transportVersion);
                     }
                 }
@@ -84,7 +85,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 actionFilters,
                 indicesService,
                 null,
-                null
+                null,
+                CrossProjectModeDecider.NOOP
             );
 
             IllegalArgumentException ex = safeAwaitFailure(

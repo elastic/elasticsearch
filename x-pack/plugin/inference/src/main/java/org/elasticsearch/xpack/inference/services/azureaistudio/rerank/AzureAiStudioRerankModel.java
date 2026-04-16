@@ -43,10 +43,14 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
         AzureAiStudioRerankTaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, TaskType.RERANK, AzureAiStudioService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    public AzureAiStudioRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AzureAiStudioRerankModel(
@@ -85,7 +89,7 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
 
     @Override
     protected URI getEndpointUri() throws URISyntaxException {
-        return new URI(this.target + RERANK_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + RERANK_URI_PATH);
     }
 
     @Override

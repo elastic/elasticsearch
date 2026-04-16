@@ -90,9 +90,7 @@ public class DeepSeekChatCompletionModel extends Model {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
@@ -115,9 +113,7 @@ public class DeepSeekChatCompletionModel extends Model {
             extractOptionalString(serviceSettingsMap, "url", ModelConfigurations.SERVICE_SETTINGS, validationException)
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
@@ -135,6 +131,15 @@ public class DeepSeekChatCompletionModel extends Model {
         super(configurations, secrets);
         this.serviceSettings = serviceSettings;
         this.secretSettings = secretSettings;
+    }
+
+    public DeepSeekChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        this(
+            (DeepSeekServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            modelConfigurations,
+            modelSecrets
+        );
     }
 
     public Optional<SecureString> apiKey() {
@@ -157,11 +162,11 @@ public class DeepSeekChatCompletionModel extends Model {
         return RATE_LIMIT_SETTINGS;
     }
 
-    private record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
+    public record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
         private static final String NAME = "deep_seek_service_settings";
         private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
 
-        DeepSeekServiceSettings {
+        public DeepSeekServiceSettings {
             Objects.requireNonNull(modelId);
         }
 

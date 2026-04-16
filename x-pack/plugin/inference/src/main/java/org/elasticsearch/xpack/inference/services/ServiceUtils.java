@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -89,7 +90,6 @@ public final class ServiceUtils {
      * @return {@code null} if not present else the object cast to type T
      * @param <T> The expected type
      */
-    @SuppressWarnings("unchecked")
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
         return InferenceUtils.removeAsType(sourceMap, key, type, validationException);
     }
@@ -301,6 +301,7 @@ public final class ServiceUtils {
 
     /**
      * Extracts an optional URI from the map. If the field is not present, null is returned. If the field is present but invalid,
+     * an error is added to the validation exception.
      * @param map the map to extract the URI from
      * @param fieldName the field name to extract
      * @param validationException the validation exception to add errors to
@@ -425,16 +426,6 @@ public final class ServiceUtils {
         ValidationException validationException
     ) {
         return InferenceUtils.extractOptionalString(map, settingName, scope, validationException);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T> List<T> extractOptionalList(
-        Map<String, Object> map,
-        String settingName,
-        Class<T> type,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractOptionalList(map, settingName, type, validationException);
     }
 
     public static Integer extractRequiredPositiveInteger(
@@ -652,7 +643,7 @@ public final class ServiceUtils {
                         settingName,
                         entry.getKey(),
                         entry.getValue(),
-                        entry.getValue(),
+                        getTypeAsString(entry.getValue()),
                         String.join(", ", validTypesAsStrings)
                     );
                 }
@@ -665,6 +656,29 @@ public final class ServiceUtils {
                 validationException.addValidationError(errorMessage.apply(validTypesAsStrings));
                 throw validationException;
             }
+        }
+    }
+
+    private static String getTypeAsString(@Nullable Object value) {
+        if (value == null) {
+            return "null";
+        }
+
+        var simpleName = value.getClass().getSimpleName();
+        var lowerCaseSimpleName = simpleName.toLowerCase(Locale.ROOT);
+
+        // maps may be represented as HashMap, LinkedHashMap, Map1, etc. Lists may be ArrayList, LinkedList, etc.
+        // Sets may be HashSet, LinkedHashSet, etc. We want to simplify these to Map, List, and Set in the error messages.
+        if (lowerCaseSimpleName.contains("map")) {
+            return "Map";
+        } else if (lowerCaseSimpleName.contains("list")) {
+            return "Array";
+        } else if (lowerCaseSimpleName.contains("set")) {
+            return "Set";
+        } else if (lowerCaseSimpleName.contains("array")) {
+            return "Array";
+        } else {
+            return simpleName;
         }
     }
 
@@ -697,26 +711,6 @@ public final class ServiceUtils {
         return map;
     }
 
-    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
-        Map<String, Object> map,
-        String settingName,
-        int maxValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(map, settingName, maxValue, scope, validationException);
-    }
-
-    public static Integer extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
-        Map<String, Object> map,
-        String settingName,
-        int minValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, settingName, minValue, scope, validationException);
-    }
-
     public static Integer extractRequiredPositiveIntegerBetween(
         Map<String, Object> map,
         String settingName,
@@ -746,6 +740,22 @@ public final class ServiceUtils {
         ValidationException validationException
     ) {
         return extractOptionalInteger(map, settingName, scope, validationException, true);
+    }
+
+    public static Integer extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = extractOptionalPositiveInteger(map, settingName, scope, validationException);
+
+        if (optionalField != null && optionalField > maxValue) {
+            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, optionalField, maxValue));
+        }
+
+        return optionalField;
     }
 
     public static Integer extractOptionalInteger(
@@ -986,7 +996,19 @@ public final class ServiceUtils {
     }
 
     public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+        throwUnsupportedTaskOperation(serviceName, "unified completion");
+    }
+
+    public static void throwUnsupportedReasoningUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
+    }
+
+    public static void throwUnsupportedEmbeddingOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "embedding");
+    }
+
+    private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
@@ -996,6 +1018,16 @@ public final class ServiceUtils {
             model.getTaskType(),
             supportedTaskTypes
         );
+    }
+
+    public static ElasticsearchStatusException createUnsupportedTaskTypeStatusException(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, supportedTaskTypes);
+
+        if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+            responseString = responseString + " " + useChatCompletionUrlMessage(model);
+        }
+
+        return new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST);
     }
 
     public static String useChatCompletionUrlMessage(Model model) {

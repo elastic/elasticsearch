@@ -47,6 +47,10 @@ public class RoutingHashBuilder {
         }
     }
 
+    public void clear() {
+        hashes.clear();
+    }
+
     /**
      * Only expected to be called for old indices created before
      * {@link IndexVersions#TIME_SERIES_ROUTING_HASH_IN_ID} while creating (during ingestion)
